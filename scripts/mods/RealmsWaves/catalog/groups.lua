@@ -133,7 +133,7 @@ Groups.MODIFIERS = {
 		id = "rotten", name = "Rotten Armor", buffs = { "mutator_rotten_armor" }, skip_if_present = true,
 		only_breeds = { renegade_executor = "Scab Mauler", renegade_berzerker = "Scab Rager", chaos_ogryn_executor = "Crusher" },
 		aliases = { "rotten", "rotten armor", "rotten armour", "rotting", "rotten armored" },
-		description = "Rotten Armor (Scab Mauler, Scab Rager and Crusher only, not the cultist Rager). Takes only a quarter of the damage at full health, weakening as it is hurt (normal below half, extra below a quarter). Head and limbs are very resilient. Leaves a toxic puddle when it dies. No rotten armor model, other enemies are skipped.",
+		description = "Scab Mauler, Scab Rager, Crusher only. Takes 1/4 damage at full health, rising as it is hurt. Toxic puddle on death. No rotten model.",
 	},
 }
 

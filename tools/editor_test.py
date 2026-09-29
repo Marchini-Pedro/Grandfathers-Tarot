@@ -422,6 +422,12 @@ check("detail: Mods button on enemy rows", row(1).content.show_mods and row(1).c
 check("engine rule: detail row Mods/stepper/Remove hotspots run, checkbox does not", hotspot_runs(row(1), "hotspot_mods") and hotspot_runs(row(1), "hotspot_plus") and hotspot_runs(row(1), "hotspot_action") and not hotspot_runs(row(1), "hotspot_check"))
 click_row(1, "hotspot_mods")
 check("mods screen opens", view._screen == "mods" and view._widgets_by_name.description_text.content.description_text:find("view_desc_mods") ~= nil and view._widgets_by_name.btn_back.visible)
+do
+  -- the description column fits two lines of about 75 characters (Orange, the longest that fitted in game, is 138)
+  local longest, which = 0, nil
+  for i = 1, 10 do local n = #row(i).content.info; if n > longest then longest, which = n, row(i).content.row_name end end
+  check("mods screen: every description fits the two-line column (<= 138 characters)", longest <= 138, tostring(which) .. " " .. longest)
+end
 check("mods screen lists all 10 modifiers with checkboxes", row(10).visible and #view:_source() == 10 and row(1).content.show_check and not row(1).content.show_stepper and not row(1).content.show_action and not row(1).content.show_mods, row(10).content.row_name)
 check("mods screen: names, descriptions, havoc note", row(1).content.row_name == "Purple" and row(1).content.info:find("Encroaching Garden") ~= nil and row(1).content.info:find("heals nearby") ~= nil and row(6).content.row_name == "Pus-Hardened Skin" and row(3).content.row_name == "Red" and row(4).content.row_name == "Blight" and row(5).content.row_name == "Orange" and row(5).content.info:find("^Rampaging Enemies") ~= nil and row(9).content.row_name == "Purple Stimm" and row(6).content.info:find("note_havoc_only") ~= nil and row(2).content.info:find("note_havoc_only") == nil)
 check("mods screen: nothing ticked yet", not row(1).content.checkbox_selected and not row(2).content.checkbox_selected)

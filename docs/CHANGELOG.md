@@ -2,6 +2,9 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## 1.5.8
+- **Rotten Armor's description overflowed its row** on the Mods screen (it ran to five lines and overlapped the Purple Stimm row). Shortened to 133 characters (two lines fit about 138, Orange is 138 and fits). New editor test: every modifier description must be <= 138 characters, so a long description fails offline. The full effect details stay in `docs/03`.
+
 ## 1.5.7
 - **Fix: `[update] failed: ... attempt to index global 'FixedFrame' (a nil value)`** (user report after spawning a modifier wave). `Execute.apply_modifiers` called `FixedFrame.get_latest_fixed_time()` but `FixedFrame` is a module, not a global (the game requires it: `havoc_buff_templates.lua:7`). The mod never required it, so EVERY wave with a modifier (Purple, Enraged, Rotten...) raised this after adding the buffs, aborting that feed tick (units queued behind it were delayed). The buffs themselves were added before the error, which is why the modifiers still seemed to work. Fix: `require("scripts/utilities/fixed_frame")` at the top of `spawn/execute.lua`. Why the tests missed it: the stub defined `FixedFrame` as a global. Stubs now provide it only through `require` (logic and entry tests), so bare use fails offline exactly like in the game (verified by removing the require: the test reproduces the error).
 - Lesson (also in the results log): never stub a module as a global in tests; provide it via `package.preload` so a missing `require` shows up.
