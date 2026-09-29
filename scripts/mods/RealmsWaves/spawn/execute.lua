@@ -444,6 +444,31 @@ local function notify_stuck(job, text)
 	end
 end
 
+-- The twin captains' toughness template (`twin_captain_one`) has `start_depleted = true`: their void
+-- shield is created DOWN and the game raises it after spawning with `optional_init_toughness`
+-- (auto_event.lua:845-883, minion_spawn_manager.lua:211-218; the toxic-gas-twins mutator calls
+-- set_toughness_damage(0, true) itself). Spawning them without it leaves them shield-less.
+local shield_init_cache = {}
+
+local function needs_shield_init(breed_name)
+	local cached = shield_init_cache[breed_name]
+
+	if cached ~= nil then
+		return cached
+	end
+
+	local ok, Breeds = pcall(require, "scripts/settings/breed/breeds")
+	local breed = ok and type(Breeds) == "table" and Breeds[breed_name] or nil
+	local template = breed and breed.toughness_template or nil
+	local result = template ~= nil and template.start_depleted == true
+
+	if breed then
+		shield_init_cache[breed_name] = result
+	end
+
+	return result
+end
+
 -- Returns true, or false and a reason.
 local function spawn_one(breed_name, position, target_unit, mod_ids)
 	local spawn_manager = Managers.state.minion_spawn
@@ -458,6 +483,10 @@ local function spawn_one(breed_name, position, target_unit, mod_ids)
 
 	param.optional_aggro_state = "aggroed"
 	param.optional_target_unit = target_unit
+
+	if needs_shield_init(breed_name) then
+		param.optional_init_toughness = true
+	end
 
 	Bypass.begin_spawn()
 

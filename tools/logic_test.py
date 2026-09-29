@@ -445,7 +445,7 @@ local spawned = {}
 local minion_spawn = {
   request_param_table = function() return {} end,
   spawn_minion = function(self, breed, pos, rot, side_id, param)
-    local unit = { breed = breed, buffs = make_buff_ext(breed), aggro = param.optional_aggro_state, side = side_id, spawn_flag = Bypass.spawning }
+    local unit = { breed = breed, buffs = make_buff_ext(breed), aggro = param.optional_aggro_state, init_toughness = param.optional_init_toughness, side = side_id, spawn_flag = Bypass.spawning }
     spawned[#spawned + 1] = unit
     return unit
   end,
@@ -523,6 +523,26 @@ check("execute: each unit goes through Positions.spread with the wave radius", a
 spread_calls = {}
 run_wave({ name = "t", parts = Groups.parse("2 hounds") })
 check("execute: no spread configured -> radius 0", #spread_calls == 2 and spread_calls[1] == 0)
+
+-- twin captains: the shield starts down (toughness template start_depleted) and must be raised via optional_init_toughness
+do
+  package.preload["scripts/settings/breed/breeds"] = function()
+    return {
+      renegade_twin_captain = { toughness_template = { start_depleted = true } },
+      renegade_twin_captain_two = { toughness_template = { start_depleted = true } },
+      renegade_captain = { toughness_template = { start_depleted = nil } },
+      chaos_hound = {},
+    }
+  end
+  Execute.reset()
+  run_wave({ name = "twins", parts = Groups.parse("1 twin captain one, 1 twin captain two, 1 hound, 1 captain") })
+  local by = {}
+  for _, u in ipairs(spawned) do by[u.breed] = u.init_toughness end
+  check("twins: both twin captains are spawned with optional_init_toughness (shield up)", by.renegade_twin_captain == true and by.renegade_twin_captain_two == true, tostring(by.renegade_twin_captain) .. "/" .. tostring(by.renegade_twin_captain_two))
+  check("twins: other breeds never get it", by.chaos_hound == nil and by.renegade_captain == nil)
+  package.preload["scripts/settings/breed/breeds"] = nil
+  package.loaded["scripts/settings/breed/breeds"] = nil
+end
 
 -- levels without a main path (Psykhanium): only explicit /rw_test waves use the ring fallback ---------
 do
