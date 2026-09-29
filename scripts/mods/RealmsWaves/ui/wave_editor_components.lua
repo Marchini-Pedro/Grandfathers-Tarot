@@ -316,6 +316,13 @@ function POPUP.open(view, spec)
 	view._popup = { spec = spec, original = text, last_text = text, error = nil }
 	view.is_text_input_focused = true
 
+	-- DMF checks every mod's keybinds from the raw keyboard each frame and knows nothing about text
+	-- fields, so typing "i" would open the inventory (hub_hotkey_menus) etc. The entry script hooks
+	-- dmf.check_keybinds and skips it while this flag is set.
+	if mod.rw then
+		mod.rw.text_input_active = true
+	end
+
 	place_popup(view, spec.y or POPUP_DEFAULT_Y)
 
 	local content = view._widgets_by_name[Components.POPUP_INPUT_NAME].content
@@ -432,6 +439,10 @@ function POPUP.cancel(view)
 
 	view._popup = nil
 	view.is_text_input_focused = false
+
+	if mod.rw then
+		mod.rw.text_input_active = false
+	end
 
 	place_popup(view, POPUP_DEFAULT_Y)
 

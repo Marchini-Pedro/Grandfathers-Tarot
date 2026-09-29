@@ -236,6 +236,24 @@ check("picker add returns to detail", view._screen == "detail" and #view._parts 
 local found = false; for _, p in ipairs(view._parts) do if p.breed == first_breed then found = true end end
 check("picker: breed added", found, first_breed)
 
+-- typing must not trigger keybinds: the popup raises a flag the entry script's DMF hook reads ----------
+do
+  local PP = dofile(BASE .. "/ui/wave_editor_components.lua")
+  mod.rw.text_input_active = false
+  check("no popup open -> keybinds are not suppressed", mod.rw.text_input_active == false)
+  click("btn_rename")
+  check("rename popup open -> keybinds suppressed while typing", view._popup ~= nil and mod.rw.text_input_active == true)
+  PP.Popup.cancel(view)
+  check("popup cancelled -> keybinds work again", mod.rw.text_input_active == false)
+  click("btn_text")
+  check("recipe (text) popup suppresses keybinds", mod.rw.text_input_active == true)
+  PP.Popup.commit(view) -- text unchanged: closes without touching the wave
+  check("popup confirmed -> keybinds work again", mod.rw.text_input_active == false and view._popup == nil)
+  click_row(1, "hotspot_value")
+  check("number popup suppresses keybinds too", mod.rw.text_input_active == true)
+  PP.Popup.cancel(view)
+end
+
 -- enemy search in the picker -----------------------------------------------------------
 local input_stub = { get = function() return nil end, is_null_service = function() return false end }
 local SP = dofile(BASE .. "/ui/wave_editor_components.lua")
@@ -493,6 +511,15 @@ check("custom: first enemy added", #view._parts == 1 and view._parts[1].count ==
 click_row(1, "hotspot_plus")
 click("btn_enabled")
 check("custom: enabled and in pool", settings["on_custom_1"] == true and #mod.rw.events.build_pool(function(id) return settings[id] end, mod.rw.groups) == 13)
+
+-- last: closing the whole editor while a popup is open must release the keybinds
+do
+  local PP = dofile(BASE .. "/ui/wave_editor_components.lua")
+  PP.Popup.open(view, { label = "x", value = "1", numeric = true, min = 0, max = 9, integer = true, set = function() end })
+  check("a popup is open and keybinds are suppressed", mod.rw.text_input_active == true)
+  view:on_exit()
+  check("closing the whole editor while a popup is open releases the keybinds", mod.rw.text_input_active == false and view._popup == nil)
+end
 
 local errors = {}
 for _, e in ipairs(echoes) do if e:find("^ERROR") then errors[#errors+1] = e end end

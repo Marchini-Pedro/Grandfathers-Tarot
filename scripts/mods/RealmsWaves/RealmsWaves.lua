@@ -42,6 +42,22 @@ mod.on_all_mods_loaded = function ()
 
 	RW.bypass.install()
 
+	-- Typing in the editor's text boxes must not trigger any mod's keybind (e.g. "i" opening the
+	-- inventory through hub_hotkey_menus, F-keys, this mod's own vote/editor keys). DMF evaluates all
+	-- keybinds from the raw keyboard in dmf.check_keybinds() every frame, without any notion of text
+	-- input, so skip that call while one of the editor's popups is open (flag set by the popup).
+	local dmf_mod = get_mod("DMF")
+
+	if dmf_mod and type(dmf_mod.check_keybinds) == "function" then
+		mod:hook(dmf_mod, "check_keybinds", function (func, ...)
+			if RW.text_input_active and not RW.dead then
+				return
+			end
+
+			return func(...)
+		end)
+	end
+
 	local Director = RW.director
 
 	RW.protocol.init({
@@ -105,6 +121,10 @@ end
 -- On a mod reload (or game exit): stop this instance's hooks from acting (DMF cannot remove
 -- them) and release everything it holds, so reloads do not stack behaviour or pin memory.
 mod.on_unload = function ()
+	-- the keybind-suppression hook of this instance stays in DMF's chain after a reload: never let it block
+	RW.dead = true
+	RW.text_input_active = false
+
 	if RW.bypass then
 		RW.bypass.retire()
 	end

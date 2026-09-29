@@ -42,6 +42,7 @@
 | 38 | `2 crushers[purple stimm]`, `/rw_test`, kill them | Each bursts into two weaker enemies (executor) with a purple explosion; they split again; no console errors; watch the Lua memory (`/rw_status`) and unit count | not run |
 | 39 | Any popup (rename, number, search): look at the OK and Cancel buttons | Inner rectangle is the normal size for the frame, "OK"/"Cancel" fit inside, buttons do not overlap the hint text; if still small, widen the nodes (see CHANGELOG 1.5.2) | not run |
 | 40 | Add enemy > Search, type `pox`, click "Poxwalker" without closing the box | Enemy is added, box closes, back on the wave's detail screen; other buttons ignore clicks while the box is open | not run |
+| 41 | Open any text box in the editor (rename, edit as text, search) and type words containing `i`, `f`, `o`, digits, and the F1-F6 keys | Letters land in the box; no inventory/other menu opens; no vote or editor keybind fires; after Enter/Esc/closing the editor, keybinds work normally (e.g. F6, hub hotkeys) | not run |
 | 26 | Recipe text with `@`: `3 crushers[enraged]@2` in "Edit as text" | Accepted, shown as "(+2 per repeat)" in the list | not run |
 
 ## Known risks

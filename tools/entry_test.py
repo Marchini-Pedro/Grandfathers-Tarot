@@ -1,0 +1,84 @@
+"""Loads the real entry script (RealmsWaves.lua) against stubbed DMF/engine pieces and checks what it
+installs at load: the DMF keybind-suppression hook, the bypass hooks, the unload behaviour.
+Run:  python tools/entry_test.py   (needs `lupa`, see CLAUDE.md)
+"""
+import sys, os
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.environ.get("PYLIBS", r"C:\Users\ayko4\AppData\Local\Temp\claude\c--XboxGames-Warhammer-40-000--Darktide-Content\9da40c72-f459-4d9d-ab4b-3023fa21e2f5\scratchpad\pylibs"))
+from lupa import LuaRuntime
+
+MODROOT = os.path.abspath(os.path.join(HERE, "..")).replace("\\", "/")
+lua = LuaRuntime(unpack_returned_tuples=True)
+
+harness = r'''
+local MODROOT = ...
+local BASE = MODROOT .. "/scripts/mods/RealmsWaves"
+
+package.preload["scripts/settings/ui/ui_sound_events"] = function() return { system_menu_enter = "a", system_menu_exit = "b" } end
+package.preload["scripts/settings/wwise_game_sync/wwise_game_sync_settings"] = function() return { state_groups = { options = { ingame_menu = "x" } } } end
+package.preload["scripts/managers/main_path/utilities/spawn_point_queries"] = function() return {} end
+package.preload["scripts/utilities/nav_queries"] = function() return {} end
+
+local hooks, commands, views = {}, {}, {}
+local dmf_calls = {}
+local dmf_mod = { check_keybinds = function(...) dmf_calls[#dmf_calls + 1] = { ... }; return "ran" end }
+local mod = {}
+mod.hook = function(self, obj, method, fn) hooks[#hooks + 1] = { obj = obj, method = method, fn = fn, safe = false } end
+mod.hook_safe = function(self, obj, method, fn) hooks[#hooks + 1] = { obj = obj, method = method, fn = fn, safe = true } end
+mod.register_hud_element = function() end
+mod.add_require_path = function() end
+mod.register_view = function(self, def) views[#views + 1] = def end
+mod.command = function(self, name, desc, fn) commands[name] = fn end
+mod.get = function() return nil end
+mod.set = function() end
+mod.echo = function() end
+mod.warning = function() end
+mod.error = function() end
+mod.localize = function(self, id) return id end
+mod.io_dofile = function(self, path) return dofile(MODROOT .. "/../" .. path .. ".lua") end
+get_mod = function(name)
+  if name == "DMF" then return dmf_mod end
+  if name == "Realms" then return nil end
+  return mod
+end
+Managers = { event = { register = function() end } }
+
+local results = {}
+local function check(name, cond, detail) results[#results+1] = (cond and "PASS " or "FAIL ") .. name .. (detail and (" -- " .. tostring(detail)) or "") end
+
+dofile(BASE .. "/RealmsWaves.lua")
+mod.on_all_mods_loaded()
+local RW = mod.rw
+
+local dmf_hooks = {}
+for _, h in ipairs(hooks) do if h.obj == dmf_mod then dmf_hooks[#dmf_hooks + 1] = h end end
+check("entry: exactly one hook on DMF's check_keybinds, a normal (not safe) hook", #dmf_hooks == 1 and dmf_hooks[1].method == "check_keybinds" and dmf_hooks[1].safe == false, #dmf_hooks)
+local hook = dmf_hooks[1].fn
+local original = dmf_mod.check_keybinds
+
+check("keybinds: normal play (no text box) -> DMF's check runs and its result is returned", (function() dmf_calls = {}; local r = hook(original, "arg1", "arg2"); return r == "ran" and #dmf_calls == 1 and dmf_calls[1][1] == "arg1" and dmf_calls[1][2] == "arg2" end)())
+RW.text_input_active = true
+check("keybinds: while a popup text box is open -> DMF's check is skipped (typing 'i' opens nothing)", (function() dmf_calls = {}; local r = hook(original); return r == nil and #dmf_calls == 0 end)())
+RW.text_input_active = false
+check("keybinds: popup closed -> keybinds work again", (function() dmf_calls = {}; hook(original); return #dmf_calls == 1 end)())
+
+RW.text_input_active = true
+mod.on_unload()
+check("unload: the flag is cleared and this instance's hook becomes a pass-through (stale hooks after a reload never block keys)", RW.dead == true and RW.text_input_active == false and (function() dmf_calls = {}; RW.text_input_active = true; hook(original); return #dmf_calls == 1 end)())
+
+-- bypass hooks installed by the entry (string class names, DMF delays them until the class exists)
+local names = {}
+for _, h in ipairs(hooks) do if type(h.obj) == "string" then names[#names + 1] = h.obj .. "." .. h.method end end
+table.sort(names)
+check("entry: the four budget-bypass hooks are installed", table.concat(names, ",") == "MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion", table.concat(names, ","))
+check("entry: editor view registered under its name with the right class", #views == 1 and views[1].view_name == "realms_waves_editor" and views[1].view_settings.class == "RealmsWavesView")
+check("entry: commands registered (rw_test, rw_editor, rw_status, rw_custom, rw_roll, rw_start, rw_skip, rw_vote)", commands.rw_test and commands.rw_editor and commands.rw_status and commands.rw_custom and commands.rw_roll and commands.rw_start and commands.rw_skip and commands.rw_vote ~= nil)
+check("entry: keybind functions exist (open_editor, vote_1..vote_5)", type(mod.open_editor) == "function" and type(mod.vote_1) == "function" and type(mod.vote_5) == "function")
+
+return table.concat(results, "\n")
+'''
+out = lua.execute(harness, MODROOT)
+print(out)
+fails = [l for l in out.split("\n") if l.startswith("FAIL")]
+print("\nPASS:", len([l for l in out.split("\n") if l.startswith("PASS")]), "FAIL:", len(fails))
+sys.exit(1 if fails else 0)
