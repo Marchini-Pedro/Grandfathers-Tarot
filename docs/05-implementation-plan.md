@@ -40,6 +40,12 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 1.4.0 type multipliers (`mult_normal/boss/special`), picker search, "Weight" wording, limits 500 / 1000, tests (147 logic, 106 editor)
 - [ ] In-game verification (rows 27-31 in doc 06)
 
+### Iteration 1.5.x - 1.6.0
+- [x] 1.5.4 Psykhanium `/rw_test` ring fallback + visible failure reasons; picker auto-search; stay/back toggle
+- [x] 1.5.5 twin shield (`optional_init_toughness`), 1.5.6 Rotten Armor modifier, 1.5.7 `FixedFrame` require fix, 1.5.8 description length
+- [x] 1.6.0 presets: 5 named slots (`preset_1..5`, `preset_undo`), text import/export (`catalog/presets.lua`, format `RW1|...|check`), Presets screens in the wave editor, tests (logic + 30 editor checks)
+- [ ] In-game verification (rows 42-48 in doc 06)
+
 Deviations from the original plan (all deliberate):
 - No separate `handshake.lua`: hello/welcome live in `core/director.lua` (the handshake is just a version check).
 - `rw_state` is ONE JSON argument, and host -> clients uses `"others"` (Realms docs' own example) so there is no loopback to filter.
@@ -54,7 +60,7 @@ mods\RealmsWaves\
   RealmsWaves.mod                        load_after = {"Realms"}
   CLAUDE.md
   docs\                                  (this folder)
-  scripts\mods\RealmsWaves\
+  scripts\mods\RealmsWaves\   (catalog\presets.lua added in 1.6.0: preset slots + text format)
     RealmsWaves.lua                      entry: module loading, hooks, HUD registration, keybind fns, /rw_* commands
     RealmsWaves_data.lua                 options (built from catalog/events)
     RealmsWaves_localization.lua         strings (+ per-event titles generated from the catalog)

@@ -108,6 +108,7 @@ Managers = { ui = { closed = nil, close_view = function(self, n) self.closed = n
 mod.rw = {
   events = dofile(BASE .. "/catalog/events.lua"),
   groups = dofile(BASE .. "/catalog/groups.lua"),
+  presets = dofile(BASE .. "/catalog/presets.lua"),
 }
 
 local results = {}
@@ -612,6 +613,111 @@ click_row(1, "hotspot_plus")
 click("btn_enabled")
 check("custom: enabled and in pool", settings["on_custom_1"] == true and #mod.rw.events.build_pool(function(id) return settings[id] end, mod.rw.groups) == 13)
 
+-- presets ----------------------------------------------------------------------------------------------------
+do
+  local PP = dofile(BASE .. "/ui/wave_editor_components.lua")
+  local P = mod.rw.presets
+  local function getter(id) return settings[id] end
+  local input_stub2 = { get = function() return nil end, is_null_service = function() return false end }
+  local clip_text, clip_fail = nil, false
+  Clipboard = {
+    get = function() return clip_text end,
+    put = function(text) if clip_fail then return false end clip_text = text; return true end,
+  }
+  local function note() return view._widgets_by_name.bottom_title.content.bottom_title end
+  local function type_into_popup(text) view._widgets_by_name.rw_popup_input.content.input_text = text; view:update(0.01, 0, input_stub2) end
+
+  click("btn_back")
+  check("presets: Presets button only on the wave list", view._screen == "list" and view._widgets_by_name.btn_presets.visible and not view._widgets_by_name.btn_pload.visible)
+  click("btn_presets")
+  check("presets: screen lists exactly 5 slots, all empty", view._screen == "presets" and row(5).visible and not row(6).visible and row(1).content.info == "preset_slot_empty" and row(1).content.row_name == "1. Preset 1")
+  check("presets: only Back on the presets screen", view._widgets_by_name.btn_back.visible and not view._widgets_by_name.btn_presets.visible and not view._widgets_by_name.btn_psave.visible and view._widgets_by_name.hint_text.visible)
+  click("btn_back")
+  check("presets: back returns to the wave list", view._screen == "list")
+  click("btn_presets")
+  click_row(2, "hotspot_action")
+  check("presets: opening a slot shows its screen and buttons", view._screen == "preset_view" and view._preset_index == 2 and view._widgets_by_name.btn_psave.visible and view._widgets_by_name.btn_pload.visible and view._widgets_by_name.btn_pexport.visible and view._widgets_by_name.btn_pimport.visible)
+  check("presets: empty slot has no Clear and no Undo button", not view._widgets_by_name.btn_pclear.visible and not view._widgets_by_name.btn_pundo.visible and note() == "preset_slot_empty_long")
+  click("btn_pload"); check("presets: loading an empty slot only says so", note() == "preset_nothing_to_load" and settings.preset_undo == nil)
+  click("btn_pexport"); check("presets: exporting an empty slot only says so", view._popup == nil and note() == "preset_nothing_to_export")
+  click("btn_prename"); check("presets: renaming an empty slot asks to save first", view._popup == nil and note() == "preset_save_first")
+
+  -- save the current setup (custom_1 has one enemy and is enabled; make one more visible change)
+  settings["pct_wave_small"] = 33
+  click("btn_psave")
+  local saved = P.read(getter, "preset_2", mod.rw.events, mod.rw.groups)
+  check("presets: save stores the changed waves under the default name", saved and saved.name == "Preset 2" and #saved.waves == 2 and note():find("preset_saved:Preset 2,2") ~= nil, saved and #saved.waves)
+  check("presets: the open screen lists them and offers Clear", row(2).visible and not row(3).visible and view._widgets_by_name.btn_pclear.visible)
+
+  click("btn_prename")
+  check("presets: rename opens a popup limited to 24 characters", view._popup ~= nil and view._popup.spec.max_length == 24)
+  type_into_popup("Boss   Rush")
+  PP.Popup.commit(view)
+  check("presets: renamed", P.read(getter, "preset_2", mod.rw.events, mod.rw.groups).name == "Boss Rush" and view._preset_slots[2].name == "Boss Rush" and view._widgets_by_name.description_text.content.description_text:find("Boss Rush") ~= nil)
+
+  -- overwrite the setup, then load the preset: everything comes back, and Undo returns the overwritten setup
+  settings["pct_wave_small"] = 1; settings["on_custom_1"] = false
+  click("btn_pload")
+  check("presets: load restores the saved setup", settings["pct_wave_small"] == 33 and settings["on_custom_1"] == true and note():find("preset_loaded:Boss Rush,2") ~= nil, tostring(settings["pct_wave_small"]))
+  check("presets: load kept the replaced setup for undo, and the Undo button appears", settings.preset_undo ~= nil and settings.preset_undo ~= "" and view._widgets_by_name.btn_pundo.visible)
+  click("btn_pundo")
+  check("presets: undo brings the replaced setup back and consumes the backup", settings["pct_wave_small"] == 1 and settings["on_custom_1"] == false and settings.preset_undo == "" and not view._widgets_by_name.btn_pundo.visible and note() == "preset_undone")
+  click("btn_pundo"); check("presets: a second undo says there is nothing to undo", note() == "preset_nothing_to_undo")
+
+  -- export: text in the popup and on the clipboard
+  click("btn_pexport")
+  local exported = view._widgets_by_name.rw_popup_input.content.input_text
+  check("presets: export shows the text and copies it", view._popup ~= nil and exported:sub(1, 4) == "RW1|" and clip_text == exported and view._popup.spec.hint == "popup_export_hint_copied")
+  PP.Popup.cancel(view)
+  clip_fail = true; click("btn_pexport")
+  check("presets: when the clipboard is unavailable the hint says to copy by hand", view._popup ~= nil and view._popup.spec.hint == "popup_export_hint")
+  PP.Popup.cancel(view); clip_fail = false
+
+  -- import into slot 4: clipboard prefill + OK, without typing anything
+  click("btn_back"); click_row(4, "hotspot_action")
+  clip_text = exported
+  click("btn_pimport")
+  check("presets: import prefills a preset found on the clipboard", view._popup ~= nil and view._widgets_by_name.rw_popup_input.content.input_text == exported and view._popup.spec.hint == "popup_import_hint_filled:4")
+  PP.Popup.commit(view)
+  local imported = P.read(getter, "preset_4", mod.rw.events, mod.rw.groups)
+  check("presets: OK on the prefilled text still imports it (unchanged text is not treated as a cancel)", view._popup == nil and imported and imported.name == "Boss Rush" and #imported.waves == 2 and note():find("preset_imported:Boss Rush,2") ~= nil, tostring(note()))
+  click("btn_back")
+  check("presets: the list shows both slots", row(2).content.row_name == "2. Boss Rush" and row(4).content.row_name == "4. Boss Rush" and row(2).content.info:find("preset_slot_info:2") ~= nil and row(3).content.info == "preset_slot_empty")
+
+  -- import: nothing on the clipboard, bad text keeps the popup open, good text imports
+  click_row(3, "hotspot_action")
+  clip_text = "just some other text"
+  click("btn_pimport")
+  check("presets: no preset on the clipboard -> empty box with the plain hint", view._widgets_by_name.rw_popup_input.content.input_text == "" and view._popup.spec.hint == "popup_import_hint:3")
+  type_into_popup("RW1|nonsense")
+  PP.Popup.commit(view)
+  check("presets: a bad paste keeps the box open with an error and changes nothing", view._popup ~= nil and view._popup.error ~= nil and P.read(getter, "preset_3", mod.rw.events, mod.rw.groups) == nil, tostring(view._popup and view._popup.error))
+  type_into_popup(exported)
+  PP.Popup.commit(view)
+  check("presets: a good paste imports", view._popup == nil and P.read(getter, "preset_3", mod.rw.events, mod.rw.groups) ~= nil)
+  PP.Popup.cancel(view)
+
+  -- clear
+  click("btn_pclear")
+  check("presets: clear empties the slot", P.read(getter, "preset_3", mod.rw.events, mod.rw.groups) == nil and settings.preset_3 == "" and not view._widgets_by_name.btn_pclear.visible and note() == "preset_cleared")
+
+  -- a damaged slot is shown, can be cleared, and loading it is refused
+  settings.preset_5 = "garbage"
+  click("btn_back"); click_row(5, "hotspot_action")
+  check("presets: damaged slot is flagged, offers Clear, will not load", row == row and view._widgets_by_name.btn_pclear.visible and view._preset_slots[5].problem ~= nil)
+  click("btn_pload")
+  check("presets: loading a damaged slot changes nothing", note() == "preset_nothing_to_load" and settings.preset_undo == "")
+  click("btn_pclear")
+
+  -- back navigation and the keybind flag are unaffected
+  view:_on_back_pressed()
+  check("presets: back key goes preset -> presets -> list", view._screen == "presets")
+  view:_on_back_pressed()
+  check("presets: ...and then to the wave list, keybinds not suppressed", view._screen == "list" and mod.rw.text_input_active == false)
+  click("btn_add") -- no-op guard: Add is a detail-only button
+  check("presets: detail-only buttons stay hidden on the list", not view._widgets_by_name.btn_add.visible)
+  settings.pct_wave_small = 18; settings.on_custom_1 = true
+end
 -- last: closing the whole editor while a popup is open must release the keybinds
 do
   local PP = dofile(BASE .. "/ui/wave_editor_components.lua")

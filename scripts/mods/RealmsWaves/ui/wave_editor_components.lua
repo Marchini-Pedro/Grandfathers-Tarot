@@ -306,6 +306,7 @@ end
 --          validate = function(text) -> ok, error_message  (text mode, optional)
 --          hint = text under the input (optional)
 --          y = top edge of the popup (optional; lets a list stay visible above it)
+--          always_commit = true -> OK runs `set` even when the text was not changed (a prefilled box)
 --          on_change = function(text)  called whenever the typed text changes (live filtering)
 --          on_cancel = function()      called when the popup closes WITHOUT confirming }
 function POPUP.open(view, spec)
@@ -395,7 +396,7 @@ function POPUP.commit(view)
 	local spec = edit.spec
 	local text = view._widgets_by_name[Components.POPUP_INPUT_NAME].content.input_text or ""
 
-	if text == edit.original then
+	if text == edit.original and not spec.always_commit then
 		POPUP.cancel(view)
 
 		return true

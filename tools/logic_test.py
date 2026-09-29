@@ -525,6 +525,79 @@ spread_calls = {}
 run_wave({ name = "t", parts = Groups.parse("2 hounds") })
 check("execute: no spread configured -> radius 0", #spread_calls == 2 and spread_calls[1] == 0)
 
+-- Presets: capture / encode / decode / apply / slots ---------------------------------------------------------
+do
+  local Presets = load("catalog/presets")
+  local store = {}
+  local function get(id) return store[id] end
+  local function set(id, v) store[id] = v end
+  local function state() return Presets.encode(Presets.capture(get, Events, Groups)) end
+
+  check("presets: a fresh setup captures nothing (only changed waves are stored)", #Presets.capture(get, Events, Groups).waves == 0)
+
+  -- build a setup: rename + new composition on a standard wave, chance/cooldown on another, a custom wave
+  Events.set_def(set, "wave_small", "My Small", Groups.parse("4 hounds, 2 scab rager"), Groups)
+  set("pct_boss_ambush", 40); set("cd_boss_ambush", 90); set("on_hound_frenzy", false)
+  Events.set_def(set, "custom_3", "Weird | Name ~ 100%", Groups.parse("3 crushers[rotten+enraged]@2, 1 plague ogryn|chaos spawn"), Groups)
+  set("on_custom_3", true); set("pct_custom_3", 25); set("sp_custom_3", 12); set("re_custom_3", 7); set("rf_custom_3", 42)
+  local cap = Presets.capture(get, Events, Groups)
+  local keys = {}; for _, w in ipairs(cap.waves) do keys[w.key] = w end
+  check("presets: capture holds exactly the changed waves", #cap.waves == 4 and keys.wave_small and keys.boss_ambush and keys.hound_frenzy and keys.custom_3, #cap.waves)
+  check("presets: chance-only change keeps the default name/recipe", keys.boss_ambush.pct == 40 and keys.boss_ambush.cd == 90 and keys.boss_ambush.name == Events.get("boss_ambush", function() return nil end, Groups).name)
+
+  cap.name = "  My   Setup " .. string.rep("x", 40)
+  local text = Presets.encode(cap)
+  check("presets: text is one line starting with RW1|, no raw separators inside names", text:sub(1, 4) == "RW1|" and not text:find("[\r\n\t]") and select(2, text:gsub("|", "")) == 3 + #cap.waves, text:sub(1, 60))
+  local back, err = Presets.decode(text, Events, Groups)
+  check("presets: decode accepts what encode wrote", back ~= nil and #back.waves == #cap.waves and back.skipped == 0, tostring(err))
+  check("presets: name is trimmed to 24 characters", back and #back.name <= 24 and back.name:sub(1, 8) == "My Setup", back and back.name)
+  local dk = {}; for _, w in ipairs(back.waves) do dk[w.key] = w end
+  check("presets: awkward characters in a wave name survive (| ~ %)", dk.custom_3.name == "Weird | Name ~ 100%", dk.custom_3.name)
+  check("presets: values round trip", dk.custom_3.enabled == true and dk.custom_3.pct == 25 and dk.custom_3.sp == 12 and dk.custom_3.re == 7 and dk.custom_3.rf == 42 and dk.hound_frenzy.enabled == false, tostring(dk.custom_3.recipe))
+
+  -- applying it to a different, messy setup gives exactly the saved setup
+  local before = state()
+  local other = {}
+  local function oget(id) return other[id] end
+  local function oset(id, v) other[id] = v end
+  Events.set_def(oset, "custom_1", "Junk", Groups.parse("9 hounds"), Groups)
+  oset("on_custom_1", true); oset("pct_wave_medium", 77); oset("on_boss_ambush", false)
+  local written = Presets.apply(back, oset, Events, Groups)
+  check("presets: apply writes the stored waves", written == 4, written)
+  local applied = Presets.encode({ name = "X", waves = Presets.capture(oget, Events, Groups).waves })
+  local applied_named = applied
+  local expected = Presets.encode({ name = "X", waves = back.waves })
+  check("presets: after apply the setup equals the saved one, the leftovers (custom_1, pct_wave_medium, boss_ambush off) are gone", applied_named == expected, applied:sub(1, 200))
+  check("presets: apply does not turn untouched standard waves into overrides", other["wave_def_wave_large"] == "" and other["wave_def_boss_ambush"] == "", tostring(other["wave_def_boss_ambush"]))
+
+  -- damaged / hostile text is refused as a whole
+  local function bad(t) local p, e = Presets.decode(t, Events, Groups); return p == nil and type(e) == "string" and e end
+  check("presets: empty text refused", bad("   "))
+  check("presets: wrong prefix refused", bad("hello world") and bad(Presets.seal("RW2|x|0")))
+  local cut = text:sub(1, #text - 15)
+  check("presets: text cut short is detected by the check field", (bad(cut) or ""):find("incomplete") ~= nil, bad(cut))
+  check("presets: text with a space or a wrapped line added is refused", (bad(text:sub(1, 30) .. " " .. text:sub(31)) or ""):find("changed") ~= nil and (bad(text:sub(1, 40) .. "\n" .. text:sub(41)) or ""):find("changed") ~= nil)
+  check("presets: leading/trailing whitespace around the text is fine (paste artifacts)", Presets.decode("  \n" .. text .. " \r\n", Events, Groups) ~= nil)
+  check("presets: an unknown enemy in a recipe is refused with the parser's message", (bad(Presets.seal("RW1|x|1|custom_1~A~1~10~60~3~10~60~unicorns")) or ""):find("unicorns") ~= nil, bad(Presets.seal("RW1|x|1|custom_1~A~1~10~60~3~10~60~unicorns")))
+  check("presets: wrong field count refused", bad(Presets.seal("RW1|x|1|custom_1~A~1~10")) ~= false)
+  check("presets: non-numeric value refused", bad(Presets.seal("RW1|x|1|custom_1~A~1~lots~60~3~10~60~3 hounds")) ~= false)
+  local wild = Presets.decode(Presets.seal("RW1|x|1|custom_1~A~1~99999~-5~500~0~99999~3 hounds"), Events, Groups)
+  check("presets: out-of-range numbers are clamped to the editor's limits", wild and wild.waves[1].pct == 1000 and wild.waves[1].cd == 0 and wild.waves[1].sp == 100 and wild.waves[1].re == 1 and wild.waves[1].rf == 3600, wild and wild.waves[1].pct)
+  local unk = Presets.decode(Presets.seal("RW1|x|2|custom_1~A~1~10~60~3~10~60~3 hounds|future_wave~B~1~10~60~3~10~60~2 hounds"), Events, Groups)
+  check("presets: waves of an unknown key are skipped, the rest imported", unk and #unk.waves == 1 and unk.skipped == 1)
+  check("presets: bad text never touches the settings (decode has no side effects)", state() == before)
+
+  -- slots
+  Presets.write(set, Presets.slot_id(2), back)
+  local read = Presets.read(get, Presets.slot_id(2), Events, Groups)
+  check("presets: slot round trip", read and read.name == back.name and #read.waves == 4)
+  check("presets: empty slot reads as nil", Presets.read(get, Presets.slot_id(3), Events, Groups) == nil)
+  store.preset_4 = "garbage"
+  local nothing, problem = Presets.read(get, "preset_4", Events, Groups)
+  check("presets: a damaged slot reads as nil with a message", nothing == nil and type(problem) == "string")
+  Presets.clear(set, Presets.slot_id(2))
+  check("presets: cleared slot is empty", Presets.read(get, Presets.slot_id(2), Events, Groups) == nil and Presets.COUNT == 5)
+end
 -- Rotten Armor: only Maulers, Ragers, Crushers; not doubled when the mission already applied it
 do
   check("rotten: parses with its names and aliases", Groups.modifier_id("rotten") == "rotten" and Groups.modifier_id("Rotten Armor") == "rotten" and Groups.modifier_id("rotten armour") == "rotten")

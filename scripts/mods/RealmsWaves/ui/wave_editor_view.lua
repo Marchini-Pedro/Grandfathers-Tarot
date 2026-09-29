@@ -32,7 +32,17 @@ local BUTTONS = {
 	{ name = "btn_add", width = 230, cb = "cb_add" },
 	{ name = "btn_enabled", width = 260, cb = "cb_toggle_enabled" },
 	{ name = "btn_reset", width = 300, cb = "cb_reset" },
+	-- presets (list screen -> presets screen -> one preset)
+	{ name = "btn_presets", width = 300, cb = "cb_presets" },
+	{ name = "btn_pload", width = 250, cb = "cb_preset_load" },
+	{ name = "btn_psave", width = 400, cb = "cb_preset_save" },
+	{ name = "btn_prename", width = 200, cb = "cb_preset_rename" },
+	{ name = "btn_pexport", width = 220, cb = "cb_preset_export" },
+	{ name = "btn_pimport", width = 220, cb = "cb_preset_import" },
+	{ name = "btn_pundo", width = 380, cb = "cb_preset_undo" },
+	{ name = "btn_pclear", width = 260, cb = "cb_preset_clear" },
 }
+local PRESET_BUTTONS = { "btn_pload", "btn_psave", "btn_prename", "btn_pexport", "btn_pimport", "btn_pundo", "btn_pclear" }
 
 local function get_setting(id)
 	return mod:get(id)
@@ -74,6 +84,8 @@ RealmsWavesView.init = function (self, settings)
 	self._waves = {}
 	self._parts = {}
 	self._breeds = {}
+	self._preset_slots = {} -- presets screen rows
+	self._preset_waves = {} -- rows of the preset being viewed
 
 	RealmsWavesView.super.init(self, definitions, settings)
 end
@@ -294,9 +306,83 @@ RealmsWavesView._source = function (self)
 		return self._breeds
 	elseif self._screen == "mods" then
 		return mod.rw.groups.MODIFIERS
+	elseif self._screen == "presets" then
+		return self._preset_slots
+	elseif self._screen == "preset_view" then
+		return self._preset_waves
 	end
 
 	return self._waves
+end
+
+-- ------------------------------------------------------------------- presets model
+
+-- Reads the five slots (name, changed-wave count, a few wave names) for the presets screen.
+RealmsWavesView._reload_presets = function (self)
+	local rw = mod.rw
+	local slots = {}
+
+	for index = 1, rw.presets.COUNT do
+		local preset, problem = rw.presets.read(get_setting, rw.presets.slot_id(index), rw.events, rw.groups)
+		local slot = { index = index, preset = preset, problem = problem }
+
+		if preset then
+			local names = {}
+
+			for i = 1, math.min(#preset.waves, 4) do
+				names[i] = preset.waves[i].name
+			end
+
+			slot.name = preset.name
+			slot.info = #preset.waves == 0 and mod:localize("preset_all_default") or mod:localize("preset_slot_info", #preset.waves, table.concat(names, ", ") .. (#preset.waves > 4 and ", ..." or ""))
+		else
+			slot.name = rw.presets.default_name(index)
+			slot.info = problem and mod:localize("preset_slot_broken", problem) or mod:localize("preset_slot_empty")
+		end
+
+		slots[index] = slot
+	end
+
+	self._preset_slots = slots
+end
+
+-- The waves stored in the open preset, as list rows.
+RealmsWavesView._reload_preset_view = function (self)
+	local rw = mod.rw
+	local slot = self._preset_slots[self._preset_index]
+	local preset = slot and slot.preset
+	local rows = {}
+
+	for i = 1, #(preset and preset.waves or {}) do
+		local wave = preset.waves[i]
+		local parts = wave.recipe ~= "" and rw.groups.parse(wave.recipe) or nil
+		local text = parts and rw.groups.summary(parts, 95) or mod:localize("row_empty_slot")
+
+		rows[i] = {
+			name = wave.name,
+			info = wave.enabled and text or (mod:localize("preset_wave_disabled") .. " " .. text),
+			enabled = wave.enabled,
+		}
+	end
+
+	self._preset_waves = rows
+end
+
+RealmsWavesView._open_preset = function (self, index)
+	self._preset_index = index
+	self._preset_note = nil
+	self._screen = "preset_view"
+	self._offset = 0
+	self:_reload_preset_view()
+	self:_apply_screen()
+end
+
+-- After the stored preset changed (save, rename, import, clear): re-read everything and redraw.
+RealmsWavesView._refresh_preset = function (self, note)
+	self._preset_note = note
+	self:_reload_presets()
+	self:_reload_preset_view()
+	self:_apply_screen(true)
 end
 
 RealmsWavesView._item_at = function (self, row_index)
@@ -384,6 +470,19 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		widgets.bottom_title.content.bottom_title = status
 
 		widgets.hint_text.content.hint_text = ""
+	elseif screen == "presets" then
+		widgets.description_text.content.description_text = mod:localize("view_desc_presets")
+		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", mod:localize("col_preset"), mod:localize("col_preset_holds"), "", ""
+		widgets.bottom_title.content.bottom_title = self._preset_note or ""
+		widgets.hint_text.content.hint_text = mod:localize("hint_presets")
+	elseif screen == "preset_view" then
+		local slot = self._preset_slots[self._preset_index]
+		local preset = slot and slot.preset
+
+		widgets.description_text.content.description_text = mod:localize("view_desc_preset", self._preset_index, slot and slot.name or "")
+		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", mod:localize("col_wave"), mod:localize("col_composition"), "", ""
+		widgets.bottom_title.content.bottom_title = self._preset_note or (preset and mod:localize("preset_view_title", #preset.waves) or mod:localize("preset_slot_empty_long"))
+		widgets.hint_text.content.hint_text = ""
 	else
 		local part = self._parts[self._part_index]
 
@@ -397,8 +496,30 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	local detail = screen == "detail"
 	local show_back = screen ~= "list"
 
-	widgets.hint_text.visible = screen == "list" or screen == "mods"
+	local preset_view = screen == "preset_view"
+	local preset_slot = preset_view and self._preset_slots[self._preset_index]
+
+	widgets.hint_text.visible = screen == "list" or screen == "mods" or screen == "presets"
+	widgets.btn_presets.visible = screen == "list"
 	widgets.btn_back.visible = show_back
+
+	for i = 1, #PRESET_BUTTONS do
+		widgets[PRESET_BUTTONS[i]].visible = preset_view
+	end
+
+	if preset_view then
+		widgets.btn_pundo.visible = mod:get(mod.rw.presets.UNDO_ID) ~= nil and mod:get(mod.rw.presets.UNDO_ID) ~= ""
+		widgets.btn_pclear.visible = preset_slot ~= nil and (preset_slot.preset ~= nil or preset_slot.problem ~= nil)
+	end
+
+	widgets.btn_presets.content.hotspot_text = mod:localize("btn_presets")
+	widgets.btn_pload.content.hotspot_text = mod:localize("btn_pload")
+	widgets.btn_psave.content.hotspot_text = mod:localize("btn_psave")
+	widgets.btn_prename.content.hotspot_text = mod:localize("btn_rename")
+	widgets.btn_pexport.content.hotspot_text = mod:localize("btn_pexport")
+	widgets.btn_pimport.content.hotspot_text = mod:localize("btn_pimport")
+	widgets.btn_pundo.content.hotspot_text = mod:localize("btn_pundo")
+	widgets.btn_pclear.content.hotspot_text = mod:localize("btn_pclear")
 	widgets.btn_search.visible = screen == "picker"
 	widgets.btn_stay.visible = screen == "picker"
 	widgets.btn_rename.visible = detail
@@ -505,6 +626,25 @@ RealmsWavesView._refresh_rows = function (self)
 					content.rep_value = item.rep_same and "=" or tostring(item.rep or 0)
 					content.hotspot_action_text = mod:localize("btn_remove")
 					content.hotspot_mods_text = mod:localize("btn_mods")
+				elseif screen == "presets" then
+					content.row_name = string.format("%d. %s", item.index, item.name)
+					content.info = item.info
+					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, false, false, true, false
+					content.show_rep = false
+					content.hotspot_action_text = mod:localize("btn_open")
+
+					if not item.preset then
+						name_color = Components.colors.muted
+					end
+				elseif screen == "preset_view" then
+					content.row_name = item.name
+					content.info = item.info
+					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, false, false, false, false
+					content.show_rep = false
+
+					if not item.enabled then
+						name_color = Components.colors.muted
+					end
 				elseif screen == "picker" then
 					content.row_name = rw.groups.display_name(item)
 					content.info = string.format("%s  (%s)", item, rw.groups.kind(item))
@@ -610,7 +750,10 @@ RealmsWavesView.cb_scroll = guarded(function (self, direction)
 end)
 
 RealmsWavesView.cb_back = guarded(function (self)
-	if self._screen == "picker" or self._screen == "mods" then
+	if self._screen == "preset_view" then
+		self._screen = "presets"
+		self:_reload_presets()
+	elseif self._screen == "picker" or self._screen == "mods" then
 		self._screen = "detail"
 	else
 		self._screen = "list"
@@ -688,6 +831,8 @@ RealmsWavesView.cb_row_name = guarded(function (self, row)
 
 	if self._screen == "list" then
 		self:_open_detail(item.key)
+	elseif self._screen == "presets" then
+		self:_open_preset(item.index)
 	elseif self._screen == "picker" then
 		self:_add_breed(item)
 	elseif self._screen == "mods" then
@@ -704,9 +849,11 @@ RealmsWavesView.cb_row_action = guarded(function (self, row)
 
 	if self._screen == "list" then
 		self:_open_detail(item.key)
+	elseif self._screen == "presets" then
+		self:_open_preset(item.index)
 	elseif self._screen == "detail" then
 		self:_remove_part(self._offset + row)
-	else
+	elseif self._screen == "picker" then
 		self:_add_breed(item)
 	end
 end)
@@ -1142,6 +1289,170 @@ end)
 
 RealmsWavesView.cb_for_input = guarded(function (self)
 	self:_setting_input("rf_", "rep_for", "popup_for_title", 0, 3600)
+end)
+
+-- presets ----------------------------------------------------------------------
+-- Five named snapshots of the whole wave setup, with text export/import (catalog/presets.lua).
+
+local function clipboard_get()
+	local ok, text = pcall(function ()
+		return Clipboard and Clipboard.get and Clipboard.get()
+	end)
+
+	return ok and type(text) == "string" and text or nil
+end
+
+local function clipboard_put(text)
+	local ok, result = pcall(function ()
+		return Clipboard and Clipboard.put and Clipboard.put(text)
+	end)
+
+	return ok and result and true or false
+end
+
+RealmsWavesView.cb_presets = guarded(function (self)
+	self._preset_note = nil
+	self:_reload_presets()
+	self._screen = "presets"
+	self:_apply_screen()
+end)
+
+RealmsWavesView._current_preset_slot = function (self)
+	return self._preset_slots[self._preset_index]
+end
+
+-- Stores the current setup in the open slot (keeping the slot's name).
+RealmsWavesView.cb_preset_save = guarded(function (self)
+	local rw = mod.rw
+	local slot = self:_current_preset_slot()
+	local captured = rw.presets.capture(get_setting, rw.events, rw.groups)
+
+	captured.name = slot.preset and slot.preset.name or rw.presets.default_name(self._preset_index)
+	rw.presets.write(set_setting, rw.presets.slot_id(self._preset_index), captured)
+	self:_refresh_preset(mod:localize("preset_saved", captured.name, #captured.waves))
+end)
+
+-- Replaces the current setup with the slot's. The setup being replaced is kept for "Undo last load".
+RealmsWavesView.cb_preset_load = guarded(function (self)
+	local rw = mod.rw
+	local slot = self:_current_preset_slot()
+
+	if not slot.preset then
+		self:_refresh_preset(mod:localize("preset_nothing_to_load"))
+
+		return
+	end
+
+	local backup = rw.presets.capture(get_setting, rw.events, rw.groups)
+
+	backup.name = mod:localize("preset_undo_name")
+	rw.presets.write(set_setting, rw.presets.UNDO_ID, backup)
+
+	local written = rw.presets.apply(slot.preset, set_setting, rw.events, rw.groups)
+
+	self:_reload()
+	self:_refresh_preset(mod:localize("preset_loaded", slot.name, written))
+end)
+
+RealmsWavesView.cb_preset_undo = guarded(function (self)
+	local rw = mod.rw
+	local backup = rw.presets.read(get_setting, rw.presets.UNDO_ID, rw.events, rw.groups)
+
+	if not backup then
+		self:_refresh_preset(mod:localize("preset_nothing_to_undo"))
+
+		return
+	end
+
+	rw.presets.apply(backup, set_setting, rw.events, rw.groups)
+	rw.presets.clear(set_setting, rw.presets.UNDO_ID)
+	self:_reload()
+	self:_refresh_preset(mod:localize("preset_undone"))
+end)
+
+RealmsWavesView.cb_preset_rename = guarded(function (self)
+	local rw = mod.rw
+	local slot = self:_current_preset_slot()
+
+	if not slot.preset then
+		self:_refresh_preset(mod:localize("preset_save_first"))
+
+		return
+	end
+
+	Popup.open(self, {
+		label = mod:localize("popup_preset_rename_title", self._preset_index),
+		value = slot.preset.name,
+		max_length = rw.presets.MAX_NAME,
+		set = function (text)
+			local name = rw.presets.clean_name(text)
+
+			if name ~= "" then
+				slot.preset.name = name
+				rw.presets.write(set_setting, rw.presets.slot_id(self._preset_index), slot.preset)
+				self:_refresh_preset(nil)
+			end
+		end,
+	})
+end)
+
+-- Shows the preset as one line of text (also copied to the clipboard when the game lets us) to send to a friend.
+RealmsWavesView.cb_preset_export = guarded(function (self)
+	local rw = mod.rw
+	local slot = self:_current_preset_slot()
+
+	if not slot.preset then
+		self:_refresh_preset(mod:localize("preset_nothing_to_export"))
+
+		return
+	end
+
+	local text = rw.presets.encode(slot.preset)
+	local copied = clipboard_put(text)
+
+	Popup.open(self, {
+		label = mod:localize("popup_export_title", slot.name),
+		hint = mod:localize(copied and "popup_export_hint_copied" or "popup_export_hint"),
+		value = text,
+		max_length = #text + 16,
+		set = function () end,
+	})
+end)
+
+-- Pastes a friend's preset into the open slot (replacing what is there). If the clipboard already holds a
+-- preset it is filled in, so it is one click on OK.
+RealmsWavesView.cb_preset_import = guarded(function (self)
+	local rw = mod.rw
+	local clip = clipboard_get()
+	local prefilled = clip ~= nil and clip:match("^%s*" .. rw.presets.PREFIX .. "|") ~= nil
+
+	Popup.open(self, {
+		label = mod:localize("popup_import_title", self._preset_index),
+		hint = mod:localize(prefilled and "popup_import_hint_filled" or "popup_import_hint", self._preset_index),
+		value = prefilled and clip or "",
+		max_length = 30000,
+		always_commit = true, -- a prefilled box is unchanged text, OK must still import it
+		validate = function (text)
+			local preset, err = rw.presets.decode(text, rw.events, rw.groups)
+
+			return preset ~= nil, err
+		end,
+		set = function (text)
+			local preset = rw.presets.decode(text, rw.events, rw.groups)
+
+			if preset then
+				rw.presets.write(set_setting, rw.presets.slot_id(self._preset_index), preset)
+				self:_refresh_preset(mod:localize(preset.skipped > 0 and "preset_imported_skipped" or "preset_imported", preset.name, #preset.waves, preset.skipped))
+			end
+		end,
+	})
+end)
+
+RealmsWavesView.cb_preset_clear = guarded(function (self)
+	local rw = mod.rw
+
+	rw.presets.clear(set_setting, rw.presets.slot_id(self._preset_index))
+	self:_refresh_preset(mod:localize("preset_cleared"))
 end)
 
 -- popup ------------------------------------------------------------------------

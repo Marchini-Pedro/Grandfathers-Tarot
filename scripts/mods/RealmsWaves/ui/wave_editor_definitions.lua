@@ -42,7 +42,7 @@ local scenegraph_definition = {
 	list_range = node(1400, 700, 340, 28, 2),
 	bottom_panel = node(105, 770, 1710, 250, 0),
 	bottom_title = node(125, 780, 900, 34, 2),
-	hint_text = node(125, 826, 1660, 120, 2),
+	hint_text = node(125, 885, 1660, 120, 2), -- below the button row (826)
 
 	btn_back = node(125, 826, 180, 44, 2),
 	btn_search = node(325, 826, 420, 44, 2), -- enemy picker only (same spot as Rename)
@@ -52,6 +52,15 @@ local scenegraph_definition = {
 	btn_add = node(815, 826, 230, 44, 2),
 	btn_enabled = node(1065, 826, 260, 44, 2),
 	btn_reset = node(1345, 826, 300, 44, 2),
+	-- presets: list screen button (where Back sits on the other screens), and one preset's actions in two rows
+	btn_presets = node(125, 826, 300, 44, 2),
+	btn_pload = node(325, 826, 250, 44, 2),
+	btn_psave = node(595, 826, 400, 44, 2),
+	btn_prename = node(1015, 826, 200, 44, 2),
+	btn_pexport = node(1235, 826, 220, 44, 2),
+	btn_pimport = node(1475, 826, 220, 44, 2),
+	btn_pundo = node(125, 890, 380, 44, 2),
+	btn_pclear = node(525, 890, 260, 44, 2),
 	stepper_chance = node(125, 890, 900, 48, 2),
 	stepper_cooldown = node(1000, 890, 800, 48, 2),
 	stepper_spread = node(125, 945, 480, 48, 2),
