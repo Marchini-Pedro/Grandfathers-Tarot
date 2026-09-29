@@ -47,7 +47,7 @@
 - Aggro happens inside `spawn_network_unit`, before `spawn_minion` returns the unit, so the bypass uses a "spawning" flag (`Bypass.begin_spawn/end_spawn`) to catch the unit in `add_aggroed_minion`.
 
 ## Known trade-offs of the bypass
-- **Stimmed minions Havoc condition does not apply to wave units** (found 2026-09-28): the bypass skips `PacingManager.add_aggroed_minion`, which is also where the `minion_aggroed` event that `MutatorStimmedMinions` listens for is fired. Details and the planned fix in doc 03, "Havoc conditions / mutators vs. wave units". Open.
+- **Stimmed minions Havoc condition does not apply to wave units** (found 2026-09-28): the bypass skips `PacingManager.add_aggroed_minion`, which is also where the `minion_aggroed` event that `MutatorStimmedMinions` listens for is fired. Details in doc 03, "Havoc conditions / mutators vs. wave units". FIXED in 1.1.1 (hook re-sends `minion_aggroed` for tracked units); offline test `bypass:*` in `logic_test.py`; in-game check still pending (needs a Havoc order with stimmed minions).
 - Skipping `PacingManager.add_aggroed_minion` for wave units also skips `side_system:add_aggroed_minion`, so wave units are absent from the side's aggroed lists. Those lists feed music intensity (`wwise_state_group_*`) and terror-event queries (`TerrorEventQueries.num_aggroed_minions_in_level`). Effect: wave units do not raise the combat music intensity or count for scripted "N enemies aggroed" conditions. Accepted; revisit if it looks wrong in play.
 - Positions use `side.valid_player_units` (includes bots). LOS is hidden from bots too, which is harmless.
 

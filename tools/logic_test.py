@@ -240,6 +240,41 @@ Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(1);
 check("hub: no cycle, view off", Director.view().phase == "off" and #started_waves == 0, Director.view().phase)
 mission_name = "coop_complete_objective"
 
+-- budget bypass hooks -------------------------------------------------------
+local hooks = {}
+mod.hook = function(self, cls, method, fn) hooks[cls .. "." .. method] = fn end
+mod.hook_safe = function(self, cls, method, fn) hooks[cls .. "." .. method .. "!"] = fn end
+local events = {}
+Managers.event = { trigger = function(self, name, unit) events[#events+1] = name .. ":" .. tostring(unit) end }
+ALIVE = {}
+local Bypass = load("spawn/budget_bypass")
+Bypass.install()
+local pacing_calls = {}
+local orig_add = function(self, unit) pacing_calls[#pacing_calls+1] = unit end
+local add_hook = hooks["PacingManager.add_aggroed_minion"]
+local pacing_self = { _should_send_aggro_event = true }
+
+add_hook(orig_add, pacing_self, "vanilla_unit")
+check("bypass: untracked unit reaches vanilla add_aggroed_minion", #pacing_calls == 1 and #events == 0)
+
+Bypass.begin_spawn(); add_hook(orig_add, pacing_self, "wave_1"); Bypass.end_spawn("wave_1")
+check("bypass: wave unit skips pacing counters", #pacing_calls == 1, #pacing_calls)
+check("bypass: wave unit still fires minion_aggroed (stimmed minions)", events[1] == "minion_aggroed:wave_1", events[1])
+add_hook(orig_add, pacing_self, "wave_1")
+check("bypass: later aggro of tracked unit also fires event, not counters", #pacing_calls == 1 and #events == 2)
+add_hook(orig_add, { _should_send_aggro_event = false }, "wave_1")
+check("bypass: no event when pacing does not send it", #events == 2)
+
+Bypass.track("wave_2")
+local num = hooks["MinionSpawnManager.num_spawned_minions"](function() return 10 end, {})
+local alloc = hooks["MinionSpawnManager.total_allocated_num_enemies"](function() return 12 end, {})
+check("bypass: counters subtract tracked units", Bypass.count() == 2 and num == 8 and alloc == 10, tostring(num) .. "/" .. tostring(alloc))
+check("bypass: counters never negative", hooks["MinionSpawnManager.num_spawned_minions"](function() return 1 end, {}) == 0)
+hooks["MinionSpawnManager.unregister_unit!"]({}, "wave_1")
+check("bypass: unregister_unit untracks", Bypass.count() == 1 and not Bypass.is_tracked("wave_1"))
+Bypass.reset()
+check("bypass: reset clears", Bypass.count() == 0)
+
 -- simulate weights
 Director.on_exit_gameplay()
 local pool2, counts, tot2 = Director.simulate(20000)

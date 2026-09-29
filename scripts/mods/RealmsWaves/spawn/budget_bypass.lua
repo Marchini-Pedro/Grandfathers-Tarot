@@ -9,6 +9,8 @@
 --   * both counters are hooked to subtract the tracked count,
 --   * add_aggroed_minion is skipped for tracked units (also during our own
 --     spawn call, because aggro happens before spawn_minion returns the unit).
+-- add_aggroed_minion also fires the "minion_aggroed" event (used by the Havoc
+-- stimmed-minions mutator); the hook re-sends it for tracked units.
 -- Host only: on clients these managers do not exist and the hooks never fire.
 local mod = get_mod("RealmsWaves")
 
@@ -89,6 +91,14 @@ Bypass.install = function ()
 		end
 
 		if tracked[unit] then
+			-- Skip the pacing counters, but still send the event vanilla sends from
+			-- inside this function: the Havoc "stimmed minions" mutator listens to
+			-- it (mutator_stimmed_minions.lua), so without it wave units would never
+			-- get stimmed.
+			if self._should_send_aggro_event then
+				Managers.event:trigger("minion_aggroed", unit)
+			end
+
 			return
 		end
 

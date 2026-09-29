@@ -2,8 +2,9 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
-## Unreleased
-- Docs only: audited how Havoc mutators affect wave units (doc 03) and logged the stimmed-minions gap caused by the budget bypass (doc 06). No code change yet.
+## 1.1.1
+- **Fix:** Havoc "stimmed minions" now apply to wave units. The budget bypass skipped `PacingManager.add_aggroed_minion`, which is also where the `minion_aggroed` event is sent; the hook now re-sends it for tracked units. Offline tests added (`logic_test.py`, 9 bypass checks).
+- Docs: audited how Havoc mutators affect wave units and verified that the Garden and Enraged buffs work without their mutator loaded (doc 03).
 
 ## 1.1.0 (unreleased, in progress)
 User-requested iteration after the first in-game test.
