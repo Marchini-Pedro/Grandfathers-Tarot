@@ -2,6 +2,10 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## 1.4.3
+- **Enemy multipliers now always round DOWN** (were half up). 1 unit stays 1 at 190 percent and becomes 2 at exactly 200 (still 2 at 299, 3 at 300); 13 units at 150 percent = 19 (19.5 rounded down), not 20. Implemented as `floor(count * percent / 100 + 1e-9)` with the multiplication first, so decimal results are exact (20 x 115 percent = 23, not 22.999...). Applies to the initial units and to every repeat tick. Consequence: small groups need a higher percentage to grow (1 unit needs 200 percent, 3 units need 134 percent to become 4); below 100 percent small groups vanish sooner (1 unit disappears at anything under 100 percent).
+- Tests: logic 199 (the user's cases, boundaries, the float trap, and an exhaustive comparison with integer floor division for every base 0-60 and every slider step, plus through the real spawner).
+
 ## 1.4.2
 Out-of-memory crash investigation (log `console-2026-09-29-04.44.24-85a45457-*.log`, details in doc 06). The log does not prove RealmsWaves caused it, but three things in the mod were risky and are now hardened:
 - **Lua memory guard (new option "Memory guard", default 800 MB, 300-1000):** the game's Lua heap is a fixed 1 GB (`Not enough memory reserved for heap 'lua_heap', reserved: 1073741824`). When the heap is above the guard the mod stops spawning (units stay queued), refuses NEW waves with a message, and logs one warning; before pausing it forces one full garbage collection (at most every 15 s), since a high reading is often uncollected garbage. Spawning resumes by itself when memory drops. `/rw_status` now prints the Lua heap, the guard and whether spawning is paused.

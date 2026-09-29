@@ -172,20 +172,29 @@ end
 
 local MULTIPLIER_SETTING = { normal = "mult_normal", boss = "mult_boss", special = "mult_special" }
 
--- Enemy-type multiplier from the mod options (percent / 100, 0 to 5). A group with random
+-- Enemy-type multiplier from the mod options, in percent (0 to 500). A group with random
 -- alternatives ("a|b") uses the type of its first alternative.
-local function multiplier_for(part)
+local function percent_for(part)
 	local breed = part.one_of and part.one_of[1] or part.breed
-	local percent = number_setting(MULTIPLIER_SETTING[Groups.category(breed)], 100)
 
-	return math.max(0, percent) / 100
+	return math.max(0, number_setting(MULTIPLIER_SETTING[Groups.category(breed)], 100))
 end
 
-Execute.multiplier_for = multiplier_for
+Execute.percent_for = percent_for
+
+-- Scaled number of units, ALWAYS rounded down: 1 unit stays 1 until 200 percent (then 2),
+-- 13 units at 150 percent is 19 (19.5 rounded down). The product is taken before dividing by
+-- 100 (so 20 x 115 / 100 is exactly 23) and a tiny epsilon guards against float noise such as
+-- 22.999999999999996.
+local function scaled_amount(base, percent)
+	return math.floor(base * percent / 100 + 1e-9)
+end
+
+Execute.scaled_amount = scaled_amount
 
 -- Units for one batch: `field` is "count" (the initial spawn) or "rep" (one repeat tick).
--- Each group's number is scaled by its type's multiplier and rounded (half up), so
--- 0 removes that type from the wave and 5 gives five times as many.
+-- Each group's number is scaled by its type's multiplier (rounded down, see scaled_amount),
+-- so 0 removes that type from the wave and 500 gives five times as many.
 local function expand(parts, field)
 	local queue = {}
 	local cap = number_setting("max_per_wave", 80)
@@ -193,7 +202,7 @@ local function expand(parts, field)
 	for i = 1, #parts do
 		local part = parts[i]
 		local one_of = part.one_of
-		local amount = math.floor((part[field] or 0) * multiplier_for(part) + 0.5)
+		local amount = scaled_amount(part[field] or 0, percent_for(part))
 
 		for _ = 1, amount do
 			queue[#queue + 1] = { breed = one_of and one_of[math.random(1, #one_of)] or part.breed, mods = part.mods }

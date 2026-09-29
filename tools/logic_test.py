@@ -555,11 +555,44 @@ check("special 500 percent gives 5x hounds", c2.chaos_hound == 15, c2.chaos_houn
 settings.mult_normal = 50; settings.mult_boss = 300; settings.mult_special = 100
 Execute.reset(); run_long({ name = "t", parts = Groups.parse("5 poxwalkers, 1 crusher, 2 plague ogryn, 1 twin one, 1 twin two") })
 local c3 = breed_counts()
-check("50 percent rounds half up (5 -> 3, 1 -> 1)", c3.chaos_poxwalker == 3 and c3.chaos_ogryn_executor == 1, tostring(c3.chaos_poxwalker) .. "/" .. tostring(c3.chaos_ogryn_executor))
+check("50 percent rounds DOWN (5 -> 2, 1 -> 0)", c3.chaos_poxwalker == 2 and c3.chaos_ogryn_executor == nil, tostring(c3.chaos_poxwalker) .. "/" .. tostring(c3.chaos_ogryn_executor))
 check("boss 300 percent: 2 -> 6 plague ogryns, each twin x3", c3.chaos_plague_ogryn == 6 and c3.renegade_twin_captain == 3 and c3.renegade_twin_captain_two == 3)
 settings.mult_normal = 30
-Execute.reset(); run_long({ name = "t", parts = Groups.parse("1 poxwalker, 2 poxwalkers[fire]") })
-check("small counts round: 1 x 30 percent = 0, 2 x 30 percent = 1", (breed_counts().chaos_poxwalker or 0) == 1, breed_counts().chaos_poxwalker)
+Execute.reset(); run_long({ name = "t", parts = Groups.parse("4 poxwalkers, 3 poxwalkers[fire]") })
+check("30 percent rounds down: 4 -> 1 (1.2), 3 -> 0 (0.9)", (breed_counts().chaos_poxwalker or 0) == 1, breed_counts().chaos_poxwalker)
+
+-- rounding is always DOWN: the exact cases from the user ------------------------------------
+do
+  local sa = Execute.scaled_amount
+  check("1 unit stays 1 at 190 percent", sa(1, 190) == 1, sa(1, 190))
+  check("1 unit becomes 2 at exactly 200 percent", sa(1, 200) == 2, sa(1, 200))
+  check("1 unit is still 2 at 299 percent", sa(1, 299) == 2, sa(1, 299))
+  check("1 unit becomes 3 at 300 percent, 5 at 500 percent", sa(1, 300) == 3 and sa(1, 500) == 5)
+  check("13 units at 150 percent = 19 (19.5 rounded down, not 20)", sa(13, 150) == 19, sa(13, 150))
+  check("0 percent removes everything, 100 percent is unchanged", sa(7, 0) == 0 and sa(7, 100) == 7 and sa(1, 0) == 0)
+  check("just below a whole number stays below: 3 x 199 = 5 (5.97), 3 x 200 = 6", sa(3, 199) == 5 and sa(3, 200) == 6)
+  check("float trap: 20 x 115 percent is exactly 23, 3 x 110 is 3 (3.3), 7 x 130 is 9 (9.1)", sa(20, 115) == 23 and sa(3, 110) == 3 and sa(7, 130) == 9, sa(20, 115) .. "/" .. sa(3, 110) .. "/" .. sa(7, 130))
+  local exact = true
+  for base = 0, 60 do for percent = 0, 500, 5 do
+    local want = (base * percent) // 100
+    if sa(base, percent) ~= want then exact = false end
+  end end
+  check("scaled_amount equals integer floor(base * percent / 100) for every base 0-60 and every slider step", exact)
+  -- through the real spawner
+  settings.mult_normal = 150; settings.mult_boss, settings.mult_special = 100, 100
+  Execute.reset(); run_long({ name = "t", parts = Groups.parse("13 poxwalkers") })
+  check("spawner: 13 poxwalkers at 150 percent spawn 19 units", #spawned == 19, #spawned)
+  settings.mult_normal = 190
+  Execute.reset(); run_long({ name = "t", parts = Groups.parse("1 poxwalker, 1 crusher") })
+  check("spawner: 1 unit at 190 percent stays 1 each (2 units total)", #spawned == 2, #spawned)
+  settings.mult_normal = 299
+  Execute.reset(); run_long({ name = "t", parts = Groups.parse("1 poxwalker") })
+  check("spawner: 1 unit at 299 percent is 2 units", #spawned == 2, #spawned)
+  settings.mult_normal = 200
+  Execute.reset(); run_long({ name = "t", parts = Groups.parse("1 poxwalker") })
+  check("spawner: 1 unit at 200 percent is 2 units", #spawned == 2, #spawned)
+  settings.mult_normal = 30
+end
 settings.mult_normal, settings.mult_boss, settings.mult_special = 0, 0, 0
 local all_zero_ok, all_zero_err = Execute.start_wave({ name = "t", parts = Groups.parse(mix) })
 check("all types at 0 percent -> wave refused with a clear reason", not all_zero_ok and all_zero_err:find("multipliers") ~= nil, all_zero_err)
