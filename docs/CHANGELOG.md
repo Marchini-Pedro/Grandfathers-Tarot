@@ -4,7 +4,7 @@ Newest first. One entry per commit (see also the results log in `06-verification
 
 ## 1.4.3
 - **Enemy multipliers now always round DOWN** (were half up). 1 unit stays 1 at 190 percent and becomes 2 at exactly 200 (still 2 at 299, 3 at 300); 13 units at 150 percent = 19 (19.5 rounded down), not 20. Implemented as `floor(count * percent / 100 + 1e-9)` with the multiplication first, so decimal results are exact (20 x 115 percent = 23, not 22.999...). Applies to the initial units and to every repeat tick. Consequence: small groups need a higher percentage to grow (1 unit needs 200 percent, 3 units need 134 percent to become 4); below 100 percent small groups vanish sooner (1 unit disappears at anything under 100 percent).
-- Tests: logic 199 (the user's cases, boundaries, the float trap, and an exhaustive comparison with integer floor division for every base 0-60 and every slider step, plus through the real spawner).
+- Tests: logic 191 (the user's cases, boundaries, the float trap, and an exhaustive comparison with integer floor division for every base 0-60 and every slider step, plus through the real spawner).
 
 ## 1.4.2
 Out-of-memory crash investigation (log `console-2026-09-29-04.44.24-85a45457-*.log`, details in doc 06). The log does not prove RealmsWaves caused it, but three things in the mod were risky and are now hardened:
