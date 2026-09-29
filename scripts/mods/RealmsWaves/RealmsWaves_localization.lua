@@ -105,7 +105,7 @@ return {
 	lbl_repeat_for = { en = "Repeat for" },
 	extra_seconds_short = { en = "s" },
 	popup_rep_title = { en = "Enemies added on every repeat: %s (0 to 60)" },
-	popup_spread_title = { en = "Spread radius of %s in metres (0 to 30)" },
+	popup_spread_title = { en = "Spread radius of %s in metres (0 to 100)" },
 	popup_every_title = { en = "Repeat %s every this many seconds (1 to 600)" },
 	popup_for_title = { en = "Keep repeating %s for this many seconds (0 to 3600)" },
 	lbl_chance = { en = "Chance weight" },

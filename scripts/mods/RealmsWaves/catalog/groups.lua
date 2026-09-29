@@ -40,9 +40,13 @@ local ALIASES = {
 	renegade_shocktrooper = { "shocktrooper", "shotgunner" },
 	chaos_beast_of_nurgle = { "beast of nurgle", "beast", "slug" },
 	chaos_daemonhost = { "daemonhost", "daemon host" },
-	chaos_ogryn_houndmaster = { "beastmaster", "houndmaster", "packmaster" },
+	chaos_ogryn_houndmaster = { "packmaster", "pack master", "beastmaster", "houndmaster", "hound master" },
 	chaos_plague_ogryn = { "plague ogryn", "plague", "pogryn" },
 	chaos_spawn = { "chaos spawn", "spawn" },
+	-- the Twins are two separate breeds (male / female); the game's monster pacing links them
+	-- (shared health, "empowered_twin"), a wave spawns each one on its own
+	renegade_twin_captain = { "twin captain one", "twin one", "male twin", "twin captain" },
+	renegade_twin_captain_two = { "twin captain two", "twin two", "female twin" },
 	cultist_captain = { "dreg captain", "tox captain" },
 	renegade_captain = { "captain", "scab captain" },
 	chaos_armored_infected = { "armored infected", "armoured infected" },

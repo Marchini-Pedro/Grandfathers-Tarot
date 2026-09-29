@@ -200,7 +200,8 @@ Positions.spread = function (position, radius)
 		return position
 	end
 
-	for _ = 1, 5 do
+	-- a big disc often lands on walls or off the mesh, so give large radii more tries
+	for _ = 1, radius > 20 and 10 or 5 do
 		local angle = math.random() * math.pi * 2
 		local distance = radius * math.sqrt(math.random())
 		local candidate = position + Vector3(math.cos(angle) * distance, math.sin(angle) * distance, 0)

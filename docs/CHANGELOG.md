@@ -2,6 +2,11 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## 1.3.1
+- **Both Twins are selectable, separately:** `renegade_twin_captain` ("Twin Captain One", the male twin) and `renegade_twin_captain_two` ("Twin Captain Two", the female twin) are in the enemy picker and the recipe parser (`twin captain one`, `twin one`, `male twin` / `twin captain two`, `twin two`, `female twin`). Each is spawned on its own; the game's pairing logic (shared health, `empowered_twin` buff, disappearing) lives in monster pacing (`monster_pacing.lua:773-776, 926`) and does not run for wave-spawned twins. Behaviour of a lone or unpaired twin is untested in game.
+- **Beastmaster renamed to Packmaster** (`chaos_ogryn_houndmaster`); the old names (`beastmaster`, `houndmaster`) still work in recipes.
+- **Spread radius maximum 30 -> 100 m.** The stepper moves 1 m per click up to 10 m and 5 m per click above; the value popup accepts 0-100. Radii above 20 m get 10 placement tries instead of 5. Note: a big radius can put units in view of players (only the base point is hidden).
+
 ## 1.3.0
 - **Spread radius (per wave):** each unit spawns at a random point within N metres of the chosen hidden spawn point (default 3 m, 0-30 in the editor), snapped to the nav mesh and rejected if a wall is in the way (falls back to the spawn point itself). Before, every unit used a spawn point exactly, so groups stacked. `Positions.spread` in `spawn/positions.lua`; setting `sp_<key>`.
 - **Continuous ("repeating") waves:** an enemy group can add units on every repeat tick: `5 crushers@2` = 5 at once, then 2 more every tick. Per wave: repeat **every** Y seconds (`re_<key>`, default 10) **for** Z seconds (`rf_<key>`, default 60); ticks happen at Y, 2Y, ... up to Z. `0 crushers@2` = repeats only. Works with modifiers and random picks (`3 crushers[enraged]@2`). The repeats respect `max_per_wave` (per tick) and `max_alive`, and a tick is skipped while 200+ units are still waiting. Several waves can run at once. In the editor each enemy row has a second stepper ("Added each repeat"); the initial count may go to 0 while a group repeats; the wave has "Repeat every" and "Repeat for" steppers, and "Spread radius".

@@ -83,6 +83,15 @@ local mnames_ok = true
 for _, md in ipairs(Groups.MODIFIERS) do if Groups.modifier_id(md.id) ~= md.id or #md.buffs == 0 or not md.description then mnames_ok = false end end
 check("every modifier resolves and has buffs/description", mnames_ok)
 
+-- twins and packmaster -------------------------------------------------------
+local tw = Groups.parse("1 twin captain one, 1 twin captain two, 2 packmasters, 1 beastmaster, 1 female twin, 1 twin one")
+check("twins are two separate breeds", tw and tw[1].breed == "renegade_twin_captain" and tw[2].breed == "renegade_twin_captain_two", tw and (tw[1].breed .. "/" .. tw[2].breed))
+check("packmaster and old beastmaster/houndmaster names resolve to the same breed", tw[3].breed == "chaos_ogryn_houndmaster" and #tw == 3 and tw[3].count == 3, tw and tw[3].count)
+check("aliases: female twin -> twin two, twin one -> twin one", tw[2].count == 2 and tw[1].count == 2, tw[1].count .. "/" .. tw[2].count)
+check("display names: Packmaster, Twin Captain One/Two", Groups.display_name("chaos_ogryn_houndmaster") == "Packmaster" and Groups.display_name("renegade_twin_captain") == "Twin Captain One" and Groups.display_name("renegade_twin_captain_two") == "Twin Captain Two", Groups.display_name("renegade_twin_captain"))
+check("both twins are in the picker list", (function() local n = 0 for _, b in ipairs(Groups.breed_list()) do if b:find("^renegade_twin_captain") then n = n + 1 end end return n == 2 end)())
+check("recipe roundtrip for twins/packmaster", Groups.to_recipe(Groups.parse("1 twin one, 2 packmaster")) == "1 twin captain one, 2 packmaster")
+
 -- repeats ("@N") ------------------------------------------------------------
 local r1 = Groups.parse("5 crushers[enraged]@2, 3 hounds, 0 snipers@4")
 check("parse repeat: count, rep, mods", r1 and #r1 == 3 and r1[1].count == 5 and r1[1].rep == 2 and r1[1].mods[1] == "enraged" and r1[2].rep == nil and r1[3].count == 0 and r1[3].rep == 4, r1 and (tostring(r1[1].rep) .. "/" .. tostring(r1[3] and r1[3].rep)))

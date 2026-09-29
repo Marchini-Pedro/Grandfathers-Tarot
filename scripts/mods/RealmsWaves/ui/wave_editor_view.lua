@@ -906,12 +906,16 @@ RealmsWavesView._setting_input = function (self, prefix, field, title_key, min, 
 	})
 end
 
+-- 1 m per click up to 10 m, then 5 m per click (0-100 m range)
 RealmsWavesView.cb_spread_step = guarded(function (self, delta)
-	self:_setting_step("sp_", "spread", delta, 0, 30)
+	local value = math.floor(self._wave.spread)
+	local coarse = (delta > 0 and value >= 10) or (delta < 0 and value > 10)
+
+	self:_setting_step("sp_", "spread", coarse and delta * 5 or delta, 0, 100)
 end)
 
 RealmsWavesView.cb_spread_input = guarded(function (self)
-	self:_setting_input("sp_", "spread", "popup_spread_title", 0, 30)
+	self:_setting_input("sp_", "spread", "popup_spread_title", 0, 100)
 end)
 
 RealmsWavesView.cb_every_step = guarded(function (self, delta)

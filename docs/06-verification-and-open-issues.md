@@ -28,6 +28,8 @@
 | 23 | Editor rows: hover highlight, click checkbox / `-` / `+` / value / Edit / Mods / Remove | Everything highlights on hover and responds (1.2.1 fix) | not run |
 | 24 | Spread radius 0 vs 3 vs 10 with `/rw_test hound_frenzy` | Radius 0 stacks on one spot; 3 and 10 spread the pack; units not in players' view | not run |
 | 25 | `5 crushers@2`, repeat every 10 for 35, `/rw_test custom_1` | 5 at once, +2 at 10/20/30 s, none after; also try with a second wave running, and `max_alive` low | not run |
+| 27 | Twins: `/rw_editor`, custom slot, add "Twin Captain One" and "Twin Captain Two", `/rw_test custom_1` | Both spawn hidden near the squad and fight; check whether an unpaired twin behaves (disappears/retreats/shield) | not run |
+| 28 | Spread radius 50-100 m | Units scatter widely; note how often they appear in view or fall back to the spawn point | not run |
 | 26 | Recipe text with `@`: `3 crushers[enraged]@2` in "Edit as text" | Accepted, shown as "(+2 per repeat)" in the list | not run |
 
 ## Known risks
