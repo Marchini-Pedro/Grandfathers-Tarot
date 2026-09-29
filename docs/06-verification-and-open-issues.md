@@ -35,6 +35,8 @@
 5. Realms native DLL behaviour (not analysed).
 6. `VersusMode.lua` was sampled by grep only, not read fully.
 
+- 2026-09-29: first in-game open of the wave editor CRASHED (log `console-2026-09-29-00.46.55-a45d7909-*.log`): `wave_editor_view.lua:290: attempt to index field 'title_text' (a nil value)` in `_apply_screen` <- `on_enter`. Cause: my `_create_widgets` override shadowed `BaseView._create_widgets` (`S\ui\views\base_view.lua:140-156`, called from `_on_view_requirements_complete` :110-123 to build the static widgets). Fixed in 1.1.2 (renamed `_create_editor_widgets`). Lesson: RealmsEvent avoided this by naming its helpers `_create_row_widgets` etc.; my offline stub had created static widgets itself, hiding the bug. The stub now mirrors the real flow and a guard test lists every BaseView method name (`BASEVIEW_NAMES` in `tools/editor_test.py`, 79 names from base_view.lua) and fails on any accidental override. Lesson for tests: stubs must reproduce the framework's call flow, not shortcut it.
+
 ## Test tooling (in `tools/`, needs Python `lupa`; set env `PYLIBS` to the folder installed with `pip install --target`)
 - `check_lua.py`: compiles every Lua file (Lua 5.5 via lupa; stricter than LuaJIT).
 - `logic_test.py` (52 checks): recipe parser (incl. `a|b`, caps, round trip), wave settings API (`Events.get/set_def/reset/build_pool`, legacy recipe), votes, director state machine (random, vote, 5 s interval, hub, client, version mismatch), 20,000-roll weight simulation.

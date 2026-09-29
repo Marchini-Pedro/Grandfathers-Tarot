@@ -2,6 +2,9 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## 1.1.2
+- **Fix (crash on opening the wave editor):** `RealmsWavesView` defined a method named `_create_widgets`, which shadows `BaseView._create_widgets`, the method BaseView itself calls to build the static widgets before `on_enter`. `title_text` (and every other static widget) was therefore nil: `wave_editor_view.lua:290: attempt to index field 'title_text' (a nil value)`. Renamed to `_create_editor_widgets`. The offline editor test now mirrors the real BaseView flow (`_on_view_requirements_complete` -> `_create_widgets` -> `on_enter`) and fails if the view overrides any BaseView method other than init/on_enter/on_exit/update (48 checks).
+
 ## 1.1.1
 - **Fix:** Havoc "stimmed minions" now apply to wave units. The budget bypass skipped `PacingManager.add_aggroed_minion`, which is also where the `minion_aggroed` event is sent; the hook now re-sends it for tracked units. Offline tests added (`logic_test.py`, 9 bypass checks).
 - Docs: audited how Havoc mutators affect wave units and verified that the Garden and Enraged buffs work without their mutator loaded (doc 03).

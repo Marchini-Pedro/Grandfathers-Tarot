@@ -51,24 +51,37 @@ local real_require = require
 require = function(path) return stubs[path] or real_require(path) end
 
 -- BaseView / class
+-- Mirrors the REAL BaseView flow (scripts/ui/views/base_view.lua): init only stores things;
+-- _on_view_requirements_complete calls self:_create_widgets(definitions, widgets, widgets_by_name)
+-- to build the STATIC widgets, then on_enter. A view that overrides _create_widgets (or any
+-- other BaseView method) breaks this exactly as it broke in the game.
+local BASEVIEW_NAMES = { "init", "_create_ui_renderer", "dialogue_system", "_is_event_registered", "_register_event", "_unregister_event", "_unregister_events", "_on_view_load_complete", "is_view_requirements_complete", "_on_view_requirements_complete", "loading", "widgets_by_name", "_create_scenegraph", "_create_widgets", "_create_widget", "_unregister_widget_name", "get_time", "has_widget", "trigger_widget_pressed", "widget_hotspot_content", "_create_sequence_animator", "_is_animation_active", "_is_animation_completed", "_start_animation", "_stop_animation", "_complete_animation", "entered", "on_enter", "supports_changeable_context", "character_level", "on_exit", "destroy", "set_can_exit", "can_exit", "allow_close_hotkey", "on_resolution_modified", "trigger_resolution_update", "_set_scenegraph_position", "render_scale", "set_render_scale", "_set_scenegraph_size", "_scenegraph_size", "_scenegraph_position", "_scenegraph_world_position", "_update_element_position", "_force_update_scenegraph", "_update_animations", "update", "post_update", "_handle_input", "using_cursor_navigation", "_on_navigation_input_changed", "is_using_input", "draw", "set_local_player_id", "trigger_on_enter_animation", "trigger_on_exit_animation", "triggered_on_enter_animation", "triggered_on_exit_animation", "on_enter_animation_done", "on_exit_animation_done", "_draw_widgets", "_localize", "_localized_input_text", "_text_size", "_play_sound", "_stop_sound", "_set_sound_parameter", "_add_element", "_remove_element", "_element_reference_name", "_element", "_on_resolution_modified_elements", "_draw_elements", "_update_elements", "_player", "_player_viewport", "input_enable", "input_disable" }
 local BaseView = {}
 BaseView.init = function(self, defs, settings)
   self._definitions = defs
+  self._settings = settings
   self._widgets, self._widgets_by_name = {}, {}
-  for name, def in pairs(defs.widget_definitions) do
-    local w = { name = name, content = table.clone(def.content), style = table.clone(def.style), visible = true }
-    self._widgets_by_name[name] = w
-    self._widgets[#self._widgets + 1] = w
+end
+BaseView._create_widgets = function(self, definitions, widgets, widgets_by_name)
+  widgets, widgets_by_name = widgets or {}, widgets_by_name or {}
+  for name, def in pairs(definitions.widget_definitions) do
+    local w = self:_create_widget(name, def, widgets_by_name)
+    widgets[#widgets + 1] = w
   end
+  return widgets, widgets_by_name
+end
+BaseView._on_view_requirements_complete = function(self)
+  self:_create_widgets(self._definitions, self._widgets, self._widgets_by_name)
+  self:on_enter()
 end
 BaseView.on_enter = function() end
 BaseView.on_exit = function() end
 BaseView.update = function() end
 BaseView._add_element = function() return { add_entry = function() end } end
 BaseView._set_scenegraph_position = function() end
-BaseView._create_widget = function(self, name, def)
+BaseView._create_widget = function(self, name, def, widgets_by_name)
   local w = { name = name, content = table.clone(def.content), style = table.clone(def.style), visible = true }
-  self._widgets_by_name[name] = w
+  ;(widgets_by_name or self._widgets_by_name)[name] = w
   return w
 end
 function class(name, parent)
@@ -103,7 +116,18 @@ local View = dofile(BASE .. "/ui/wave_editor_view.lua")
 local view = setmetatable({}, View)
 View.init(view, {})
 view.view_name = "realms_waves_editor"
-view:on_enter()
+
+-- guard: the view may only override init/on_enter/on_exit/update of BaseView
+local allowed = { init = true, on_enter = true, on_exit = true, update = true }
+local clashes = {}
+for _, name in ipairs(BASEVIEW_NAMES) do
+  if rawget(View, name) ~= nil and not allowed[name] then clashes[#clashes + 1] = name end
+end
+check("view overrides no BaseView method except init/on_enter/on_exit/update", #clashes == 0, table.concat(clashes, ","))
+
+view:_on_view_requirements_complete() -- same entry point the engine uses
+check("static widgets exist after BaseView creates them", view._widgets_by_name.title_text ~= nil and view._widgets_by_name.list_header ~= nil and view._widgets_by_name.rw_popup_panel ~= nil)
+check("title text filled", view._widgets_by_name.title_text.content.title_text == "view_title")
 
 local function row(i) return view._widgets_by_name["rw_row_" .. i] end
 local function click(widget_name, hotspot) view._widgets_by_name[widget_name].content[hotspot or "hotspot"].pressed_callback() end

@@ -69,7 +69,7 @@ RealmsWavesView.on_enter = function (self)
 	RealmsWavesView.super.on_enter(self)
 
 	self:_setup_input_legend()
-	self:_create_widgets()
+	self:_create_editor_widgets()
 
 	self._screen = "list"
 	self._offset = 0
@@ -155,7 +155,10 @@ RealmsWavesView._create_dynamic_widget = function (self, name, definition)
 	return widget
 end
 
-RealmsWavesView._create_widgets = function (self)
+-- NOTE: must not be called `_create_widgets`: BaseView already has a method of
+-- that name that builds the static widgets from definitions.widget_definitions
+-- (and BaseView calls it before on_enter). Overriding it left title_text etc. nil.
+RealmsWavesView._create_editor_widgets = function (self)
 	for i = 1, LIST_CAPACITY do
 		local name = ROW_NODE_PREFIX .. i
 		local widget = self:_create_dynamic_widget(name, blueprints.row(name))
