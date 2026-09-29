@@ -2,6 +2,9 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## Unreleased
+- Docs only: audited how Havoc mutators affect wave units (doc 03) and logged the stimmed-minions gap caused by the budget bypass (doc 06). No code change yet.
+
 ## 1.1.0 (unreleased, in progress)
 User-requested iteration after the first in-game test.
 - **Percent display:** HUD shows `52.1%` instead of `52.100000000000001%` (HUD formats with `%.1f`, trailing `.0` trimmed).
