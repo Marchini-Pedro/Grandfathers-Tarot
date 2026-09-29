@@ -34,6 +34,8 @@ Managers = {
 }
 
 local function load(rel) return dofile(ROOT .. "/" .. rel .. ".lua") end
+-- FixedFrame is a module (require), NOT a global in the game: provide it only through require so bare use fails here too
+package.preload["scripts/utilities/fixed_frame"] = function() return { get_latest_fixed_time = function() return 1 end } end
 
 local Groups = load("catalog/groups")
 local Events = load("catalog/events")
@@ -439,7 +441,6 @@ local function make_buff_ext(unit_name)
   return ext
 end
 ScriptUnit = { has_extension = function(unit, sys) return sys == "buff_system" and unit.buffs or nil end }
-FixedFrame = { get_latest_fixed_time = function() return 1 end }
 Unit = { world_rotation = function() return "rot" end }
 local spawned = {}
 local minion_spawn = {

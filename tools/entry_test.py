@@ -18,6 +18,7 @@ package.preload["scripts/settings/ui/ui_sound_events"] = function() return { sys
 package.preload["scripts/settings/wwise_game_sync/wwise_game_sync_settings"] = function() return { state_groups = { options = { ingame_menu = "x" } } } end
 package.preload["scripts/managers/main_path/utilities/spawn_point_queries"] = function() return {} end
 package.preload["scripts/utilities/nav_queries"] = function() return {} end
+package.preload["scripts/utilities/fixed_frame"] = function() return { get_latest_fixed_time = function() return 1 end } end
 
 local hooks, commands, views = {}, {}, {}
 local dmf_calls = {}

@@ -7,6 +7,10 @@
 -- checks, and tracked by spawn/budget_bypass so the director ignores them.
 local mod = get_mod("RealmsWaves")
 
+-- NOT a global: it must be required (using it bare raised "attempt to index global 'FixedFrame'"
+-- after the first modifier was applied to a unit)
+local FixedFrame = require("scripts/utilities/fixed_frame")
+
 local Execute = {}
 
 local Positions, Bypass, Groups
