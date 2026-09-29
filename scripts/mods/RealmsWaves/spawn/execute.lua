@@ -74,6 +74,53 @@ local function in_havoc_mission()
 	return game_mode ~= nil and game_mode:extension("havoc") ~= nil
 end
 
+-- ---------------------------------------------------------- modifier setup steps ("prepare")
+-- Purple stimm: the buff's death effect needs Managers.state.mutator:mutator("mutator_stimmed_minions_purple")
+-- (it queues the two split-off enemies through that mutator's add_split_spawn). No mutator template with
+-- that name exists in the game, so nobody loads it. We create the mutator class ourselves (with the values
+-- the mutator manager already holds) and register it in the manager's table, where the manager also calls
+-- its update() every frame. The manager is rebuilt each mission, so this happens once per mission.
+-- Returns true when the mutator is available, otherwise false and a reason (the buff is then NOT added,
+-- because without it the buff would raise an error when the enemy dies).
+local PURPLE_MUTATOR_NAME = "mutator_stimmed_minions_purple"
+local PURPLE_MUTATOR_CLASS = "scripts/managers/mutator/mutators/mutator_purple_stimmed"
+
+local function ensure_purple_stimm()
+	local manager = Managers.state and Managers.state.mutator
+
+	if not manager then
+		return false, "no mutator manager (not in a mission)"
+	end
+
+	local mutators = manager:all_activated_mutators()
+
+	if mutators[PURPLE_MUTATOR_NAME] then
+		return true
+	end
+
+	local class_ok, class = pcall(require, PURPLE_MUTATOR_CLASS)
+
+	if not class_ok or type(class) ~= "table" then
+		return false, "could not load " .. PURPLE_MUTATOR_CLASS .. ": " .. tostring(class)
+	end
+
+	local new_ok, instance = pcall(function ()
+		return class:new(manager._is_server, manager._network_event_delegate, {}, manager._nav_world, manager._world, manager._level_seed)
+	end)
+
+	if not new_ok or not instance then
+		return false, "could not create the split spawner: " .. tostring(instance)
+	end
+
+	mutators[PURPLE_MUTATOR_NAME] = instance
+
+	return true
+end
+
+local PREPARE_STEPS = { purple_stimm = ensure_purple_stimm }
+
+Execute.ensure_purple_stimm = ensure_purple_stimm
+
 -- Adds a modifier's buff templates to a freshly spawned unit, the way
 -- MutatorBase._add_buffs_on_unit does (S\managers\mutator\mutators\mutator_base.lua:100-135).
 -- Server side; minion buffs are synced to clients by the buff extension.
@@ -92,8 +139,23 @@ Execute.apply_modifiers = function (unit, mod_ids)
 
 		if modifier and modifier.requires_havoc and not in_havoc_mission() then
 			warn_once(modifier.name .. " needs a Havoc mission and was skipped")
+		elseif modifier and modifier.prepare and not PREPARE_STEPS[modifier.prepare] then
+			warn_once(modifier.name .. " has an unknown setup step and was skipped")
 		elseif modifier then
-			for j = 1, #modifier.buffs do
+			local ready, why = true, nil
+
+			if modifier.prepare then
+				local step_ok, first, second = pcall(PREPARE_STEPS[modifier.prepare])
+
+				ready = step_ok and first == true
+				why = step_ok and second or first
+			end
+
+			if not ready then
+				warn_once(string.format("%s was skipped, its setup failed: %s", modifier.name, tostring(why)))
+			end
+
+			for j = 1, ready and #modifier.buffs or 0 do
 				local buff_name = modifier.buffs[j]
 				local ok, err = pcall(function ()
 					if buff_extension.is_valid_target and not buff_extension:is_valid_target(buff_name) then
@@ -202,7 +264,8 @@ local function expand(parts, field)
 	for i = 1, #parts do
 		local part = parts[i]
 		local one_of = part.one_of
-		local amount = scaled_amount(part[field] or 0, percent_for(part))
+		local base = field == "rep" and Groups.repeat_amount(part) or (part[field] or 0)
+		local amount = scaled_amount(base, percent_for(part))
 
 		for _ = 1, amount do
 			queue[#queue + 1] = { breed = one_of and one_of[math.random(1, #one_of)] or part.breed, mods = part.mods }

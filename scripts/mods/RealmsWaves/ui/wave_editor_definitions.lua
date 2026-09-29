@@ -159,6 +159,7 @@ local widget_definitions = {
 		header_pass("col_4", 1200, 190, "center"),
 		header_pass("col_5", 1390, 120, "right"),
 		header_pass("col_6", 890, 210, "center"),
+		header_pass("col_7", 1110, 100, "center"),
 	}, "list_header"),
 
 	list_range = plain_text("list_range", "list_range", 18, colors.muted, 340, 28, "right"),

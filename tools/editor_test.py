@@ -283,8 +283,8 @@ check("detail: Mods button on enemy rows", row(1).content.show_mods and row(1).c
 check("engine rule: detail row Mods/stepper/Remove hotspots run, checkbox does not", hotspot_runs(row(1), "hotspot_mods") and hotspot_runs(row(1), "hotspot_plus") and hotspot_runs(row(1), "hotspot_action") and not hotspot_runs(row(1), "hotspot_check"))
 click_row(1, "hotspot_mods")
 check("mods screen opens", view._screen == "mods" and view._widgets_by_name.description_text.content.description_text:find("view_desc_mods") ~= nil and view._widgets_by_name.btn_back.visible)
-check("mods screen lists all 8 modifiers with checkboxes", row(8).visible and not row(9).visible and row(1).content.show_check and not row(1).content.show_stepper and not row(1).content.show_action and not row(1).content.show_mods, row(8).content.row_name)
-check("mods screen: names, descriptions, havoc note", row(1).content.row_name == "Encroaching Garden" and row(1).content.info:find("heals nearby") ~= nil and row(6).content.row_name == "Toughened Skin" and row(6).content.info:find("note_havoc_only") ~= nil and row(2).content.info:find("note_havoc_only") == nil)
+check("mods screen lists all 9 modifiers with checkboxes", row(9).visible and not row(10).visible and row(1).content.show_check and not row(1).content.show_stepper and not row(1).content.show_action and not row(1).content.show_mods, row(9).content.row_name)
+check("mods screen: names, descriptions, havoc note", row(1).content.row_name == "Purple" and row(1).content.info:find("Encroaching Garden") ~= nil and row(1).content.info:find("heals nearby") ~= nil and row(6).content.row_name == "Pus-Hardened Skin" and row(3).content.row_name == "Red" and row(4).content.row_name == "Blight" and row(5).content.row_name == "Orange" and row(5).content.info:find("^Rampaging Enemies") ~= nil and row(9).content.row_name == "Purple Stimm" and row(6).content.info:find("note_havoc_only") ~= nil and row(2).content.info:find("note_havoc_only") == nil)
 check("mods screen: nothing ticked yet", not row(1).content.checkbox_selected and not row(2).content.checkbox_selected)
 click_row(1, "hotspot_check")
 check("tick Garden -> saved in recipe, checkbox on", row(1).content.checkbox_selected and settings["wave_def_wave_small"]:find("%[garden%]") ~= nil, settings["wave_def_wave_small"])
@@ -292,7 +292,7 @@ click_row(2, "hotspot_name")
 check("click name toggles Enraged too", row(2).content.checkbox_selected and settings["wave_def_wave_small"]:find("%[garden%+enraged%]") ~= nil, settings["wave_def_wave_small"])
 check("modifiers stored on the part", #view._parts[1].mods == 2 and view._parts[1].mods[1] == "garden" and view._parts[1].mods[2] == "enraged")
 click("btn_back")
-check("back from mods returns to detail with modifiers listed", view._screen == "detail" and row(1).content.info == "Encroaching Garden, Enraged" and row(1).content.row_name == "6 Poxwalker", row(1).content.info)
+check("back from mods returns to detail with modifiers listed", view._screen == "detail" and row(1).content.info == "Purple, Enraged" and row(1).content.row_name == "6 Poxwalker", row(1).content.info)
 click_row(1, "hotspot_mods"); click_row(1, "hotspot_check"); click_row(2, "hotspot_check")
 check("untick both -> modifiers cleared", view._parts[1].mods == nil and not row(1).content.checkbox_selected)
 click("btn_back")
@@ -368,6 +368,32 @@ click_row(1, "hotspot_rep_plus"); click_row(1, "hotspot_plus")
 check("wave summary on the list mentions repeats", (function() local w = mod.rw.events.get("wave_small", function(id) return settings[id] end, mod.rw.groups); return mod.rw.groups.summary(w.parts):find("per repeat") ~= nil end)())
 click_row(1, "hotspot_rep_minus")
 check("repeat -1 back to none", view._parts[1].rep == nil)
+
+-- "Same" tick box: repeat the same amount as the initial spawn ------------------------------------
+do
+  local p = view._parts[1]
+  check("detail rows have the Same tick box (runs while the repeat controls are shown)", row(1).content.show_rep and hotspot_runs(row(1), "hotspot_same") and row(1).content.same_selected == false and view._widgets_by_name.list_header.content.col_7 == "col_same")
+  local initial = p.count
+  click_row(1, "hotspot_same")
+  check("tick: group repeats the same amount (recipe has @=, no number)", view._parts[1].rep_same == true and view._parts[1].rep == nil and settings["wave_def_wave_small"]:find("@=") ~= nil and row(1).content.same_selected == true and row(1).content.rep_value == "=", settings["wave_def_wave_small"])
+  check("tick: repeat timing line says seconds (a group now repeats)", S.stepper_every.content.extra == "extra_seconds", S.stepper_every.content.extra)
+  check("tick: list summary says 'same amount'", (function() local w = mod.rw.events.get("wave_small", function(id) return settings[id] end, mod.rw.groups); return mod.rw.groups.summary(w.parts):find("same amount on every repeat") ~= nil end)())
+  click_row(1, "hotspot_same")
+  check("untick: repeating is off again", view._parts[1].rep_same == nil and view._parts[1].rep == nil and row(1).content.same_selected == false and row(1).content.rep_value == "0" and settings["wave_def_wave_small"]:find("@") == nil, settings["wave_def_wave_small"])
+  click_row(1, "hotspot_same")
+  click_row(1, "hotspot_rep_plus")
+  check("using the stepper while ticked leaves 'same' mode and starts from the count (+1)", view._parts[1].rep_same == nil and view._parts[1].rep == initial + 1 and row(1).content.same_selected == false, tostring(view._parts[1].rep) .. " vs " .. tostring(initial + 1))
+  click_row(1, "hotspot_same")
+  click_row(1, "hotspot_rep_value")
+  view._widgets_by_name.rw_popup_input.content.input_text = "4"
+  PopupOwner0.Popup.commit(view)
+  check("typing a number while ticked replaces 'same' with that number", view._parts[1].rep == 4 and view._parts[1].rep_same == nil)
+  click_row(1, "hotspot_same")
+  for _ = 1, 100 do click_row(1, "hotspot_minus") end
+  check("with Same ticked the initial count cannot go below 1 (a repeat of 0 would do nothing)", view._parts[1].rep_same == true and view._parts[1].count == 1, view._parts[1].count)
+  click_row(1, "hotspot_same")
+  check("unticked again: the group is back to a plain group", view._parts[1].rep_same == nil and view._parts[1].rep == nil)
+end
 
 -- reset restores spread and repeat settings too
 click("btn_reset")

@@ -20,7 +20,7 @@ local LIST_TOP = definitions.LIST_TOP
 local ROW_HEIGHT = definitions.ROW_HEIGHT
 local ROW_NODE_PREFIX = definitions.ROW_NODE_PREFIX
 
-local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus" }
+local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same" }
 local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for" }
 local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
 local BUTTONS = {
@@ -51,6 +51,7 @@ local function copy_parts(parts)
 			breed = part.breed,
 			count = part.count,
 			rep = part.rep,
+			rep_same = part.rep_same,
 			one_of = part.one_of and { unpack(part.one_of) } or nil,
 			mods = part.mods and { unpack(part.mods) } or nil,
 		}
@@ -182,6 +183,7 @@ RealmsWavesView._create_editor_widgets = function (self)
 		content.hotspot_rep_minus.pressed_callback = callback(self, "cb_row_rep_step", i, -1)
 		content.hotspot_rep_plus.pressed_callback = callback(self, "cb_row_rep_step", i, 1)
 		content.hotspot_rep_value.pressed_callback = callback(self, "cb_row_rep_input", i)
+		content.hotspot_same.pressed_callback = callback(self, "cb_row_same", i)
 	end
 
 	for i = 1, #BUTTONS do
@@ -325,6 +327,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	local header = widgets.list_header.content
 
 	header.col_6 = ""
+	header.col_7 = ""
 
 	if screen == "list" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_list")
@@ -337,6 +340,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		header.col_1, header.col_2, header.col_3 = "", mod:localize("col_enemy"), mod:localize("col_modifier")
 		header.col_4, header.col_5 = mod:localize("col_count"), ""
 		header.col_6 = mod:localize("col_repeat")
+		header.col_7 = mod:localize("col_same")
 		widgets.bottom_title.content.bottom_title = mod:localize("bottom_detail_title", self._wave.name, rw.groups.total_count(self._parts))
 		widgets.hint_text.content.hint_text = ""
 	elseif screen == "picker" then
@@ -472,7 +476,9 @@ RealmsWavesView._refresh_rows = function (self)
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, true, false, true, true
 					content.show_rep = true
 					content.stepper_value = tostring(item.count)
-					content.rep_value = tostring(item.rep or 0)
+					content.same_selected = item.rep_same == true
+					-- with "same" ticked the repeat number is the initial count, shown as "="
+					content.rep_value = item.rep_same and "=" or tostring(item.rep or 0)
 					content.hotspot_action_text = mod:localize("btn_remove")
 					content.hotspot_mods_text = mod:localize("btn_mods")
 				elseif screen == "picker" then
@@ -706,9 +712,38 @@ RealmsWavesView.cb_row_rep_step = guarded(function (self, row, delta)
 		return
 	end
 
+	-- using the stepper leaves "same" mode: start from the number it stood for (the count)
+	if item.rep_same then
+		item.rep_same = nil
+		item.rep = item.count
+	end
+
 	item.rep = math.clamp((item.rep or 0) + delta, 0, mod.rw.groups.MAX_BREED_COUNT)
 
 	if item.rep == 0 then
+		item.rep = nil
+
+		if item.count < 1 then
+			item.count = 1
+		end
+	end
+
+	self:_save()
+end)
+
+-- "Same" tick box: every repeat spawns the same number as the initial spawn. Ticking clears the
+-- numeric repeat; unticking turns repeating off for this group (set a number with the stepper).
+RealmsWavesView.cb_row_same = guarded(function (self, row)
+	local item = self._screen == "detail" and self:_item_at(row)
+
+	if not item then
+		return
+	end
+
+	if item.rep_same then
+		item.rep_same = nil
+	else
+		item.rep_same = true
 		item.rep = nil
 
 		if item.count < 1 then
@@ -728,9 +763,10 @@ RealmsWavesView.cb_row_rep_input = guarded(function (self, row)
 
 	Popup.open(self, {
 		label = mod:localize("popup_rep_title", mod.rw.groups.describe_part(item)),
-		value = tostring(item.rep or 0),
+		value = tostring(item.rep_same and item.count or item.rep or 0),
 		numeric = true, min = 0, max = mod.rw.groups.MAX_BREED_COUNT, integer = true,
 		set = function (value)
+			item.rep_same = nil
 			item.rep = value > 0 and value or nil
 
 			if not item.rep and item.count < 1 then

@@ -78,10 +78,43 @@ local mempty = Groups.parse("3 crushers[]")
 check("empty brackets ok", mempty and mempty[1].mods == nil)
 local mdup = Groups.parse("2 crushers[enraged], 3 crushers[enraged], 1 crusher")
 check("same breed+mods merge, different mods stay apart", mdup and #mdup == 2 and mdup[1].count == 5 and mdup[2].count == 1)
-check("describe with mods", Groups.describe_part(m1[1], true) == "3 Crusher [Encroaching Garden, Enraged]" and Groups.describe_part(m1[1]) == "3 Crusher" and Groups.describe_mods(m1[2]) == "", Groups.describe_part(m1[1], true))
+check("describe with mods", Groups.describe_part(m1[1], true) == "3 Crusher [Purple, Enraged]" and Groups.describe_part(m1[1]) == "3 Crusher" and Groups.describe_mods(m1[2]) == "", Groups.describe_part(m1[1], true))
 local mnames_ok = true
 for _, md in ipairs(Groups.MODIFIERS) do if Groups.modifier_id(md.id) ~= md.id or #md.buffs == 0 or not md.description then mnames_ok = false end end
 check("every modifier resolves and has buffs/description", mnames_ok)
+
+-- modifier renames (1.5.1): new colour names, old names still work --------------------------
+do
+  local function id(word) return Groups.modifier_id(word) end
+  local function name_of(mid) return Groups.modifier(mid).name end
+  check("names: Purple / Red / Blight / Orange / Pus-Hardened Skin, others unchanged", name_of("garden") == "Purple" and name_of("toll") == "Red" and name_of("corrupted") == "Blight" and name_of("bolstering") == "Orange" and name_of("toughened") == "Pus-Hardened Skin" and name_of("enraged") == "Enraged" and name_of("fire") == "On Fire" and name_of("parasite") == "Head Parasite")
+  check("new names resolve", id("purple") == "garden" and id("Red") == "toll" and id("blight") == "corrupted" and id("Orange") == "bolstering" and id("Pus-Hardened Skin") == "toughened" and id("pus hardened") == "toughened")
+  check("old names still resolve (saved recipes keep working)", id("garden") == "garden" and id("encroaching garden") == "garden" and id("final toll") == "toll" and id("toll") == "toll" and id("corrupted") == "corrupted" and id("bolstering") == "bolstering" and id("toughened skin") == "toughened" and id("tough") == "toughened")
+  check("extra names: The Final Toll, Rampaging Enemies", id("the final toll") == "toll" and id("Rampaging Enemies") == "bolstering" and id("rampaging") == "bolstering")
+  check("purple (garden) and purple stimm are different modifiers", id("purple") == "garden" and id("purple stimm") == "purple_stimm" and id("Purple Stimmed") == "purple_stimm" and id("purple_stimm") == "purple_stimm" and id("splitting") == "purple_stimm")
+  local d = function(mid) return Groups.modifier(mid).description end
+  check("descriptions: prefixed as requested and otherwise unchanged", d("garden") == "Encroaching Garden. Extra health, resists impact, and heals nearby enemies." and d("toll") == "The Final Toll. Becomes enraged once it drops below half health (the vanilla Final Toll)." and d("bolstering") == "Rampaging Enemies. Slightly bigger and tougher (takes less damage). When it dies, enemies within 4 m get another stack, up to 5." and d("toughened") == "Tougher skin against ranged damage." and d("corrupted") == "Nurgle-corrupted: leaves corruption behind when it dies.", d("bolstering"))
+  local m = Groups.parse("3 crushers[Purple+Red+Orange], 2 hounds[final toll, garden], 1 sniper[pus-hardened skin+blight]")
+  check("recipes accept the new names and store canonical ids", m and m[1].mods[1] == "garden" and m[1].mods[2] == "toll" and m[1].mods[3] == "bolstering" and m[2].mods[1] == "garden" and m[2].mods[2] == "toll" and m[3].mods[1] == "corrupted" and m[3].mods[2] == "toughened", m and table.concat(m[1].mods, ","))
+  check("describe shows the new names", Groups.describe_mods(m[1]) == "Purple, Red, Orange" and Groups.describe_mods(m[3]) == "Blight, Pus-Hardened Skin", Groups.describe_mods(m[1]))
+  check("recipe written back uses ids (unchanged format)", Groups.to_recipe(m) == "3 crusher[garden+toll+bolstering], 2 hound[garden+toll], 1 sniper[corrupted+toughened]", Groups.to_recipe(m))
+  local _, e = Groups.parse("1 hound[gargle]")
+  check("error message lists ids with the colour names", e:find("garden/purple") and e:find("toll/red") and e:find("bolstering/orange") and e:find("purple_stimm") and e:find("toughened/pus%-hardened skin"), e)
+end
+
+-- "same amount on every repeat" (@= / @same) ------------------------------------------------
+do
+  local s1 = Groups.parse("5 crushers[enraged]@=, 2 hounds@same, 3 snipers@2, 4 poxwalkers")
+  check("parse @= and @same", s1 and #s1 == 4 and s1[1].rep_same == true and s1[1].rep == nil and s1[1].count == 5 and s1[1].mods[1] == "enraged" and s1[2].rep_same == true and s1[3].rep == 2 and s1[3].rep_same == nil and s1[4].rep_same == nil)
+  check("recipe roundtrip keeps @=", Groups.to_recipe(s1) == "5 crusher[enraged]@=, 2 hound@=, 3 sniper@2, 4 poxwalker", Groups.to_recipe(s1))
+  local s2 = Groups.parse(Groups.to_recipe(s1))
+  check("roundtrip parse keeps same flags", s2 and s2[1].rep_same and s2[2].rep_same and s2[3].rep == 2 and not s2[4].rep_same)
+  check("has_repeat is true for a same-amount group", Groups.has_repeat(Groups.parse("3 hounds@=")) and not Groups.has_repeat(Groups.parse("3 hounds")))
+  check("repeat_amount: same = the count, otherwise rep", Groups.repeat_amount(s1[1]) == 5 and Groups.repeat_amount(s1[3]) == 2 and Groups.repeat_amount(s1[4]) == 0)
+  check("describe mentions the same-amount repeat", Groups.describe_part(s1[1], true) == "5 Crusher [Enraged] (same amount on every repeat)", Groups.describe_part(s1[1], true))
+  check("a same-amount group with count 0 is dropped (nothing to repeat)", Groups.parse("0 hounds@=, 2 snipers") and #Groups.parse("0 hounds@=, 2 snipers") == 1)
+  check("same and number on the same breed merge sensibly", (function() local m = Groups.parse("2 hounds@=, 3 hounds@1"); return #m == 1 and m[1].count == 5 and m[1].rep_same == true and m[1].rep == 1 end)())
+end
 
 -- twins and packmaster -------------------------------------------------------
 local tw = Groups.parse("1 twin captain one, 1 twin captain two, 2 packmasters, 1 beastmaster, 1 female twin, 1 twin one")
@@ -458,7 +491,7 @@ havoc_present = false
 -- a buff that errors must not break the wave or the other modifiers
 run_wave({ name = "t", parts = Groups.parse("2 crushers[bolstering+fire]") })
 check("execute: erroring buff is contained, other modifier still applied", #spawned == 2 and #spawned[1].buffs.added == 1 and spawned[1].buffs.added[1] == "common_minion_on_fire" and spawned[1].buffs.updated)
-local warned_boom = false; for _, e in ipairs(echoes) do if e:find("Bolstering") and e:find("boom") then warned_boom = true end end
+local warned_boom = false; for _, e in ipairs(echoes) do if e:find("Orange") and e:find("boom") then warned_boom = true end end
 check("execute: buff failure is logged", warned_boom)
 
 -- caps and one_of
@@ -483,6 +516,7 @@ check("execute: no spread configured -> radius 0", #spread_calls == 2 and spread
 
 -- repeats: "5 crushers@2", every 10 s for 35 s -> initial 5, ticks at 10/20/30 -> 3 x 2 more
 local function run_timed(def, seconds, step)
+  Execute.reset()
   spawned = {}
   Bypass.reset()
   local ok, err = Execute.start_wave(def)
@@ -523,6 +557,75 @@ local _, _, tl5 = run_timed({ name = "t", parts = Groups.parse("6 hounds"), rep_
 check("max_alive still limits spawns of a wave", count_at(tl5, 6) == 4, count_at(tl5, 6))
 ALIVE = saved_alive
 settings.max_alive = nil
+
+-- "same amount" repeats through the spawner -----------------------------------------------
+do
+  local _, _, tls = run_timed({ name = "t", parts = Groups.parse("3 crushers@="), rep_every = 10, rep_for = 25 }, 35, 0.25)
+  check("same-amount repeat: 3 at once, then +3 at 10 s and +3 at 20 s (9 total), none after 'for'", count_at(tls, 3) == 3 and count_at(tls, 13) == 6 and count_at(tls, 23) == 9 and count_at(tls, 34) == 9, count_at(tls, 3) .. "/" .. count_at(tls, 13) .. "/" .. count_at(tls, 23) .. "/" .. count_at(tls, 34))
+  local _, _, tlt = run_timed({ name = "t", parts = Groups.parse("1 mutant@10"), rep_every = 10, rep_for = 25 }, 35, 0.25)
+  check("numeric repeat is additive, not cumulative: 1 mutant@10 gives 1, then +10, +10 (21 total)", count_at(tlt, 3) == 1 and count_at(tlt, 13) == 11 and count_at(tlt, 23) == 21, count_at(tlt, 3) .. "/" .. count_at(tlt, 13) .. "/" .. count_at(tlt, 23))
+  settings.mult_normal = 200
+  local _, _, tlm2 = run_timed({ name = "t", parts = Groups.parse("3 poxwalkers@="), rep_every = 10, rep_for = 10 }, 20, 0.25)
+  check("multipliers scale the same-amount repeat too (3 x2 = 6 at once, +6 on the tick)", count_at(tlm2, 3) == 6 and count_at(tlm2, 15) == 12, count_at(tlm2, 3) .. "/" .. count_at(tlm2, 15))
+  settings.mult_normal = 100
+end
+
+-- purple stimm: the split spawner is created on demand, and skipped safely when it cannot be ---
+do
+  local PURPLE_CLASS = "scripts/managers/mutator/mutators/mutator_purple_stimmed"
+  local created, mutator_table = {}, {}
+  local FakeClass = {}
+  FakeClass.new = function(self, is_server, delegate, template, nav_world, world, seed)
+    local inst = { args = { is_server, delegate, template, nav_world, world, seed } }
+    created[#created + 1] = inst
+    return inst
+  end
+  package.loaded[PURPLE_CLASS] = nil
+  package.preload[PURPLE_CLASS] = function() return FakeClass end
+  Execute.reset(); Bypass.reset()
+  local saved_mutator = Managers.state.mutator
+  Managers.state.mutator = { _is_server = true, _network_event_delegate = "delegate", _nav_world = "nav", _world = "world", _level_seed = 42, all_activated_mutators = function() return mutator_table end }
+  local function buffs_of(u) return table.concat(u.buffs.added, ",") end
+
+  run_wave({ name = "t", parts = Groups.parse("3 crushers[purple_stimm]") })
+  local all_purple = #spawned == 3
+  for _, u in ipairs(spawned) do if buffs_of(u) ~= "mutator_stimmed_minion_purple" then all_purple = false end end
+  check("purple stimm: every unit gets the buff", all_purple, #spawned .. " " .. (spawned[1] and buffs_of(spawned[1]) or ""))
+  check("purple stimm: the split spawner was created ONCE and registered under the name the buff looks up", #created == 1 and mutator_table.mutator_stimmed_minions_purple == created[1], #created)
+  check("purple stimm: it was built from the mutator manager's own values", created[1].args[1] == true and created[1].args[2] == "delegate" and created[1].args[4] == "nav" and created[1].args[5] == "world" and created[1].args[6] == 42 and type(created[1].args[3]) == "table")
+  run_wave({ name = "t", parts = Groups.parse("2 hounds[purple stimm]") })
+  check("purple stimm: a second wave reuses the same spawner", #created == 1 and #spawned == 2 and buffs_of(spawned[1]) == "mutator_stimmed_minion_purple")
+  for k in pairs(mutator_table) do mutator_table[k] = nil end
+  run_wave({ name = "t", parts = Groups.parse("1 hound[purple_stimm]") })
+  check("purple stimm: a new mission (fresh mutator manager table) creates it again", #created == 2 and mutator_table.mutator_stimmed_minions_purple == created[2])
+  run_wave({ name = "t", parts = Groups.parse("1 crusher[purple_stimm+enraged]") })
+  check("purple stimm combines with other modifiers (catalog order: enraged first)", #spawned == 1 and buffs_of(spawned[1]) == "havoc_enraged_enemies,mutator_stimmed_minion_purple", buffs_of(spawned[1]))
+
+  -- failure paths: the buff must NOT be added (it would error when the enemy dies)
+  local function skipped(label, expect_text)
+    check("purple stimm: " .. label .. " -> no buff, wave still spawns", #spawned == 1 and #spawned[1].buffs.added == 0, #spawned)
+    local logged = false
+    for _, e in ipairs(echoes) do if e:find("Purple Stimm was skipped") and e:find(expect_text, 1, true) then logged = true end end
+    check("purple stimm: " .. label .. " -> reason logged", logged, expect_text)
+  end
+  Managers.state.mutator = nil
+  run_wave({ name = "t", parts = Groups.parse("1 hound[purple_stimm]") })
+  skipped("no mutator manager", "no mutator manager")
+  Managers.state.mutator = { _is_server = true, _nav_world = "nav", _world = "world", _level_seed = 1, all_activated_mutators = function() return mutator_table end }
+  for k in pairs(mutator_table) do mutator_table[k] = nil end
+  FakeClass.new = function() error("kaboom") end
+  run_wave({ name = "t", parts = Groups.parse("1 hound[purple_stimm]") })
+  skipped("constructor raises an error", "kaboom")
+  check("purple stimm: nothing registered after a failed constructor", mutator_table.mutator_stimmed_minions_purple == nil)
+  package.loaded[PURPLE_CLASS] = nil
+  package.preload[PURPLE_CLASS] = function() error("class file missing") end
+  run_wave({ name = "t", parts = Groups.parse("1 hound[purple_stimm]") })
+  skipped("class cannot be loaded", "could not load")
+
+  Managers.state.mutator = saved_mutator
+  package.loaded[PURPLE_CLASS] = nil
+  package.preload[PURPLE_CLASS] = nil
+end
 
 -- type multipliers (mod options, 0-500 percent) ------------------------------------
 local function breed_counts()

@@ -57,6 +57,10 @@ blueprints.row = function (node_id)
 		plus_offset = { 1035, 3, 2 },
 	}, "show_rep", { minus = "hotspot_rep_minus", value = "hotspot_rep_value", plus = "hotspot_rep_plus", text = "rep_value" })
 
+	-- "Same": every repeat spawns the same number as the initial spawn (the stepper is ignored)
+	Components.checkbox_passes(passes, { 1128, 9, 1 }, nil, "show_rep", "same", "same_selected")
+	Components.hotspot_pass(passes, "hotspot_same", { 1122, 5, 2 }, { 36, 36 }, "show_rep")
+
 	Components.text_pass(passes, "share", "share", { 1390, 0, 2 }, { 120, 46 }, 20, colors.muted, "right", "show_share")
 	Components.button_passes(passes, "hotspot_mods", { 1390, 3, 2 }, { 130, 40 }, "", 18, colors.gold, "show_mods")
 	Components.button_passes(passes, "hotspot_action", { 1530, 3, 2 }, { 160, 40 }, "", 20, colors.gold, "show_action")
@@ -74,6 +78,7 @@ blueprints.row = function (node_id)
 		show_mods = false,
 		show_rep = false,
 		rep_value = "",
+		same_selected = false,
 	}, { 1710, 46 })
 end
 

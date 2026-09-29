@@ -70,11 +70,14 @@ local ALIASES = {
 -- Only buffs that are self-contained were audited in; see docs/03 ("Havoc conditions").
 --   requires_havoc: the buff reads the Havoc game-mode extension and errors without it.
 -- Recipe syntax: "3 crushers[enraged+garden]".
+--   prepare: name of a setup step Execute runs before the buff is added (see spawn/execute.lua);
+--            if it fails the modifier is skipped instead of risking an error later.
+-- Display names follow the Havoc colour naming; the ids and the old names stay valid in recipes.
 Groups.MODIFIERS = {
 	{
-		id = "garden", name = "Encroaching Garden", buffs = { "havoc_encroaching_garden" },
-		aliases = { "garden", "encroaching garden", "gardens embrace" },
-		description = "Extra health, resists impact, and heals nearby enemies.",
+		id = "garden", name = "Purple", buffs = { "havoc_encroaching_garden" },
+		aliases = { "purple", "garden", "encroaching garden", "gardens embrace" },
+		description = "Encroaching Garden. Extra health, resists impact, and heals nearby enemies.",
 	},
 	{
 		id = "enraged", name = "Enraged", buffs = { "havoc_enraged_enemies" },
@@ -82,23 +85,23 @@ Groups.MODIFIERS = {
 		description = "Enraged from the start: faster melee, no stagger, more hit mass, faster movement.",
 	},
 	{
-		id = "toll", name = "Final Toll", buffs = { "havoc_enraged_enemies_trigger" },
-		aliases = { "toll", "final toll", "enraged at half" },
-		description = "Becomes enraged once it drops below half health (the vanilla Final Toll).",
+		id = "toll", name = "Red", buffs = { "havoc_enraged_enemies_trigger" },
+		aliases = { "red", "toll", "final toll", "the final toll", "enraged at half" },
+		description = "The Final Toll. Becomes enraged once it drops below half health (the vanilla Final Toll).",
 	},
 	{
-		id = "corrupted", name = "Corrupted", buffs = { "havoc_corrupted_enemies" },
-		aliases = { "corrupted", "corruption", "blight" },
+		id = "corrupted", name = "Blight", buffs = { "havoc_corrupted_enemies" },
+		aliases = { "blight", "corrupted", "corruption" },
 		description = "Nurgle-corrupted: leaves corruption behind when it dies.",
 	},
 	{
-		id = "bolstering", name = "Bolstering", buffs = { "havoc_bolstering" },
-		aliases = { "bolstering", "bolstered", "bolster" },
-		description = "Bolstered: larger and stronger (stacks).",
+		id = "bolstering", name = "Orange", buffs = { "havoc_bolstering" },
+		aliases = { "orange", "rampaging", "rampaging enemies", "bolstering", "bolstered", "bolster" },
+		description = "Rampaging Enemies. Slightly bigger and tougher (takes less damage). When it dies, enemies within 4 m get another stack, up to 5.",
 	},
 	{
-		id = "toughened", name = "Toughened Skin", buffs = { "havoc_toughened_skin" }, requires_havoc = true,
-		aliases = { "toughened", "tough", "toughened skin", "tough skin" },
+		id = "toughened", name = "Pus-Hardened Skin", buffs = { "havoc_toughened_skin" }, requires_havoc = true,
+		aliases = { "pus hardened skin", "pus hardened", "pushardened", "toughened", "tough", "toughened skin", "tough skin" },
 		description = "Tougher skin against ranged damage.",
 	},
 	{
@@ -110,6 +113,16 @@ Groups.MODIFIERS = {
 		id = "parasite", name = "Head Parasite", buffs = { "headshot_parasite_enemies" },
 		aliases = { "parasite", "head parasite", "infested" },
 		description = "Nurgle parasite: tougher, faster, immune to suppression. Its visuals may be missing.",
+	},
+	{
+		-- buff mutator_stimmed_minion_purple (mutator_buff_templates.lua:326). When the enemy dies it
+		-- bursts and splits into two weaker enemies (a fixed breed table), which are stimmed again if
+		-- that breed splits further. The death effect calls
+		-- Managers.state.mutator:mutator("mutator_stimmed_minions_purple"):add_split_spawn(...), but that
+		-- mutator has no template in the game, so Execute creates the class itself ("purple_stimm" prepare step).
+		id = "purple_stimm", name = "Purple Stimm", buffs = { "mutator_stimmed_minion_purple" }, prepare = "purple_stimm",
+		aliases = { "purple stimm", "purple stimmed", "purple stim", "stimmed purple", "purple split", "splitting" },
+		description = "Purple stimmed: when it dies it bursts and splits into two weaker enemies, which can split again. The split enemies are extra units.",
 	},
 }
 
@@ -139,7 +152,18 @@ Groups.modifier_id = function (word)
 	return modifier_alias[normalize_word(word)]
 end
 
-Groups.MODIFIER_IDS = "garden, enraged, toll, corrupted, bolstering, toughened, fire, parasite"
+-- for error messages: "garden/purple, enraged, toll/red, ..." (id, and the display name when different)
+do
+	local names = {}
+
+	for index, modifier in ipairs(Groups.MODIFIERS) do
+		local display = normalize_word(modifier.name) ~= normalize_word(modifier.id) and ("/" .. modifier.name:lower()) or ""
+
+		names[index] = modifier.id .. display
+	end
+
+	Groups.MODIFIER_IDS = table.concat(names, ", ")
+end
 
 -- Kinds, from the game's own breed tags (S\settings\breed\breeds\...\<breed>_breed.lua):
 --   special = tags.special;  boss = tags.monster / tags.captain / tags.cultist_captain (includes the
@@ -356,16 +380,34 @@ end
 local function parse_modifiers(inner)
 	local seen, ids = {}, {}
 
-	for word in inner:gmatch("[^|]+") do
-		local id = modifier_alias[normalize_word(word)]
-
-		if not id then
-			return nil, string.format("%q is not a modifier I know. Valid modifiers: %s", word, Groups.MODIFIER_IDS)
-		end
-
+	local function add(id)
 		if not seen[id] then
 			seen[id] = true
 			ids[#ids + 1] = id
+		end
+	end
+
+	for raw_piece in inner:gmatch("[^|]+") do
+		local piece = raw_piece:gsub("^%s*(.-)%s*$", "%1")
+
+		if piece ~= "" then
+			-- whole piece first ("final toll", "pus-hardened skin"), then word by word so the
+			-- old style "[enraged garden]" (separated by spaces only) keeps working
+			local id = modifier_alias[normalize_word(piece)]
+
+			if id then
+				add(id)
+			else
+				for word in piece:gmatch("%S+") do
+					local word_id = modifier_alias[normalize_word(word)]
+
+					if not word_id then
+						return nil, string.format("%q is not a modifier I know. Valid modifiers: %s", piece, Groups.MODIFIER_IDS)
+					end
+
+					add(word_id)
+				end
+			end
 		end
 	end
 
@@ -387,8 +429,10 @@ Groups.parse = function (recipe)
 	-- protect the modifier list in [...] from the separator handling below:
 	-- "[enraged, garden]" / "[enraged and garden]" -> "[enraged|garden]"
 	text = text:gsub("%[(.-)%]", function (inner)
+		-- separators inside the brackets: , ; / + & and the word "and". Spaces are NOT separators
+		-- (modifier names such as "final toll" contain them); parse_modifiers handles space-only lists.
 		inner = inner:gsub("%s+[aA][nN][dD]%s+", "+")
-		inner = inner:gsub("[,;/%+&%s]+", "|")
+		inner = inner:gsub("%s*[,;/%+&]+%s*", "|")
 
 		return "[" .. inner .. "]"
 	end)
@@ -410,13 +454,21 @@ Groups.parse = function (recipe)
 				return nil, string.format("%q is a number with no enemy after it. Write it as \"5 trappers\"", field)
 			end
 
-			-- trailing "@N": units added on every repeat tick
-			local rep
+			-- trailing "@N": units added on every repeat tick; "@=" / "@same": the same number as
+			-- the initial spawn on every tick
+			local rep, rep_same
 			local without_rep, rep_text = name:match("^(.-)%s*@%s*(%d+)%s*$")
 
 			if without_rep then
 				name = without_rep
 				rep = math.min(tonumber(rep_text), Groups.MAX_BREED_COUNT)
+			else
+				local same_base = name:match("^(.-)%s*@%s*=%s*$") or name:match("^(.-)%s*@%s*[sS][aA][mM][eE]%s*$")
+
+				if same_base then
+					name = same_base
+					rep_same = true
+				end
 			end
 
 			local mods
@@ -491,6 +543,10 @@ Groups.parse = function (recipe)
 				if rep and rep > 0 then
 					part.rep = math.min((part.rep or 0) + rep, Groups.MAX_BREED_COUNT)
 				end
+
+				if rep_same then
+					part.rep_same = true
+				end
 			end
 		end
 	end
@@ -498,7 +554,7 @@ Groups.parse = function (recipe)
 	local result = {}
 
 	for i = 1, #parts do
-		if parts[i].count > 0 or (parts[i].rep or 0) > 0 then
+		if parts[i].count > 0 or (parts[i].rep or 0) > 0 then -- (a "same" group with count 0 repeats nothing)
 			result[#result + 1] = parts[i]
 		end
 	end
@@ -532,7 +588,9 @@ Groups.to_recipe = function (parts)
 			field = field .. "[" .. table.concat(part.mods, "+") .. "]"
 		end
 
-		if (part.rep or 0) > 0 then
+		if part.rep_same then
+			field = field .. "@="
+		elseif (part.rep or 0) > 0 then
 			field = field .. "@" .. part.rep
 		end
 
@@ -576,17 +634,28 @@ Groups.describe_part = function (part, with_mods)
 		text = text .. " [" .. Groups.describe_mods(part) .. "]"
 	end
 
-	if with_mods and (part.rep or 0) > 0 then
+	if with_mods and part.rep_same then
+		text = text .. " (same amount on every repeat)"
+	elseif with_mods and (part.rep or 0) > 0 then
 		text = text .. string.format(" (+%d per repeat)", part.rep)
 	end
 
 	return text
 end
 
+-- units a group adds on one repeat tick, before the type multiplier
+Groups.repeat_amount = function (part)
+	if part.rep_same then
+		return part.count or 0
+	end
+
+	return part.rep or 0
+end
+
 -- true when at least one enemy group repeats
 Groups.has_repeat = function (parts)
 	for i = 1, #(parts or {}) do
-		if (parts[i].rep or 0) > 0 then
+		if Groups.repeat_amount(parts[i]) > 0 then
 			return true
 		end
 	end

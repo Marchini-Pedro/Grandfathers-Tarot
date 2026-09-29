@@ -190,14 +190,18 @@ function Components.button_passes(passes, content_id, offset, size, label, font_
 	}
 end
 
--- Checkbox: frame + filled square when content.checkbox_selected. `flag` as above.
-function Components.checkbox_passes(passes, offset, size, flag)
+-- Checkbox: frame + filled square when content[selected_key] (default "checkbox_selected").
+-- `flag` as above. `id` (default "checkbox") prefixes the style ids so one widget can hold
+-- several checkboxes.
+function Components.checkbox_passes(passes, offset, size, flag, id, selected_key)
 	size = size or { 28, 28 }
+	id = id or "checkbox"
+	selected_key = selected_key or "checkbox_selected"
 
 	passes[#passes + 1] = {
 		pass_type = "texture",
 		value = "content/ui/materials/backgrounds/default_square",
-		style_id = "checkbox_frame",
+		style_id = id .. "_frame",
 		style = {
 			size = size,
 			offset = offset,
@@ -209,14 +213,14 @@ function Components.checkbox_passes(passes, offset, size, flag)
 	passes[#passes + 1] = {
 		pass_type = "texture",
 		value = "content/ui/materials/backgrounds/default_square",
-		style_id = "checkbox_check",
+		style_id = id .. "_check",
 		style = {
 			size = { math.max(size[1] - 6, 0), math.max(size[2] - 6, 0) },
 			offset = { offset[1] + 3, offset[2] + 3, (offset[3] or 0) + 1 },
 			color = clone_color(Components.colors.gold),
 		},
 		visibility_function = function (content)
-			return content.checkbox_selected == true and (flag == nil or content[flag] == true)
+			return content[selected_key] == true and (flag == nil or content[flag] == true)
 		end, -- no content_id: receives the widget content
 	}
 end

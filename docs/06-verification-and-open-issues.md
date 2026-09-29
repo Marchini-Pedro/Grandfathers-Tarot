@@ -37,6 +37,9 @@
 | 33 | `/rw_status` before and after a large wave (e.g. 200+ units), note the "lua heap" MB | Heap grows by roughly tens of MB per hundred units and falls again after they die; guard never trips at default 800 | not run |
 | 34 | Set the memory guard low (e.g. 300 MB) and run `/rw_test` | Wave refused with a "memory guard" message; a running wave pauses; console shows ONE "spawning paused" warning; resumes when raised | not run |
 | 35 | Hot-reload the mods (Ctrl+Shift+R) twice, then run a wave | Waves still work; `/rw_status` counters sane; heap floor growth per reload noted (FpsDoctor) | not run |
+| 36 | Detail screen: tick "Same" on `3 crushers`, wave repeat every 10 s for 25 s, `/rw_test` | 3 at once, +3 at 10 s and 20 s; box and "=" show; unticking stops repeats; `1 mutant@10` gives 1, then +10 per tick | not run |
+| 37 | Mods screen shows the new names (Purple, Red, Blight, Orange, Pus-Hardened Skin, Purple Stimm) with the new descriptions; old recipes with `[garden]`, `[toll]`, `[bolstering]` still work | Names/descriptions as specified; old wave definitions keep their modifiers | not run |
+| 38 | `2 crushers[purple stimm]`, `/rw_test`, kill them | Each bursts into two weaker enemies (executor) with a purple explosion; they split again; no console errors; watch the Lua memory (`/rw_status`) and unit count | not run |
 | 26 | Recipe text with `@`: `3 crushers[enraged]@2` in "Edit as text" | Accepted, shown as "(+2 per repeat)" in the list | not run |
 
 ## Known risks

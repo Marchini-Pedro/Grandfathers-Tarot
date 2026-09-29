@@ -31,6 +31,8 @@ Quick start for testing: disable TwitchVersus and RealmsEvent, keep Realms and R
 
 **1.4.1-1.4.2 (2026-09-29):** `/rw_test` by wave name; out-of-memory crash analysis and hardening (Lua memory guard option, throttled failed position searches, reload hygiene). Offline tests: 178 logic + 106 editor. Cause of the crash NOT proven (see doc 06); restart instead of hot-reloading, keep max alive/per wave moderate.
 
+**1.5.0-1.5.1 (2026-09-29):** "Same" tick box for repeats, modifier renames (Purple, Red, Blight, Orange, Pus-Hardened Skin), new **Purple Stimm** modifier (self-created split spawner), multi-word names in brackets. Offline tests: 225 logic + 115 editor. In-game verification pending (matrix rows 36-38 in doc 06).
+
 ## Where the originals are now
 `mods\TwitchVersus` and `mods\RealmsEvent` were purged by the user (empty marker folders). Their files remain in Vortex staging: `C:\Users\ayko4\AppData\Roaming\Vortex\warhammer40kdarktide\mods\<folder>\mods\<mod>\...` (folder names include version/date, e.g. `RealmsEvent 1338 1.1.0 2026-09-23T15-11Z l24cL2qMY`, `DT Twitch Versus realms(crash fix) 1273 5 2026-09-16T16-47Z ndQ1mdFjx(1)`). Read-only reference; do not copy them back into `mods\`.
 
