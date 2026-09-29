@@ -40,13 +40,23 @@ end
 
 Components.color_into = color_into
 
+-- The engine calls visibility_function(pass_content, style) where pass_content is
+-- content[content_id] for passes that have a content_id (hotspots!) and the widget
+-- content for all others (ui_widget.lua:411-446). For hotspot passes the widget
+-- content is reachable as pass_content.parent (set by the engine, :417-418).
+-- Reading the flag from the wrong table made every flagged hotspot invisible, so
+-- rows had no hover and their buttons never fired (1.2.1).
+local function root_content(content)
+	return content.parent or content
+end
+
 local function flag_visible(flag)
 	if not flag then
 		return nil
 	end
 
 	return function (content)
-		return content[flag] == true
+		return root_content(content)[flag] == true
 	end
 end
 
@@ -207,7 +217,7 @@ function Components.checkbox_passes(passes, offset, size, flag)
 		},
 		visibility_function = function (content)
 			return content.checkbox_selected == true and (flag == nil or content[flag] == true)
-		end,
+		end, -- no content_id: receives the widget content
 	}
 end
 

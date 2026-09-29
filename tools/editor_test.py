@@ -80,7 +80,7 @@ BaseView.update = function() end
 BaseView._add_element = function() return { add_entry = function() end } end
 BaseView._set_scenegraph_position = function() end
 BaseView._create_widget = function(self, name, def, widgets_by_name)
-  local w = { name = name, content = table.clone(def.content), style = table.clone(def.style), visible = true }
+  local w = { name = name, def = def, content = table.clone(def.content), style = table.clone(def.style), visible = true }
   ;(widgets_by_name or self._widgets_by_name)[name] = w
   return w
 end
@@ -142,6 +142,54 @@ check("list: share shown", row(1).content.share == "18.0%", row(1).content.share
 check("list: 10 rows visible", row(10).visible and view._offset == 0)
 check("list: buttons hidden", not view._widgets_by_name.btn_back.visible and not view._widgets_by_name.stepper_chance.visible)
 
+-- Engine semantics of visibility_function (scripts/managers/ui/ui_widget.lua:411-446): it receives
+-- content[content_id] for passes with a content_id (hotspots), the widget content otherwise, and
+-- the engine sets pass_content.parent = widget content. A hotspot whose visibility_function
+-- returns false is skipped entirely: no hover, no click.
+local function pass_visible(w, pass)
+  if not pass.visibility_function then return true end
+  local pc = pass.content_id and w.content[pass.content_id] or w.content
+  if pass.content_id and not pc.parent then pc.parent = w.content end
+  return pass.visibility_function(pc, {}) and true or false
+end
+local function hotspot_runs(w, content_id)
+  for _, p in ipairs(w.def.passes) do
+    if p.pass_type == "hotspot" and p.content_id == content_id then return pass_visible(w, p) end
+  end
+  error("no hotspot pass " .. content_id)
+end
+local function pass_by_style(w, style_id)
+  for _, p in ipairs(w.def.passes) do if p.style_id == style_id then return p end end
+end
+local r1 = row(1)
+check("engine rule: list row hotspots run (hover/click work)", hotspot_runs(r1, "hotspot_name") and hotspot_runs(r1, "hotspot_check") and hotspot_runs(r1, "hotspot_minus") and hotspot_runs(r1, "hotspot_value") and hotspot_runs(r1, "hotspot_plus") and hotspot_runs(r1, "hotspot_action"))
+check("engine rule: hidden hotspot (Mods) does not run on the list", not hotspot_runs(r1, "hotspot_mods"))
+r1.content.hotspot_action.is_hover = true
+check("engine rule: Edit button hover layers show while hovered", pass_visible(r1, pass_by_style(r1, "hotspot_action_highlight")) and pass_visible(r1, pass_by_style(r1, "hotspot_action_frame")))
+r1.content.hotspot_action.is_hover = false
+check("engine rule: no hover layer when not hovered", not pass_visible(r1, pass_by_style(r1, "hotspot_action_highlight")))
+local bg = pass_by_style(r1, "row_background")
+r1.content.hotspot_name.is_hover = true; bg.change_function(r1.content, r1.style.row_background)
+local hover_col = r1.style.row_background.color[2]
+r1.content.hotspot_name.is_hover = false; bg.change_function(r1.content, r1.style.row_background)
+check("row background highlights on hover", hover_col ~= r1.style.row_background.color[2], hover_col .. " vs " .. r1.style.row_background.color[2])
+-- every widget: every visibility/change function runs without error under engine semantics
+local bad = {}
+for name, w in pairs(view._widgets_by_name) do
+  if w.def then
+    for _, p in ipairs(w.def.passes) do
+      local ok, err = pcall(pass_visible, w, p)
+      if not ok then bad[#bad+1] = name .. ":" .. tostring(p.style_id) .. ": " .. tostring(err) end
+      if p.change_function then
+        local pc = p.content_id and w.content[p.content_id] or w.content
+        local ok2, err2 = pcall(p.change_function, pc, w.style[p.style_id] or {})
+        if not ok2 then bad[#bad+1] = name .. ":" .. tostring(p.style_id) .. " change: " .. tostring(err2) end
+      end
+    end
+  end
+end
+check("engine rule: no visibility/change function errors in any widget", #bad == 0, table.concat(bad, " | "))
+
 -- scrolling
 click("rw_scroll_down"); check("scroll down moves offset", view._offset == 1)
 click("rw_scroll_up"); check("scroll up returns", view._offset == 0)
@@ -188,6 +236,7 @@ check("picker: breed added", found, first_breed)
 
 -- modifiers screen ---------------------------------------------------------------
 check("detail: Mods button on enemy rows", row(1).content.show_mods and row(1).content.hotspot_mods_text == "btn_mods" and not row(1).content.show_share)
+check("engine rule: detail row Mods/stepper/Remove hotspots run, checkbox does not", hotspot_runs(row(1), "hotspot_mods") and hotspot_runs(row(1), "hotspot_plus") and hotspot_runs(row(1), "hotspot_action") and not hotspot_runs(row(1), "hotspot_check"))
 click_row(1, "hotspot_mods")
 check("mods screen opens", view._screen == "mods" and view._widgets_by_name.description_text.content.description_text:find("view_desc_mods") ~= nil and view._widgets_by_name.btn_back.visible)
 check("mods screen lists all 8 modifiers with checkboxes", row(8).visible and not row(9).visible and row(1).content.show_check and not row(1).content.show_stepper and not row(1).content.show_action and not row(1).content.show_mods, row(8).content.row_name)

@@ -2,6 +2,11 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## 1.2.1
+- **Fix (editor rows had no hover and their buttons did nothing):** the engine calls `visibility_function(pass_content, style)` with `content[content_id]` for passes that have a `content_id` (all hotspots), not the widget content (`ui_widget.lua:411-446`). The row's flagged hotspots (checkbox, `-`, value, `+`, Edit, Mods) looked up their `show_*` flag on the hotspot's own table, got nil, and the engine skipped them entirely. Unflagged ones (row name, bottom buttons) worked, which is what the user saw. The flag is now read from `content.parent` (set by the engine to the widget content).
+- Rows now highlight while hovered, and the clickable area of a row is name + composition.
+- Test: `editor_test.py` emulates the engine's rule (67 checks): flagged hotspots must run when their flag is on and not when off, hover layers appear on hover, and every visibility/change function of every widget is executed.
+
 ## 1.2.0
 - **Modifiers (new):** force Havoc-style conditions onto a group of enemies even when the mission did not load them (e.g. Garden only mission + `3 crushers[enraged]`). Eight modifiers: Encroaching Garden, Enraged, Final Toll (enrages at half health), Corrupted, Bolstering, Toughened Skin (Havoc missions only), On Fire, Head Parasite. Implemented as the vanilla buff templates added to each unit right after it spawns (same call the mutators use), guarded per buff so a failing buff never breaks a wave. Failures are always logged once ("RealmsWaves: modifier ... failed"), not only in debug mode.
 - **Recipe syntax:** `3 crushers[enraged+garden]`; separators inside brackets can be `+`, `,`, `;`, spaces or "and"; works with random picks (`1 plague ogryn|chaos spawn[garden]`). Same breed with different modifiers stays separate groups. `/rw_custom` and "Edit as text" accept it.

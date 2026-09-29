@@ -27,12 +27,17 @@ blueprints.row = function (node_id)
 			offset = { 0, 0, 0 },
 			color = Components.clone_color(colors.normal),
 		},
+		-- highlight the whole row while the pointer is over its name/composition area
+		change_function = function (content, style)
+			Components.color_into(style.color, content.hotspot_name.is_hover and colors.hover or colors.normal)
+		end,
 	}
 
 	Components.checkbox_passes(passes, { 10, 9, 1 }, nil, "show_check")
 	Components.hotspot_pass(passes, "hotspot_check", { 4, 5, 2 }, { 36, 36 }, "show_check")
 
-	Components.hotspot_pass(passes, "hotspot_name", { 60, 0, 3 }, { 480, 46 })
+	-- clickable area: name + composition (everything left of the steppers)
+	Components.hotspot_pass(passes, "hotspot_name", { 60, 0, 3 }, { 1130, 46 })
 	Components.text_pass(passes, "row_name", "row_name", { 60, 0, 2 }, { 480, 46 }, 22, colors.text)
 	Components.text_pass(passes, "info", "info", { 550, 0, 2 }, { 640, 46 }, 18, colors.muted)
 
