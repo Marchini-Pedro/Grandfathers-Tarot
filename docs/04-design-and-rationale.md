@@ -96,6 +96,13 @@ User requirements: enemies must not all spawn on the same spot (a radius slider 
 - **Limits that still apply:** `max_per_wave` caps each batch (initial and every tick), `max_alive` gates spawning (units wait in the queue), and a tick is skipped while more than 200 units are queued. Repeats keep coming even after the next wave has been drawn (they belong to the wave that started them).
 - **Editor:** the detail screen row got a second stepper ("Added each repeat", header column 6); the bottom panel got "Spread radius", "Repeat every", "Repeat for" steppers. Repeat timing is only meaningful when some group repeats (the "Repeat every" line says "off: no repeats" otherwise).
 
+## Type multipliers, enemy search, higher limits (1.4.0)
+User requirements: three global sliders (0-500 percent) that scale every wave's enemy numbers, one for normal and elite enemies, one for bosses only (twins included), one for specials; a search when adding enemies; max alive 250 -> 1000 and max per wave 200 -> 500; rename the "count" word to "weight".
+- **Multipliers** are read at spawn time (`Execute.expand`, `mod:get("mult_normal|mult_boss|mult_special")`), so changing a slider affects the next wave immediately and never rewrites the saved waves. They scale `count` and `rep` alike. Rounding is half up on `count * percent / 100`; there is no carry-over between groups. `max_per_wave` is applied AFTER scaling, so it still limits a wave.
+- **Why kinds are a data table in `groups.lua`:** it mirrors the tags of the 41 spawnable breeds (audited 2026-09-29 from the breed files, see CHANGELOG 1.4.0) so the mod does not need to `require` the breed settings at load; a test asserts 10 specials / 9 bosses / 12 elites.
+- **Search:** `Groups.search(query)` (all words must appear in `normalize(id + aliases + kind words)`); the view keeps `self._filter`; the search popup calls `on_change` every frame the text changes and `on_cancel` to undo. The popup accepts a `y` so it can sit under the list.
+- **Limits:** only the option ranges and the repeat-queue guard changed; nothing else in the pipeline had a 200/250 assumption (`Bypass`, `Execute` use the settings). The game's own hard limit of 145 is not affected because wave units are hidden from the counters (see doc 03).
+
 ## As-built notes
 - Vote mode: candidates are drawn at cycle start and shown during the countdown; votes are accepted the whole time; the last `vote_duration` seconds switch the header to "VOTE NOW". Winner = most votes (ties random); no votes -> weighted pick among the candidates, or skip (setting).
 - Custom recipes: DMF has no text-input widget, so `/rw_custom <slot> <recipe>` stores `custom_N_recipe` and the chance is the numeric option `custom_N_pct` (0 = disabled).

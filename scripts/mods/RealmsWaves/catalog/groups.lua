@@ -141,6 +141,50 @@ end
 
 Groups.MODIFIER_IDS = "garden, enraged, toll, corrupted, bolstering, toughened, fire, parasite"
 
+-- Kinds, from the game's own breed tags (S\settings\breed\breeds\...\<breed>_breed.lua):
+--   special = tags.special;  boss = tags.monster / tags.captain / tags.cultist_captain (includes the
+--   twins, daemonhost, packmaster);  elite = tags.elite;  everything else is normal (horde/roamer).
+-- The wave multiplier sliders group them as: normal + elite, boss, special.
+local KIND_LISTS = {
+	special = {
+		"chaos_armored_hound", "chaos_hound", "chaos_poxwalker_bomber", "cultist_flamer", "cultist_grenadier",
+		"cultist_mutant", "renegade_flamer", "renegade_grenadier", "renegade_netgunner", "renegade_sniper",
+	},
+	boss = {
+		"chaos_beast_of_nurgle", "chaos_daemonhost", "chaos_ogryn_houndmaster", "chaos_plague_ogryn", "chaos_spawn",
+		"renegade_twin_captain", "renegade_twin_captain_two", "cultist_captain", "renegade_captain",
+	},
+	elite = {
+		"chaos_ogryn_bulwark", "chaos_ogryn_executor", "chaos_ogryn_gunner", "cultist_berzerker", "cultist_gunner",
+		"cultist_shocktrooper", "renegade_berzerker", "renegade_executor", "renegade_gunner", "renegade_plasma_gunner",
+		"renegade_radio_operator", "renegade_shocktrooper",
+	},
+}
+
+local kind_of = {}
+
+for kind, list in pairs(KIND_LISTS) do
+	for i = 1, #list do
+		kind_of[list[i]] = kind
+	end
+end
+
+-- "special" | "boss" | "elite" | "normal"
+Groups.kind = function (breed_name)
+	return kind_of[breed_name] or "normal"
+end
+
+-- Multiplier group of a breed: "special" | "boss" | "normal" (normal covers elites too).
+Groups.category = function (breed_name)
+	local kind = kind_of[breed_name]
+
+	if kind == "special" or kind == "boss" then
+		return kind
+	end
+
+	return "normal"
+end
+
 local function normalize(word)
 	word = tostring(word or ""):lower()
 	word = word:gsub("[_%-%.]", " ")
@@ -199,6 +243,57 @@ Groups.breed_list = function ()
 	end
 
 	return copy
+end
+
+-- Search text per breed: id, every alias, and its kind words ("boss monster captain", "special", "elite", "horde").
+local search_text = {}
+
+for _, breed_name in ipairs(sorted_breeds) do
+	local words = { normalize(breed_name) }
+
+	for _, alias in ipairs(ALIASES[breed_name]) do
+		words[#words + 1] = normalize(alias)
+	end
+
+	local kind = kind_of[breed_name]
+
+	words[#words + 1] = kind == "boss" and "boss monster captain" or kind or "normal horde"
+	search_text[breed_name] = table.concat(words, " ")
+end
+
+-- Breeds matching every word of `query` (in the id, an alias, or the kind), sorted like breed_list().
+-- Empty query = all breeds.
+Groups.search = function (query)
+	local tokens = {}
+
+	for word in normalize(query):gmatch("%S+") do
+		tokens[#tokens + 1] = word
+	end
+
+	if #tokens == 0 then
+		return Groups.breed_list()
+	end
+
+	local result = {}
+
+	for _, breed_name in ipairs(sorted_breeds) do
+		local text = search_text[breed_name]
+		local matches = true
+
+		for i = 1, #tokens do
+			if not text:find(tokens[i], 1, true) then
+				matches = false
+
+				break
+			end
+		end
+
+		if matches then
+			result[#result + 1] = breed_name
+		end
+	end
+
+	return result
 end
 
 Groups.is_known = function (breed_name)

@@ -45,6 +45,7 @@ local scenegraph_definition = {
 	hint_text = node(125, 826, 1660, 120, 2),
 
 	btn_back = node(125, 826, 180, 44, 2),
+	btn_search = node(325, 826, 420, 44, 2), -- enemy picker only (same spot as Rename)
 	btn_rename = node(325, 826, 200, 44, 2),
 	btn_text = node(545, 826, 250, 44, 2),
 	btn_add = node(815, 826, 230, 44, 2),

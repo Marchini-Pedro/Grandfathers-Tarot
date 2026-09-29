@@ -25,6 +25,7 @@ local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread"
 local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
 local BUTTONS = {
 	{ name = "btn_back", width = 180, cb = "cb_back" },
+	{ name = "btn_search", width = 420, cb = "cb_search" },
 	{ name = "btn_rename", width = 200, cb = "cb_rename" },
 	{ name = "btn_text", width = 250, cb = "cb_edit_text" },
 	{ name = "btn_add", width = 230, cb = "cb_add" },
@@ -314,7 +315,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	end
 
 	if screen == "picker" then
-		self._breeds = rw.groups.breed_list()
+		self._breeds = rw.groups.search(self._filter or "")
 	end
 
 	self._offset = math.clamp(self._offset, 0, math.max(0, #self:_source() - LIST_CAPACITY))
@@ -341,7 +342,21 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	elseif screen == "picker" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_picker", self._wave.name)
 		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", mod:localize("col_enemy"), mod:localize("col_id"), "", ""
-		widgets.bottom_title.content.bottom_title = ""
+
+		local shown, total = #self._breeds, #rw.groups.breed_list()
+
+		local status
+
+		if (self._filter or "") ~= "" then
+			status = mod:localize("picker_status_filtered", shown, total, self._filter)
+		else
+			status = mod:localize("picker_status", shown, total)
+		end
+
+		-- shown in the description (top of the screen) so it stays visible under the search popup
+		widgets.description_text.content.description_text = widgets.description_text.content.description_text .. "   " .. status
+		widgets.bottom_title.content.bottom_title = status
+
 		widgets.hint_text.content.hint_text = ""
 	else
 		local part = self._parts[self._part_index]
@@ -358,6 +373,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 
 	widgets.hint_text.visible = screen == "list" or screen == "mods"
 	widgets.btn_back.visible = show_back
+	widgets.btn_search.visible = screen == "picker"
 	widgets.btn_rename.visible = detail
 	widgets.btn_text.visible = detail
 	widgets.btn_add.visible = detail
@@ -368,6 +384,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	end
 
 	widgets.btn_back.content.hotspot_text = mod:localize("btn_back")
+	widgets.btn_search.content.hotspot_text = (self._filter or "") ~= "" and mod:localize("btn_search_active", self._filter) or mod:localize("btn_search")
 	widgets.btn_rename.content.hotspot_text = mod:localize("btn_rename")
 	widgets.btn_text.content.hotspot_text = mod:localize("btn_edit_text")
 	widgets.btn_add.content.hotspot_text = mod:localize("btn_add_enemy")
@@ -460,7 +477,7 @@ RealmsWavesView._refresh_rows = function (self)
 					content.hotspot_mods_text = mod:localize("btn_mods")
 				elseif screen == "picker" then
 					content.row_name = rw.groups.display_name(item)
-					content.info = item
+					content.info = string.format("%s  (%s)", item, rw.groups.kind(item))
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, false, false, true, false
 					content.show_rep = false
 					content.hotspot_action_text = mod:localize("btn_add")
@@ -831,7 +848,34 @@ end)
 
 RealmsWavesView.cb_add = guarded(function (self)
 	self._screen = "picker"
+	self._filter = ""
 	self:_apply_screen()
+end)
+
+-- Search box for the enemy picker. Filters live while typing (the popup sits low on the
+-- screen so the list stays visible); OK keeps the filter, Cancel/Esc restores the old one.
+RealmsWavesView.cb_search = guarded(function (self)
+	local original = self._filter or ""
+
+	Popup.open(self, {
+		label = mod:localize("popup_search_title"),
+		hint = mod:localize("popup_search_hint"),
+		value = original,
+		max_length = 40,
+		y = 700,
+		on_change = function (text)
+			self._filter = text
+			self:_apply_screen()
+		end,
+		on_cancel = function ()
+			self._filter = original
+			self:_apply_screen()
+		end,
+		set = function (text)
+			self._filter = text
+			self:_apply_screen()
+		end,
+	})
 end)
 
 RealmsWavesView.cb_toggle_enabled = guarded(function (self)

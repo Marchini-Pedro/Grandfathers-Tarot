@@ -1,4 +1,4 @@
-﻿import sys, os
+import sys, os
 sys.path.insert(0, os.environ.get("PYLIBS", r"C:\Users\ayko4\AppData\Local\Temp\claude\c--XboxGames-Warhammer-40-000--Darktide-Content\9da40c72-f459-4d9d-ab4b-3023fa21e2f5\scratchpad\pylibs"))
 from lupa import LuaRuntime
 
@@ -91,6 +91,24 @@ check("aliases: female twin -> twin two, twin one -> twin one", tw[2].count == 2
 check("display names: Packmaster, Twin Captain One/Two", Groups.display_name("chaos_ogryn_houndmaster") == "Packmaster" and Groups.display_name("renegade_twin_captain") == "Twin Captain One" and Groups.display_name("renegade_twin_captain_two") == "Twin Captain Two", Groups.display_name("renegade_twin_captain"))
 check("both twins are in the picker list", (function() local n = 0 for _, b in ipairs(Groups.breed_list()) do if b:find("^renegade_twin_captain") then n = n + 1 end end return n == 2 end)())
 check("recipe roundtrip for twins/packmaster", Groups.to_recipe(Groups.parse("1 twin one, 2 packmaster")) == "1 twin captain one, 2 packmaster")
+
+-- kinds / categories / search --------------------------------------------------
+check("kinds from the game's tags", Groups.kind("chaos_hound") == "special" and Groups.kind("chaos_ogryn_executor") == "elite" and Groups.kind("chaos_plague_ogryn") == "boss" and Groups.kind("renegade_twin_captain") == "boss" and Groups.kind("renegade_twin_captain_two") == "boss" and Groups.kind("cultist_captain") == "boss" and Groups.kind("chaos_ogryn_houndmaster") == "boss" and Groups.kind("chaos_poxwalker") == "normal" and Groups.kind("renegade_melee") == "normal")
+check("multiplier categories: elite counts as normal", Groups.category("chaos_ogryn_executor") == "normal" and Groups.category("chaos_poxwalker") == "normal" and Groups.category("chaos_hound") == "special" and Groups.category("chaos_spawn") == "boss")
+do
+  local counts = { special = 0, boss = 0, elite = 0, normal = 0 }
+  for _, b in ipairs(Groups.breed_list()) do counts[Groups.kind(b)] = counts[Groups.kind(b)] + 1 end
+  check("every breed has a kind: 10 specials, 9 bosses, 12 elites, rest normal", counts.special == 10 and counts.boss == 9 and counts.elite == 12 and counts.normal == #Groups.breed_list() - 31, counts.special .. "/" .. counts.boss .. "/" .. counts.elite .. "/" .. counts.normal)
+end
+local function ids(list) return table.concat(list, ",") end
+check("search: empty query = every breed", #Groups.search("") == #Groups.breed_list() and #Groups.search("   ") == #Groups.breed_list())
+check("search: 'twin' finds both twins", #Groups.search("twin") == 2 and Groups.search("twin")[1]:find("twin_captain") ~= nil, ids(Groups.search("twin")))
+check("search: 'twin two' finds only the second twin", #Groups.search("twin two") == 1 and Groups.search("twin two")[1] == "renegade_twin_captain_two", ids(Groups.search("twin two")))
+check("search: old alias 'beastmaster' and new name 'packmaster' find the packmaster", ids(Groups.search("beastmaster")) == "chaos_ogryn_houndmaster" and ids(Groups.search("packmaster")) == "chaos_ogryn_houndmaster", ids(Groups.search("beastmaster")))
+check("search: by kind words", #Groups.search("boss") == 9 and #Groups.search("special") == 10 and #Groups.search("elite") == 12 and #Groups.search("monster") == 9)
+check("search: by breed id fragment and case-insensitive", ids(Groups.search("PLAGUE")) == "chaos_plague_ogryn" and #Groups.search("ogryn") >= 5)
+check("search: all words must match (ogryn AND boss = plague ogryn + packmaster)", #Groups.search("ogryn boss") == 2 and #Groups.search("hound special") == 2, #Groups.search("ogryn boss") .. "/" .. #Groups.search("hound special"))
+check("search: no match -> empty list", #Groups.search("xyzzy") == 0)
 
 -- repeats ("@N") ------------------------------------------------------------
 local r1 = Groups.parse("5 crushers[enraged]@2, 3 hounds, 0 snipers@4")
@@ -468,6 +486,111 @@ local _, _, tl5 = run_timed({ name = "t", parts = Groups.parse("6 hounds"), rep_
 check("max_alive still limits spawns of a wave", count_at(tl5, 6) == 4, count_at(tl5, 6))
 ALIVE = saved_alive
 settings.max_alive = nil
+
+-- type multipliers (mod options, 0-500 percent) ------------------------------------
+local function breed_counts()
+  local c = {}
+  for _, u in ipairs(spawned) do c[u.breed] = (c[u.breed] or 0) + 1 end
+  return c
+end
+-- runs long enough (40 s of simulated time) for any test wave to finish spawning
+local function run_long(def)
+  local saved = ALIVE
+  ALIVE = setmetatable({}, { __index = function() return true end })
+  spawned = {}
+  Bypass.reset()
+  local ok, err = Execute.start_wave(def)
+  for _ = 1, 200 do Execute.update(0.2) end
+  ALIVE = saved
+  return ok, err
+end
+local mix = "10 poxwalkers, 4 crushers, 3 hounds, 2 plague ogryn, 1 twin one"
+Execute.reset()
+run_long({ name = "t", parts = Groups.parse(mix) })
+local base = breed_counts()
+check("multipliers default to 100 percent (unchanged wave)", base.chaos_poxwalker == 10 and base.chaos_ogryn_executor == 4 and base.chaos_hound == 3 and base.chaos_plague_ogryn == 2 and base.renegade_twin_captain == 1)
+settings.mult_normal = 200; settings.mult_boss = 0; settings.mult_special = 500
+Execute.reset(); run_long({ name = "t", parts = Groups.parse(mix) })
+local c2 = breed_counts()
+check("normal 200 percent doubles poxwalkers and elite crushers", c2.chaos_poxwalker == 20 and c2.chaos_ogryn_executor == 8, tostring(c2.chaos_poxwalker) .. "/" .. tostring(c2.chaos_ogryn_executor))
+check("boss 0 percent removes plague ogryns and the twin", c2.chaos_plague_ogryn == nil and c2.renegade_twin_captain == nil)
+check("special 500 percent gives 5x hounds", c2.chaos_hound == 15, c2.chaos_hound)
+settings.mult_normal = 50; settings.mult_boss = 300; settings.mult_special = 100
+Execute.reset(); run_long({ name = "t", parts = Groups.parse("5 poxwalkers, 1 crusher, 2 plague ogryn, 1 twin one, 1 twin two") })
+local c3 = breed_counts()
+check("50 percent rounds half up (5 -> 3, 1 -> 1)", c3.chaos_poxwalker == 3 and c3.chaos_ogryn_executor == 1, tostring(c3.chaos_poxwalker) .. "/" .. tostring(c3.chaos_ogryn_executor))
+check("boss 300 percent: 2 -> 6 plague ogryns, each twin x3", c3.chaos_plague_ogryn == 6 and c3.renegade_twin_captain == 3 and c3.renegade_twin_captain_two == 3)
+settings.mult_normal = 30
+Execute.reset(); run_long({ name = "t", parts = Groups.parse("1 poxwalker, 2 poxwalkers[fire]") })
+check("small counts round: 1 x 30 percent = 0, 2 x 30 percent = 1", (breed_counts().chaos_poxwalker or 0) == 1, breed_counts().chaos_poxwalker)
+settings.mult_normal, settings.mult_boss, settings.mult_special = 0, 0, 0
+local all_zero_ok, all_zero_err = Execute.start_wave({ name = "t", parts = Groups.parse(mix) })
+check("all types at 0 percent -> wave refused with a clear reason", not all_zero_ok and all_zero_err:find("multipliers") ~= nil, all_zero_err)
+settings.mult_normal, settings.mult_boss, settings.mult_special = 100, 100, 100
+settings.mult_normal = 200
+local _, _, tlm = run_timed({ name = "t", parts = Groups.parse("2 poxwalkers@1"), rep_every = 5, rep_for = 10 }, 15, 0.25)
+check("repeat ticks are multiplied too (2 x2 initial + 2 ticks x (1 x2))", count_at(tlm, 15) == 8, count_at(tlm, 15))
+settings.mult_normal = 100; settings.mult_boss = 200
+Execute.reset(); run_long({ name = "t", parts = Groups.parse("3 plague ogryn|chaos spawn") })
+check("one_of group uses its first alternative's type (boss x2)", #spawned == 6, #spawned)
+settings.mult_boss = 100
+-- higher limits (max_per_wave 500, max_alive 1000)
+settings.max_per_wave = 500; settings.max_alive = 1000; settings.mult_normal = 500
+local saved_alive2 = ALIVE
+ALIVE = setmetatable({}, { __index = function() return true end })
+Execute.reset(); run_long({ name = "t", parts = Groups.parse("60 poxwalkers, 40 scabs") })
+Execute.reset()
+local big_ok = Execute.start_wave({ name = "t", parts = Groups.parse("60 poxwalkers, 40 scabs") })
+local big_queued = Execute.status().queued
+check("a 500 percent wave of 100 units queues 500 (max_per_wave 500)", big_ok and big_queued == 500, big_queued)
+settings.max_per_wave = 300
+Execute.reset()
+Execute.start_wave({ name = "t", parts = Groups.parse("60 poxwalkers, 40 scabs") })
+check("max_per_wave still caps a multiplied wave", Execute.status().queued == 300, Execute.status().queued)
+Execute.reset()
+ALIVE = saved_alive2
+settings.max_per_wave, settings.max_alive, settings.mult_normal = nil, nil, nil
+
+-- options data: limits and the three multiplier sliders ----------------------------------
+do
+  local data = dofile(ROOT .. "/RealmsWaves_data.lua")
+  local function find(id, widgets)
+    for _, w in ipairs(widgets) do
+      if w.setting_id == id then return w end
+      if w.sub_widgets then local r = find(id, w.sub_widgets) if r then return r end end
+    end
+  end
+  local all = data.options.widgets
+  local mp, ma = find("max_per_wave", all), find("max_alive", all)
+  check("options: max enemies per wave 1-500, max alive 10-1000", mp.range[1] == 1 and mp.range[2] == 500 and ma.range[1] == 10 and ma.range[2] == 1000, mp.range[2] .. "/" .. ma.range[2])
+  check("options: defaults unchanged (80 per wave, 120 alive)", mp.default_value == 80 and ma.default_value == 120)
+  local ok = true
+  for _, id in ipairs({ "mult_normal", "mult_boss", "mult_special" }) do
+    local w = find(id, all)
+    if not (w and w.type == "numeric" and w.range[1] == 0 and w.range[2] == 500 and w.default_value == 100) then ok = false end
+  end
+  check("options: three multiplier sliders, 0-500, default 100", ok)
+  check("options: multiplier sliders sit in their own group", find("group_multipliers", all) ~= nil and #find("group_multipliers", all).sub_widgets == 3)
+  local loc = dofile(ROOT .. "/RealmsWaves_localization.lua")
+  local bare = {}
+  for key, entry in pairs(loc) do
+    local text = entry.en
+    -- walk the string: "%%", "%s" and "%d" are valid format sequences; any other "%" breaks DMF's string.format
+    local i, bad = 1, false
+    while i <= #text do
+      if text:sub(i, i) == "%" then
+        local nxt = text:sub(i + 1, i + 1)
+        if nxt == "%" or nxt == "s" or nxt == "d" then i = i + 2 else bad = true; break end
+      else
+        i = i + 1
+      end
+    end
+    if bad then bare[#bare + 1] = key end
+  end
+  check("localization: no stray % in any string (DMF formats every string)", #bare == 0, table.concat(bare, ","))
+  check("localization: 'count' words are now 'weight'", loc.col_count.en == "Weight" and loc.popup_count_title.en == "Weight of %s")
+  check("localization: multiplier and search strings exist", loc.mult_normal and loc.mult_boss and loc.mult_special and loc.group_multipliers and loc.btn_search and loc.popup_search_hint and loc.picker_status and loc.unit_percent.en == "percent")
+end
 
 -- Positions.spread with stubbed nav queries -----------------------------------------
 do

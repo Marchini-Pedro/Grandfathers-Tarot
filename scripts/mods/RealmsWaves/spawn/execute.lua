@@ -15,7 +15,7 @@ local FEED_INTERVAL = 0.15
 local FEED_BATCH = 2
 local CANDIDATE_TTL = 1.5
 local JOB_TIMEOUT = 60 -- seconds a wave may stay unfinished (repeating waves add their repeat time)
-local MAX_QUEUE = 200 -- a repeat tick is skipped while this many units are still waiting
+local MAX_QUEUE = 1000 -- a repeat tick is skipped while this many units are still waiting
 local PURGE_INTERVAL = 5
 
 local jobs = {}
@@ -119,7 +119,22 @@ Execute.has_authority = function ()
 	return state ~= nil and state.minion_spawn ~= nil and game_session ~= nil and game_session:is_server() == true
 end
 
+local MULTIPLIER_SETTING = { normal = "mult_normal", boss = "mult_boss", special = "mult_special" }
+
+-- Enemy-type multiplier from the mod options (percent / 100, 0 to 5). A group with random
+-- alternatives ("a|b") uses the type of its first alternative.
+local function multiplier_for(part)
+	local breed = part.one_of and part.one_of[1] or part.breed
+	local percent = number_setting(MULTIPLIER_SETTING[Groups.category(breed)], 100)
+
+	return math.max(0, percent) / 100
+end
+
+Execute.multiplier_for = multiplier_for
+
 -- Units for one batch: `field` is "count" (the initial spawn) or "rep" (one repeat tick).
+-- Each group's number is scaled by its type's multiplier and rounded (half up), so
+-- 0 removes that type from the wave and 5 gives five times as many.
 local function expand(parts, field)
 	local queue = {}
 	local cap = number_setting("max_per_wave", 80)
@@ -127,8 +142,9 @@ local function expand(parts, field)
 	for i = 1, #parts do
 		local part = parts[i]
 		local one_of = part.one_of
+		local amount = math.floor((part[field] or 0) * multiplier_for(part) + 0.5)
 
-		for _ = 1, (part[field] or 0) do
+		for _ = 1, amount do
 			queue[#queue + 1] = { breed = one_of and one_of[math.random(1, #one_of)] or part.breed, mods = part.mods }
 		end
 	end
@@ -157,7 +173,7 @@ Execute.start_wave = function (def)
 	local has_repeat = Groups.has_repeat(def.parts) and every > 0 and rep_for > 0
 
 	if #queue == 0 and not has_repeat then
-		return false, "empty wave"
+		return false, (#(def.parts or {}) > 0) and "the enemy type multipliers (mod options) removed every enemy of this wave" or "empty wave"
 	end
 
 	-- Repeat ticks happen at every, 2*every, ... up to and including rep_for seconds.

@@ -35,6 +35,11 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 1.3.0 spread radius (`Positions.spread`, `sp_<key>`), repeating waves (`@N`, `re_/rf_<key>`, `Execute.run_repeats`), editor steppers and per-row repeat stepper, tests (logic 111, editor 89)
 - [ ] In-game verification: hover/click on rows and detail (1.2.1); spread looks right and units are not in view; `5 crushers@2` with repeat every 10 for 35 s behaves as designed
 
+### Iteration 1.3.1 - 1.4.0
+- [x] 1.3.1 Twins (2 breeds), Packmaster rename, spread max 100 m
+- [x] 1.4.0 type multipliers (`mult_normal/boss/special`), picker search, "Weight" wording, limits 500 / 1000, tests (147 logic, 106 editor)
+- [ ] In-game verification (rows 27-31 in doc 06)
+
 Deviations from the original plan (all deliberate):
 - No separate `handshake.lua`: hello/welcome live in `core/director.lua` (the handshake is just a version check).
 - `rw_state` is ONE JSON argument, and host -> clients uses `"others"` (Realms docs' own example) so there is no loopback to filter.

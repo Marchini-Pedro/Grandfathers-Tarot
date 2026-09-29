@@ -80,7 +80,7 @@ BaseView.on_enter = function() end
 BaseView.on_exit = function() end
 BaseView.update = function() end
 BaseView._add_element = function() return { add_entry = function() end } end
-BaseView._set_scenegraph_position = function() end
+BaseView._set_scenegraph_position = function(self, id, x, y, z) self._sg = self._sg or {}; self._sg[id] = { x, y, z } end
 BaseView._create_widget = function(self, name, def, widgets_by_name)
   local w = { name = name, def = def, content = table.clone(def.content), style = table.clone(def.style), visible = true }
   ;(widgets_by_name or self._widgets_by_name)[name] = w
@@ -235,6 +235,48 @@ click_row(1, "hotspot_action")
 check("picker add returns to detail", view._screen == "detail" and #view._parts == 4, view._screen)
 local found = false; for _, p in ipairs(view._parts) do if p.breed == first_breed then found = true end end
 check("picker: breed added", found, first_breed)
+
+-- enemy search in the picker -----------------------------------------------------------
+local input_stub = { get = function() return nil end, is_null_service = function() return false end }
+local SP = dofile(BASE .. "/ui/wave_editor_components.lua")
+click("btn_add")
+local total_breeds = #view._breeds
+check("picker: Search button visible, all enemies listed, status shown", view._widgets_by_name.btn_search.visible and total_breeds >= 41 and view._widgets_by_name.description_text.content.description_text:find("picker_status:") ~= nil, total_breeds)
+check("picker rows show the enemy kind", row(1).content.info:find("%(") ~= nil, row(1).content.info)
+click("btn_search")
+check("search popup opens low on the screen so the list stays visible", view._popup ~= nil and view._sg.rw_popup_panel[2] == 700 and view._sg.rw_popup_input[2] == 770, view._sg.rw_popup_panel and view._sg.rw_popup_panel[2])
+view._widgets_by_name.rw_popup_input.content.input_text = "twin"
+view:update(0.01, 0, input_stub)
+check("typing filters the list live", #view._breeds == 2 and row(1).visible and row(2).visible and not row(3).visible and row(1).content.row_name == "Twin Captain One" and row(2).content.row_name == "Twin Captain Two", #view._breeds)
+check("status text shows the match count and the filter", view._widgets_by_name.description_text.content.description_text:find("picker_status_filtered:2,") ~= nil and view._widgets_by_name.description_text.content.description_text:find("twin") ~= nil)
+view._widgets_by_name.rw_popup_input.content.input_text = "beastmaster"
+view:update(0.01, 0, input_stub)
+check("aliases are searched (beastmaster -> Packmaster)", #view._breeds == 1 and row(1).content.row_name == "Packmaster", row(1).content.row_name)
+view._widgets_by_name.rw_popup_input.content.input_text = "twin"
+view:update(0.01, 0, input_stub)
+SP.Popup.commit(view)
+check("OK keeps the filter, closes the popup, moves it back to the centre", view._popup == nil and #view._breeds == 2 and view._sg.rw_popup_panel[2] == 400 and view._widgets_by_name.btn_search.content.hotspot_text == "btn_search_active:twin", view._widgets_by_name.btn_search.content.hotspot_text)
+click("btn_search")
+view._widgets_by_name.rw_popup_input.content.input_text = "boss"
+view:update(0.01, 0, input_stub)
+local boss_matches = #view._breeds
+SP.Popup.cancel(view)
+check("Cancel undoes the typed filter (back to 'twin')", boss_matches == 9 and #view._breeds == 2 and view._filter == "twin", boss_matches .. "/" .. #view._breeds .. "/" .. tostring(view._filter))
+click("btn_search")
+view._widgets_by_name.rw_popup_input.content.input_text = ""
+view:update(0.01, 0, input_stub)
+SP.Popup.commit(view)
+check("clearing the search shows every enemy again", #view._breeds == total_breeds and view._widgets_by_name.btn_search.content.hotspot_text == "btn_search")
+click("btn_search")
+view._widgets_by_name.rw_popup_input.content.input_text = "xyzzy"
+view:update(0.01, 0, input_stub)
+check("no match -> empty list, no rows", #view._breeds == 0 and not row(1).visible)
+SP.Popup.commit(view)
+click("btn_back")
+click("btn_add")
+check("re-entering the picker starts with an empty search", view._filter == "" and #view._breeds == total_breeds)
+click("btn_back")
+check("back from the picker returns to the detail screen", view._screen == "detail")
 
 -- modifiers screen ---------------------------------------------------------------
 check("detail: Mods button on enemy rows", row(1).content.show_mods and row(1).content.hotspot_mods_text == "btn_mods" and not row(1).content.show_share)

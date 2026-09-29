@@ -1,12 +1,13 @@
 local mod = get_mod("RealmsWaves")
 
-local function numeric(id, default, min, max, unit)
+local function numeric(id, default, min, max, unit, step)
 	return {
 		setting_id = id,
 		type = "numeric",
 		default_value = default,
 		range = { min, max },
 		decimals_number = 0,
+		step_size_value = step,
 		unit_text = unit,
 	}
 end
@@ -61,12 +62,21 @@ return {
 				setting_id = "group_spawn",
 				type = "group",
 				sub_widgets = {
-					numeric("max_per_wave", 80, 1, 200, "unit_enemies"),
-					numeric("max_alive", 120, 10, 250, "unit_enemies"),
+					numeric("max_per_wave", 80, 1, 500, "unit_enemies"),
+					numeric("max_alive", 120, 10, 1000, "unit_enemies"),
 					numeric("min_distance", 22, 8, 100, "unit_meters"),
 					numeric("max_distance", 65, 20, 200, "unit_meters"),
 					numeric("monster_min_distance", 28, 8, 100, "unit_meters"),
 					numeric("monster_max_distance", 75, 20, 200, "unit_meters"),
+				},
+			},
+			{
+				setting_id = "group_multipliers",
+				type = "group",
+				sub_widgets = {
+					numeric("mult_normal", 100, 0, 500, "unit_percent", 5),
+					numeric("mult_boss", 100, 0, 500, "unit_percent", 5),
+					numeric("mult_special", 100, 0, 500, "unit_percent", 5),
 				},
 			},
 			{

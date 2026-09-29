@@ -287,16 +287,32 @@ local POPUP = {}
 
 Components.Popup = POPUP
 
+local POPUP_DEFAULT_Y = 400
+
+-- Moves the four popup nodes so the panel's top edge is at `y` (default: screen centre).
+local function place_popup(view, y)
+	view:_set_scenegraph_position(Components.POPUP_PANEL_NAME, 560, y, 45)
+	view:_set_scenegraph_position(Components.POPUP_INPUT_NAME, 600, y + 70, 50)
+	view:_set_scenegraph_position(Components.POPUP_CONFIRM_NAME, 600, y + 190, 50)
+	view:_set_scenegraph_position(Components.POPUP_CANCEL_NAME, 730, y + 190, 50)
+end
+
 -- spec = { label, value (string), max_length, set(value_or_text),
 --          numeric = true -> min, max, integer, value is parsed and range-checked
---          validate = function(text) -> ok, error_message  (text mode, optional) }
+--          validate = function(text) -> ok, error_message  (text mode, optional)
+--          hint = text under the input (optional)
+--          y = top edge of the popup (optional; lets a list stay visible above it)
+--          on_change = function(text)  called whenever the typed text changes (live filtering)
+--          on_cancel = function()      called when the popup closes WITHOUT confirming }
 function POPUP.open(view, spec)
 	POPUP.cancel(view)
 
 	local text = tostring(spec.value or "")
 
-	view._popup = { spec = spec, original = text, error = nil }
+	view._popup = { spec = spec, original = text, last_text = text, error = nil }
 	view.is_text_input_focused = true
+
+	place_popup(view, spec.y or POPUP_DEFAULT_Y)
 
 	local content = view._widgets_by_name[Components.POPUP_INPUT_NAME].content
 
@@ -384,6 +400,7 @@ function POPUP.commit(view)
 		end
 	end
 
+	edit.committed = true
 	POPUP.cancel(view)
 	spec.set(value)
 
@@ -391,12 +408,20 @@ function POPUP.commit(view)
 end
 
 function POPUP.cancel(view)
-	if not view._popup then
+	local edit = view._popup
+
+	if not edit then
 		return false
 	end
 
 	view._popup = nil
 	view.is_text_input_focused = false
+
+	place_popup(view, POPUP_DEFAULT_Y)
+
+	if edit.spec.on_cancel and not edit.committed then
+		edit.spec.on_cancel()
+	end
 
 	local content = view._widgets_by_name[Components.POPUP_INPUT_NAME].content
 
@@ -459,6 +484,17 @@ function POPUP.update(view, input_service)
 		POPUP.cancel(view)
 
 		return
+	end
+
+	local on_change = edit.spec.on_change
+
+	if on_change then
+		local text = view._widgets_by_name[Components.POPUP_INPUT_NAME].content.input_text or ""
+
+		if text ~= edit.last_text then
+			edit.last_text = text
+			on_change(text)
+		end
 	end
 
 	if input_service:get("confirm_pressed") then
