@@ -1,8 +1,9 @@
--- Standard wave events (pure data, no mod dependency so the localization and
--- data files can load it too) plus the pool builder that turns settings into
--- normalised percentages.
+-- Wave definitions and their settings (no mod dependency, so the localization
+-- and data files can load it too).
 --
--- part  = { breed = "name", count = n }  or  { one_of = { "a", "b" }, count = n }
+-- Built-in ("standard") waves are data below; the user can override name and
+-- composition of any wave, and fill 20 custom slots, from the in-game editor.
+-- part = { breed = "name", count = n }  or  { one_of = { "a", "b" }, count = n }
 -- monster = true uses the monster distance range.
 -- default_pct values sum to 100 across the standard events.
 local Events = {}
@@ -121,49 +122,130 @@ Events.get_standard = function (key)
 	return by_key[key]
 end
 
-local function clip(text, limit)
-	if #text <= limit then
-		return text
+-- Every wave key: the standard events, then the custom slots.
+Events.keys = function ()
+	local keys = {}
+
+	for i = 1, #Events.STANDARD do
+		keys[#keys + 1] = Events.STANDARD[i].key
 	end
 
-	return text:sub(1, limit - 1) .. "..."
+	for slot = 1, Events.CUSTOM_SLOTS do
+		keys[#keys + 1] = "custom_" .. slot
+	end
+
+	return keys
 end
 
--- Builds the list of events that are currently enabled, with their percentage
--- normalised over the enabled set so it always totals 100.
--- `get_setting(id)` reads a mod setting; `Groups` is catalog/groups.
+Events.DEFAULT_CUSTOM_PCT = 10
+Events.DEFAULT_CUSTOM_COOLDOWN = 60
+
+-- Settings per wave (all plain values so DMF can persist them):
+--   wave_def_<key>  "name<TAB>recipe"   overrides name/composition ("" = default)
+--   on_<key>        boolean             enabled (default: standard on, custom off)
+--   pct_<key>       number              relative chance weight
+--   cd_<key>        number              cooldown seconds
+local DEF_SEPARATOR = "\t"
+
+local function clean_name(name)
+	name = tostring(name or ""):gsub("[\t\r\n]", " ")
+	name = name:gsub("^%s*(.-)%s*$", "%1")
+
+	return name
+end
+
+Events.clean_name = clean_name
+
+-- Resolves one wave from the settings. `get_setting(id)` reads a mod setting.
+-- Returns { key, name, parts (nil for an empty custom slot), monster, is_custom, enabled, pct, cooldown, modified, std }.
+Events.get = function (key, get_setting, Groups)
+	local std = by_key[key]
+	local slot = tonumber(tostring(key):match("^custom_(%d+)$"))
+
+	if not std and not (slot and slot >= 1 and slot <= Events.CUSTOM_SLOTS) then
+		return nil
+	end
+
+	local wave = { key = key, std = std, is_custom = std == nil, monster = std and std.monster or false }
+
+	if std then
+		wave.name, wave.parts = std.name, std.parts
+	else
+		wave.name = "Custom " .. slot
+	end
+
+	local override = get_setting("wave_def_" .. key)
+
+	if type(override) == "string" and override ~= "" then
+		local name, recipe = override:match("^(.-)" .. DEF_SEPARATOR .. "(.*)$")
+
+		if name and name ~= "" then
+			wave.name = name
+		end
+
+		if recipe and recipe ~= "" then
+			local parts = Groups.parse(recipe)
+
+			if parts then
+				wave.parts = parts
+			end
+		elseif wave.is_custom then
+			wave.parts = nil
+		end
+
+		wave.modified = true
+	elseif wave.is_custom then
+		local legacy = get_setting("custom_" .. slot .. "_recipe") -- 1.0.0 setting
+
+		if type(legacy) == "string" and legacy ~= "" then
+			wave.parts = Groups.parse(legacy)
+		end
+	end
+
+	local enabled = get_setting("on_" .. key)
+
+	if enabled == nil then
+		enabled = std ~= nil
+	end
+
+	wave.enabled = enabled == true
+	wave.pct = tonumber(get_setting("pct_" .. key)) or (std and std.default_pct) or Events.DEFAULT_CUSTOM_PCT
+	wave.cooldown = tonumber(get_setting("cd_" .. key)) or (std and std.cooldown) or Events.DEFAULT_CUSTOM_COOLDOWN
+
+	return wave
+end
+
+-- Writes a wave's name and composition. `parts` may be nil/empty for a custom slot.
+Events.set_def = function (set_setting, key, name, parts, Groups)
+	set_setting("wave_def_" .. key, clean_name(name) .. DEF_SEPARATOR .. Groups.to_recipe(parts))
+end
+
+-- Back to defaults: standard waves return to the built-in definition; custom slots are emptied.
+Events.reset = function (set_setting, key)
+	local std = by_key[key]
+
+	set_setting("wave_def_" .. key, "")
+	set_setting("on_" .. key, std ~= nil)
+	set_setting("pct_" .. key, std and std.default_pct or Events.DEFAULT_CUSTOM_PCT)
+	set_setting("cd_" .. key, std and std.cooldown or Events.DEFAULT_CUSTOM_COOLDOWN)
+end
+
+-- Builds the list of waves that can be drawn right now (enabled, has enemies, chance > 0),
+-- with each chance normalised over that set so it always totals 100.
 -- Returns list of { key, name, def, raw, pct, cooldown } and the raw total.
 Events.build_pool = function (get_setting, Groups)
 	local pool = {}
 	local total = 0
+	local keys = Events.keys()
 
-	for i = 1, #Events.STANDARD do
-		local def = Events.STANDARD[i]
-		local raw = tonumber(get_setting("pct_" .. def.key))
+	for i = 1, #keys do
+		local wave = Events.get(keys[i], get_setting, Groups)
 
-		if raw == nil then
-			raw = def.default_pct
-		end
+		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 then
+			local def = { key = wave.key, name = wave.name, parts = wave.parts, monster = wave.monster, cooldown = wave.cooldown }
 
-		if raw > 0 then
-			pool[#pool + 1] = { key = def.key, name = def.name, def = def, raw = raw, cooldown = def.cooldown }
-			total = total + raw
-		end
-	end
-
-	for slot = 1, Events.CUSTOM_SLOTS do
-		local raw = tonumber(get_setting("custom_" .. slot .. "_pct")) or 0
-		local recipe = get_setting("custom_" .. slot .. "_recipe")
-
-		if raw > 0 and type(recipe) == "string" and recipe ~= "" then
-			local parts = Groups.parse(recipe)
-
-			if parts then
-				local def = { key = "custom_" .. slot, name = "Custom " .. slot .. ": " .. clip(recipe, 28), parts = parts, cooldown = 60 }
-
-				pool[#pool + 1] = { key = def.key, name = def.name, def = def, raw = raw, cooldown = def.cooldown }
-				total = total + raw
-			end
+			pool[#pool + 1] = { key = wave.key, name = wave.name, def = def, raw = wave.pct, cooldown = wave.cooldown }
+			total = total + wave.pct
 		end
 	end
 

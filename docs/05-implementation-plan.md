@@ -14,6 +14,16 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 8a. Static checks: all files compile; offline logic tests pass (see `06`)
 - [ ] 8b. **In-game verification (not done):** solo host, then two-instance Realms LAN. Follow the matrix in `06` and log results there.
 
+### Iteration 1.1.0 (after the first in-game test) — see `CHANGELOG.md`
+- [x] Percent formatting on the HUD (`%.1f`, trimmed)
+- [x] Minimum interval 5 s (options range, director no longer pads to vote_duration + 5, vote window capped)
+- [x] Data layer for editable waves: `catalog/events.lua` (`Events.get/set_def/reset/keys/build_pool`), `catalog/groups.lua` (parse with `a|b`, `to_recipe`, `describe_part`, `summary`, `breed_list`, `display_name`)
+- [x] Wave editor view: `ui/wave_editor_{components,definitions,blueprints,view}.lua`, registered in `RealmsWaves.lua`, keybind `open_editor_bind` (default F6), `/rw_editor`
+- [x] `/rw_custom` rewritten on the new data layer; `wave_def_/on_/pct_/cd_` settings; DMF wave sliders removed
+- [x] HUD panel reshaped for `custom_hud` (real-size node, sample in edit mode); `hud_x/hud_y` removed
+- [x] Local git repo + `tools/` test scripts; `CLAUDE.md` docs/commit rules
+- [ ] In-game verification of all of the above (editor opening and every screen, popup input, HUD dragging in custom_hud, 5 s waves)
+
 Deviations from the original plan (all deliberate):
 - No separate `handshake.lua`: hello/welcome live in `core/director.lua` (the handshake is just a version check).
 - `rw_state` is ONE JSON argument, and host -> clients uses `"others"` (Realms docs' own example) so there is no loopback to filter.

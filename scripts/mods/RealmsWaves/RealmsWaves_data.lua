@@ -1,13 +1,5 @@
 local mod = get_mod("RealmsWaves")
 
-local BASE = "RealmsWaves/scripts/mods/RealmsWaves/"
-
-local ok, Events = pcall(mod.io_dofile, mod, BASE .. "catalog/events")
-
-if not ok or type(Events) ~= "table" then
-	Events = { STANDARD = {}, CUSTOM_SLOTS = 20 }
-end
-
 local function numeric(id, default, min, max, unit)
 	return {
 		setting_id = id,
@@ -30,28 +22,6 @@ local function keybind(id, function_name, default)
 	}
 end
 
-local function event_widgets()
-	local widgets = {}
-
-	for i = 1, #Events.STANDARD do
-		local def = Events.STANDARD[i]
-
-		widgets[#widgets + 1] = numeric("pct_" .. def.key, def.default_pct, 0, 100, "unit_percent")
-	end
-
-	return widgets
-end
-
-local function custom_widgets()
-	local widgets = {}
-
-	for slot = 1, Events.CUSTOM_SLOTS do
-		widgets[#widgets + 1] = numeric("custom_" .. slot .. "_pct", 0, 0, 100, "unit_percent")
-	end
-
-	return widgets
-end
-
 return {
 	name = mod:localize("mod_name"),
 	description = mod:localize("mod_description"),
@@ -72,8 +42,8 @@ return {
 				type = "group",
 				sub_widgets = {
 					numeric("initial_delay", 45, 0, 600, "unit_seconds"),
-					numeric("interval_min", 150, 30, 1800, "unit_seconds"),
-					numeric("interval_max", 300, 30, 1800, "unit_seconds"),
+					numeric("interval_min", 150, 5, 1800, "unit_seconds"),
+					numeric("interval_max", 300, 5, 1800, "unit_seconds"),
 					numeric("vote_duration", 25, 5, 120, "unit_seconds"),
 					numeric("ballot_size", 3, 2, 5, "unit_options"),
 					{
@@ -100,19 +70,10 @@ return {
 				},
 			},
 			{
-				setting_id = "group_events",
-				type = "group",
-				sub_widgets = event_widgets(),
-			},
-			{
-				setting_id = "group_custom",
-				type = "group",
-				sub_widgets = custom_widgets(),
-			},
-			{
 				setting_id = "group_controls",
 				type = "group",
 				sub_widgets = {
+					keybind("open_editor_bind", "open_editor", { "f6" }),
 					keybind("vote_1_bind", "vote_1", { "f1" }),
 					keybind("vote_2_bind", "vote_2", { "f2" }),
 					keybind("vote_3_bind", "vote_3", { "f3" }),
@@ -125,8 +86,6 @@ return {
 				type = "group",
 				sub_widgets = {
 					{ setting_id = "hud_enabled", type = "checkbox", default_value = true },
-					numeric("hud_x", 2, 0, 100, "unit_percent"),
-					numeric("hud_y", 30, 0, 100, "unit_percent"),
 					{ setting_id = "debug", type = "checkbox", default_value = false },
 				},
 			},

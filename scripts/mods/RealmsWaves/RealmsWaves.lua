@@ -4,6 +4,7 @@
 local mod = get_mod("RealmsWaves")
 
 local BASE = "RealmsWaves/scripts/mods/RealmsWaves"
+local EDITOR_VIEW = "realms_waves_editor"
 
 mod.rw = {}
 
@@ -54,6 +55,51 @@ mod.on_all_mods_loaded = function ()
 
 	-- Same "first objective started" signal RealmsEvent uses to begin its rolls.
 	Managers.event:register(mod, "event_mission_objective_start", "_on_mission_objective_start")
+
+	-- Wave editor view (structure copied from RealmsEvent's editor registration).
+	local UISoundEvents = require("scripts/settings/ui/ui_sound_events")
+	local WwiseGameSyncSettings = require("scripts/settings/wwise_game_sync/wwise_game_sync_settings")
+
+	mod:add_require_path(BASE .. "/ui/wave_editor_view")
+	mod:register_view({
+		view_name = EDITOR_VIEW,
+		view_settings = {
+			package = { "packages/ui/views/inventory_view/inventory_view" },
+			init_view_function = function ()
+				return true
+			end,
+			state_bound = true,
+			path = BASE .. "/ui/wave_editor_view",
+			class = "RealmsWavesView",
+			disable_game_world = false,
+			load_always = true,
+			load_in_hub = true,
+			game_world_blur = 1.1,
+			enter_sound_events = { UISoundEvents.system_menu_enter },
+			exit_sound_events = { UISoundEvents.system_menu_exit },
+			wwise_states = { options = WwiseGameSyncSettings.state_groups.options.ingame_menu },
+		},
+		view_transitions = {},
+		view_options = {
+			close_all = false,
+			close_previous = false,
+			close_transition_time = nil,
+			transition_time = nil,
+		},
+	})
+end
+
+-- Toggle the wave editor (keybind in the mod options, or /rw_editor).
+mod.open_editor = function ()
+	if not Managers.ui then
+		return
+	end
+
+	if Managers.ui:view_instance(EDITOR_VIEW) then
+		Managers.ui:close_view(EDITOR_VIEW)
+	else
+		Managers.ui:open_view(EDITOR_VIEW, nil, nil, nil, nil, {})
+	end
 end
 
 mod._on_mission_objective_start = function ()
@@ -143,6 +189,8 @@ mod:command("rw_test", "RealmsWaves: (host) spawn a wave now: /rw_test <event ke
 		return
 	end
 
+	key = tostring(key)
+
 	local ok, err = RW.director.fire_now(key)
 
 	mod:echo("RealmsWaves: %s", ok and ("wave " .. key .. " queued") or tostring(err))
@@ -179,10 +227,12 @@ mod:command("rw_custom", "RealmsWaves: set a custom wave: /rw_custom <slot 1-20>
 		return
 	end
 
+	local key = "custom_" .. slot
 	local recipe = table.concat({ ... }, " ")
+	local wave = RW.events.get(key, function (id) return mod:get(id) end, RW.groups)
 
 	if recipe == "" then
-		mod:echo("RealmsWaves: custom_%d = %q (chance %s%%)", slot, tostring(mod:get("custom_" .. slot .. "_recipe") or ""), tostring(mod:get("custom_" .. slot .. "_pct") or 0))
+		mod:echo("RealmsWaves: %s = %q, %s, chance %s, %s", key, wave.name, wave.parts and RW.groups.summary(wave.parts) or "(empty)", tostring(wave.pct), wave.enabled and "enabled" or "disabled")
 
 		return
 	end
@@ -195,13 +245,11 @@ mod:command("rw_custom", "RealmsWaves: set a custom wave: /rw_custom <slot 1-20>
 		return
 	end
 
-	mod:set("custom_" .. slot .. "_recipe", recipe)
+	RW.events.set_def(function (id, value) mod:set(id, value) end, key, wave.name, parts, RW.groups)
+	mod:set("on_" .. key, true)
+	mod:echo("RealmsWaves: %s saved and enabled: %s (chance %s; change name, chance and more in the wave editor, /rw_editor)", key, RW.groups.summary(parts), tostring(wave.pct))
+end)
 
-	local summary = {}
-
-	for i = 1, #parts do
-		summary[#summary + 1] = parts[i].count .. " " .. parts[i].breed
-	end
-
-	mod:echo("RealmsWaves: custom_%d saved: %s. Set its chance in the mod options (0 = disabled).", slot, table.concat(summary, ", "))
+mod:command("rw_editor", "RealmsWaves: open the wave editor (same as the editor keybind)", function ()
+	mod.open_editor()
 end)

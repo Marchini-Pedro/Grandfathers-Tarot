@@ -21,6 +21,11 @@ See the checkboxes in `05-implementation-plan.md`. Update this line when a phase
 
 Quick start for testing: disable TwitchVersus and RealmsEvent, keep Realms and RealmsWaves enabled (RealmsWaves is already the last line of `mods\mod_load_order.txt`), start a mission as host, use `/rw_status`, `/rw_test hound_frenzy`, `/rw_skip`, `/rw_roll`, `/rw_custom`. Vote keys default to F1-F3 (mod options).
 
+**Iteration 1.1.0 (2026-09-28):** wave editor (F6 or `/rw_editor`), per-wave name/composition/chance/cooldown/enabled, 5 s minimum interval, HUD percent formatting, `custom_hud`-movable panel. Offline tests: 52 + 45 checks pass. See `CHANGELOG.md`. Still needs in-game verification.
+
+## Where the originals are now
+`mods\TwitchVersus` and `mods\RealmsEvent` were purged by the user (empty marker folders). Their files remain in Vortex staging: `C:\Users\ayko4\AppData\Roaming\Vortex\warhammer40kdarktide\mods\<folder>\mods\<mod>\...` (folder names include version/date, e.g. `RealmsEvent 1338 1.1.0 2026-09-23T15-11Z l24cL2qMY`, `DT Twitch Versus realms(crash fix) 1273 5 2026-09-16T16-47Z ndQ1mdFjx(1)`). Read-only reference; do not copy them back into `mods\`.
+
 ## How to resume
 1. Read this file, then `04` and `05`. Read `01`-`03` only for the area you are touching.
 2. Do NOT re-audit TwitchVersus / RealmsEvent / Realms / game source unless a doc is marked stale (see versions below). If you find something new or wrong, fix the relevant doc in place and note it in `06`'s results log.

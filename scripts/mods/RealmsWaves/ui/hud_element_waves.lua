@@ -1,7 +1,11 @@
 -- On-screen panel: countdown, upcoming wave(s), live votes, incoming banner.
 -- It renders whatever core/director.lua's view() returns; on the host that is
 -- the authoritative state, on clients the last state the host synced. The text
--- is rebuilt only when the state, the displayed second, or a setting changes.
+-- is rebuilt only when the state or the displayed second changes.
+--
+-- Position: the "panel" scenegraph node is movable with the custom_hud mod
+-- (its edit mode lists this element as "HudElementRealmsWavesPanel|panel").
+-- While that edit mode is open a sample panel is shown so there is something to drag.
 local mod = get_mod("RealmsWaves")
 
 local Definitions = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/hud_element_waves_definitions")
@@ -14,20 +18,17 @@ local COLOUR_LINE = { 255, 235, 235, 235 }
 local COLOUR_MINE = { 255, 120, 235, 120 }
 local COLOUR_HINT = { 200, 190, 190, 190 }
 
-local function number_setting(id, fallback)
-	local value = tonumber(mod:get(id))
-
-	if not value or value ~= value then
-		return fallback
-	end
-
-	return value
-end
-
 local function time_text(seconds)
 	seconds = math.max(0, math.ceil(seconds))
 
 	return string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
+end
+
+-- 52.100000000000001 -> "52.1", 12.0 -> "12"
+local function pct_text(value)
+	local text = string.format("%.1f", tonumber(value) or 0)
+
+	return (text:gsub("%.0$", ""))
 end
 
 local function key_label(index)
@@ -49,6 +50,21 @@ local function hint_text(count)
 
 	return table.concat(labels, "  ")
 end
+
+local SAMPLE = {
+	phase = "voting",
+	mode = "vote",
+	remaining = 45,
+	ballot_id = 0,
+	chosen = "",
+	version = 0,
+	my_vote = 1,
+	cands = {
+		{ name = "Hound Frenzy", pct = 9, votes = 2 },
+		{ name = "Elite Squad", pct = 8, votes = 1 },
+		{ name = "Medium Wave", pct = 14, votes = 0 },
+	},
+}
 
 HudElementRealmsWavesPanel.init = function (self, parent, draw_layer, start_scale)
 	HudElementRealmsWavesPanel.super.init(self, parent, draw_layer, start_scale, Definitions)
@@ -80,21 +96,31 @@ HudElementRealmsWavesPanel._hide = function (self)
 	self._sig = nil
 end
 
+local function customizing()
+	local custom_hud = get_mod("custom_hud")
+
+	return custom_hud ~= nil and custom_hud.is_customizing == true
+end
+
 HudElementRealmsWavesPanel._refresh = function (self)
 	local rw = mod.rw
 	local director = rw and rw.director
+	local sample = customizing()
 
-	if not director or not mod:is_enabled() or mod:get("hud_enabled") == false then
+	if not director or not mod:is_enabled() or (mod:get("hud_enabled") == false and not sample) then
 		return self:_hide()
 	end
 
 	local view = director.view()
 
+	if sample and view.phase == "off" then
+		view = SAMPLE
+	end
+
 	if view.phase == "off" then
 		return self:_hide()
 	end
 
-	local x, y = number_setting("hud_x", 2), number_setting("hud_y", 30)
 	local seconds = math.ceil(view.remaining)
 	local votes_total = 0
 	local cands = view.cands or {}
@@ -103,7 +129,7 @@ HudElementRealmsWavesPanel._refresh = function (self)
 		votes_total = votes_total + (cands[i].votes or 0)
 	end
 
-	local sig = view.phase .. "|" .. tostring(view.mode) .. "|" .. seconds .. "|" .. view.version .. "|" .. tostring(view.my_vote) .. "|" .. votes_total .. "|" .. x .. "|" .. y
+	local sig = view.phase .. "|" .. tostring(view.mode) .. "|" .. seconds .. "|" .. tostring(view.version) .. "|" .. tostring(view.my_vote) .. "|" .. votes_total .. "|" .. tostring(view == SAMPLE)
 
 	if sig == self._sig then
 		return
@@ -119,10 +145,6 @@ HudElementRealmsWavesPanel._refresh = function (self)
 	end
 
 	for i = 0, Definitions.LINES - 1 do
-		local style = widget.style["line_" .. i]
-
-		style.offset[1] = x / 100 * Definitions.SCREEN_WIDTH
-		style.offset[2] = y / 100 * Definitions.SCREEN_HEIGHT + i * Definitions.LINE_HEIGHT
 		widget.content["line_" .. i] = ""
 	end
 
@@ -153,12 +175,11 @@ HudElementRealmsWavesPanel._refresh = function (self)
 	for i = 1, math.min(#cands, Definitions.LINES - 2) do
 		local cand = cands[i]
 		local colour = view.my_vote == i and COLOUR_MINE or COLOUR_LINE
-		local label = key_label(i)
 
 		if is_vote then
-			set_line(widget, i, mod:localize("hud_line_votes", label, cand.name, tostring(cand.pct), cand.votes or 0), colour)
+			set_line(widget, i, mod:localize("hud_line_votes", key_label(i), cand.name, pct_text(cand.pct), cand.votes or 0), colour)
 		else
-			set_line(widget, i, mod:localize("hud_line", ">", cand.name, tostring(cand.pct)), colour)
+			set_line(widget, i, mod:localize("hud_line", ">", cand.name, pct_text(cand.pct)), colour)
 		end
 
 		line = i

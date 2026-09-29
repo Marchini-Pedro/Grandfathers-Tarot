@@ -14,6 +14,12 @@ definitions.LINES = 7 -- header + up to 5 candidates + key hint
 definitions.LINE_HEIGHT = 30
 definitions.FONT = "proxima_nova_bold"
 
+-- The "panel" node is the box the custom_hud mod lets the player drag around
+-- (it lists every non-root scenegraph node of a registered HUD element), so it
+-- has the real size of the text block. All text is positioned inside it.
+definitions.PANEL_WIDTH = 640
+definitions.PANEL_HEIGHT = definitions.LINES * definitions.LINE_HEIGHT
+
 local scenegraph_definition = {
 	screen = UIWorkspaceSettings.screen,
 
@@ -21,8 +27,8 @@ local scenegraph_definition = {
 		parent = "screen",
 		vertical_alignment = "top",
 		horizontal_alignment = "left",
-		size = { definitions.SCREEN_WIDTH, definitions.SCREEN_HEIGHT },
-		position = { 0, 0, 50 },
+		size = { definitions.PANEL_WIDTH, definitions.PANEL_HEIGHT },
+		position = { 40, 330, 50 },
 	},
 }
 
@@ -41,6 +47,7 @@ for i = 0, definitions.LINES - 1 do
 			offset = { 0, i * definitions.LINE_HEIGHT, 5 },
 			text_horizontal_alignment = "left",
 			text_vertical_alignment = "top",
+			size = { definitions.PANEL_WIDTH, definitions.LINE_HEIGHT },
 			drop_shadow = true,
 		},
 	}

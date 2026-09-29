@@ -152,7 +152,7 @@ local function round1(value)
 end
 
 local function random_interval(first)
-	local low = number_setting("interval_min", 150)
+	local low = math.max(5, number_setting("interval_min", 150))
 	local high = math.max(low, number_setting("interval_max", 300))
 	local interval = low + math.random() * (high - low)
 
@@ -160,7 +160,7 @@ local function random_interval(first)
 		interval = interval + number_setting("initial_delay", 45)
 	end
 
-	return math.max(interval, number_setting("vote_duration", 25) + 5)
+	return interval
 end
 
 local function start_cycle(first)
@@ -185,10 +185,14 @@ local function start_cycle(first)
 		cands[i] = { key = picks[i].key, name = picks[i].name, pct = round1(picks[i].pct), votes = 0, def = picks[i].def, raw = picks[i].raw }
 	end
 
+	local interval = random_interval(first)
+
 	host_state = {
 		phase = "waiting",
 		mode = mode,
-		remaining = random_interval(first),
+		remaining = interval,
+		-- the highlighted voting window can never be longer than the whole countdown
+		vote_window = math.min(number_setting("vote_duration", 25), interval),
 		ballot_id = ballot_seq,
 		chosen = "",
 		cands = cands,
@@ -320,7 +324,7 @@ local function host_update(dt)
 			start_cycle(false)
 		end
 	else
-		if state.phase == "waiting" and state.mode == "vote" and #state.cands > 0 and state.remaining <= number_setting("vote_duration", 25) then
+		if state.phase == "waiting" and state.mode == "vote" and #state.cands > 0 and state.remaining <= (state.vote_window or 25) then
 			state.phase = "voting"
 			mark_changed()
 		end
@@ -621,26 +625,17 @@ Director.fire_now = function (key)
 		return false, "only the host can start waves"
 	end
 
-	local def = Events.get_standard(key)
+	local wave = Events.get(key, get_setting, Groups)
 
-	if not def then
-		local slot = tonumber(tostring(key):match("^custom_(%d+)$"))
-		local recipe = slot and mod:get("custom_" .. slot .. "_recipe")
-
-		if not recipe or recipe == "" then
-			return false, "unknown event, or custom slot has no recipe (/rw_custom): " .. tostring(key)
-		end
-
-		local parts, err = Groups.parse(recipe)
-
-		if not parts then
-			return false, err
-		end
-
-		def = { key = key, name = "Custom " .. slot, parts = parts }
+	if not wave then
+		return false, "unknown wave key: " .. tostring(key)
 	end
 
-	return Execute.start_wave(def)
+	if not wave.parts or #wave.parts == 0 then
+		return false, "that wave has no enemies yet (edit it in the wave editor or with /rw_custom)"
+	end
+
+	return Execute.start_wave({ key = wave.key, name = wave.name, parts = wave.parts, monster = wave.monster })
 end
 
 Director.simulate = function (rolls)

@@ -1,11 +1,10 @@
-local mod = get_mod("RealmsWaves")
-
-local BASE = "RealmsWaves/scripts/mods/RealmsWaves/"
-
-local localization = {
+-- NOTE: DMF runs every localized string through string.format. A bare "%" is an
+-- error ("invalid option '%' to 'format'"); write "%%" only in strings that are
+-- always localized with arguments, otherwise avoid the character (use "percent").
+return {
 	mod_name = { en = "Realms Waves" },
 	mod_description = {
-		en = "Random enemy waves for Realms (LAN) sessions. Waves spawn near the squad but out of sight, ignore the director's spawn limits, and are picked at random or by an in-game vote. Everything is synced to all players' HUD. Host needs the mod; clients need it to see the HUD and vote.",
+		en = "Random enemy waves for Realms (LAN) sessions. Waves spawn near the squad but out of sight, ignore the director's spawn limits, and are picked at random or by an in-game vote. Everything is synced to all players' HUD. Edit waves in the wave editor (keybind below, or /rw_editor). Move the wave panel with the Custom HUD mod. Host needs the mod; clients need it to see the HUD and vote.",
 	},
 
 	mode = { en = "Wave selection mode" },
@@ -30,10 +29,8 @@ local localization = {
 	monster_min_distance = { en = "Monster min spawn distance" },
 	monster_max_distance = { en = "Monster max spawn distance" },
 
-	group_events = { en = "Standard waves: chance (relative, normalised to a total of 100 percent)" },
-	group_custom = { en = "Custom waves: chance (set recipe with /rw_custom)" },
-
-	group_controls = { en = "Vote keys" },
+	group_controls = { en = "Keys" },
+	open_editor_bind = { en = "Open the wave editor" },
 	vote_1_bind = { en = "Vote for option 1" },
 	vote_2_bind = { en = "Vote for option 2" },
 	vote_3_bind = { en = "Vote for option 3" },
@@ -42,41 +39,71 @@ local localization = {
 
 	group_hud = { en = "HUD and debug" },
 	hud_enabled = { en = "Show wave panel" },
-	hud_x = { en = "Panel position X (percent of screen)" },
-	hud_y = { en = "Panel position Y (percent of screen)" },
 	debug = { en = "Debug logging" },
 
 	unit_seconds = { en = "s" },
 	unit_meters = { en = "m" },
 	unit_enemies = { en = "enemies" },
 	unit_options = { en = "options" },
-	-- DMF passes localized strings through string.format, so a lone "%" is an error.
-	unit_percent = { en = "percent" },
 
+	-- HUD panel (always localized with arguments, so "%%" is a literal percent sign)
 	hud_wave_in = { en = "Next wave in %s" },
 	hud_wave_in_vote = { en = "Next wave in %s. Vote: %s" },
 	hud_vote_now = { en = "VOTE NOW: %s left. %s" },
 	hud_incoming = { en = "WAVE INCOMING: %s" },
 	hud_no_votes = { en = "No votes, wave skipped" },
-	hud_empty = { en = "Waves: no event enabled (set chances in mod options)" },
+	hud_empty = { en = "Waves: no wave enabled (open the wave editor)" },
 	hud_line = { en = "%s  %s (%s%%)" },
 	hud_line_votes = { en = "%s  %s (%s%%)  [%d]" },
 	vote_cast = { en = "Voted %d: %s" },
+
+	-- Wave editor
+	view_title = { en = "Realms Waves: Wave Editor" },
+	view_desc_list = {
+		en = "Every wave that can be drawn. Tick to enable, change the chance weight, or press Edit to rename it and change its enemies. Only the host's settings are used in a session.",
+	},
+	view_desc_detail = { en = "Editing: %s" },
+	view_desc_picker = { en = "Pick an enemy to add to: %s" },
+	col_on = { en = "On" },
+	col_wave = { en = "Wave" },
+	col_composition = { en = "Composition" },
+	col_chance = { en = "Chance weight" },
+	col_share = { en = "Share" },
+	col_enemy = { en = "Enemy" },
+	col_count = { en = "Count" },
+	col_id = { en = "Breed id" },
+	bottom_list_title = { en = "Custom slots are empty until you add enemies to them" },
+	bottom_detail_title = { en = "%s: %d enemies in total" },
+	hint_list = {
+		en = "The share column is each wave's chance as a part of all enabled waves, so the shares always add up to 100 percent. Set a weight to 0 or untick a wave to remove it from the draw. Press Edit on a Custom slot to build your own wave: name it, then add enemies.",
+	},
+	btn_back = { en = "Back" },
+	btn_rename = { en = "Rename" },
+	btn_edit_text = { en = "Edit as text" },
+	btn_add_enemy = { en = "Add enemy" },
+	btn_enabled_on = { en = "Enabled: yes" },
+	btn_enabled_off = { en = "Enabled: no" },
+	btn_reset_default = { en = "Reset to default" },
+	btn_reset_clear = { en = "Clear this slot" },
+	btn_edit = { en = "Edit" },
+	btn_remove = { en = "Remove" },
+	btn_add = { en = "Add" },
+	lbl_chance = { en = "Chance weight" },
+	lbl_cooldown = { en = "Cooldown" },
+	extra_share = { en = "= %s percent of all enabled waves" },
+	extra_not_drawn = { en = "not drawn (disabled, empty or weight 0)" },
+	extra_cooldown = { en = "seconds before it can repeat" },
+	row_empty_slot = { en = "(empty slot)" },
+	list_range = { en = "%s - %s of %s" },
+	msg_need_one_enemy = { en = "RealmsWaves: a built-in wave needs at least one enemy (use Reset to default to restore it)." },
+	popup_chance_title = { en = "Chance weight of %s (0 to 1000)" },
+	popup_count_title = { en = "Count of %s" },
+	popup_cooldown_title = { en = "Cooldown of %s in seconds (0 to 3600)" },
+	popup_rename_title = { en = "New name for this wave" },
+	popup_recipe_title = { en = "Enemies as text, e.g. 5 trappers, 5 mutants, 10 hounds. Use a|b for a random pick, e.g. 1 plague ogryn|chaos spawn" },
+	popup_number_error = { en = "Enter a whole number from %s to %s" },
+	popup_hint_number = { en = "Type a number, Enter to confirm, Esc to cancel" },
+	popup_hint_text = { en = "Type the text, Enter to confirm, Esc to cancel" },
+	popup_ok = { en = "OK" },
+	popup_cancel = { en = "Cancel" },
 }
-
--- Per-event option titles (setting ids), generated from the catalog.
-local ok, Events = pcall(mod.io_dofile, mod, BASE .. "catalog/events")
-
-if ok and type(Events) == "table" then
-	for i = 1, #Events.STANDARD do
-		local def = Events.STANDARD[i]
-
-		localization["pct_" .. def.key] = { en = def.name }
-	end
-
-	for slot = 1, Events.CUSTOM_SLOTS do
-		localization["custom_" .. slot .. "_pct"] = { en = "Custom wave " .. slot }
-	end
-end
-
-return localization
