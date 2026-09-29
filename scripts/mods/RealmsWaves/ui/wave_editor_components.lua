@@ -297,8 +297,8 @@ local POPUP_DEFAULT_Y = 400
 local function place_popup(view, y)
 	view:_set_scenegraph_position(Components.POPUP_PANEL_NAME, 560, y, 45)
 	view:_set_scenegraph_position(Components.POPUP_INPUT_NAME, 600, y + 70, 50)
-	view:_set_scenegraph_position(Components.POPUP_CONFIRM_NAME, 600, y + 190, 50)
-	view:_set_scenegraph_position(Components.POPUP_CANCEL_NAME, 730, y + 190, 50)
+	view:_set_scenegraph_position(Components.POPUP_CONFIRM_NAME, 600, y + 200, 50)
+	view:_set_scenegraph_position(Components.POPUP_CANCEL_NAME, 870, y + 200, 50)
 end
 
 -- spec = { label, value (string), max_length, set(value_or_text),
@@ -409,6 +409,18 @@ function POPUP.commit(view)
 	spec.set(value)
 
 	return true
+end
+
+-- Closes the popup WITHOUT undoing anything (no on_cancel): used when the user clicked something
+-- else on purpose while a live popup (the search box) was open.
+function POPUP.close_keep(view)
+	local edit = view._popup
+
+	if edit then
+		edit.committed = true
+	end
+
+	return POPUP.cancel(view)
 end
 
 function POPUP.cancel(view)

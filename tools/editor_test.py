@@ -249,6 +249,8 @@ view._widgets_by_name.rw_popup_input.content.input_text = "twin"
 view:update(0.01, 0, input_stub)
 check("typing filters the list live", #view._breeds == 2 and row(1).visible and row(2).visible and not row(3).visible and row(1).content.row_name == "Twin Captain One" and row(2).content.row_name == "Twin Captain Two", #view._breeds)
 check("status text shows the match count and the filter", view._widgets_by_name.description_text.content.description_text:find("picker_status_filtered:2,") ~= nil and view._widgets_by_name.description_text.content.description_text:find("twin") ~= nil)
+check("search box open: enemy rows stay clickable, other buttons are locked", row(1).content.hotspot_name.disabled == false and row(1).content.hotspot_action.disabled == false and view._widgets_by_name.btn_back.content.hotspot.disabled == true and view._widgets_by_name.btn_search.content.hotspot.disabled == true and view._widgets_by_name.rw_scroll_down.content.hotspot.disabled == (view._offset >= math.max(0, #view._breeds - 10)), tostring(row(1).content.hotspot_name.disabled))
+check("popup buttons are wide enough for the vanilla ornamental frame (240x56 each, no overlap)", view._sg.rw_popup_confirm[1] == 600 and view._sg.rw_popup_cancel[1] == 870 and view._sg.rw_popup_confirm[2] == 900 and view._sg.rw_popup_cancel[2] == 900, view._sg.rw_popup_confirm[2])
 view._widgets_by_name.rw_popup_input.content.input_text = "beastmaster"
 view:update(0.01, 0, input_stub)
 check("aliases are searched (beastmaster -> Packmaster)", #view._breeds == 1 and row(1).content.row_name == "Packmaster", row(1).content.row_name)
@@ -256,6 +258,31 @@ view._widgets_by_name.rw_popup_input.content.input_text = "twin"
 view:update(0.01, 0, input_stub)
 SP.Popup.commit(view)
 check("OK keeps the filter, closes the popup, moves it back to the centre", view._popup == nil and #view._breeds == 2 and view._sg.rw_popup_panel[2] == 400 and view._widgets_by_name.btn_search.content.hotspot_text == "btn_search_active:twin", view._widgets_by_name.btn_search.content.hotspot_text)
+-- pick an enemy straight from the filtered list while the search box is still open
+click("btn_search")
+view._widgets_by_name.rw_popup_input.content.input_text = "twin two"
+view:update(0.01, 0, input_stub)
+local parts_before_pick = #view._parts
+check("typing 'twin two' leaves exactly one row", #view._breeds == 1 and row(1).content.row_name == "Twin Captain Two")
+click_row(1, "hotspot_action")
+check("clicking a row while the search box is open adds the enemy, closes the box and returns to the detail screen", view._popup == nil and view._screen == "detail" and #view._parts == parts_before_pick + 1 and view._parts[#view._parts].breed == "renegade_twin_captain_two" and view._sg.rw_popup_panel[2] == 400, tostring(view._screen) .. " " .. #view._parts .. " vs " .. parts_before_pick)
+click("btn_add")
+check("the pick left no half-open state: the picker starts fresh again", view._popup == nil and view._filter == "" and #view._breeds == total_breeds)
+click("btn_search")
+view._widgets_by_name.rw_popup_input.content.input_text = "twin"
+view:update(0.01, 0, input_stub)
+SP.Popup.commit(view)
+click("btn_search")
+-- clicking a row by NAME works too, and the numeric/rename popups still lock everything
+view._widgets_by_name.rw_popup_input.content.input_text = "packmaster"
+view:update(0.01, 0, input_stub)
+click_row(1, "hotspot_name")
+check("clicking the row name (not just the button) also picks it while searching", view._popup == nil and view._screen == "detail" and view._parts[#view._parts].breed == "chaos_ogryn_houndmaster")
+click("btn_add")
+click("btn_search")
+view._widgets_by_name.rw_popup_input.content.input_text = "twin"
+view:update(0.01, 0, input_stub)
+SP.Popup.commit(view)
 click("btn_search")
 view._widgets_by_name.rw_popup_input.content.input_text = "boss"
 view:update(0.01, 0, input_stub)

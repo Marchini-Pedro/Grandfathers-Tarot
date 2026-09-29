@@ -41,6 +41,11 @@ local function set_setting(id, value)
 	mod:set(id, value)
 end
 
+-- True while the list rows/scrolling may be used even though a popup is open (the enemy search box).
+local function rows_active(self)
+	return self._popup == nil or self._popup.spec.allow_rows == true
+end
+
 local function copy_parts(parts)
 	local copy = {}
 
@@ -96,7 +101,7 @@ end
 RealmsWavesView.update = function (self, dt, t, input_service)
 	Popup.update(self, input_service)
 
-	if not self._popup and input_service:get("scroll_axis") then
+	if (self._popup == nil or self._popup.spec.allow_rows) and input_service:get("scroll_axis") then
 		local scroll = input_service:get("scroll_axis")
 		local amount = scroll and scroll[2] or 0
 		local max_offset = math.max(0, #self:_source() - LIST_CAPACITY)
@@ -520,6 +525,7 @@ end
 -- scroll buttons stop at the ends.
 RealmsWavesView._set_interaction_enabled = function (self)
 	local enabled = self._popup == nil
+	local rows_enabled = rows_active(self)
 	local widgets = self._widgets_by_name
 
 	for i = 1, LIST_CAPACITY do
@@ -527,7 +533,7 @@ RealmsWavesView._set_interaction_enabled = function (self)
 
 		if widget then
 			for j = 1, #ROW_HOTSPOTS do
-				widget.content[ROW_HOTSPOTS[j]].disabled = not (enabled and widget.visible)
+				widget.content[ROW_HOTSPOTS[j]].disabled = not (rows_enabled and widget.visible)
 			end
 		end
 	end
@@ -554,11 +560,11 @@ RealmsWavesView._set_interaction_enabled = function (self)
 	local up, down = widgets.rw_scroll_up, widgets.rw_scroll_down
 
 	if up then
-		up.content.hotspot.disabled = not enabled or self._offset <= 0
+		up.content.hotspot.disabled = not rows_enabled or self._offset <= 0
 	end
 
 	if down then
-		down.content.hotspot.disabled = not enabled or self._offset >= max_offset
+		down.content.hotspot.disabled = not rows_enabled or self._offset >= max_offset
 	end
 end
 
@@ -566,7 +572,7 @@ end
 
 local function guarded(fn)
 	return function (self, ...)
-		if self._popup then
+		if self._popup and not self._popup.spec.allow_rows then
 			return
 		end
 
@@ -820,6 +826,11 @@ end)
 -- detail actions -------------------------------------------------------------------
 
 RealmsWavesView._add_breed = function (self, breed)
+	-- picked while the search box was open: close it, keeping what was typed
+	if self._popup then
+		Popup.close_keep(self)
+	end
+
 	for i = 1, #self._parts do
 		if self._parts[i].breed == breed and not self._parts[i].mods then
 			self._parts[i].count = math.min(self._parts[i].count + 1, mod.rw.groups.MAX_BREED_COUNT)
@@ -899,6 +910,7 @@ RealmsWavesView.cb_search = guarded(function (self)
 		value = original,
 		max_length = 40,
 		y = 700,
+		allow_rows = true, -- the enemy rows (and scrolling) stay clickable while the box is open
 		on_change = function (text)
 			self._filter = text
 			self:_apply_screen()

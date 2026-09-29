@@ -60,8 +60,10 @@ local scenegraph_definition = {
 	-- input popup, centred
 	rw_popup_panel = node(560, 400, 800, 260, 45),
 	rw_popup_input = node(600, 470, 720, 46, 50),
-	rw_popup_confirm = node(600, 590, 110, 44, 50),
-	rw_popup_cancel = node(730, 590, 110, 44, 50),
+	-- The vanilla button template draws big ornamental side frames inside its box, so the box must
+	-- be wide (the clickable/visible inner rectangle is roughly the width minus ~120 px).
+	rw_popup_confirm = node(600, 600, 240, 56, 50),
+	rw_popup_cancel = node(870, 600, 240, 56, 50),
 }
 
 for i = 1, definitions.LIST_CAPACITY do
