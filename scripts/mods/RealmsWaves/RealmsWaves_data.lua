@@ -1,0 +1,135 @@
+local mod = get_mod("RealmsWaves")
+
+local BASE = "RealmsWaves/scripts/mods/RealmsWaves/"
+
+local ok, Events = pcall(mod.io_dofile, mod, BASE .. "catalog/events")
+
+if not ok or type(Events) ~= "table" then
+	Events = { STANDARD = {}, CUSTOM_SLOTS = 20 }
+end
+
+local function numeric(id, default, min, max, unit)
+	return {
+		setting_id = id,
+		type = "numeric",
+		default_value = default,
+		range = { min, max },
+		decimals_number = 0,
+		unit_text = unit,
+	}
+end
+
+local function keybind(id, function_name, default)
+	return {
+		setting_id = id,
+		type = "keybind",
+		default_value = default,
+		keybind_trigger = "pressed",
+		keybind_type = "function_call",
+		function_name = function_name,
+	}
+end
+
+local function event_widgets()
+	local widgets = {}
+
+	for i = 1, #Events.STANDARD do
+		local def = Events.STANDARD[i]
+
+		widgets[#widgets + 1] = numeric("pct_" .. def.key, def.default_pct, 0, 100, "unit_percent")
+	end
+
+	return widgets
+end
+
+local function custom_widgets()
+	local widgets = {}
+
+	for slot = 1, Events.CUSTOM_SLOTS do
+		widgets[#widgets + 1] = numeric("custom_" .. slot .. "_pct", 0, 0, 100, "unit_percent")
+	end
+
+	return widgets
+end
+
+return {
+	name = mod:localize("mod_name"),
+	description = mod:localize("mod_description"),
+	is_togglable = true,
+	options = {
+		widgets = {
+			{
+				setting_id = "mode",
+				type = "dropdown",
+				default_value = "random",
+				options = {
+					{ text = "mode_random", value = "random" },
+					{ text = "mode_vote", value = "vote" },
+				},
+			},
+			{
+				setting_id = "group_timing",
+				type = "group",
+				sub_widgets = {
+					numeric("initial_delay", 45, 0, 600, "unit_seconds"),
+					numeric("interval_min", 150, 30, 1800, "unit_seconds"),
+					numeric("interval_max", 300, 30, 1800, "unit_seconds"),
+					numeric("vote_duration", 25, 5, 120, "unit_seconds"),
+					numeric("ballot_size", 3, 2, 5, "unit_options"),
+					{
+						setting_id = "novote_fallback",
+						type = "dropdown",
+						default_value = "random",
+						options = {
+							{ text = "fallback_random", value = "random" },
+							{ text = "fallback_skip", value = "skip" },
+						},
+					},
+				},
+			},
+			{
+				setting_id = "group_spawn",
+				type = "group",
+				sub_widgets = {
+					numeric("max_per_wave", 80, 1, 200, "unit_enemies"),
+					numeric("max_alive", 120, 10, 250, "unit_enemies"),
+					numeric("min_distance", 22, 8, 100, "unit_meters"),
+					numeric("max_distance", 65, 20, 200, "unit_meters"),
+					numeric("monster_min_distance", 28, 8, 100, "unit_meters"),
+					numeric("monster_max_distance", 75, 20, 200, "unit_meters"),
+				},
+			},
+			{
+				setting_id = "group_events",
+				type = "group",
+				sub_widgets = event_widgets(),
+			},
+			{
+				setting_id = "group_custom",
+				type = "group",
+				sub_widgets = custom_widgets(),
+			},
+			{
+				setting_id = "group_controls",
+				type = "group",
+				sub_widgets = {
+					keybind("vote_1_bind", "vote_1", { "f1" }),
+					keybind("vote_2_bind", "vote_2", { "f2" }),
+					keybind("vote_3_bind", "vote_3", { "f3" }),
+					keybind("vote_4_bind", "vote_4", {}),
+					keybind("vote_5_bind", "vote_5", {}),
+				},
+			},
+			{
+				setting_id = "group_hud",
+				type = "group",
+				sub_widgets = {
+					{ setting_id = "hud_enabled", type = "checkbox", default_value = true },
+					numeric("hud_x", 2, 0, 100, "unit_percent"),
+					numeric("hud_y", 30, 0, 100, "unit_percent"),
+					{ setting_id = "debug", type = "checkbox", default_value = false },
+				},
+			},
+		},
+	},
+}
