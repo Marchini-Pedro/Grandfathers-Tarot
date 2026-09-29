@@ -25,6 +25,10 @@
 | 20 | `[toughened]` in a normal mission | Skipped, one console warning "needs a Havoc mission"; in Havoc it applies | not run |
 | 21 | Havoc order with stimmed minions | Wave units are sometimes stimmed (1.1.1 fix) | not run |
 | 22 | Client view of modifier effects | Client sees the buff visuals on modified units | not run |
+| 23 | Editor rows: hover highlight, click checkbox / `-` / `+` / value / Edit / Mods / Remove | Everything highlights on hover and responds (1.2.1 fix) | not run |
+| 24 | Spread radius 0 vs 3 vs 10 with `/rw_test hound_frenzy` | Radius 0 stacks on one spot; 3 and 10 spread the pack; units not in players' view | not run |
+| 25 | `5 crushers@2`, repeat every 10 for 35, `/rw_test custom_1` | 5 at once, +2 at 10/20/30 s, none after; also try with a second wave running, and `max_alive` low | not run |
+| 26 | Recipe text with `@`: `3 crushers[enraged]@2` in "Edit as text" | Accepted, shown as "(+2 per repeat)" in the list | not run |
 
 ## Known risks
 - Hooks on `PacingManager.add_aggroed_minion` and the two `MinionSpawnManager` counters must tolerate clients (nil managers) and hot reload.
@@ -47,8 +51,9 @@
 
 ## Test tooling (in `tools/`, needs Python `lupa`; set env `PYLIBS` to the folder installed with `pip install --target`)
 - `check_lua.py`: compiles every Lua file (Lua 5.5 via lupa; stricter than LuaJIT).
-- `logic_test.py` (62 checks): recipe parser (incl. `a|b`, caps, round trip, modifiers `[a+b]`), wave settings API (`Events.get/set_def/reset/build_pool`, legacy recipe), votes, director state machine (random, vote, 5 s interval, hub, client, version mismatch), budget-bypass hooks, the spawner `execute.lua` with stubbed game APIs (expansion, modifier buffs, Havoc gating, contained buff errors, caps, `one_of`), 20,000-roll weight simulation.
-- `editor_test.py` (60 checks, mirrors the real BaseView flow and guards against overriding BaseView methods): loads the REAL editor view/blueprint/component files against stubbed engine classes (fake `BaseView`, `UIWidget.create_definition`, text-input template) and clicks through list, scroll, toggle, chance stepper, detail, count stepper, remove, picker, rename popup, recipe popup with validation, numeric popup with range check, cooldown, enabled, reset, back navigation, custom-slot workflow. It cannot prove the engine renders or accepts the passes; it does catch nil-index/logic bugs.
+- Known limitation (1.3.0): spread offsets are not re-checked for line of sight; only the base point is hidden. A large radius can place a unit in view. Also, `Positions.spread` relies on `NavQueries.position_on_mesh(world, pos, 2, 2)` and `ray_can_go(world, a, b, nil, 2, 2)` with no traverse logic (`S\utilities\nav_queries.lua:7-25, 91+`); untested in the game.
+- `logic_test.py` (111 checks; was 62 in 1.2.0): recipe parser (incl. `a|b`, caps, round trip, modifiers `[a+b]`), wave settings API (`Events.get/set_def/reset/build_pool`, legacy recipe), votes, director state machine (random, vote, 5 s interval, hub, client, version mismatch), budget-bypass hooks, the spawner `execute.lua` with stubbed game APIs (expansion, modifier buffs, Havoc gating, contained buff errors, caps, `one_of`), 20,000-roll weight simulation.
+- `editor_test.py` (89 checks; loads the game's real `callback()` from the source clone, mirrors the real BaseView flow and guards against overriding BaseView methods): loads the REAL editor view/blueprint/component files against stubbed engine classes (fake `BaseView`, `UIWidget.create_definition`, text-input template) and clicks through list, scroll, toggle, chance stepper, detail, count stepper, remove, picker, rename popup, recipe popup with validation, numeric popup with range check, cooldown, enabled, reset, back navigation, custom-slot workflow. It cannot prove the engine renders or accepts the passes; it does catch nil-index/logic bugs.
 
 ## Resolved during implementation
 - Unverified #3 (counter coverage): grep of the game source (commit `0f0cb45`) shows every reader of the enemy counts goes through `MinionSpawnManager:num_spawned_minions()` or `:total_allocated_num_enemies()` (terror_event_manager.lua:435, pacing_manager.lua:449, horde_pacing.lua:79 and :516, auto_event.lua:509 and :689, server_metrics_manager.lua:178); the private field `_num_spawned_minions` is only touched inside minion_spawn_manager.lua. So hooking those two methods is complete for this version.

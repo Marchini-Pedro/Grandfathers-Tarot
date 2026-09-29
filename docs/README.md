@@ -25,6 +25,8 @@ Quick start for testing: disable TwitchVersus and RealmsEvent, keep Realms and R
 
 **1.1.1-1.2.0 (2026-09-29):** stimmed-minions fix, editor crash fix (`_create_widgets` shadowing BaseView), and **modifiers** (force Garden/Enraged/etc. onto enemy groups: `3 crushers[enraged+garden]`, editor "Mods" screen). Offline tests: 62 logic + 60 editor. In-game verification pending (matrix rows 17-22 in doc 06).
 
+**1.2.1-1.3.0 (2026-09-29):** editor hover/click fix (hotspot `visibility_function` content), **spread radius** per wave, **repeating waves** (`5 crushers@2`, repeat every/for). Offline tests: 111 logic + 89 editor. In-game verification pending (matrix rows 23-26 in doc 06).
+
 ## Where the originals are now
 `mods\TwitchVersus` and `mods\RealmsEvent` were purged by the user (empty marker folders). Their files remain in Vortex staging: `C:\Users\ayko4\AppData\Roaming\Vortex\warhammer40kdarktide\mods\<folder>\mods\<mod>\...` (folder names include version/date, e.g. `RealmsEvent 1338 1.1.0 2026-09-23T15-11Z l24cL2qMY`, `DT Twitch Versus realms(crash fix) 1273 5 2026-09-16T16-47Z ndQ1mdFjx(1)`). Read-only reference; do not copy them back into `mods\`.
 

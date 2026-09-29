@@ -223,16 +223,21 @@ end
 
 -- Stepper: minus button + clickable value + plus button, prefixed by `prefix`
 -- ("hotspot" gives hotspot_minus / hotspot_value / hotspot_plus and stepper_value).
-function Components.stepper_passes(passes, layout, flag)
-	local button_size = layout.button_size or { 44, 40 }
+-- `ids` (optional) renames the hotspots/text so a widget can hold several steppers:
+-- { minus = "hotspot_rep_minus", value = "hotspot_rep_value", plus = "hotspot_rep_plus", text = "rep_value" }.
+function Components.stepper_passes(passes, layout, flag, ids)
+	ids = ids or {}
 
-	Components.button_passes(passes, "hotspot_minus", layout.minus_offset, button_size, "-", nil, nil, flag)
-	Components.hotspot_pass(passes, "hotspot_value", layout.value_offset, layout.value_size, flag)
-	Components.text_pass(passes, "stepper_value", "stepper_value", layout.value_offset, {
+	local button_size = layout.button_size or { 44, 40 }
+	local text_id = ids.text or "stepper_value"
+
+	Components.button_passes(passes, ids.minus or "hotspot_minus", layout.minus_offset, button_size, "-", nil, nil, flag)
+	Components.hotspot_pass(passes, ids.value or "hotspot_value", layout.value_offset, layout.value_size, flag)
+	Components.text_pass(passes, text_id, text_id, layout.value_offset, {
 		layout.value_size[1],
 		layout.value_size[2] + 6,
 	}, 22, Components.colors.gold, "center", flag)
-	Components.button_passes(passes, "hotspot_plus", layout.plus_offset, button_size, "+", nil, nil, flag)
+	Components.button_passes(passes, ids.plus or "hotspot_plus", layout.plus_offset, button_size, "+", nil, nil, flag)
 end
 
 -- ---------------------------------------------------------------------------

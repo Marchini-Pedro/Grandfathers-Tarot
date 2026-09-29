@@ -3,7 +3,11 @@
 --   random pick: "1 plague ogryn|beast of nurgle|chaos spawn"  (one of the alternatives per unit)
 -- Alias table adapted from TwitchVersus catalog/groups.lua. Pure data/logic, no mod dependency.
 --
--- parts = { { breed = "name", count = n }  or  { one_of = { "a", "b" }, count = n }, ... }
+--   repeat:      "5 crushers@2" = 5 at once, then 2 more on every repeat tick (see the wave's
+--                repeat-every / repeat-for settings). "0 crushers@2" = only the repeats.
+--   modifiers:   "3 crushers[enraged+garden]"  (order: count name[mods]@repeat)
+--
+-- parts = { { breed = "name", count = n, rep = r, mods = { ids } }  or  { one_of = { "a", "b" }, ... }, ... }
 local Groups = {}
 
 Groups.MAX_PARTS = 12
@@ -307,6 +311,15 @@ Groups.parse = function (recipe)
 				return nil, string.format("%q is a number with no enemy after it. Write it as \"5 trappers\"", field)
 			end
 
+			-- trailing "@N": units added on every repeat tick
+			local rep
+			local without_rep, rep_text = name:match("^(.-)%s*@%s*(%d+)%s*$")
+
+			if without_rep then
+				name = without_rep
+				rep = math.min(tonumber(rep_text), Groups.MAX_BREED_COUNT)
+			end
+
 			local mods
 			local base, inner = name:match("^(.-)%s*%[(.-)%]%s*$")
 
@@ -375,6 +388,10 @@ Groups.parse = function (recipe)
 					part.count = part.count + add
 					total = total + add
 				end
+
+				if rep and rep > 0 then
+					part.rep = math.min((part.rep or 0) + rep, Groups.MAX_BREED_COUNT)
+				end
 			end
 		end
 	end
@@ -382,7 +399,7 @@ Groups.parse = function (recipe)
 	local result = {}
 
 	for i = 1, #parts do
-		if parts[i].count > 0 then
+		if parts[i].count > 0 or (parts[i].rep or 0) > 0 then
 			result[#result + 1] = parts[i]
 		end
 	end
@@ -414,6 +431,10 @@ Groups.to_recipe = function (parts)
 
 		if part.mods and #part.mods > 0 then
 			field = field .. "[" .. table.concat(part.mods, "+") .. "]"
+		end
+
+		if (part.rep or 0) > 0 then
+			field = field .. "@" .. part.rep
 		end
 
 		fields[#fields + 1] = field
@@ -456,7 +477,22 @@ Groups.describe_part = function (part, with_mods)
 		text = text .. " [" .. Groups.describe_mods(part) .. "]"
 	end
 
+	if with_mods and (part.rep or 0) > 0 then
+		text = text .. string.format(" (+%d per repeat)", part.rep)
+	end
+
 	return text
+end
+
+-- true when at least one enemy group repeats
+Groups.has_repeat = function (parts)
+	for i = 1, #(parts or {}) do
+		if (parts[i].rep or 0) > 0 then
+			return true
+		end
+	end
+
+	return false
 end
 
 Groups.total_count = function (parts)

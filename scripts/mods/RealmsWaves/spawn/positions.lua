@@ -13,6 +13,7 @@
 local mod = get_mod("RealmsWaves")
 
 local SpawnPointQueries = require("scripts/managers/main_path/utilities/spawn_point_queries")
+local NavQueries = require("scripts/utilities/nav_queries")
 
 local Positions = {}
 
@@ -181,6 +182,40 @@ Positions.candidates = function (min_d, max_d)
 	end
 
 	return nil, "hidden points exist but none within distance limits"
+end
+
+-- Random point within `radius` metres of `position`, on the nav mesh and reachable
+-- in a straight line from `position` (no wall in between). Falls back to `position`.
+-- Uniform over the disc (sqrt of the random radius). Used so a wave does not stack
+-- every unit on the exact same spot.
+Positions.spread = function (position, radius)
+	if not radius or radius < 0.25 then
+		return position
+	end
+
+	local nav_mesh = Managers.state and Managers.state.nav_mesh
+	local nav_world = nav_mesh and nav_mesh:nav_world()
+
+	if not nav_world then
+		return position
+	end
+
+	for _ = 1, 5 do
+		local angle = math.random() * math.pi * 2
+		local distance = radius * math.sqrt(math.random())
+		local candidate = position + Vector3(math.cos(angle) * distance, math.sin(angle) * distance, 0)
+		local ok, snapped = pcall(NavQueries.position_on_mesh, nav_world, candidate, 2, 2)
+
+		if ok and snapped then
+			local can_ok, can_go = pcall(NavQueries.ray_can_go, nav_world, position, snapped, nil, 2, 2)
+
+			if can_ok and can_go then
+				return snapped
+			end
+		end
+	end
+
+	return position
 end
 
 Positions.pick = function (candidates)

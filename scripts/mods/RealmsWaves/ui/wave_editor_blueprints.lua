@@ -15,6 +15,7 @@ local colors = Components.colors
 --   show_share    share of total chance (wave list)
 --   show_action   right-hand button, label in content.hotspot_action_text
 --   show_mods     "Mods" button (detail screen, where the share column is unused)
+--   show_rep      second stepper: units added on every repeat tick (detail screen)
 blueprints.row = function (node_id)
 	local passes = {}
 
@@ -48,6 +49,14 @@ blueprints.row = function (node_id)
 		plus_offset = { 1340, 3, 2 },
 	}, "show_stepper")
 
+	-- units added on every repeat tick (detail screen only); the count stepper above is the initial spawn
+	Components.stepper_passes(passes, {
+		minus_offset = { 905, 3, 2 },
+		value_offset = { 957, 3, 2 },
+		value_size = { 70, 40 },
+		plus_offset = { 1035, 3, 2 },
+	}, "show_rep", { minus = "hotspot_rep_minus", value = "hotspot_rep_value", plus = "hotspot_rep_plus", text = "rep_value" })
+
 	Components.text_pass(passes, "share", "share", { 1390, 0, 2 }, { 120, 46 }, 20, colors.muted, "right", "show_share")
 	Components.button_passes(passes, "hotspot_mods", { 1390, 3, 2 }, { 130, 40 }, "", 18, colors.gold, "show_mods")
 	Components.button_passes(passes, "hotspot_action", { 1530, 3, 2 }, { 160, 40 }, "", 20, colors.gold, "show_action")
@@ -63,6 +72,8 @@ blueprints.row = function (node_id)
 		show_share = false,
 		show_action = false,
 		show_mods = false,
+		show_rep = false,
+		rep_value = "",
 	}, { 1710, 46 })
 end
 
@@ -75,8 +86,10 @@ blueprints.button = function (node_id, width)
 end
 
 -- Label + minus + value + plus + trailing text (content.label / stepper_value / extra).
-blueprints.setting_stepper = function (node_id)
+blueprints.setting_stepper = function (node_id, width)
 	local passes = {}
+
+	width = width or 800
 
 	Components.text_pass(passes, "label", "label", { 0, 0, 2 }, { 200, 48 }, 22, colors.text)
 	Components.stepper_passes(passes, {
@@ -85,9 +98,9 @@ blueprints.setting_stepper = function (node_id)
 		value_size = { 90, 40 },
 		plus_offset = { 363, 4, 2 },
 	})
-	Components.text_pass(passes, "extra", "extra", { 430, 0, 2 }, { 360, 48 }, 20, colors.muted)
+	Components.text_pass(passes, "extra", "extra", { 430, 0, 2 }, { width - 440, 48 }, 20, colors.muted)
 
-	return UIWidget.create_definition(passes, node_id, { label = "", stepper_value = "", extra = "" }, { 800, 48 })
+	return UIWidget.create_definition(passes, node_id, { label = "", stepper_value = "", extra = "" }, { width, 48 })
 end
 
 blueprints.scroll_button = function (node_id, label)

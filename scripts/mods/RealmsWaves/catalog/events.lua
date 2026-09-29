@@ -139,12 +139,18 @@ end
 
 Events.DEFAULT_CUSTOM_PCT = 10
 Events.DEFAULT_CUSTOM_COOLDOWN = 60
+Events.DEFAULT_SPREAD = 3 -- metres around the chosen spawn point
+Events.DEFAULT_REPEAT_EVERY = 10 -- seconds between repeat ticks
+Events.DEFAULT_REPEAT_FOR = 60 -- seconds the repeats keep coming
 
 -- Settings per wave (all plain values so DMF can persist them):
 --   wave_def_<key>  "name<TAB>recipe"   overrides name/composition ("" = default)
 --   on_<key>        boolean             enabled (default: standard on, custom off)
 --   pct_<key>       number              relative chance weight
 --   cd_<key>        number              cooldown seconds
+--   sp_<key>        number              spawn spread radius in metres (0 = all at the spawn point)
+--   re_<key>        number              repeat every N seconds  (only used by groups with "@rep")
+--   rf_<key>        number              keep repeating for N seconds
 local DEF_SEPARATOR = "\t"
 
 local function clean_name(name)
@@ -211,6 +217,9 @@ Events.get = function (key, get_setting, Groups)
 	wave.enabled = enabled == true
 	wave.pct = tonumber(get_setting("pct_" .. key)) or (std and std.default_pct) or Events.DEFAULT_CUSTOM_PCT
 	wave.cooldown = tonumber(get_setting("cd_" .. key)) or (std and std.cooldown) or Events.DEFAULT_CUSTOM_COOLDOWN
+	wave.spread = tonumber(get_setting("sp_" .. key)) or Events.DEFAULT_SPREAD
+	wave.rep_every = tonumber(get_setting("re_" .. key)) or Events.DEFAULT_REPEAT_EVERY
+	wave.rep_for = tonumber(get_setting("rf_" .. key)) or Events.DEFAULT_REPEAT_FOR
 
 	return wave
 end
@@ -228,6 +237,23 @@ Events.reset = function (set_setting, key)
 	set_setting("on_" .. key, std ~= nil)
 	set_setting("pct_" .. key, std and std.default_pct or Events.DEFAULT_CUSTOM_PCT)
 	set_setting("cd_" .. key, std and std.cooldown or Events.DEFAULT_CUSTOM_COOLDOWN)
+	set_setting("sp_" .. key, Events.DEFAULT_SPREAD)
+	set_setting("re_" .. key, Events.DEFAULT_REPEAT_EVERY)
+	set_setting("rf_" .. key, Events.DEFAULT_REPEAT_FOR)
+end
+
+-- The definition handed to the spawner (Execute.start_wave) for a resolved wave.
+Events.spawn_def = function (wave)
+	return {
+		key = wave.key,
+		name = wave.name,
+		parts = wave.parts,
+		monster = wave.monster,
+		cooldown = wave.cooldown,
+		spread = wave.spread,
+		rep_every = wave.rep_every,
+		rep_for = wave.rep_for,
+	}
 end
 
 -- Builds the list of waves that can be drawn right now (enabled, has enemies, chance > 0),
@@ -242,7 +268,7 @@ Events.build_pool = function (get_setting, Groups)
 		local wave = Events.get(keys[i], get_setting, Groups)
 
 		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 then
-			local def = { key = wave.key, name = wave.name, parts = wave.parts, monster = wave.monster, cooldown = wave.cooldown }
+			local def = Events.spawn_def(wave)
 
 			pool[#pool + 1] = { key = wave.key, name = wave.name, def = def, raw = wave.pct, cooldown = wave.cooldown }
 			total = total + wave.pct

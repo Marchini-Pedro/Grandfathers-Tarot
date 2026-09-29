@@ -20,7 +20,8 @@ local LIST_TOP = definitions.LIST_TOP
 local ROW_HEIGHT = definitions.ROW_HEIGHT
 local ROW_NODE_PREFIX = definitions.ROW_NODE_PREFIX
 
-local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods" }
+local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus" }
+local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for" }
 local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
 local BUTTONS = {
 	{ name = "btn_back", width = 180, cb = "cb_back" },
@@ -48,6 +49,7 @@ local function copy_parts(parts)
 		copy[i] = {
 			breed = part.breed,
 			count = part.count,
+			rep = part.rep,
 			one_of = part.one_of and { unpack(part.one_of) } or nil,
 			mods = part.mods and { unpack(part.mods) } or nil,
 		}
@@ -176,6 +178,9 @@ RealmsWavesView._create_editor_widgets = function (self)
 		content.hotspot_plus.pressed_callback = callback(self, "cb_row_plus", i)
 		content.hotspot_action.pressed_callback = callback(self, "cb_row_action", i)
 		content.hotspot_mods.pressed_callback = callback(self, "cb_row_mods", i)
+		content.hotspot_rep_minus.pressed_callback = callback(self, "cb_row_rep_step", i, -1)
+		content.hotspot_rep_plus.pressed_callback = callback(self, "cb_row_rep_step", i, 1)
+		content.hotspot_rep_value.pressed_callback = callback(self, "cb_row_rep_input", i)
 	end
 
 	for i = 1, #BUTTONS do
@@ -196,6 +201,22 @@ RealmsWavesView._create_editor_widgets = function (self)
 	cooldown.content.hotspot_minus.pressed_callback = callback(self, "cb_cooldown_step", -5)
 	cooldown.content.hotspot_plus.pressed_callback = callback(self, "cb_cooldown_step", 5)
 	cooldown.content.hotspot_value.pressed_callback = callback(self, "cb_cooldown_input")
+
+	-- spread radius, repeat every, repeat for
+	local extra_steppers = {
+		{ name = "stepper_spread", width = 480, step = 1, cb = "spread" },
+		{ name = "stepper_every", width = 640, step = 1, cb = "every" },
+		{ name = "stepper_for", width = 515, step = 5, cb = "for" },
+	}
+
+	for i = 1, #extra_steppers do
+		local entry = extra_steppers[i]
+		local widget = self:_create_dynamic_widget(entry.name, blueprints.setting_stepper(entry.name, entry.width))
+
+		widget.content.hotspot_minus.pressed_callback = callback(self, "cb_" .. entry.cb .. "_step", -entry.step)
+		widget.content.hotspot_plus.pressed_callback = callback(self, "cb_" .. entry.cb .. "_step", entry.step)
+		widget.content.hotspot_value.pressed_callback = callback(self, "cb_" .. entry.cb .. "_input")
+	end
 
 	local up = self:_create_dynamic_widget("rw_scroll_up", blueprints.scroll_button("scroll_up", "^"))
 	local down = self:_create_dynamic_widget("rw_scroll_down", blueprints.scroll_button("scroll_down", "v"))
@@ -302,6 +323,8 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 
 	local header = widgets.list_header.content
 
+	header.col_6 = ""
+
 	if screen == "list" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_list")
 		header.col_1, header.col_2, header.col_3 = mod:localize("col_on"), mod:localize("col_wave"), mod:localize("col_composition")
@@ -310,8 +333,9 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		widgets.hint_text.content.hint_text = mod:localize("hint_list")
 	elseif screen == "detail" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_detail", self._wave.name)
-		header.col_1, header.col_2, header.col_3 = "", mod:localize("col_enemy"), ""
+		header.col_1, header.col_2, header.col_3 = "", mod:localize("col_enemy"), mod:localize("col_modifier")
 		header.col_4, header.col_5 = mod:localize("col_count"), ""
+		header.col_6 = mod:localize("col_repeat")
 		widgets.bottom_title.content.bottom_title = mod:localize("bottom_detail_title", self._wave.name, rw.groups.total_count(self._parts))
 		widgets.hint_text.content.hint_text = ""
 	elseif screen == "picker" then
@@ -339,8 +363,9 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.btn_add.visible = detail
 	widgets.btn_enabled.visible = detail
 	widgets.btn_reset.visible = detail
-	widgets.stepper_chance.visible = detail
-	widgets.stepper_cooldown.visible = detail
+	for i = 1, #STEPPER_WIDGETS do
+		widgets[STEPPER_WIDGETS[i]].visible = detail
+	end
 
 	widgets.btn_back.content.hotspot_text = mod:localize("btn_back")
 	widgets.btn_rename.content.hotspot_text = mod:localize("btn_rename")
@@ -365,6 +390,23 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		cooldown.label = mod:localize("lbl_cooldown")
 		cooldown.stepper_value = tostring(math.floor(wave.cooldown))
 		cooldown.extra = mod:localize("extra_cooldown")
+
+		local spread = widgets.stepper_spread.content
+
+		spread.label = mod:localize("lbl_spread")
+		spread.stepper_value = tostring(math.floor(wave.spread))
+		spread.extra = mod:localize("extra_meters")
+
+		local repeating = rw.groups.has_repeat(self._parts)
+		local every = widgets.stepper_every.content
+		local rep_for = widgets.stepper_for.content
+
+		every.label = mod:localize("lbl_repeat_every")
+		every.stepper_value = tostring(math.floor(wave.rep_every))
+		every.extra = mod:localize(repeating and "extra_seconds" or "extra_no_repeat")
+		rep_for.label = mod:localize("lbl_repeat_for")
+		rep_for.stepper_value = tostring(math.floor(wave.rep_for))
+		rep_for.extra = mod:localize("extra_seconds_short")
 	end
 
 	self:_refresh_rows()
@@ -396,6 +438,7 @@ RealmsWavesView._refresh_rows = function (self)
 					content.row_name = item.name
 					content.info = has_parts and rw.groups.summary(item.parts, 95) or mod:localize("row_empty_slot")
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = true, true, true, true, false
+					content.show_rep = false
 					content.checkbox_selected = item.enabled and has_parts == true
 					content.stepper_value = tostring(math.floor(item.pct))
 					content.share = share and string.format("%.1f%%", share) or "-"
@@ -405,16 +448,21 @@ RealmsWavesView._refresh_rows = function (self)
 						name_color = Components.colors.muted
 					end
 				elseif screen == "detail" then
+					local mods_text = rw.groups.describe_mods(item)
+
 					content.row_name = rw.groups.describe_part(item)
-					content.info = rw.groups.describe_mods(item)
+					content.info = #mods_text > 40 and (mods_text:sub(1, 37) .. "...") or mods_text
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, true, false, true, true
+					content.show_rep = true
 					content.stepper_value = tostring(item.count)
+					content.rep_value = tostring(item.rep or 0)
 					content.hotspot_action_text = mod:localize("btn_remove")
 					content.hotspot_mods_text = mod:localize("btn_mods")
 				elseif screen == "picker" then
 					content.row_name = rw.groups.display_name(item)
 					content.info = item
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, false, false, true, false
+					content.show_rep = false
 					content.hotspot_action_text = mod:localize("btn_add")
 				else
 					local part = self._parts[self._part_index]
@@ -429,6 +477,7 @@ RealmsWavesView._refresh_rows = function (self)
 					content.row_name = item.name
 					content.info = item.requires_havoc and (item.description .. " " .. mod:localize("note_havoc_only")) or item.description
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = true, false, false, false, false
+					content.show_rep = false
 					content.checkbox_selected = applied
 				end
 
@@ -468,7 +517,7 @@ RealmsWavesView._set_interaction_enabled = function (self)
 		end
 	end
 
-	for _, name in ipairs({ "stepper_chance", "stepper_cooldown" }) do
+	for _, name in ipairs(STEPPER_WIDGETS) do
 		local widget = widgets[name]
 
 		if widget then
@@ -626,10 +675,55 @@ RealmsWavesView._step_row = function (self, row, delta)
 		self:_reload()
 		self:_apply_screen(true)
 	elseif self._screen == "detail" then
-		item.count = math.clamp(item.count + delta, 1, mod.rw.groups.MAX_BREED_COUNT)
+		-- a group that only repeats may have 0 initial units; otherwise at least 1
+		item.count = math.clamp(item.count + delta, (item.rep or 0) > 0 and 0 or 1, mod.rw.groups.MAX_BREED_COUNT)
 		self:_save()
 	end
 end
+
+-- units added on every repeat tick for one enemy group (detail screen)
+RealmsWavesView.cb_row_rep_step = guarded(function (self, row, delta)
+	local item = self._screen == "detail" and self:_item_at(row)
+
+	if not item then
+		return
+	end
+
+	item.rep = math.clamp((item.rep or 0) + delta, 0, mod.rw.groups.MAX_BREED_COUNT)
+
+	if item.rep == 0 then
+		item.rep = nil
+
+		if item.count < 1 then
+			item.count = 1
+		end
+	end
+
+	self:_save()
+end)
+
+RealmsWavesView.cb_row_rep_input = guarded(function (self, row)
+	local item = self._screen == "detail" and self:_item_at(row)
+
+	if not item then
+		return
+	end
+
+	Popup.open(self, {
+		label = mod:localize("popup_rep_title", mod.rw.groups.describe_part(item)),
+		value = tostring(item.rep or 0),
+		numeric = true, min = 0, max = mod.rw.groups.MAX_BREED_COUNT, integer = true,
+		set = function (value)
+			item.rep = value > 0 and value or nil
+
+			if not item.rep and item.count < 1 then
+				item.count = 1
+			end
+
+			self:_save()
+		end,
+	})
+end)
 
 RealmsWavesView.cb_row_minus = guarded(function (self, row)
 	self:_step_row(row, -1)
@@ -661,7 +755,7 @@ RealmsWavesView.cb_row_value = guarded(function (self, row)
 		Popup.open(self, {
 			label = mod:localize("popup_count_title", mod.rw.groups.describe_part(item)),
 			value = tostring(item.count),
-			numeric = true, min = 1, max = mod.rw.groups.MAX_BREED_COUNT, integer = true,
+			numeric = true, min = (item.rep or 0) > 0 and 0 or 1, max = mod.rw.groups.MAX_BREED_COUNT, integer = true,
 			set = function (value)
 				item.count = value
 				self:_save()
@@ -789,6 +883,51 @@ RealmsWavesView.cb_cooldown_input = guarded(function (self)
 			self:_apply_screen(true)
 		end,
 	})
+end)
+
+-- spread radius / repeat every / repeat for -----------------------------------------
+
+RealmsWavesView._setting_step = function (self, prefix, field, delta, min, max)
+	set_setting(prefix .. self._key, math.clamp(math.floor(self._wave[field]) + delta, min, max))
+	self:_reload()
+	self:_apply_screen(true)
+end
+
+RealmsWavesView._setting_input = function (self, prefix, field, title_key, min, max)
+	Popup.open(self, {
+		label = mod:localize(title_key, self._wave.name),
+		value = tostring(math.floor(self._wave[field])),
+		numeric = true, min = min, max = max, integer = true,
+		set = function (value)
+			set_setting(prefix .. self._key, value)
+			self:_reload()
+			self:_apply_screen(true)
+		end,
+	})
+end
+
+RealmsWavesView.cb_spread_step = guarded(function (self, delta)
+	self:_setting_step("sp_", "spread", delta, 0, 30)
+end)
+
+RealmsWavesView.cb_spread_input = guarded(function (self)
+	self:_setting_input("sp_", "spread", "popup_spread_title", 0, 30)
+end)
+
+RealmsWavesView.cb_every_step = guarded(function (self, delta)
+	self:_setting_step("re_", "rep_every", delta, 1, 600)
+end)
+
+RealmsWavesView.cb_every_input = guarded(function (self)
+	self:_setting_input("re_", "rep_every", "popup_every_title", 1, 600)
+end)
+
+RealmsWavesView.cb_for_step = guarded(function (self, delta)
+	self:_setting_step("rf_", "rep_for", delta, 0, 3600)
+end)
+
+RealmsWavesView.cb_for_input = guarded(function (self)
+	self:_setting_input("rf_", "rep_for", "popup_for_title", 0, 3600)
 end)
 
 -- popup ------------------------------------------------------------------------

@@ -30,6 +30,11 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 1.2.0 modifiers: `Groups.MODIFIERS` + `[a+b]` recipe syntax, `Execute.apply_modifiers`, Mods button + modifier screen in the editor, offline tests (62 logic incl. spawner, 60 editor)
 - [ ] In-game verification: editor opens (crash fix), modifier screen, Garden/Enraged on 3 crushers in a normal mission and a Havoc mission, Toughened Skin skipped in a normal mission (console shows one warning), stimmed minions in a Havoc order
 
+### Iteration 1.2.1 - 1.3.0
+- [x] 1.2.1 editor row hotspots fixed (visibility_function receives hotspot content), row hover highlight
+- [x] 1.3.0 spread radius (`Positions.spread`, `sp_<key>`), repeating waves (`@N`, `re_/rf_<key>`, `Execute.run_repeats`), editor steppers and per-row repeat stepper, tests (logic 111, editor 89)
+- [ ] In-game verification: hover/click on rows and detail (1.2.1); spread looks right and units are not in view; `5 crushers@2` with repeat every 10 for 35 s behaves as designed
+
 Deviations from the original plan (all deliberate):
 - No separate `handshake.lua`: hello/welcome live in `core/director.lua` (the handshake is just a version check).
 - `rw_state` is ONE JSON argument, and host -> clients uses `"others"` (Realms docs' own example) so there is no loopback to filter.

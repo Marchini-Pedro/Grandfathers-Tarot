@@ -83,6 +83,32 @@ local mnames_ok = true
 for _, md in ipairs(Groups.MODIFIERS) do if Groups.modifier_id(md.id) ~= md.id or #md.buffs == 0 or not md.description then mnames_ok = false end end
 check("every modifier resolves and has buffs/description", mnames_ok)
 
+-- repeats ("@N") ------------------------------------------------------------
+local r1 = Groups.parse("5 crushers[enraged]@2, 3 hounds, 0 snipers@4")
+check("parse repeat: count, rep, mods", r1 and #r1 == 3 and r1[1].count == 5 and r1[1].rep == 2 and r1[1].mods[1] == "enraged" and r1[2].rep == nil and r1[3].count == 0 and r1[3].rep == 4, r1 and (tostring(r1[1].rep) .. "/" .. tostring(r1[3] and r1[3].rep)))
+check("repeat recipe roundtrip", Groups.to_recipe(r1) == "5 crusher[enraged]@2, 3 hound, 0 sniper@4", Groups.to_recipe(r1))
+local r2 = Groups.parse(Groups.to_recipe(r1))
+check("repeat roundtrip keeps values", r2 and #r2 == 3 and r2[1].rep == 2 and r2[3].count == 0 and r2[3].rep == 4)
+check("0 count without repeat is dropped", Groups.parse("0 hounds, 2 snipers") and #Groups.parse("0 hounds, 2 snipers") == 1)
+local r3 = Groups.parse("1 plague ogryn|chaos spawn@3")
+check("one_of with repeat", r3 and r3[1].one_of and r3[1].rep == 3 and r3[1].count == 1)
+check("has_repeat / describe", Groups.has_repeat(r1) and not Groups.has_repeat(Groups.parse("3 hounds")) and Groups.describe_part(r1[1], true) == "5 Crusher [Enraged] (+2 per repeat)", Groups.describe_part(r1[1], true))
+check("total_count counts initial units only", Groups.total_count(r1) == 8, Groups.total_count(r1))
+local w_def = Events.get("wave_small", function(id) return nil end, Groups)
+check("wave defaults: spread 3, repeat every 10 for 60", w_def.spread == 3 and w_def.rep_every == 10 and w_def.rep_for == 60)
+local sd = Events.spawn_def(w_def)
+check("spawn_def carries spread and repeat settings", sd.spread == 3 and sd.rep_every == 10 and sd.rep_for == 60 and sd.parts == w_def.parts)
+do
+  local st = {}
+  local g, s = function(id) return st[id] end, function(id, v) st[id] = v end
+  s("sp_wave_small", 8); s("re_wave_small", 5); s("rf_wave_small", 20)
+  local w = Events.get("wave_small", g, Groups)
+  check("wave spread/repeat settings are read", w.spread == 8 and w.rep_every == 5 and w.rep_for == 20)
+  Events.reset(s, "wave_small")
+  w = Events.get("wave_small", g, Groups)
+  check("reset restores spread/repeat defaults", w.spread == 3 and w.rep_every == 10 and w.rep_for == 60)
+end
+
 -- every breed in every standard wave must be a known breed
 local unknown = {}
 for i = 1, #Events.STANDARD do
@@ -326,7 +352,13 @@ Managers.state.minion_spawn = minion_spawn
 Managers.state.extension = { system = function() return { get_side_from_name = function() return { side_id = 2 } end } end }
 Managers.state.game_mode = { game_mode = function() return { name = function() return "coop_complete_objective" end, extension = function(self, n) return (n == "havoc" and havoc_present) and {} or nil end } end }
 Managers.time = { time = function() return 5 end }
-local StubPositions = { candidates = function() return { "a", "b" } end, pick = function(list) return "pos" end, random_player_unit = function() return "player" end }
+local spread_calls = {}
+local StubPositions = {
+  candidates = function() return { "a", "b" } end,
+  pick = function(list) return "pos" end,
+  random_player_unit = function() return "player" end,
+  spread = function(position, radius) spread_calls[#spread_calls + 1] = radius; return position .. "+" .. tostring(radius) end,
+}
 Bypass.reset()
 Execute.init({ positions = StubPositions, bypass = Bypass, groups = Groups })
 settings.max_per_wave = nil; settings.max_alive = nil
@@ -374,6 +406,99 @@ run_wave({ name = "t", parts = Groups.parse("6 plague ogryn|chaos spawn|beast of
 local seen = {}; for _, u in ipairs(spawned) do seen[u.breed] = true end
 local allowed_only = true; for b in pairs(seen) do if b ~= "chaos_plague_ogryn" and b ~= "chaos_spawn" and b ~= "chaos_beast_of_nurgle" then allowed_only = false end end
 check("execute: one_of picks only listed breeds, keeps modifiers", #spawned == 6 and allowed_only and spawned[1].buffs.added[1] == "havoc_encroaching_garden")
+
+-- spread: every unit is placed through Positions.spread with the wave's radius
+spread_calls = {}
+run_wave({ name = "t", spread = 6, parts = Groups.parse("4 hounds") })
+local all_spread = #spread_calls == 4
+for _, r in ipairs(spread_calls) do if r ~= 6 then all_spread = false end end
+check("execute: each unit goes through Positions.spread with the wave radius", all_spread, #spread_calls)
+spread_calls = {}
+run_wave({ name = "t", parts = Groups.parse("2 hounds") })
+check("execute: no spread configured -> radius 0", #spread_calls == 2 and spread_calls[1] == 0)
+
+-- repeats: "5 crushers@2", every 10 s for 35 s -> initial 5, ticks at 10/20/30 -> 3 x 2 more
+local function run_timed(def, seconds, step)
+  spawned = {}
+  Bypass.reset()
+  local ok, err = Execute.start_wave(def)
+  local timeline = {}
+  local t = 0
+  while t < seconds do
+    Execute.update(step)
+    t = t + step
+    timeline[#timeline + 1] = { t = t, n = #spawned }
+  end
+  return ok, err, timeline
+end
+local function count_at(timeline, sec) local n = 0 for _, p in ipairs(timeline) do if p.t <= sec + 1e-9 then n = p.n end end return n end
+
+local rep_ok, _, tl = run_timed({ name = "t", parts = Groups.parse("5 crushers@2"), rep_every = 10, rep_for = 35 }, 45, 0.25)
+check("repeat: wave starts", rep_ok)
+check("repeat: initial 5 spawn immediately", count_at(tl, 3) == 5, count_at(tl, 3))
+check("repeat: nothing extra before the first tick", count_at(tl, 9) == 5, count_at(tl, 9))
+check("repeat: +2 after the first tick (10 s)", count_at(tl, 13) == 7, count_at(tl, 13))
+check("repeat: +2 after the second tick (20 s)", count_at(tl, 23) == 9, count_at(tl, 23))
+check("repeat: +2 after the third tick (30 s), none after 'for' ends (35 s)", count_at(tl, 33) == 11 and count_at(tl, 44) == 11, count_at(tl, 33) .. "/" .. count_at(tl, 44))
+check("repeat: finished job is removed", Execute.status().jobs == 0, Execute.status().jobs)
+
+local _, _, tl2 = run_timed({ name = "t", parts = Groups.parse("0 hounds@3, 2 snipers"), rep_every = 5, rep_for = 10 }, 20, 0.25)
+check("repeat: only-repeat group starts at 0 and repeats (2 snipers + 2 ticks x 3 hounds)", count_at(tl2, 3) == 2 and count_at(tl2, 20) == 8, count_at(tl2, 3) .. "/" .. count_at(tl2, 20))
+local ok3 = Execute.start_wave({ name = "t", parts = Groups.parse("0 hounds@3"), rep_every = 0, rep_for = 10 })
+check("repeat: repeat-only wave with every = 0 is an empty wave", not ok3)
+local _, _, tl3 = run_timed({ name = "t", parts = Groups.parse("3 hounds@2"), rep_every = 30, rep_for = 10 }, 40, 0.25)
+check("repeat: every longer than 'for' -> no repeat ticks", count_at(tl3, 40) == 3, count_at(tl3, 40))
+local _, _, tl4 = run_timed({ name = "t", parts = Groups.parse("3 hounds@2"), rep_every = 10, rep_for = 60 }, 25, 0.25)
+Execute.reset()
+check("repeat: reset drops a running repeating wave", Execute.status().jobs == 0)
+settings.max_alive = 4
+-- the engine's ALIVE table says every spawned unit is alive (Bypass.purge would otherwise untrack them)
+local saved_alive = ALIVE
+ALIVE = setmetatable({}, { __index = function() return true end })
+local _, _, tl5 = run_timed({ name = "t", parts = Groups.parse("6 hounds"), rep_every = 10, rep_for = 60 }, 6, 0.25)
+check("max_alive still limits spawns of a wave", count_at(tl5, 6) == 4, count_at(tl5, 6))
+ALIVE = saved_alive
+settings.max_alive = nil
+
+-- Positions.spread with stubbed nav queries -----------------------------------------
+do
+  local V = {}
+  V.__add = function(a, b) return setmetatable({ x = a.x + b.x, y = a.y + b.y, z = a.z + b.z }, V) end
+  local saved_vector3 = Vector3
+  Vector3 = function(x, y, z) return setmetatable({ x = x, y = y, z = z }, V) end
+  local nav = { snap_ok = true, ray_ok = true, calls = 0 }
+  nav.position_on_mesh = function(world, pos, above, below) nav.calls = nav.calls + 1; if nav.snap_ok then return Vector3(pos.x, pos.y, pos.z + 0.5) end return nil end
+  nav.ray_can_go = function(world, a, b, logic, above, below) return nav.ray_ok end
+  package.preload["scripts/managers/main_path/utilities/spawn_point_queries"] = function() return {} end
+  package.preload["scripts/utilities/nav_queries"] = function() return nav end
+  local saved_nav_mesh = Managers.state.nav_mesh
+  Managers.state.nav_mesh = { nav_world = function() return "world" end }
+  local Pos = load("spawn/positions")
+  local origin = Vector3(100, 200, 10)
+
+  check("spread: radius 0 returns the same point", Pos.spread(origin, 0) == origin and Pos.spread(origin, nil) == origin)
+  local max_r, moved, all_snapped = 0, 0, true
+  for _ = 1, 500 do
+    local p = Pos.spread(origin, 5)
+    local d = math.sqrt((p.x - 100) ^ 2 + (p.y - 200) ^ 2)
+    if d > max_r then max_r = d end
+    if d > 0.01 then moved = moved + 1 end
+    if p.z ~= 10.5 then all_snapped = false end
+  end
+  check("spread: points stay inside the radius and are nav-snapped", max_r <= 5.0001 and all_snapped and moved == 500, string.format("max %.2f moved %d", max_r, moved))
+  local inner = 0
+  for _ = 1, 2000 do local p = Pos.spread(origin, 10); if math.sqrt((p.x - 100) ^ 2 + (p.y - 200) ^ 2) < 5 then inner = inner + 1 end end
+  check("spread: uniform over the disc (about a quarter of points within half the radius)", inner > 400 and inner < 600, inner)
+  nav.snap_ok = false
+  check("spread: falls back to the original point when nothing snaps", Pos.spread(origin, 5) == origin)
+  nav.snap_ok = true; nav.ray_ok = false
+  check("spread: falls back when a wall blocks the straight line", Pos.spread(origin, 5) == origin)
+  nav.ray_ok = true
+  Managers.state.nav_mesh = nil
+  check("spread: no nav mesh -> original point", Pos.spread(origin, 5) == origin)
+  Managers.state.nav_mesh = saved_nav_mesh
+  Vector3 = saved_vector3
+end
 
 Managers.state.minion_spawn, Managers.state.extension, Managers.state.game_mode = saved_state.minion_spawn, saved_state.extension, saved_state.game_mode
 Managers.time = saved_time

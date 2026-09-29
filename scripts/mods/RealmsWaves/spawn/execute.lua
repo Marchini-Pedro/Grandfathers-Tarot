@@ -14,7 +14,8 @@ local Positions, Bypass, Groups
 local FEED_INTERVAL = 0.15
 local FEED_BATCH = 2
 local CANDIDATE_TTL = 1.5
-local JOB_TIMEOUT = 60
+local JOB_TIMEOUT = 60 -- seconds a wave may stay unfinished (repeating waves add their repeat time)
+local MAX_QUEUE = 200 -- a repeat tick is skipped while this many units are still waiting
 local PURGE_INTERVAL = 5
 
 local jobs = {}
@@ -118,15 +119,16 @@ Execute.has_authority = function ()
 	return state ~= nil and state.minion_spawn ~= nil and game_session ~= nil and game_session:is_server() == true
 end
 
-local function expand(def)
+-- Units for one batch: `field` is "count" (the initial spawn) or "rep" (one repeat tick).
+local function expand(parts, field)
 	local queue = {}
 	local cap = number_setting("max_per_wave", 80)
 
-	for i = 1, #def.parts do
-		local part = def.parts[i]
+	for i = 1, #parts do
+		local part = parts[i]
 		local one_of = part.one_of
 
-		for _ = 1, part.count do
+		for _ = 1, (part[field] or 0) do
 			queue[#queue + 1] = { breed = one_of and one_of[math.random(1, #one_of)] or part.breed, mods = part.mods }
 		end
 	end
@@ -149,22 +151,61 @@ Execute.start_wave = function (def)
 		return false, "no spawn authority"
 	end
 
-	local queue = expand(def)
+	local queue = expand(def.parts, "count")
+	local every = tonumber(def.rep_every) or 0
+	local rep_for = tonumber(def.rep_for) or 0
+	local has_repeat = Groups.has_repeat(def.parts) and every > 0 and rep_for > 0
 
-	if #queue == 0 then
+	if #queue == 0 and not has_repeat then
 		return false, "empty wave"
+	end
+
+	-- Repeat ticks happen at every, 2*every, ... up to and including rep_for seconds.
+	local rep
+
+	if has_repeat then
+		rep = { parts = def.parts, every = every, total = rep_for, clock = 0, next = every, done = every > rep_for }
 	end
 
 	jobs[#jobs + 1] = {
 		name = def.name,
 		monster = def.monster == true,
+		spread = tonumber(def.spread) or 0,
 		queue = queue,
-		total = #queue,
 		spawned = 0,
 		age = 0,
+		timeout = JOB_TIMEOUT + (has_repeat and rep_for or 0),
+		rep = rep,
 	}
 
 	return true
+end
+
+-- Queues the units of every repeat tick that is due (a job can catch up several ticks in one frame).
+local function run_repeats(job, dt)
+	local rep = job.rep
+
+	if not rep or rep.done then
+		return
+	end
+
+	rep.clock = rep.clock + dt
+
+	while rep.next <= rep.total and rep.clock >= rep.next do
+		if #job.queue <= MAX_QUEUE then
+			local batch = expand(rep.parts, "rep")
+
+			for i = 1, #batch do
+				table.insert(job.queue, 1, batch[i])
+			end
+		end
+
+		rep.next = rep.next + rep.every
+	end
+
+	if rep.next > rep.total then
+		rep.done = true
+	end
 end
 
 local function candidates_for(monster)
@@ -253,9 +294,12 @@ Execute.update = function (dt)
 	end
 
 	for i = #jobs, 1, -1 do
-		jobs[i].age = jobs[i].age + dt
+		local job = jobs[i]
 
-		if jobs[i].age > JOB_TIMEOUT or #jobs[i].queue == 0 then
+		job.age = job.age + dt
+		run_repeats(job, dt)
+
+		if job.age > job.timeout or (#job.queue == 0 and (not job.rep or job.rep.done)) then
 			table.remove(jobs, i)
 		end
 	end
@@ -274,7 +318,21 @@ Execute.update = function (dt)
 		return
 	end
 
-	local job = jobs[1]
+	-- oldest job that still has units waiting (a repeating job may be idle between ticks)
+	local job
+
+	for i = 1, #jobs do
+		if #jobs[i].queue > 0 then
+			job = jobs[i]
+
+			break
+		end
+	end
+
+	if not job then
+		return
+	end
+
 	local list = candidates_for(job.monster)
 
 	if not list then
@@ -292,6 +350,10 @@ Execute.update = function (dt)
 		local position = Positions.pick(list)
 
 		job.queue[#job.queue] = nil
+
+		if position then
+			position = Positions.spread(position, job.spread)
+		end
 
 		if position and spawn_one(entry.breed, position, target, entry.mods) then
 			job.spawned = job.spawned + 1

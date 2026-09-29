@@ -2,6 +2,12 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## 1.3.0
+- **Spread radius (per wave):** each unit spawns at a random point within N metres of the chosen hidden spawn point (default 3 m, 0-30 in the editor), snapped to the nav mesh and rejected if a wall is in the way (falls back to the spawn point itself). Before, every unit used a spawn point exactly, so groups stacked. `Positions.spread` in `spawn/positions.lua`; setting `sp_<key>`.
+- **Continuous ("repeating") waves:** an enemy group can add units on every repeat tick: `5 crushers@2` = 5 at once, then 2 more every tick. Per wave: repeat **every** Y seconds (`re_<key>`, default 10) **for** Z seconds (`rf_<key>`, default 60); ticks happen at Y, 2Y, ... up to Z. `0 crushers@2` = repeats only. Works with modifiers and random picks (`3 crushers[enraged]@2`). The repeats respect `max_per_wave` (per tick) and `max_alive`, and a tick is skipped while 200+ units are still waiting. Several waves can run at once. In the editor each enemy row has a second stepper ("Added each repeat"); the initial count may go to 0 while a group repeats; the wave has "Repeat every" and "Repeat for" steppers, and "Spread radius".
+- **Fix:** the editor's internal copy of a group dropped the `rep` value on the next save (found by the new tests).
+- **Tests:** logic 111 (repeat schedule against a simulated clock, spread through the spawner, `Positions.spread` with stubbed nav queries: radius, uniformity, fallbacks), editor 89 (new steppers, per-row repeat, popups, reset). The editor test now loads the game's real `callback()` from the source clone instead of a lookalike (my earlier stub bound only one argument).
+
 ## 1.2.1
 - **Fix (editor rows had no hover and their buttons did nothing):** the engine calls `visibility_function(pass_content, style)` with `content[content_id]` for passes that have a `content_id` (all hotspots), not the widget content (`ui_widget.lua:411-446`). The row's flagged hotspots (checkbox, `-`, value, `+`, Edit, Mods) looked up their `show_*` flag on the hotspot's own table, got nil, and the engine skipped them entirely. Unflagged ones (row name, bottom buttons) worked, which is what the user saw. The flag is now read from `content.parent` (set by the engine to the widget content).
 - Rows now highlight while hovered, and the clickable area of a row is name + composition.

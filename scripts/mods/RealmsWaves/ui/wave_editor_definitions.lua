@@ -40,7 +40,7 @@ local scenegraph_definition = {
 	scroll_up = node(1771, 168, 44, 36, 2),
 	scroll_down = node(1771, 696, 44, 36, 2),
 	list_range = node(1400, 700, 340, 28, 2),
-	bottom_panel = node(105, 770, 1710, 190, 0),
+	bottom_panel = node(105, 770, 1710, 250, 0),
 	bottom_title = node(125, 780, 900, 34, 2),
 	hint_text = node(125, 826, 1660, 120, 2),
 
@@ -52,6 +52,9 @@ local scenegraph_definition = {
 	btn_reset = node(1345, 826, 300, 44, 2),
 	stepper_chance = node(125, 890, 900, 48, 2),
 	stepper_cooldown = node(1000, 890, 800, 48, 2),
+	stepper_spread = node(125, 945, 480, 48, 2),
+	stepper_every = node(640, 945, 640, 48, 2),
+	stepper_for = node(1300, 945, 515, 48, 2),
 
 	-- input popup, centred
 	rw_popup_panel = node(560, 400, 800, 260, 45),
@@ -154,6 +157,7 @@ local widget_definitions = {
 		header_pass("col_3", 550, 640),
 		header_pass("col_4", 1200, 190, "center"),
 		header_pass("col_5", 1390, 120, "right"),
+		header_pass("col_6", 890, 210, "center"),
 	}, "list_header"),
 
 	list_range = plain_text("list_range", "list_range", 18, colors.muted, 340, 28, "right"),

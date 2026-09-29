@@ -21,7 +21,9 @@ local BASE = MODROOT .. "/scripts/mods/RealmsWaves"
 function table.clone(t) local c = {} for k, v in pairs(t) do c[k] = type(v) == "table" and table.clone(v) or v end return c end
 table.clone_instance = table.clone
 function math.clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
-function callback(obj, name, ...) local args = { ... } return function(...) return obj[name](obj, unpack(args), ...) end end
+-- the game's own callback() (binds up to 5 arguments), loaded from the source clone
+ferror = error
+dofile(MODROOT .. "/../../Darktide-Source-Code/scripts/foundation/utilities/callback.lua")
 unpack = unpack or table.unpack
 
 local UIWidget = {}
@@ -263,6 +265,61 @@ click_row(1, "hotspot_action")
 check("adding a breed that exists with modifiers creates a separate group", #view._parts == n_before + 1, #view._parts .. " vs " .. n_before)
 view._parts[1].mods = nil; view:_save()
 
+-- spread radius and repeats -------------------------------------------------------
+local S = view._widgets_by_name
+check("detail: spread / repeat steppers visible with defaults", S.stepper_spread.visible and S.stepper_every.visible and S.stepper_for.visible and S.stepper_spread.content.stepper_value == "3" and S.stepper_every.content.stepper_value == "10" and S.stepper_for.content.stepper_value == "60", S.stepper_spread.content.stepper_value)
+check("detail: repeat stepper says 'off' while no enemy repeats", S.stepper_every.content.extra == "extra_no_repeat", S.stepper_every.content.extra)
+check("detail: header shows the repeat column", view._widgets_by_name.list_header.content.col_6 == "col_repeat")
+S.stepper_spread.content.hotspot_plus.pressed_callback()
+check("spread +1", settings["sp_wave_small"] == 4 and S.stepper_spread.content.stepper_value == "4", settings["sp_wave_small"])
+S.stepper_spread.content.hotspot_minus.pressed_callback(); S.stepper_spread.content.hotspot_minus.pressed_callback()
+check("spread -2", settings["sp_wave_small"] == 2)
+for _ = 1, 3 do S.stepper_spread.content.hotspot_minus.pressed_callback() end
+check("spread clamps at 0", settings["sp_wave_small"] == 0 and S.stepper_spread.content.stepper_value == "0")
+S.stepper_spread.content.hotspot_value.pressed_callback()
+view._widgets_by_name.rw_popup_input.content.input_text = "31"
+PopupOwner0 = dofile(BASE .. "/ui/wave_editor_components.lua")
+PopupOwner0.Popup.commit(view)
+check("spread popup rejects > 30", view._popup ~= nil and view._popup.error ~= nil)
+view._widgets_by_name.rw_popup_input.content.input_text = "12"
+PopupOwner0.Popup.commit(view)
+check("spread popup accepts 12", view._popup == nil and settings["sp_wave_small"] == 12 and S.stepper_spread.content.stepper_value == "12")
+S.stepper_every.content.hotspot_plus.pressed_callback()
+check("repeat every +1", settings["re_wave_small"] == 11 and S.stepper_every.content.stepper_value == "11", settings["re_wave_small"])
+S.stepper_for.content.hotspot_plus.pressed_callback()
+check("repeat for +5", settings["rf_wave_small"] == 65 and S.stepper_for.content.stepper_value == "65", settings["rf_wave_small"])
+for _ = 1, 20 do S.stepper_every.content.hotspot_minus.pressed_callback() end
+check("repeat every clamps at 1", settings["re_wave_small"] == 1)
+
+check("detail rows show the repeat stepper", row(1).content.show_rep and row(1).content.rep_value == "0" and hotspot_runs(row(1), "hotspot_rep_plus") and hotspot_runs(row(1), "hotspot_rep_minus") and hotspot_runs(row(1), "hotspot_rep_value"))
+click_row(1, "hotspot_rep_plus")
+check("row repeat +1 -> stored as @1", row(1).content.rep_value == "1" and settings["wave_def_wave_small"]:find("@1") ~= nil and view._parts[1].rep == 1, settings["wave_def_wave_small"])
+check("repeat stepper text now says seconds", S.stepper_every.content.extra == "extra_seconds", S.stepper_every.content.extra)
+click_row(1, "hotspot_rep_value")
+view._widgets_by_name.rw_popup_input.content.input_text = "3"
+PopupOwner0.Popup.commit(view)
+check("row repeat popup sets 3", view._parts[1].rep == 3 and row(1).content.rep_value == "3")
+local start_count = view._parts[1].count
+for _ = 1, start_count do click_row(1, "hotspot_minus") end
+check("initial count may reach 0 while the group repeats", view._parts[1].count == 0 and view._parts[1].rep == 3 and row(1).content.stepper_value == "0", view._parts[1].count)
+click_row(1, "hotspot_minus")
+check("count stays at 0 (not negative)", view._parts[1].count == 0)
+click_row(1, "hotspot_rep_value")
+view._widgets_by_name.rw_popup_input.content.input_text = "0"
+PopupOwner0.Popup.commit(view)
+check("repeat set back to 0 with count 0 -> count restored to 1", view._parts[1].rep == nil and view._parts[1].count == 1)
+click_row(1, "hotspot_rep_plus"); click_row(1, "hotspot_plus")
+check("wave summary on the list mentions repeats", (function() local w = mod.rw.events.get("wave_small", function(id) return settings[id] end, mod.rw.groups); return mod.rw.groups.summary(w.parts):find("per repeat") ~= nil end)())
+click_row(1, "hotspot_rep_minus")
+check("repeat -1 back to none", view._parts[1].rep == nil)
+
+-- reset restores spread and repeat settings too
+click("btn_reset")
+check("reset restores spread/repeat defaults", settings["sp_wave_small"] == 3 and settings["re_wave_small"] == 10 and settings["rf_wave_small"] == 60)
+click("btn_back")
+check("list screen: repeat column header cleared, steppers hidden", view._widgets_by_name.list_header.content.col_6 == "" and not S.stepper_spread.visible and not row(1).content.show_rep)
+click_row(1, "hotspot_action")
+
 -- rename via popup
 click("btn_rename")
 check("rename popup opens", view._popup ~= nil and view._widgets_by_name.rw_popup_panel.visible)
@@ -297,7 +354,7 @@ PopupOwner.Popup.cancel(view)
 view._widgets_by_name.stepper_cooldown.content.hotspot_plus.pressed_callback()
 check("cooldown +5", settings["cd_wave_small"] == 65 and view._widgets_by_name.stepper_cooldown.content.stepper_value == "65", settings["cd_wave_small"])
 view._widgets_by_name.stepper_chance.content.hotspot_plus.pressed_callback()
-check("chance +1 in detail", settings["pct_wave_small"] == 18)
+check("chance +1 in detail (the reset above restored 18)", settings["pct_wave_small"] == 19, settings["pct_wave_small"])
 click("btn_enabled")
 check("enabled toggled in detail", settings["on_wave_small"] == false and view._widgets_by_name.btn_enabled.content.hotspot_text == "btn_enabled_off")
 

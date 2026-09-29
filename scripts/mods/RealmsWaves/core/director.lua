@@ -635,7 +635,7 @@ Director.fire_now = function (key)
 		return false, "that wave has no enemies yet (edit it in the wave editor or with /rw_custom)"
 	end
 
-	return Execute.start_wave({ key = wave.key, name = wave.name, parts = wave.parts, monster = wave.monster })
+	return Execute.start_wave(Events.spawn_def(wave))
 end
 
 Director.simulate = function (rolls)
