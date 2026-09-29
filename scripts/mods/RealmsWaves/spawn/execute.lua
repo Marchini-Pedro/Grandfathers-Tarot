@@ -125,7 +125,8 @@ Execute.ensure_purple_stimm = ensure_purple_stimm
 -- MutatorBase._add_buffs_on_unit does (S\managers\mutator\mutators\mutator_base.lua:100-135).
 -- Server side; minion buffs are synced to clients by the buff extension.
 -- Every step is guarded: a buff that errors must never break the wave.
-Execute.apply_modifiers = function (unit, mod_ids)
+-- `breed_name` (optional) lets a modifier that only suits some breeds (`only_breeds`) skip the others.
+Execute.apply_modifiers = function (unit, mod_ids, breed_name)
 	local buff_extension = ScriptUnit.has_extension(unit, "buff_system")
 
 	if not buff_extension or not mod_ids then
@@ -139,6 +140,10 @@ Execute.apply_modifiers = function (unit, mod_ids)
 
 		if modifier and modifier.requires_havoc and not in_havoc_mission() then
 			warn_once(modifier.name .. " needs a Havoc mission and was skipped")
+		elseif modifier and modifier.only_breeds and breed_name and not modifier.only_breeds[breed_name] then
+			warn_once(string.format("%s only works on %s, skipped on %s", modifier.name, Groups.only_breeds_text(modifier), Groups.display_name(breed_name)))
+		elseif modifier and modifier.skip_if_present and modifier.buffs[1] and buff_extension.has_buff_using_buff_template and select(2, pcall(buff_extension.has_buff_using_buff_template, buff_extension, modifier.buffs[1])) == true then
+			-- the mission's own mutator already gave it (a second copy would double its effects)
 		elseif modifier and modifier.prepare and not PREPARE_STEPS[modifier.prepare] then
 			warn_once(modifier.name .. " has an unknown setup step and was skipped")
 		elseif modifier then
@@ -501,7 +506,7 @@ local function spawn_one(breed_name, position, target_unit, mod_ids)
 	end
 
 	if mod_ids and unit then
-		Execute.apply_modifiers(unit, mod_ids)
+		Execute.apply_modifiers(unit, mod_ids, breed_name)
 	end
 
 	return true

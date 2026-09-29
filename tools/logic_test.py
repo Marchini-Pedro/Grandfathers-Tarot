@@ -1,4 +1,4 @@
-﻿import sys, os
+import sys, os
 sys.path.insert(0, os.environ.get("PYLIBS", r"C:\Users\ayko4\AppData\Local\Temp\claude\c--XboxGames-Warhammer-40-000--Darktide-Content\9da40c72-f459-4d9d-ab4b-3023fa21e2f5\scratchpad\pylibs"))
 from lupa import LuaRuntime
 
@@ -524,6 +524,36 @@ spread_calls = {}
 run_wave({ name = "t", parts = Groups.parse("2 hounds") })
 check("execute: no spread configured -> radius 0", #spread_calls == 2 and spread_calls[1] == 0)
 
+-- Rotten Armor: only Maulers, Ragers, Crushers; not doubled when the mission already applied it
+do
+  check("rotten: parses with its names and aliases", Groups.modifier_id("rotten") == "rotten" and Groups.modifier_id("Rotten Armor") == "rotten" and Groups.modifier_id("rotten armour") == "rotten")
+  local rp, rerr = Groups.parse("2 crushers[rotten], 1 mauler[rotten+enraged], 1 scab rager[rotten]")
+  check("rotten: recipe accepted", rp ~= nil and #rp == 3, tostring(rerr))
+  Execute.reset(); echoes = {}
+  run_wave({ name = "t", parts = Groups.parse("2 crushers[rotten], 1 mauler[rotten], 1 scab rager[rotten], 1 rager[rotten], 2 hounds[rotten]") })
+  local got, hound_buffs = 0, 0
+  for _, u in ipairs(spawned) do
+    if u.breed == "chaos_hound" then hound_buffs = hound_buffs + #u.buffs.added
+    elseif u.buffs.added[1] == "mutator_rotten_armor" then got = got + 1 end
+  end
+  check("rotten: eligible breeds get the buff, others do not", got == 4 and hound_buffs == 0, got .. "/" .. hound_buffs)
+  local said = false; for _, e in ipairs(echoes) do if e:find("Rotten Armor only works on Crusher, Scab Mauler, Scab Rager", 1, true) and e:find("skipped on Hound", 1, true) then said = true end end
+  check("rotten: skipping an unsuited breed is logged in plain words", said, table.concat(echoes, " | "))
+  -- the mission already gave it: no second copy
+  local orig_make = make_buff_ext
+  local pre = { renegade_executor = true }
+  Execute.reset(); echoes = {}
+  local orig_spawn = minion_spawn.spawn_minion
+  minion_spawn.spawn_minion = function(self, breed, ...)
+    local unit = orig_spawn(self, breed, ...)
+    unit.buffs.has_buff_using_buff_template = function(ext, name) return name == "mutator_rotten_armor" end
+    return unit
+  end
+  run_wave({ name = "t", parts = Groups.parse("2 maulers[rotten]") })
+  minion_spawn.spawn_minion = orig_spawn
+  local doubled = false; for _, u in ipairs(spawned) do if #u.buffs.added > 0 then doubled = true end end
+  check("rotten: not added again when the unit already has it", #spawned == 2 and not doubled)
+end
 -- twin captains: the shield starts down (toughness template start_depleted) and must be raised via optional_init_toughness
 do
   package.preload["scripts/settings/breed/breeds"] = function()

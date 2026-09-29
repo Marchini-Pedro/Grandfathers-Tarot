@@ -124,6 +124,17 @@ Groups.MODIFIERS = {
 		aliases = { "purple stimm", "purple stimmed", "purple stim", "stimmed purple", "purple split", "splitting" },
 		description = "Purple stimmed: when it dies it bursts and splits into two weaker enemies, which can split again. The split enemies are extra units.",
 	},
+	{
+		-- buff mutator_rotten_armor (havoc_buff_templates.lua:684-772, thresholds/armor overrides in
+		-- havoc_mutator_local_settings.lua:461-526). Damage taken x0.25 at full health, x0.5 below 90%, x0.75
+		-- below 75%, x1 below 50%, x1.25 below 25%; head and limbs count as "disgustingly resilient" armor
+		-- (armor.lua:40-46); slower animation; toxic puddle on death. The game only ever gives it to these three
+		-- breeds (breed_chances), which are also the only ones with rotten armor models.
+		id = "rotten", name = "Rotten Armor", buffs = { "mutator_rotten_armor" }, skip_if_present = true,
+		only_breeds = { renegade_executor = "Scab Mauler", renegade_berzerker = "Scab Rager", chaos_ogryn_executor = "Crusher" },
+		aliases = { "rotten", "rotten armor", "rotten armour", "rotting", "rotten armored" },
+		description = "Rotten Armor (Scab Mauler, Scab Rager and Crusher only, not the cultist Rager). Takes only a quarter of the damage at full health, weakening as it is hurt (normal below half, extra below a quarter). Head and limbs are very resilient. Leaves a toxic puddle when it dies. No rotten armor model, other enemies are skipped.",
+	},
 }
 
 local modifier_by_id = {}
@@ -146,6 +157,19 @@ end
 
 Groups.modifier = function (id)
 	return modifier_by_id[id]
+end
+
+-- "Mauler, Rager and Crusher" for a modifier with `only_breeds`
+Groups.only_breeds_text = function (modifier)
+	local names = {}
+
+	for _, name in pairs(modifier.only_breeds or {}) do
+		names[#names + 1] = name
+	end
+
+	table.sort(names)
+
+	return table.concat(names, ", ")
 end
 
 Groups.modifier_id = function (word)
