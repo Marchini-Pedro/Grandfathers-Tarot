@@ -224,6 +224,91 @@ Events.get = function (key, get_setting, Groups)
 	return wave
 end
 
+-- "Mutants Everywhere!" -> "mutants_everywhere" (lower case, every run of other characters becomes one "_").
+Events.normalize_name = function (text)
+	text = tostring(text or ""):lower():gsub("[^%w]+", "_")
+
+	return (text:gsub("^_+", ""):gsub("_+$", ""))
+end
+
+-- Finds a wave by its key ("custom_2", "wave_small") or by its NAME as shown in the editor,
+-- written any way you like: "Mutants Everywhere", "mutants_everywhere", "mutants-everywhere".
+-- Order: exact key, exact name, then a unique name that starts with / contains the text.
+-- Returns the wave, or nil and a message (unknown, or several waves match).
+Events.find = function (query, get_setting, Groups)
+	local q = Events.normalize_name(query)
+
+	if q == "" then
+		return nil, "no wave name given"
+	end
+
+	local waves = {}
+
+	for _, key in ipairs(Events.keys()) do
+		waves[#waves + 1] = Events.get(key, get_setting, Groups)
+	end
+
+	for i = 1, #waves do
+		if Events.normalize_name(waves[i].key) == q then
+			return waves[i]
+		end
+	end
+
+	local function describe(list)
+		local names = {}
+
+		for i = 1, #list do
+			names[i] = string.format("%s (%s)", list[i].name, list[i].key)
+		end
+
+		return table.concat(names, ", ")
+	end
+
+	local function pick(matches)
+		if #matches == 1 then
+			return matches[1]
+		elseif #matches > 1 then
+			return nil, string.format("several waves match %q: %s. Use the full name or the key.", tostring(query), describe(matches))
+		end
+	end
+
+	local exact = {}
+
+	for i = 1, #waves do
+		if Events.normalize_name(waves[i].name) == q then
+			exact[#exact + 1] = waves[i]
+		end
+	end
+
+	if #exact > 0 then
+		return pick(exact)
+	end
+
+	-- fuzzy steps only consider waves that have enemies (an empty "Custom 7" slot is never a good guess)
+	for _, mode in ipairs({ "prefix", "contains" }) do
+		local matches = {}
+
+		for i = 1, #waves do
+			local wave = waves[i]
+
+			if wave.parts and #wave.parts > 0 then
+				local name = Events.normalize_name(wave.name)
+				local hit = mode == "prefix" and name:sub(1, #q) == q or (mode == "contains" and name:find(q, 1, true) ~= nil)
+
+				if hit then
+					matches[#matches + 1] = wave
+				end
+			end
+		end
+
+		if #matches > 0 then
+			return pick(matches)
+		end
+	end
+
+	return nil, string.format("no wave named %q (use its name from the wave editor, or a key like custom_1)", tostring(query))
+end
+
 -- Writes a wave's name and composition. `parts` may be nil/empty for a custom slot.
 Events.set_def = function (set_setting, key, name, parts, Groups)
 	set_setting("wave_def_" .. key, clean_name(name) .. DEF_SEPARATOR .. Groups.to_recipe(parts))

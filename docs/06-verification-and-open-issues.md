@@ -33,6 +33,7 @@
 | 29 | Options menu: three multiplier sliders show 0-500 with "percent"; try 0 / 200 / 500 with `/rw_test` on a mixed wave | Types scale/vanish as configured; wave with everything at 0 gives the console message | not run |
 | 30 | Picker search: open Add enemy, click Search enemies, type `twin`, `boss`, `beastmaster`; Enter and Esc | List filters live, popup does not hide the list, Esc undoes, Enter keeps | not run |
 | 31 | Big waves: max per wave 500, max alive 1000, a 500-unit wave via multipliers | Spawns without errors; note frame rate/network behaviour and whether the game copes | not run |
+| 32 | Rename a custom wave to "Mutants Everywhere" in the editor, then `/rw_test mutants_everywhere` and `/rw_test Mutants Everywhere`; also `/rw_test` alone | Wave spawns; the no-argument form lists waves as `Name (key)` | not run |
 | 26 | Recipe text with `@`: `3 crushers[enraged]@2` in "Edit as text" | Accepted, shown as "(+2 per repeat)" in the list | not run |
 
 ## Known risks

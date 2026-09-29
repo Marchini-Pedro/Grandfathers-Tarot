@@ -305,6 +305,42 @@ v = Director.view()
 check("client: version mismatch disables", v.phase == "off", v.phase)
 is_server = true
 
+-- /rw_test by name ------------------------------------------------------------------
+do
+  local get = function(id) return settings[id] end
+  local set = function(id, v) settings[id] = v end
+  Events.set_def(set, "custom_2", "Mutants Everywhere!", Groups.parse("6 mutants"), Groups)
+  Events.set_def(set, "custom_5", "Mutant Ambush", Groups.parse("2 mutants, 1 sniper"), Groups)
+  local function found(q) local w, err = Events.find(q, get, Groups) return w and w.key or nil, err end
+  check("find: normalize_name", Events.normalize_name("  Mutants Everywhere! ") == "mutants_everywhere" and Events.normalize_name("mutants-everywhere") == "mutants_everywhere" and Events.normalize_name("__A  b__") == "a_b")
+  check("find: by key", found("custom_2") == "custom_2" and found("hound_frenzy") == "hound_frenzy" and found("CUSTOM_2") == "custom_2")
+  check("find: renamed custom wave by name with underscores", found("mutants_everywhere") == "custom_2")
+  check("find: by name with spaces, any case, punctuation", found("Mutants Everywhere") == "custom_2" and found("MUTANTS everywhere!") == "custom_2" and found("mutants-everywhere") == "custom_2")
+  check("find: built-in wave by its displayed name", found("Small Wave") == "wave_small" and found("hound_frenzy") == "hound_frenzy" and found("hound frenzy") == "hound_frenzy")
+  check("find: unique prefix", found("mutants_ever") == "custom_2" and found("boss") == "boss_ambush")
+  check("find: unique substring", found("everywhere") == "custom_2")
+  local amb2_key, amb2_err = found("ambush")
+  check("find: a substring shared by two waves (Boss Ambush, Mutant Ambush) is ambiguous", amb2_key == nil and amb2_err:find("Boss Ambush") ~= nil and amb2_err:find("Mutant Ambush") ~= nil, amb2_err)
+  local amb_key, amb_err = found("mutant")
+  check("find: ambiguous text is refused and lists the candidates", amb_key == nil and amb_err:find("several waves match") and amb_err:find("Mutants Everywhere") and amb_err:find("Mutant Ambush"), amb_err)
+  local unk_key, unk_err = found("no_such_wave")
+  check("find: unknown name gives a helpful message", unk_key == nil and unk_err:find("no wave named") ~= nil, unk_err)
+  check("find: empty query is refused", found("   ") == nil and select(2, found("")) ~= nil)
+  check("find: an empty custom slot is found by key or exact name but never guessed", found("custom_9") == "custom_9" and found("Custom 9") == "custom_9" and found("cust") == nil)
+  -- renaming: the old default name stops matching, the new one matches
+  Events.set_def(set, "custom_2", "Dog Party", Groups.parse("6 hounds"), Groups)
+  check("find: after a rename the new name works and the old one does not", found("dog_party") == "custom_2" and found("mutants_everywhere") == nil)
+  -- through the director (what /rw_test calls)
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  started_waves = {}
+  local fok, ferr = Director.fire_now("dog party")
+  check("director.fire_now accepts a wave name", fok and started_waves[1] == "Dog Party", tostring(ferr) .. " / " .. tostring(started_waves[1]))
+  local fok2, ferr2 = Director.fire_now("nope")
+  check("director.fire_now reports an unknown name", fok2 == false and ferr2:find("no wave named") ~= nil, ferr2)
+  Events.reset(set, "custom_2"); Events.reset(set, "custom_5")
+  for _, k in ipairs({ "wave_def_custom_2", "wave_def_custom_5", "on_custom_2", "on_custom_5" }) do settings[k] = nil end
+end
+
 -- hub: nothing runs
 mission_name = "hub"
 Director.on_exit_gameplay(); started_waves = {}

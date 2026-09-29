@@ -176,24 +176,30 @@ mod:command("rw_skip", "RealmsWaves: (host) skip the countdown and resolve the c
 	RW.director.skip()
 end)
 
-mod:command("rw_test", "RealmsWaves: (host) spawn a wave now: /rw_test <event key or custom_N>", function (key)
-	if not key then
-		local keys = {}
+-- /rw_test <wave key or wave name>: "custom_1", "hound_frenzy", or a name from the editor
+-- ("Mutants Everywhere" can be typed mutants_everywhere or with spaces).
+mod:command("rw_test", "RealmsWaves: (host) spawn a wave now: /rw_test <wave key or wave name>, e.g. /rw_test mutants_everywhere", function (...)
+	local query = table.concat({ ... }, " ")
 
-		for i = 1, #RW.events.STANDARD do
-			keys[#keys + 1] = RW.events.STANDARD[i].key
+	if query:match("^%s*$") then
+		local names = {}
+
+		for _, key in ipairs(RW.events.keys()) do
+			local wave = RW.events.get(key, function (id) return mod:get(id) end, RW.groups)
+
+			if wave and wave.parts and #wave.parts > 0 then
+				names[#names + 1] = string.format("%s (%s)", wave.name, wave.key)
+			end
 		end
 
-		mod:echo("RealmsWaves: usage /rw_test <key>. Keys: %s, custom_1..custom_%d", table.concat(keys, ", "), RW.events.CUSTOM_SLOTS)
+		mod:echo("RealmsWaves: usage /rw_test <wave name or key>. Waves: %s", table.concat(names, ", "))
 
 		return
 	end
 
-	key = tostring(key)
+	local ok, err = RW.director.fire_now(query)
 
-	local ok, err = RW.director.fire_now(key)
-
-	mod:echo("RealmsWaves: %s", ok and ("wave " .. key .. " queued") or tostring(err))
+	mod:echo("RealmsWaves: %s", ok and ("wave \"" .. query .. "\" queued") or tostring(err))
 end)
 
 mod:command("rw_vote", "RealmsWaves: cast a vote from the console: /rw_vote <option number>", function (option)

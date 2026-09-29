@@ -625,10 +625,11 @@ Director.fire_now = function (key)
 		return false, "only the host can start waves"
 	end
 
-	local wave = Events.get(key, get_setting, Groups)
+	-- `key` may be a key ("custom_1") or a wave name ("Mutants Everywhere", "mutants_everywhere")
+	local wave, find_error = Events.find(key, get_setting, Groups)
 
 	if not wave then
-		return false, "unknown wave key: " .. tostring(key)
+		return false, find_error
 	end
 
 	if not wave.parts or #wave.parts == 0 then
