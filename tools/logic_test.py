@@ -1,4 +1,4 @@
-import sys, os
+﻿import sys, os
 sys.path.insert(0, os.environ.get("PYLIBS", r"C:\Users\ayko4\AppData\Local\Temp\claude\c--XboxGames-Warhammer-40-000--Darktide-Content\9da40c72-f459-4d9d-ab4b-3023fa21e2f5\scratchpad\pylibs"))
 from lupa import LuaRuntime
 
@@ -248,10 +248,13 @@ check("no votes -> nil", Votes.winner() == nil)
 
 -- ---- director ------------------------------------------------------------
 local started_waves = {}
+local started_defs = {}
+local ring_level = false
 local Positions = { player_units = function() return { "p1" } end }
 local Execute = {
   has_authority = function() return true end,
-  start_wave = function(def) started_waves[#started_waves+1] = def.name; return true end,
+  start_wave = function(def) started_waves[#started_waves+1] = def.name; started_defs[#started_defs+1] = def; return true end,
+  uses_ring = function() return ring_level end,
   update = function() end, reset = function() end,
   status = function() return { tracked = 0, queued = 0, jobs = 0 } end,
 }
@@ -368,6 +371,11 @@ do
   started_waves = {}
   local fok, ferr = Director.fire_now("dog party")
   check("director.fire_now accepts a wave name", fok and started_waves[1] == "Dog Party", tostring(ferr) .. " / " .. tostring(started_waves[1]))
+  check("director.fire_now marks the wave as an explicit test (ring fallback allowed)", started_defs[#started_defs].test == true and ferr == nil, tostring(ferr))
+  ring_level = true
+  local rok, rnote = Director.fire_now("dog party")
+  check("director.fire_now warns when the level has no spawn points (ring used)", rok and type(rnote) == "string" and rnote:find("ring") ~= nil, tostring(rnote))
+  ring_level = false
   local fok2, ferr2 = Director.fire_now("nope")
   check("director.fire_now reports an unknown name", fok2 == false and ferr2:find("no wave named") ~= nil, ferr2)
   Events.reset(set, "custom_2"); Events.reset(set, "custom_5")
@@ -450,8 +458,10 @@ Managers.state.game_mode = { game_mode = function() return { name = function() r
 Managers.time = { time = function() return 5 end }
 local spread_calls = {}
 local cand_calls, cand_fail = 0, false
+local cand_reason, ring_fail, ring_calls = "no hidden points near players", false, 0
 local StubPositions = {
-  candidates = function() cand_calls = cand_calls + 1; if cand_fail then return nil, "no hidden points near players" end return { "a", "b" } end,
+  candidates = function() cand_calls = cand_calls + 1; if cand_fail then return nil, cand_reason end return { "a", "b" } end,
+  test_candidates = function() ring_calls = ring_calls + 1; if ring_fail then return nil, "no walkable ground within reach of the player" end return { "ring" } end,
   pick = function(list) return "pos" end,
   random_player_unit = function() return "player" end,
   spread = function(position, radius) spread_calls[#spread_calls + 1] = radius; return position .. "+" .. tostring(radius) end,
@@ -513,6 +523,47 @@ check("execute: each unit goes through Positions.spread with the wave radius", a
 spread_calls = {}
 run_wave({ name = "t", parts = Groups.parse("2 hounds") })
 check("execute: no spread configured -> radius 0", #spread_calls == 2 and spread_calls[1] == 0)
+
+-- levels without a main path (Psykhanium): only explicit /rw_test waves use the ring fallback ---------
+do
+  local function recent(pattern) for _, e in ipairs(echoes) do if e:find(pattern, 1, true) then return e end end return nil end
+  cand_fail, cand_reason = true, "main path not ready"
+
+  Execute.reset(); echoes = {}; ring_calls = 0
+  run_wave({ name = "ringtest", test = true, parts = Groups.parse("3 hounds") })
+  check("psykhanium: /rw_test wave spawns via the ring fallback when there is no main path", #spawned == 3 and ring_calls >= 1, #spawned)
+  check("psykhanium: no failure message when the ring worked", recent("not spawning") == nil, tostring(recent("not spawning")))
+
+  Execute.reset(); echoes = {}; ring_calls = 0
+  run_wave({ name = "drawn", parts = Groups.parse("3 hounds") }); for _ = 1, 30 do Execute.update(0.2) end
+  check("psykhanium: a director-drawn wave never uses the ring", #spawned == 0 and ring_calls == 0)
+  local warn = recent("not spawning")
+  check("psykhanium: a stuck director wave logs a plain-language warning (once)", warn ~= nil and warn:find("WARN") == 1 and warn:find("Waves need a mission", 1, true) ~= nil, tostring(warn))
+  local count = 0; for _, e in ipairs(echoes) do if e:find("not spawning", 1, true) then count = count + 1 end end
+  check("psykhanium: the warning is only shown once per wave", count == 1, count)
+
+  ring_fail = true
+  Execute.reset(); echoes = {}
+  run_wave({ name = "ringfail", test = true, parts = Groups.parse("3 hounds") }); for _ = 1, 30 do Execute.update(0.2) end
+  local echo = recent("not spawning")
+  check("psykhanium: /rw_test with no walkable ground tells the user in chat", #spawned == 0 and echo ~= nil and echo:find("WARN") == nil and echo:find("no walkable ground") ~= nil, tostring(echo))
+  ring_fail = false
+
+  -- a hidden-point failure on a real level is NOT replaced by the ring (never spawn in view)
+  cand_reason = "no hidden points near players"
+  Execute.reset(); echoes = {}; ring_calls = 0
+  run_wave({ name = "nohidden", test = true, parts = Groups.parse("3 hounds") }); for _ = 1, 30 do Execute.update(0.2) end
+  check("test wave on a real level: 'no hidden points' still waits, ring not used", #spawned == 0 and ring_calls == 0 and recent("hidden from every player") ~= nil, tostring(recent("not spawning")))
+  cand_fail = false
+
+  local saved_path = Managers.state.main_path
+  Managers.state.main_path = { is_main_path_ready = function() return false end }
+  check("uses_ring: true without a ready main path", Execute.uses_ring() == true)
+  Managers.state.main_path = { is_main_path_ready = function() return true end }
+  check("uses_ring: false on a normal mission", Execute.uses_ring() == false)
+  Managers.state.main_path = saved_path
+  Execute.reset(); echoes = {}
+end
 
 -- repeats: "5 crushers@2", every 10 s for 35 s -> initial 5, ticks at 10/20/30 -> 3 x 2 more
 local function run_timed(def, seconds, step)

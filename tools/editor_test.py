@@ -323,6 +323,100 @@ check("re-entering the picker starts with an empty search", view._filter == "" a
 click("btn_back")
 check("back from the picker returns to the detail screen", view._screen == "detail")
 
+-- typing on the picker screen opens the search box by itself ------------------------------------------------
+do
+  local strokes = {}
+  Keyboard = { keystrokes = function() return strokes end }
+  local function frame() view:update(0.01, 0, input_stub) end
+
+  frame()
+  strokes = { "b" }
+  frame()
+  check("auto-search: typing on the detail screen does nothing", view._popup == nil)
+  strokes = {}
+
+  click("btn_add")
+  check("auto-search: picker screen suspends keybinds even with no box open", view._popup == nil and mod.rw.text_input_active == true)
+  strokes = { 27, 8, " " } -- special keys (numbers) and a leading space are not text
+  frame()
+  check("auto-search: special keys and a leading space do not open the box", view._popup == nil)
+  strokes = { "\n" }
+  frame()
+  check("auto-search: control characters do not open the box", view._popup == nil)
+  strokes = { "t", "w" }
+  frame()
+  check("auto-search: typing opens the search box (empty, filter untouched until the widget reads the keys)", view._popup ~= nil and view._popup.spec.value == "" and view._sg.rw_popup_panel[2] == 700 and mod.rw.text_input_active == true)
+  strokes = {}
+  frame()
+  check("auto-search: if the input widget missed the first keys they are filled in next frame, and the list filters", view._widgets_by_name.rw_popup_input.content.input_text == "tw" and view._filter == "tw" and #view._breeds >= 2, tostring(view._widgets_by_name.rw_popup_input.content.input_text) .. "/" .. tostring(view._filter))
+  local popup_before = view._popup
+  strokes = { "i" }
+  frame()
+  check("auto-search: typing while the box is open does not reopen or reset it", view._popup == popup_before and view._widgets_by_name.rw_popup_input.content.input_text == "tw")
+  strokes = {}
+
+  -- widget that DID read the keys itself: nothing is typed twice
+  SP.Popup.cancel(view)
+  strokes = { "x" }
+  frame()
+  view._widgets_by_name.rw_popup_input.content.input_text = "x" -- what the real widget does in the same frame
+  strokes = {}
+  frame()
+  check("auto-search: keys the widget already took are not typed a second time", view._widgets_by_name.rw_popup_input.content.input_text == "x" and view._auto_typed == nil)
+  SP.Popup.cancel(view)
+  check("auto-search: the box closing on the picker screen keeps keybinds suspended", mod.rw.text_input_active == true)
+  view._filter = ""
+  click("btn_back")
+  check("auto-search: back to the wave editor releases the keybinds", view._screen == "detail" and mod.rw.text_input_active == false)
+end
+
+-- stay in the picker after adding, or go back ---------------------------------------------------------------
+do
+  settings.picker_stay = nil
+  click("btn_add")
+  check("stay toggle: visible in the picker only, default is 'back to wave'", view._widgets_by_name.btn_stay.visible and view._widgets_by_name.btn_stay.content.hotspot_text == "btn_stay_off")
+  click("btn_back")
+  check("stay toggle: hidden outside the picker", not view._widgets_by_name.btn_stay.visible)
+  click("btn_add")
+  click("btn_stay")
+  check("stay toggle: click flips the setting and the label", settings.picker_stay == true and view._widgets_by_name.btn_stay.content.hotspot_text == "btn_stay_on" and view._screen == "picker")
+
+  local parts_n = #view._parts
+  local breed = view._breeds[1]
+  local before = 0; for _, p in ipairs(view._parts) do if p.breed == breed and not p.mods then before = p.count end end
+  click_row(1, "hotspot_action")
+  check("stay: adding keeps the picker open and adds the enemy", view._screen == "picker" and #view._parts >= parts_n and view._widgets_by_name.btn_stay.visible)
+  local after = 0; for _, p in ipairs(view._parts) do if p.breed == breed and not p.mods then after = p.count end end
+  check("stay: enemy count went up by one", after == before + 1, before .. " -> " .. after)
+  check("stay: a note says what was added", view._widgets_by_name.bottom_title.content.bottom_title:find("picker_added:") ~= nil and view._widgets_by_name.description_text.content.description_text:find("picker_added:") ~= nil, view._widgets_by_name.bottom_title.content.bottom_title)
+  local second = view._breeds[2]
+  click_row(2, "hotspot_name")
+  local has_second = false; for _, p in ipairs(view._parts) do if p.breed == second then has_second = true end end
+  check("stay: several different enemies can be added in a row", view._screen == "picker" and has_second)
+
+  -- with the search box open the box stays open too, filter kept
+  click("btn_search")
+  view._widgets_by_name.rw_popup_input.content.input_text = "twin"
+  view:update(0.01, 0, input_stub)
+  click_row(1, "hotspot_action")
+  check("stay: adding from a filtered list keeps the search box and the filter", view._screen == "picker" and view._popup ~= nil and view._filter == "twin" and #view._breeds == 2)
+  click_row(2, "hotspot_action")
+  check("stay: ...and can add again", view._popup ~= nil and view._screen == "picker")
+  SP.Popup.commit(view)
+  view._filter = ""
+  click("btn_add")
+  check("stay: picker note is cleared when the picker is entered fresh", view._picker_note == nil)
+  click("btn_back")
+
+  -- back to wave mode
+  click("btn_add")
+  click("btn_stay")
+  check("back mode: toggle off again", settings.picker_stay == false and view._widgets_by_name.btn_stay.content.hotspot_text == "btn_stay_off")
+  click_row(1, "hotspot_action")
+  check("back mode: adding returns to the wave", view._screen == "detail" and view._picker_note == nil)
+  settings.picker_stay = nil
+end
+
 -- modifiers screen ---------------------------------------------------------------
 check("detail: Mods button on enemy rows", row(1).content.show_mods and row(1).content.hotspot_mods_text == "btn_mods" and not row(1).content.show_share)
 check("engine rule: detail row Mods/stepper/Remove hotspots run, checkbox does not", hotspot_runs(row(1), "hotspot_mods") and hotspot_runs(row(1), "hotspot_plus") and hotspot_runs(row(1), "hotspot_action") and not hotspot_runs(row(1), "hotspot_check"))

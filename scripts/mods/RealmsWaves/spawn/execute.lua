@@ -312,6 +312,7 @@ Execute.start_wave = function (def)
 
 	jobs[#jobs + 1] = {
 		name = def.name,
+		test = def.test == true, -- explicit /rw_test: may fall back to a ring around the player where no hidden points exist
 		monster = def.monster == true,
 		spread = tonumber(def.spread) or 0,
 		queue = queue,
@@ -351,11 +352,39 @@ local function run_repeats(job, dt)
 	end
 end
 
-local function candidates_for(monster)
-	local kind = monster and "monster" or "normal"
+-- Levels without a main path (Psykhanium, hub-like places) cannot give hidden spawn points.
+local NO_MAIN_PATH = { ["main path not ready"] = true, ["no nav spawn points"] = true, ["no spawn groups"] = true }
+local TEST_RING_MIN, TEST_RING_MAX = 10, 30
+local NOTIFY_AFTER = 4 -- seconds a wave may wait for a spawn position before the reason is reported
+
+-- Plain-language reason for a failed position search (shown to the user).
+local function explain(reason)
+	if NO_MAIN_PATH[reason] then
+		return "this level has no spawn points (hub, Psykhanium...). Waves need a mission"
+	elseif reason == "no hidden points near players" then
+		return "no spot hidden from every player was found near the squad (open ground? try moving, or lower the minimum spawn distance in the options)"
+	elseif reason == "hidden points exist but none within distance limits" then
+		return "hidden spots exist but none inside the minimum/maximum spawn distance (see the options)"
+	end
+
+	return tostring(reason)
+end
+
+-- True on levels where waves can only use the test ring (no main path).
+Execute.uses_ring = function ()
+	local main_path = Managers.state and Managers.state.main_path
+
+	return not (main_path and main_path.is_main_path_ready and main_path:is_main_path_ready())
+end
+
+-- Returns the candidate list for a job, or nil. Sets job.reason when it fails.
+local function candidates_for(job)
+	local kind = (job.test and "test_" or "") .. (job.monster and "monster" or "normal")
 	local entry = cache[kind]
 
 	if entry and entry.list and clock - entry.at < CANDIDATE_TTL and #entry.list > 0 then
+		job.reason = nil
+
 		return entry.list
 	end
 
@@ -363,12 +392,14 @@ local function candidates_for(monster)
 	-- full occlusion query (up to ~27 nav groups, hundreds of points) reran on EVERY feed tick
 	-- (every 0.15 s) for as long as the wave waited: a steady stream of garbage.
 	if entry and not entry.list and clock - entry.at < FAILED_SEARCH_TTL then
+		job.reason = entry.reason
+
 		return nil
 	end
 
 	local min_d, max_d
 
-	if monster then
+	if job.monster then
 		min_d = number_setting("monster_min_distance", 28)
 		max_d = number_setting("monster_max_distance", 75)
 	else
@@ -378,26 +409,49 @@ local function candidates_for(monster)
 
 	local list, reason = Positions.candidates(min_d, max_d)
 
+	if not list and job.test and NO_MAIN_PATH[reason] and Positions.test_candidates then
+		list, reason = Positions.test_candidates(TEST_RING_MIN, TEST_RING_MAX)
+	end
+
 	if not list then
 		throttled_log("spawn", reason)
 
-		cache[kind] = { at = clock, list = false }
+		cache[kind] = { at = clock, list = false, reason = reason }
+		job.reason = reason
 
 		return nil
 	end
 
 	cache[kind] = { at = clock, list = list }
+	job.reason = nil
 
 	return list
 end
 
+-- Tells the user (once per wave) why nothing is spawning. Explicit /rw_test waves get a chat echo,
+-- waves drawn by the director a log warning.
+local function notify_stuck(job, text)
+	if job.notified then
+		return
+	end
+
+	job.notified = true
+
+	if job.test then
+		mod:echo("RealmsWaves: wave \"%s\" is not spawning: %s", tostring(job.name), text)
+	else
+		mod:warning("RealmsWaves: wave \"%s\" is not spawning: %s", tostring(job.name), text)
+	end
+end
+
+-- Returns true, or false and a reason.
 local function spawn_one(breed_name, position, target_unit, mod_ids)
 	local spawn_manager = Managers.state.minion_spawn
 	local side_system = Managers.state.extension:system("side_system")
 	local villains = side_system and side_system:get_side_from_name("villains")
 
 	if not villains then
-		return false
+		return false, "this level has no enemy side (villains), so no enemies can be spawned here"
 	end
 
 	local param = spawn_manager:request_param_table()
@@ -414,7 +468,7 @@ local function spawn_one(breed_name, position, target_unit, mod_ids)
 	if not ok then
 		mod:error("[spawn] %s failed: %s", tostring(breed_name), tostring(unit))
 
-		return false
+		return false, string.format("spawning %s failed: %s", tostring(breed_name), tostring(unit))
 	end
 
 	if mod_ids and unit then
@@ -489,11 +543,19 @@ Execute.update = function (dt)
 		return
 	end
 
-	local list = candidates_for(job.monster)
+	local list = candidates_for(job)
 
 	if not list then
+		job.stuck_since = job.stuck_since or clock
+
+		if clock - job.stuck_since >= NOTIFY_AFTER then
+			notify_stuck(job, explain(job.reason))
+		end
+
 		return
 	end
+
+	job.stuck_since = nil
 
 	local target = Positions.random_player_unit()
 
@@ -511,8 +573,20 @@ Execute.update = function (dt)
 			position = Positions.spread(position, job.spread)
 		end
 
-		if position and spawn_one(entry.breed, position, target, entry.mods) then
+		local ok, why
+
+		if position then
+			ok, why = spawn_one(entry.breed, position, target, entry.mods)
+		end
+
+		if ok then
 			job.spawned = job.spawned + 1
+		elseif why then
+			job.failed = (job.failed or 0) + 1
+
+			if job.failed >= 3 then
+				notify_stuck(job, why)
+			end
 		end
 	end
 end

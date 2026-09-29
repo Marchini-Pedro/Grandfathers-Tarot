@@ -233,9 +233,13 @@ mod:command("rw_test", "RealmsWaves: (host) spawn a wave now: /rw_test <wave key
 		return
 	end
 
-	local ok, err = RW.director.fire_now(query)
+	local ok, note = RW.director.fire_now(query)
 
-	mod:echo("RealmsWaves: %s", ok and ("wave \"" .. query .. "\" queued") or tostring(err))
+	if ok then
+		mod:echo("RealmsWaves: wave \"%s\" queued%s", query, note and (" - " .. note) or "")
+	else
+		mod:echo("RealmsWaves: %s", tostring(note))
+	end
 end)
 
 mod:command("rw_vote", "RealmsWaves: cast a vote from the console: /rw_vote <option number>", function (option)

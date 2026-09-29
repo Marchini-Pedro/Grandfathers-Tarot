@@ -348,6 +348,22 @@ function POPUP.open(view, spec)
 	POPUP.refresh(view)
 end
 
+-- Replaces the box's text, caret at the end (used to fill in characters typed before the box opened).
+function POPUP.set_text(view, text)
+	local content = view._widgets_by_name[Components.POPUP_INPUT_NAME].content
+
+	content.input_text = text
+	content.display_text = text
+	content._input_text = text
+	content.caret_position = #text + 1
+	content._caret_position = #text + 1
+	content.selected_text = nil
+	content._selection_start = nil
+	content._selection_end = nil
+	content._selection_changed = true
+	content.force_caret_update = true
+end
+
 local function parse_number(text, spec)
 	text = text:match("^%s*(.-)%s*$")
 
@@ -442,6 +458,11 @@ function POPUP.cancel(view)
 
 	if mod.rw then
 		mod.rw.text_input_active = false
+	end
+
+	-- the view may keep keybinds suspended anyway (enemy picker: any letter starts a search)
+	if view._refresh_text_flag then
+		view:_refresh_text_flag()
 	end
 
 	place_popup(view, POPUP_DEFAULT_Y)

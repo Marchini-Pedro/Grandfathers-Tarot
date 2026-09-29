@@ -184,6 +184,53 @@ Positions.candidates = function (min_d, max_d)
 	return nil, "hidden points exist but none within distance limits"
 end
 
+-- Test fallback for levels WITHOUT a main path (Psykhanium, hub-like places), where hidden spawn
+-- points cannot be computed at all. Only used for explicit /rw_test waves: random walkable points
+-- on a ring min_d..max_d metres around a random living player (NOT hidden, they can be in view).
+-- Returns a list of boxed positions, or nil and a reason.
+Positions.test_candidates = function (min_d, max_d)
+	local nav_mesh = Managers.state and Managers.state.nav_mesh
+	local nav_world = nav_mesh and nav_mesh:nav_world()
+
+	if not nav_world then
+		return nil, "no nav mesh on this level"
+	end
+
+	local units = living_player_units()
+
+	if #units == 0 then
+		return nil, "no living players"
+	end
+
+	local origin = Unit.world_position(units[math.random(1, #units)], 1)
+	local list = {}
+
+	for _ = 1, 80 do
+		local angle = math.random() * math.pi * 2
+		local distance = min_d + math.random() * (max_d - min_d)
+		local candidate = origin + Vector3(math.cos(angle) * distance, math.sin(angle) * distance, 0)
+		local ok, snapped = pcall(NavQueries.position_on_mesh, nav_world, candidate, 3, 3)
+
+		if ok and snapped then
+			local can_ok, can_go = pcall(NavQueries.ray_can_go, nav_world, origin, snapped, nil, 3, 3)
+
+			if can_ok and can_go then
+				list[#list + 1] = Vector3Box(snapped)
+			end
+		end
+
+		if #list >= 16 then
+			break
+		end
+	end
+
+	if #list == 0 then
+		return nil, "no walkable ground within reach of the player"
+	end
+
+	return list
+end
+
 -- Random point within `radius` metres of `position`, on the nav mesh and reachable
 -- in a straight line from `position` (no wall in between). Falls back to `position`.
 -- Uniform over the disc (sqrt of the random radius). Used so a wave does not stack

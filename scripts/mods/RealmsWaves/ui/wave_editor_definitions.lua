@@ -46,6 +46,7 @@ local scenegraph_definition = {
 
 	btn_back = node(125, 826, 180, 44, 2),
 	btn_search = node(325, 826, 420, 44, 2), -- enemy picker only (same spot as Rename)
+	btn_stay = node(765, 826, 560, 44, 2), -- enemy picker only: stay after adding / back to the wave
 	btn_rename = node(325, 826, 200, 44, 2),
 	btn_text = node(545, 826, 250, 44, 2),
 	btn_add = node(815, 826, 230, 44, 2),

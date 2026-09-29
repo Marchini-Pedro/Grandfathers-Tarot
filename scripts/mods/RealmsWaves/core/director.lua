@@ -636,7 +636,17 @@ Director.fire_now = function (key)
 		return false, "that wave has no enemies yet (edit it in the wave editor or with /rw_custom)"
 	end
 
-	return Execute.start_wave(Events.spawn_def(wave))
+	local def = Events.spawn_def(wave)
+
+	def.test = true -- explicit test: allowed to use the ring fallback on levels without spawn points
+
+	local ok, err = Execute.start_wave(def)
+
+	if ok then
+		return true, Execute.uses_ring() and "no spawn points on this level (Psykhanium?): spawning on a ring 10-30 m around you, NOT hidden" or nil
+	end
+
+	return ok, err
 end
 
 Director.simulate = function (rolls)

@@ -26,6 +26,7 @@ local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
 local BUTTONS = {
 	{ name = "btn_back", width = 180, cb = "cb_back" },
 	{ name = "btn_search", width = 420, cb = "cb_search" },
+	{ name = "btn_stay", width = 560, cb = "cb_toggle_stay" },
 	{ name = "btn_rename", width = 200, cb = "cb_rename" },
 	{ name = "btn_text", width = 250, cb = "cb_edit_text" },
 	{ name = "btn_add", width = 230, cb = "cb_add" },
@@ -94,12 +95,22 @@ RealmsWavesView.on_enter = function (self)
 end
 
 RealmsWavesView.on_exit = function (self)
+	self._screen = "list"
 	Popup.cancel(self)
+	self:_refresh_text_flag()
 	RealmsWavesView.super.on_exit(self)
 end
 
 RealmsWavesView.update = function (self, dt, t, input_service)
+	if self._auto_typed then
+		self:_finish_auto_search()
+	end
+
 	Popup.update(self, input_service)
+
+	if self._screen == "picker" and not self._popup then
+		self:_auto_search()
+	end
 
 	if (self._popup == nil or self._popup.spec.allow_rows) and input_service:get("scroll_axis") then
 		local scroll = input_service:get("scroll_axis")
@@ -317,6 +328,8 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	local screen = self._screen
 	local rw = mod.rw
 
+	self:_refresh_text_flag()
+
 	if not keep_offset then
 		self._offset = 0
 	end
@@ -363,6 +376,10 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		end
 
 		-- shown in the description (top of the screen) so it stays visible under the search popup
+		if self._picker_note then
+			status = self._picker_note .. "   " .. status
+		end
+
 		widgets.description_text.content.description_text = widgets.description_text.content.description_text .. "   " .. status
 		widgets.bottom_title.content.bottom_title = status
 
@@ -383,6 +400,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.hint_text.visible = screen == "list" or screen == "mods"
 	widgets.btn_back.visible = show_back
 	widgets.btn_search.visible = screen == "picker"
+	widgets.btn_stay.visible = screen == "picker"
 	widgets.btn_rename.visible = detail
 	widgets.btn_text.visible = detail
 	widgets.btn_add.visible = detail
@@ -394,6 +412,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 
 	widgets.btn_back.content.hotspot_text = mod:localize("btn_back")
 	widgets.btn_search.content.hotspot_text = (self._filter or "") ~= "" and mod:localize("btn_search_active", self._filter) or mod:localize("btn_search")
+	widgets.btn_stay.content.hotspot_text = mod:localize(mod:get("picker_stay") == true and "btn_stay_on" or "btn_stay_off")
 	widgets.btn_rename.content.hotspot_text = mod:localize("btn_rename")
 	widgets.btn_text.content.hotspot_text = mod:localize("btn_edit_text")
 	widgets.btn_add.content.hotspot_text = mod:localize("btn_add_enemy")
@@ -825,26 +844,49 @@ end)
 
 -- detail actions -------------------------------------------------------------------
 
+-- After adding an enemy the picker either returns to the wave ("back", default) or stays open so
+-- several enemies can be added in a row ("stay", toggled with the button next to Search).
 RealmsWavesView._add_breed = function (self, breed)
-	-- picked while the search box was open: close it, keeping what was typed
-	if self._popup then
+	local groups = mod.rw.groups
+	local stay = mod:get("picker_stay") == true
+
+	-- picked while the search box was open: in "back" mode close it (keeping what was typed);
+	-- in "stay" mode it stays open so the next enemy can be found right away
+	if self._popup and not stay then
 		Popup.close_keep(self)
 	end
 
+	local added
+
 	for i = 1, #self._parts do
 		if self._parts[i].breed == breed and not self._parts[i].mods then
-			self._parts[i].count = math.min(self._parts[i].count + 1, mod.rw.groups.MAX_BREED_COUNT)
-			self._screen = "detail"
-			self:_save()
+			self._parts[i].count = math.min(self._parts[i].count + 1, groups.MAX_BREED_COUNT)
+			added = self._parts[i].count
 
-			return
+			break
 		end
 	end
 
-	self._parts[#self._parts + 1] = { breed = breed, count = 1 }
-	self._screen = "detail"
+	if not added then
+		self._parts[#self._parts + 1] = { breed = breed, count = 1 }
+		added = 1
+	end
+
+	if stay then
+		self._screen = "picker"
+		self._picker_note = mod:localize("picker_added", groups.display_name(breed), added)
+	else
+		self._screen = "detail"
+		self._picker_note = nil
+	end
+
 	self:_save()
 end
+
+RealmsWavesView.cb_toggle_stay = guarded(function (self)
+	mod:set("picker_stay", not (mod:get("picker_stay") == true))
+	self:_apply_screen(true)
+end)
 
 RealmsWavesView._remove_part = function (self, index)
 	if not self._wave.is_custom and #self._parts <= 1 then
@@ -896,18 +938,20 @@ end)
 RealmsWavesView.cb_add = guarded(function (self)
 	self._screen = "picker"
 	self._filter = ""
+	self._picker_note = nil
 	self:_apply_screen()
 end)
 
 -- Search box for the enemy picker. Filters live while typing (the popup sits low on the
 -- screen so the list stays visible); OK keeps the filter, Cancel/Esc restores the old one.
-RealmsWavesView.cb_search = guarded(function (self)
+-- `initial` (optional) replaces the box's starting text (auto-open on typing starts empty).
+RealmsWavesView._open_search = function (self, initial)
 	local original = self._filter or ""
 
 	Popup.open(self, {
 		label = mod:localize("popup_search_title"),
 		hint = mod:localize("popup_search_hint"),
-		value = original,
+		value = initial or original,
 		max_length = 40,
 		y = 700,
 		allow_rows = true, -- the enemy rows (and scrolling) stay clickable while the box is open
@@ -924,7 +968,81 @@ RealmsWavesView.cb_search = guarded(function (self)
 			self:_apply_screen()
 		end,
 	})
+end
+
+RealmsWavesView.cb_search = guarded(function (self)
+	self:_open_search()
 end)
+
+-- Typing on the picker screen (no box open yet) opens the search box and types what was typed,
+-- so the Search button never needs clicking. Only the printable characters of this frame count
+-- (Keyboard.keystrokes(): strings are typed characters, numbers are special keys).
+local function typed_text()
+	if not (Keyboard and Keyboard.keystrokes) then
+		return nil
+	end
+
+	local ok, strokes = pcall(Keyboard.keystrokes)
+
+	if not ok or type(strokes) ~= "table" then
+		return nil
+	end
+
+	local text = ""
+
+	for i = 1, #strokes do
+		local stroke = strokes[i]
+
+		if type(stroke) == "string" and #stroke > 0 and not stroke:find("%c") and (text ~= "" or not stroke:find("^%s+$")) then
+			text = text .. stroke
+		end
+	end
+
+	return text ~= "" and text or nil
+end
+
+RealmsWavesView._auto_search = function (self)
+	if self._screen ~= "picker" or self._popup then
+		return
+	end
+
+	local text = typed_text()
+
+	if not text then
+		return
+	end
+
+	self:_open_search("")
+
+	-- The input widget reads this frame's keystrokes when it is drawn, right after this update. If
+	-- it did not (it is text-empty next frame), fill the characters in ourselves, once.
+	self._auto_typed = text
+end
+
+-- Next frame after an auto-open: make sure the typed characters really arrived.
+RealmsWavesView._finish_auto_search = function (self)
+	local text = self._auto_typed
+
+	self._auto_typed = nil
+
+	if not text or not self._popup then
+		return
+	end
+
+	local content = self._widgets_by_name[Components.POPUP_INPUT_NAME].content
+
+	if (content.input_text or "") == "" then
+		Popup.set_text(self, text)
+	end
+end
+
+-- DMF keybinds are polled from the raw keyboard, so on the picker screen (where any letter starts a
+-- search) they are suspended as well, not only while the box is open.
+RealmsWavesView._refresh_text_flag = function (self)
+	if mod.rw then
+		mod.rw.text_input_active = self._popup ~= nil or self._screen == "picker"
+	end
+end
 
 RealmsWavesView.cb_toggle_enabled = guarded(function (self)
 	set_setting("on_" .. self._key, not self._wave.enabled)
