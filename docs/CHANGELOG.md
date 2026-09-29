@@ -2,6 +2,10 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## Game 1.13.0 compatibility check (no code change)
+- The Darktide source clone was updated from 1.12.5 (`0f0cb45`) to **1.13.0** (`419fe18`, 2026-09-29). Every hook and game call of RealmsWaves was compared old vs new (hook targets, function signatures, hooked function bodies, removed identifiers): nothing RealmsWaves hooks or calls was removed, renamed or changed in signature, so **no code change was needed**. Not run in game.
+- The `S\...:line` citations in `docs/03` still refer to 1.12.5 and may have shifted by a few lines in files 1.13.0 changed (`breeds.lua`, `spawn_point_queries.lua`, `nav_queries.lua`, `wwise_game_sync_settings.lua`, `ui_widget.lua`).
+
 ## 1.5.8
 - **Rotten Armor's description overflowed its row** on the Mods screen (it ran to five lines and overlapped the Purple Stimm row). Shortened to 133 characters (two lines fit about 138, Orange is 138 and fits). New editor test: every modifier description must be <= 138 characters, so a long description fails offline. The full effect details stay in `docs/03`.
 

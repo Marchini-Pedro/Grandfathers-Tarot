@@ -51,6 +51,6 @@ Audit date: **2026-09-28**. Compare these against the current install before tru
 | VersusMode | 3.3.0 in info.json and `VersusMode.lua:451` (`.mod` says 3.0.58) | `mods\VersusMode\` |
 | Realms Server | 1.0.0-rc2 (deluxghost; needs SoloPlay) | `mods\Realms\info.json` |
 | DTRealmsGhostHost | 0.1.1 (Rikara) | `mods\DTRealmsGhostHost\info.json` |
-| Darktide source clone | commit `0f0cb45991e9305ef4a7b925370792d7d6035f95`, "Added Version 1.12.5 08-18-26" | `Content\Darktide-Source-Code` (`git log -1`) |
+| Darktide source clone | audited at commit `0f0cb45991e9305ef4a7b925370792d7d6035f95`, "Added Version 1.12.5 08-18-26"; clone now at `419fe18d4` (1.13.0, 2026-09-29), hooks/calls re-checked, see CHANGELOG | `Content\Darktide-Source-Code` (`git log -1`) |
 
 Path conventions in these docs: mod paths are relative to `Content\mods\`; game source paths are relative to `Content\Darktide-Source-Code\scripts\` and written `S\...`.
