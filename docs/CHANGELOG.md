@@ -2,6 +2,14 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## 1.4.2
+Out-of-memory crash investigation (log `console-2026-09-29-04.44.24-85a45457-*.log`, details in doc 06). The log does not prove RealmsWaves caused it, but three things in the mod were risky and are now hardened:
+- **Lua memory guard (new option "Memory guard", default 800 MB, 300-1000):** the game's Lua heap is a fixed 1 GB (`Not enough memory reserved for heap 'lua_heap', reserved: 1073741824`). When the heap is above the guard the mod stops spawning (units stay queued), refuses NEW waves with a message, and logs one warning; before pausing it forces one full garbage collection (at most every 15 s), since a high reading is often uncollected garbage. Spawning resumes by itself when memory drops. `/rw_status` now prints the Lua heap, the guard and whether spawning is paused.
+- **Failed position searches are throttled:** when no hidden point was found near the players, the full occlusion query (up to ~27 nav groups and hundreds of points, each allocating) reran on every feed tick (every 0.15 s) for as long as the wave waited. A failed search is now remembered for 1.5 s (about 10 times fewer queries).
+- **Reload hygiene:** DMF hooks cannot be removed, so every hot reload (Ctrl+Shift+R) left the old instance's hooks active in the chain, each still counting/subtracting. `mod.on_unload` now retires the old instance: its hooks become pass-throughs, its tracked-unit set and job queues are released.
+- **Advice:** the session that crashed had hot-reloaded mods twice, and the heap floor (FpsDoctor) had doubled from 261 to 515 MB, leaving only ~500 MB of headroom. Restart the game instead of hot-reloading when testing, and keep "max enemies alive" and "max per wave" well below the 1000/500 maximums; more units means more Lua memory.
+- Tests: logic 178 (memory guard with a faked heap reading: pause/resume/refuse/once-per-15 s GC/configurable/status; throttled searches; retired hooks pass through).
+
 ## 1.4.1
 - **`/rw_test` now takes a wave NAME as well as a key.** After renaming a custom wave to "Mutants Everywhere" in the editor, `/rw_test mutants_everywhere` works (also `/rw_test Mutants Everywhere`, any case, `-`/`_`/spaces/punctuation are equivalent). Lookup order (`Events.find`): exact key, exact name, then a unique name that starts with or contains the text. Two waves matching the same text (e.g. "ambush" = Boss Ambush and Mutant Ambush) is refused with a message listing both; an empty custom slot is only found by its key or exact name, never guessed. Built-in waves work by displayed name too (`/rw_test small wave`). `/rw_test` with no text now lists every wave that has enemies as `Name (key)`.
 - Tests: logic +12 checks (normalisation, key, name variants, prefix, substring, ambiguity, unknown, empty, rename, `Director.fire_now` by name).

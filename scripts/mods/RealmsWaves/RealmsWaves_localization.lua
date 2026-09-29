@@ -24,6 +24,8 @@ return {
 	group_spawn = { en = "Spawning" },
 	max_per_wave = { en = "Max enemies per wave" },
 	max_alive = { en = "Max wave enemies alive at once" },
+	heap_guard_mb = { en = "Memory guard: pause spawning above this game memory (the game crashes at 1024)" },
+	unit_megabytes = { en = "MB" },
 	min_distance = { en = "Min spawn distance from nearest player" },
 	max_distance = { en = "Max spawn distance from nearest player" },
 	monster_min_distance = { en = "Monster min spawn distance" },

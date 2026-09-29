@@ -21,6 +21,19 @@ local tracked_count = 0
 
 Bypass.spawning = false
 
+-- DMF hooks cannot be removed, so after a mod reload the OLD module instance's hooks stay
+-- in the chain (each reload adds a set). `retire()` (called from mod.on_unload) turns this
+-- instance's hooks into pass-throughs and drops its references, so stale hooks do nothing
+-- and do not keep counting.
+Bypass.dead = false
+
+Bypass.retire = function ()
+	Bypass.dead = true
+	Bypass.spawning = false
+	tracked = {}
+	tracked_count = 0
+end
+
 Bypass.track = function (unit)
 	if unit ~= nil and not tracked[unit] then
 		tracked[unit] = true
@@ -86,6 +99,10 @@ Bypass.install = function ()
 	installed = true
 
 	mod:hook("PacingManager", "add_aggroed_minion", function (func, self, unit)
+		if Bypass.dead then
+			return func(self, unit)
+		end
+
 		if Bypass.spawning then
 			Bypass.track(unit)
 		end
@@ -106,15 +123,25 @@ Bypass.install = function ()
 	end)
 
 	mod:hook("MinionSpawnManager", "num_spawned_minions", function (func, self)
+		if Bypass.dead then
+			return func(self)
+		end
+
 		return adjusted(func(self))
 	end)
 
 	mod:hook("MinionSpawnManager", "total_allocated_num_enemies", function (func, self)
+		if Bypass.dead then
+			return func(self)
+		end
+
 		return adjusted(func(self))
 	end)
 
 	mod:hook_safe("MinionSpawnManager", "unregister_unit", function (self, unit)
-		Bypass.untrack(unit)
+		if not Bypass.dead then
+			Bypass.untrack(unit)
+		end
 	end)
 end
 

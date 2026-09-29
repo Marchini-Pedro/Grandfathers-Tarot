@@ -102,6 +102,22 @@ mod.open_editor = function ()
 	end
 end
 
+-- On a mod reload (or game exit): stop this instance's hooks from acting (DMF cannot remove
+-- them) and release everything it holds, so reloads do not stack behaviour or pin memory.
+mod.on_unload = function ()
+	if RW.bypass then
+		RW.bypass.retire()
+	end
+
+	if RW.execute then
+		RW.execute.reset()
+	end
+
+	if RW.director then
+		RW.director.reset()
+	end
+end
+
 mod._on_mission_objective_start = function ()
 	if RW.director then
 		RW.director.on_mission_started()

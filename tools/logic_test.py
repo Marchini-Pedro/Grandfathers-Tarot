@@ -416,8 +416,9 @@ Managers.state.extension = { system = function() return { get_side_from_name = f
 Managers.state.game_mode = { game_mode = function() return { name = function() return "coop_complete_objective" end, extension = function(self, n) return (n == "havoc" and havoc_present) and {} or nil end } end }
 Managers.time = { time = function() return 5 end }
 local spread_calls = {}
+local cand_calls, cand_fail = 0, false
 local StubPositions = {
-  candidates = function() return { "a", "b" } end,
+  candidates = function() cand_calls = cand_calls + 1; if cand_fail then return nil, "no hidden points near players" end return { "a", "b" } end,
   pick = function(list) return "pos" end,
   random_player_unit = function() return "player" end,
   spread = function(position, radius) spread_calls[#spread_calls + 1] = radius; return position .. "+" .. tostring(radius) end,
@@ -586,6 +587,91 @@ check("max_per_wave still caps a multiplied wave", Execute.status().queued == 30
 Execute.reset()
 ALIVE = saved_alive2
 settings.max_per_wave, settings.max_alive, settings.mult_normal = nil, nil, nil
+
+-- failed position searches are throttled (memory: the query used to rerun every 0.15 s) ----
+do
+  Execute.reset(); Bypass.reset()
+  cand_fail = true; cand_calls = 0
+  spawned = {}
+  Execute.start_wave({ name = "t", parts = Groups.parse("6 hounds") })
+  for _ = 1, 15 do Execute.update(0.2) end -- 3 s of simulated time
+  check("failed hidden-position search is not repeated every feed tick (<= 3 queries in 3 s, was ~20)", cand_calls <= 3 and #spawned == 0, cand_calls)
+  cand_fail = false
+  for _ = 1, 30 do Execute.update(0.2) end
+  check("spawning resumes once positions are found again", #spawned == 6, #spawned)
+  Execute.reset(); Bypass.reset()
+end
+
+-- Lua memory guard (the game's Lua heap is a hard 1 GB) ---------------------------------
+do
+  local real_cg = collectgarbage
+  local fake_mb, after_gc_mb, full_gcs = 500, 500, 0
+  collectgarbage = function(opt)
+    if opt == "count" then return fake_mb * 1024 end
+    if opt == "collect" then full_gcs = full_gcs + 1; fake_mb = after_gc_mb; return 0 end
+    return real_cg(opt)
+  end
+  settings.heap_guard_mb = nil
+  Execute.reset(); Bypass.reset(); spawned = {}
+  local ok_low = Execute.start_wave({ name = "t", parts = Groups.parse("4 hounds") })
+  for _ = 1, 15 do Execute.update(0.2) end
+  check("guard: normal heap (500 MB < 800 guard) spawns normally", ok_low and #spawned == 4 and full_gcs == 0, #spawned .. "/" .. full_gcs)
+
+  Execute.reset(); Bypass.reset(); spawned = {}
+  local ok_run = Execute.start_wave({ name = "t", parts = Groups.parse("6 hounds") })
+  fake_mb, after_gc_mb, full_gcs = 900, 900, 0
+  for _ = 1, 30 do Execute.update(0.2) end
+  check("guard: heap above the guard pauses a running wave (units stay queued)", ok_run and #spawned == 0 and Execute.status().queued == 6, #spawned .. "/" .. Execute.status().queued)
+  check("guard: full GC is tried, but at most once per 15 s (6 s simulated -> 1)", full_gcs == 1, full_gcs)
+  check("guard: status reports heap and pause", Execute.status().heap_paused == true and math.abs(Execute.status().heap_mb - 900) < 0.5 and Execute.status().heap_guard_mb == 800)
+  local ok_new, err_new = Execute.start_wave({ name = "t2", parts = Groups.parse("2 hounds") })
+  check("guard: a NEW wave is refused with a clear message while over the guard", not ok_new and err_new:find("memory guard") ~= nil, err_new)
+  local warned_pause = 0; for _, e in ipairs(echoes) do if e:find("wave spawning paused") then warned_pause = warned_pause + 1 end end
+  check("guard: the pause is logged once, not every tick", warned_pause == 1, warned_pause)
+  fake_mb, after_gc_mb = 600, 600
+  for _ = 1, 30 do Execute.update(0.2) end
+  check("guard: spawning resumes when memory drops", #spawned == 6 and Execute.status().heap_paused == false, #spawned)
+
+  -- a forced full GC that frees enough lets spawning continue at once
+  Execute.reset(); Bypass.reset(); spawned = {}; full_gcs = 0
+  fake_mb, after_gc_mb = 900, 500
+  Execute.start_wave({ name = "t", parts = Groups.parse("4 hounds") })
+  for _ = 1, 30 do Execute.update(0.2) end
+  check("guard: if a full GC brings the heap under the guard the wave is not blocked", #spawned == 4 and full_gcs >= 1, #spawned .. "/" .. full_gcs)
+
+  -- the guard is configurable
+  settings.heap_guard_mb = 1000
+  Execute.reset(); Bypass.reset(); spawned = {}
+  fake_mb, after_gc_mb = 900, 900
+  local ok_hi = Execute.start_wave({ name = "t", parts = Groups.parse("2 hounds") })
+  for _ = 1, 15 do Execute.update(0.2) end
+  check("guard: raising it to 1000 MB lets a 900 MB heap spawn", ok_hi and #spawned == 2, #spawned)
+  settings.heap_guard_mb = nil
+  collectgarbage = real_cg
+  Execute.reset(); Bypass.reset()
+end
+
+-- retired hooks (after a mod reload) act as pass-throughs -----------------------------------
+do
+  local saved_hooks = hooks
+  hooks = {}
+  local B2 = load("spawn/budget_bypass")
+  B2.install()
+  local calls = {}
+  local orig = function(self, unit) calls[#calls + 1] = unit end
+  local ps = { _should_send_aggro_event = true }
+  B2.track("a"); B2.track("b")
+  check("hooks: a live instance counts tracked units", hooks["MinionSpawnManager.num_spawned_minions"](function() return 10 end, {}) == 8)
+  B2.retire()
+  check("retire: tracked set is released and the flag is set", B2.count() == 0 and B2.dead == true)
+  hooks["PacingManager.add_aggroed_minion"](orig, ps, "a")
+  check("retire: add_aggroed_minion passes straight through (pacing sees the unit)", #calls == 1 and calls[1] == "a")
+  check("retire: counters are the untouched engine values", hooks["MinionSpawnManager.num_spawned_minions"](function() return 10 end, {}) == 10 and hooks["MinionSpawnManager.total_allocated_num_enemies"](function() return 12 end, {}) == 12)
+  B2.spawning = true
+  hooks["PacingManager.add_aggroed_minion"](orig, ps, "c")
+  check("retire: the 'spawning' flag no longer diverts units", #calls == 2 and B2.count() == 0)
+  hooks = saved_hooks
+end
 
 -- options data: limits and the three multiplier sliders ----------------------------------
 do

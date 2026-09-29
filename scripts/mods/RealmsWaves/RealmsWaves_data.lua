@@ -64,6 +64,7 @@ return {
 				sub_widgets = {
 					numeric("max_per_wave", 80, 1, 500, "unit_enemies"),
 					numeric("max_alive", 120, 10, 1000, "unit_enemies"),
+					numeric("heap_guard_mb", 800, 300, 1000, "unit_megabytes", 10),
 					numeric("min_distance", 22, 8, 100, "unit_meters"),
 					numeric("max_distance", 65, 20, 200, "unit_meters"),
 					numeric("monster_min_distance", 28, 8, 100, "unit_meters"),

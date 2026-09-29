@@ -14,6 +14,7 @@ local Positions, Bypass, Groups
 local FEED_INTERVAL = 0.15
 local FEED_BATCH = 2
 local CANDIDATE_TTL = 1.5
+local FAILED_SEARCH_TTL = 1.5 -- do not repeat a failed hidden-position search more often than this
 local JOB_TIMEOUT = 60 -- seconds a wave may stay unfinished (repeating waves add their repeat time)
 local MAX_QUEUE = 1000 -- a repeat tick is skipped while this many units are still waiting
 local PURGE_INTERVAL = 5
@@ -112,6 +113,56 @@ Execute.apply_modifiers = function (unit, mod_ids)
 	pcall(buff_extension._update_stat_buffs_and_keywords, buff_extension, FixedFrame.get_latest_fixed_time())
 end
 
+-- ------------------------------------------------------------------- Lua memory guard
+-- The game's Lua heap is a fixed 1 GB ("Not enough memory reserved for heap 'lua_heap'").
+-- Every spawned minion adds Lua-side state, and other mods and hot reloads eat into the same
+-- heap, so a big wave can be the last straw. Above the configured size the mod stops spawning
+-- (units stay queued, new waves are refused) and, at most every 15 s, forces a full garbage
+-- collection first, since much of a high reading is garbage that has not been collected yet.
+local GC_COOLDOWN = 15
+local last_full_gc = -math.huge
+local heap_paused = false
+
+local function heap_mb()
+	return collectgarbage("count") / 1024
+end
+
+Execute.heap_mb = heap_mb
+
+-- true while spawning must pause because the Lua heap is above the guard
+local function over_heap_guard()
+	local limit = number_setting("heap_guard_mb", 800)
+	local mb = heap_mb()
+
+	if mb <= limit then
+		heap_paused = false
+
+		return false
+	end
+
+	if clock - last_full_gc >= GC_COOLDOWN then
+		last_full_gc = clock
+		collectgarbage("collect")
+		mb = heap_mb()
+
+		if mb <= limit then
+			heap_paused = false
+
+			return false
+		end
+	end
+
+	if not heap_paused then
+		heap_paused = true
+
+		mod:warning("RealmsWaves: wave spawning paused, the Lua heap is %.0f MB (guard %d MB, hard limit 1024 MB). It resumes when memory drops; raise or lower the guard in the mod options.", mb, limit)
+	end
+
+	return true
+end
+
+Execute.over_heap_guard = over_heap_guard
+
 Execute.has_authority = function ()
 	local state = Managers.state
 	local game_session = state and state.game_session
@@ -165,6 +216,10 @@ end
 Execute.start_wave = function (def)
 	if not Execute.has_authority() then
 		return false, "no spawn authority"
+	end
+
+	if over_heap_guard() then
+		return false, string.format("the Lua memory guard refused this wave (heap %.0f MB is above the %d MB guard)", heap_mb(), number_setting("heap_guard_mb", 800))
 	end
 
 	local queue = expand(def.parts, "count")
@@ -228,8 +283,15 @@ local function candidates_for(monster)
 	local kind = monster and "monster" or "normal"
 	local entry = cache[kind]
 
-	if entry and clock - entry.at < CANDIDATE_TTL and #entry.list > 0 then
+	if entry and entry.list and clock - entry.at < CANDIDATE_TTL and #entry.list > 0 then
 		return entry.list
+	end
+
+	-- A failed search (no hidden point near the players) is remembered too. Without this the
+	-- full occlusion query (up to ~27 nav groups, hundreds of points) reran on EVERY feed tick
+	-- (every 0.15 s) for as long as the wave waited: a steady stream of garbage.
+	if entry and not entry.list and clock - entry.at < FAILED_SEARCH_TTL then
+		return nil
 	end
 
 	local min_d, max_d
@@ -246,6 +308,8 @@ local function candidates_for(monster)
 
 	if not list then
 		throttled_log("spawn", reason)
+
+		cache[kind] = { at = clock, list = false }
 
 		return nil
 	end
@@ -328,6 +392,10 @@ Execute.update = function (dt)
 
 	feed_timer = FEED_INTERVAL
 
+	if over_heap_guard() then
+		return
+	end
+
 	local room = number_setting("max_alive", 120) - Bypass.count()
 
 	if room <= 0 then
@@ -381,6 +449,8 @@ Execute.reset = function ()
 	jobs = {}
 	cache = {}
 	feed_timer = 0
+	last_full_gc = -math.huge
+	heap_paused = false
 
 	if Bypass then
 		Bypass.reset()
@@ -398,6 +468,9 @@ Execute.status = function ()
 		jobs = #jobs,
 		queued = queued,
 		tracked = Bypass and Bypass.count() or 0,
+		heap_mb = heap_mb(),
+		heap_guard_mb = number_setting("heap_guard_mb", 800),
+		heap_paused = heap_paused,
 		stage = Positions and Positions.last_stage,
 		last_error = Positions and Positions.last_error,
 	}

@@ -663,9 +663,10 @@ Director.status = function ()
 	local exec = Execute.status()
 
 	return string.format(
-		"phase=%s mode=%s remaining=%.0fs cands=%d host=%s started=%s in_mission=%s disabled=%s | tracked=%d queued=%d jobs=%d stage=%s err=%s",
+		"phase=%s mode=%s remaining=%.0fs cands=%d host=%s started=%s in_mission=%s disabled=%s | tracked=%d queued=%d jobs=%d stage=%s err=%s | lua heap %.0f MB (guard %d, paused %s)",
 		state.phase, tostring(state.mode), state.remaining or 0, #(state.cands or {}), tostring(Director.is_host()), tostring(started), tostring(in_mission), tostring(client_disabled),
-		exec.tracked, exec.queued, exec.jobs, tostring(exec.stage), tostring(exec.last_error)
+		exec.tracked, exec.queued, exec.jobs, tostring(exec.stage), tostring(exec.last_error),
+		exec.heap_mb or 0, exec.heap_guard_mb or 0, tostring(exec.heap_paused)
 	)
 end
 
