@@ -24,6 +24,12 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] Local git repo + `tools/` test scripts; `CLAUDE.md` docs/commit rules
 - [ ] In-game verification of all of the above (editor opening and every screen, popup input, HUD dragging in custom_hud, 5 s waves)
 
+### Iteration 1.1.1 - 1.2.0 (see `CHANGELOG.md`)
+- [x] 1.1.1 stimmed-minions gap fixed in the budget bypass (re-send `minion_aggroed`)
+- [x] 1.1.2 editor crash fixed (`_create_widgets` shadowing); test stub mirrors real BaseView flow
+- [x] 1.2.0 modifiers: `Groups.MODIFIERS` + `[a+b]` recipe syntax, `Execute.apply_modifiers`, Mods button + modifier screen in the editor, offline tests (62 logic incl. spawner, 60 editor)
+- [ ] In-game verification: editor opens (crash fix), modifier screen, Garden/Enraged on 3 crushers in a normal mission and a Havoc mission, Toughened Skin skipped in a normal mission (console shows one warning), stimmed minions in a Havoc order
+
 Deviations from the original plan (all deliberate):
 - No separate `handshake.lua`: hello/welcome live in `core/director.lua` (the handshake is just a version check).
 - `rw_state` is ONE JSON argument, and host -> clients uses `"others"` (Realms docs' own example) so there is no loopback to filter.

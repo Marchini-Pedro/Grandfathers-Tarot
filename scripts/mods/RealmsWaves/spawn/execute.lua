@@ -9,7 +9,7 @@ local mod = get_mod("RealmsWaves")
 
 local Execute = {}
 
-local Positions, Bypass
+local Positions, Bypass, Groups
 
 local FEED_INTERVAL = 0.15
 local FEED_BATCH = 2
@@ -51,6 +51,64 @@ end
 Execute.init = function (deps)
 	Positions = deps.positions
 	Bypass = deps.bypass
+	Groups = deps.groups
+end
+
+local warned = {}
+
+-- Modifier problems are always logged (once per distinct message), not only in debug mode.
+local function warn_once(message)
+	if not warned[message] then
+		warned[message] = true
+
+		mod:warning("RealmsWaves: %s", message)
+	end
+end
+
+local function in_havoc_mission()
+	local manager = Managers.state and Managers.state.game_mode
+	local game_mode = manager and manager:game_mode()
+
+	return game_mode ~= nil and game_mode:extension("havoc") ~= nil
+end
+
+-- Adds a modifier's buff templates to a freshly spawned unit, the way
+-- MutatorBase._add_buffs_on_unit does (S\managers\mutator\mutators\mutator_base.lua:100-135).
+-- Server side; minion buffs are synced to clients by the buff extension.
+-- Every step is guarded: a buff that errors must never break the wave.
+Execute.apply_modifiers = function (unit, mod_ids)
+	local buff_extension = ScriptUnit.has_extension(unit, "buff_system")
+
+	if not buff_extension or not mod_ids then
+		return
+	end
+
+	local t = Managers.time:time("gameplay")
+
+	for i = 1, #mod_ids do
+		local modifier = Groups.modifier(mod_ids[i])
+
+		if modifier and modifier.requires_havoc and not in_havoc_mission() then
+			warn_once(modifier.name .. " needs a Havoc mission and was skipped")
+		elseif modifier then
+			for j = 1, #modifier.buffs do
+				local buff_name = modifier.buffs[j]
+				local ok, err = pcall(function ()
+					if buff_extension.is_valid_target and not buff_extension:is_valid_target(buff_name) then
+						return
+					end
+
+					buff_extension:add_internally_controlled_buff(buff_name, t)
+				end)
+
+				if not ok then
+					warn_once(string.format("modifier %s (buff %s) failed: %s", modifier.name, buff_name, tostring(err)))
+				end
+			end
+		end
+	end
+
+	pcall(buff_extension._update_stat_buffs_and_keywords, buff_extension, FixedFrame.get_latest_fixed_time())
 end
 
 Execute.has_authority = function ()
@@ -69,7 +127,7 @@ local function expand(def)
 		local one_of = part.one_of
 
 		for _ = 1, part.count do
-			queue[#queue + 1] = one_of and one_of[math.random(1, #one_of)] or part.breed
+			queue[#queue + 1] = { breed = one_of and one_of[math.random(1, #one_of)] or part.breed, mods = part.mods }
 		end
 	end
 
@@ -140,7 +198,7 @@ local function candidates_for(monster)
 	return list
 end
 
-local function spawn_one(breed_name, position, target_unit)
+local function spawn_one(breed_name, position, target_unit, mod_ids)
 	local spawn_manager = Managers.state.minion_spawn
 	local side_system = Managers.state.extension:system("side_system")
 	local villains = side_system and side_system:get_side_from_name("villains")
@@ -164,6 +222,10 @@ local function spawn_one(breed_name, position, target_unit)
 		mod:error("[spawn] %s failed: %s", tostring(breed_name), tostring(unit))
 
 		return false
+	end
+
+	if mod_ids and unit then
+		Execute.apply_modifiers(unit, mod_ids)
 	end
 
 	return true
@@ -226,12 +288,12 @@ Execute.update = function (dt)
 	end
 
 	for _ = 1, math.min(FEED_BATCH, room, #job.queue) do
-		local breed_name = job.queue[#job.queue]
+		local entry = job.queue[#job.queue]
 		local position = Positions.pick(list)
 
 		job.queue[#job.queue] = nil
 
-		if position and spawn_one(breed_name, position, target) then
+		if position and spawn_one(entry.breed, position, target, entry.mods) then
 			job.spawned = job.spawned + 1
 		end
 	end

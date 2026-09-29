@@ -2,6 +2,13 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## 1.2.0
+- **Modifiers (new):** force Havoc-style conditions onto a group of enemies even when the mission did not load them (e.g. Garden only mission + `3 crushers[enraged]`). Eight modifiers: Encroaching Garden, Enraged, Final Toll (enrages at half health), Corrupted, Bolstering, Toughened Skin (Havoc missions only), On Fire, Head Parasite. Implemented as the vanilla buff templates added to each unit right after it spawns (same call the mutators use), guarded per buff so a failing buff never breaks a wave. Failures are always logged once ("RealmsWaves: modifier ... failed"), not only in debug mode.
+- **Recipe syntax:** `3 crushers[enraged+garden]`; separators inside brackets can be `+`, `,`, `;`, spaces or "and"; works with random picks (`1 plague ogryn|chaos spawn[garden]`). Same breed with different modifiers stays separate groups. `/rw_custom` and "Edit as text" accept it.
+- **Editor:** each enemy row on the detail screen has a **Mods** button that opens a modifier screen (checkbox, name, what it does, Havoc-only note). Composition summaries show modifiers in brackets.
+- **Tests:** logic 62 -> parser modifiers + the first offline coverage of the spawner (`execute.lua`: wave expansion, modifier buffs in catalog order, Havoc gating, contained buff errors, `max_per_wave`, `one_of`); editor 60 (Mods screen flow).
+- Not offered (need their mutator loaded or are visual-only): Sticky Poxburster (`havoc_sticky_poxburster` queries the mutator manager), purple stimmed (same), Rotten Armor (visual override lives in the mutator), Warp Rift (mutator not present in the audited source).
+
 ## 1.1.2
 - **Fix (crash on opening the wave editor):** `RealmsWavesView` defined a method named `_create_widgets`, which shadows `BaseView._create_widgets`, the method BaseView itself calls to build the static widgets before `on_enter`. `title_text` (and every other static widget) was therefore nil: `wave_editor_view.lua:290: attempt to index field 'title_text' (a nil value)`. Renamed to `_create_editor_widgets`. The offline editor test now mirrors the real BaseView flow (`_on_view_requirements_complete` -> `_create_widgets` -> `on_enter`) and fails if the view overrides any BaseView method other than init/on_enter/on_exit/update (48 checks).
 

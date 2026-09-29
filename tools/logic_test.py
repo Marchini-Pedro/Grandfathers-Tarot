@@ -64,6 +64,25 @@ local rt = Groups.parse(Groups.to_recipe(p6))
 check("recipe roundtrip", rt and #rt == 2 and rt[1].one_of and rt[1].one_of[2] == "chaos_spawn" and rt[2].count == 4, Groups.to_recipe(p6))
 check("describe/summary", Groups.summary(p6):find("random of") ~= nil and Groups.display_name("renegade_netgunner") == "Trapper", Groups.summary(p6))
 check("breed list sorted & known", #Groups.breed_list() >= 38 and Groups.is_known("chaos_hound"))
+-- modifiers in recipes -------------------------------------------------------
+local m1 = Groups.parse("3 crushers[enraged+garden], 2 hounds")
+check("parse modifiers", m1 and #m1 == 2 and m1[1].breed == "chaos_ogryn_executor" and m1[1].count == 3 and #m1[1].mods == 2 and m1[1].mods[1] == "garden" and m1[1].mods[2] == "enraged" and m1[2].mods == nil, m1 and table.concat(m1[1].mods or {}, ","))
+local m2 = Groups.parse("3 crushers [ enraged and garden ], 4 hounds[toll, fire]; 1 plague ogryn|chaos spawn[bolstering]")
+check("parse modifiers: separators, spaces, 'and', one_of", m2 and #m2 == 3 and #m2[1].mods == 2 and m2[2].mods[1] == "toll" and m2[2].mods[2] == "fire" and m2[3].one_of and m2[3].mods[1] == "bolstering")
+check("modifier recipe roundtrip", Groups.to_recipe(m1) == "3 crusher[garden+enraged], 2 hound", Groups.to_recipe(m1))
+local rt2 = Groups.parse(Groups.to_recipe(m2))
+check("modifier roundtrip keeps parts", rt2 and #rt2 == 3 and rt2[1].mods[2] == "enraged" and rt2[3].one_of ~= nil and rt2[3].mods[1] == "bolstering")
+local mbad, mbad_err = Groups.parse("3 crushers[gargle]")
+check("unknown modifier rejected with list", mbad == nil and mbad_err:find("gargle") and mbad_err:find("garden"), mbad_err)
+local mempty = Groups.parse("3 crushers[]")
+check("empty brackets ok", mempty and mempty[1].mods == nil)
+local mdup = Groups.parse("2 crushers[enraged], 3 crushers[enraged], 1 crusher")
+check("same breed+mods merge, different mods stay apart", mdup and #mdup == 2 and mdup[1].count == 5 and mdup[2].count == 1)
+check("describe with mods", Groups.describe_part(m1[1], true) == "3 Crusher [Encroaching Garden, Enraged]" and Groups.describe_part(m1[1]) == "3 Crusher" and Groups.describe_mods(m1[2]) == "", Groups.describe_part(m1[1], true))
+local mnames_ok = true
+for _, md in ipairs(Groups.MODIFIERS) do if Groups.modifier_id(md.id) ~= md.id or #md.buffs == 0 or not md.description then mnames_ok = false end end
+check("every modifier resolves and has buffs/description", mnames_ok)
+
 -- every breed in every standard wave must be a known breed
 local unknown = {}
 for i = 1, #Events.STANDARD do
@@ -274,6 +293,91 @@ hooks["MinionSpawnManager.unregister_unit!"]({}, "wave_1")
 check("bypass: unregister_unit untracks", Bypass.count() == 1 and not Bypass.is_tracked("wave_1"))
 Bypass.reset()
 check("bypass: reset clears", Bypass.count() == 0)
+
+-- Execute (spawner) with modifiers, against stubbed game APIs -----------------
+local Execute = load("spawn/execute")
+local havoc_present = false
+local buff_log = {}
+local function make_buff_ext(unit_name)
+  local ext = { added = {} }
+  ext.is_valid_target = function(self, name) return name ~= "invalid_buff" end
+  ext.add_internally_controlled_buff = function(self, name, t)
+    if name == "havoc_bolstering" then error("boom") end
+    self.added[#self.added + 1] = name
+  end
+  ext._update_stat_buffs_and_keywords = function(self) self.updated = true end
+  return ext
+end
+ScriptUnit = { has_extension = function(unit, sys) return sys == "buff_system" and unit.buffs or nil end }
+FixedFrame = { get_latest_fixed_time = function() return 1 end }
+Unit = { world_rotation = function() return "rot" end }
+local spawned = {}
+local minion_spawn = {
+  request_param_table = function() return {} end,
+  spawn_minion = function(self, breed, pos, rot, side_id, param)
+    local unit = { breed = breed, buffs = make_buff_ext(breed), aggro = param.optional_aggro_state, side = side_id, spawn_flag = Bypass.spawning }
+    spawned[#spawned + 1] = unit
+    return unit
+  end,
+}
+local saved_state = { minion_spawn = Managers.state.minion_spawn, extension = Managers.state.extension, game_mode = Managers.state.game_mode }
+local saved_time = Managers.time
+Managers.state.minion_spawn = minion_spawn
+Managers.state.extension = { system = function() return { get_side_from_name = function() return { side_id = 2 } end } end }
+Managers.state.game_mode = { game_mode = function() return { name = function() return "coop_complete_objective" end, extension = function(self, n) return (n == "havoc" and havoc_present) and {} or nil end } end }
+Managers.time = { time = function() return 5 end }
+local StubPositions = { candidates = function() return { "a", "b" } end, pick = function(list) return "pos" end, random_player_unit = function() return "player" end }
+Bypass.reset()
+Execute.init({ positions = StubPositions, bypass = Bypass, groups = Groups })
+settings.max_per_wave = nil; settings.max_alive = nil
+
+local function run_wave(def)
+  spawned = {}
+  local ok, err = Execute.start_wave(def)
+  for _ = 1, 20 do Execute.update(0.2) end
+  return ok, err
+end
+
+local ok_wave = run_wave({ name = "t", parts = Groups.parse("3 crushers[enraged+garden], 2 hounds") })
+local crushers, hounds = {}, {}
+for _, u in ipairs(spawned) do if u.breed == "chaos_ogryn_executor" then crushers[#crushers+1] = u else hounds[#hounds+1] = u end end
+check("execute: wave spawns all units", ok_wave and #spawned == 5 and #crushers == 3 and #hounds == 2, #spawned)
+local all_buffed = #crushers == 3
+for _, u in ipairs(crushers) do
+  if not (#u.buffs.added == 2 and u.buffs.added[1] == "havoc_encroaching_garden" and u.buffs.added[2] == "havoc_enraged_enemies" and u.buffs.updated) then all_buffed = false end
+end
+check("execute: crushers get garden + enraged buffs (catalog order)", all_buffed, table.concat(crushers[1] and crushers[1].buffs.added or {}, ","))
+local hounds_clean = true; for _, u in ipairs(hounds) do if #u.buffs.added ~= 0 then hounds_clean = false end end
+check("execute: hounds get no buffs", hounds_clean)
+check("execute: units aggroed, villain side, tracked by bypass", spawned[1].aggro == "aggroed" and spawned[1].side == 2 and spawned[1].spawn_flag == true and Bypass.count() == 5, Bypass.count())
+
+-- Havoc-only modifier is skipped outside Havoc, applied inside it
+run_wave({ name = "t", parts = Groups.parse("2 crushers[toughened]") })
+check("execute: toughened skipped outside Havoc", #spawned == 2 and #spawned[1].buffs.added == 0)
+havoc_present = true
+run_wave({ name = "t", parts = Groups.parse("2 crushers[toughened]") })
+check("execute: toughened applied in Havoc", #spawned == 2 and spawned[1].buffs.added[1] == "havoc_toughened_skin")
+havoc_present = false
+
+-- a buff that errors must not break the wave or the other modifiers
+run_wave({ name = "t", parts = Groups.parse("2 crushers[bolstering+fire]") })
+check("execute: erroring buff is contained, other modifier still applied", #spawned == 2 and #spawned[1].buffs.added == 1 and spawned[1].buffs.added[1] == "common_minion_on_fire" and spawned[1].buffs.updated)
+local warned_boom = false; for _, e in ipairs(echoes) do if e:find("Bolstering") and e:find("boom") then warned_boom = true end end
+check("execute: buff failure is logged", warned_boom)
+
+-- caps and one_of
+settings.max_per_wave = 4
+run_wave({ name = "t", parts = Groups.parse("10 hounds") })
+check("execute: max_per_wave caps the wave", #spawned == 4, #spawned)
+settings.max_per_wave = nil
+run_wave({ name = "t", parts = Groups.parse("6 plague ogryn|chaos spawn|beast of nurgle[garden]") })
+local seen = {}; for _, u in ipairs(spawned) do seen[u.breed] = true end
+local allowed_only = true; for b in pairs(seen) do if b ~= "chaos_plague_ogryn" and b ~= "chaos_spawn" and b ~= "chaos_beast_of_nurgle" then allowed_only = false end end
+check("execute: one_of picks only listed breeds, keeps modifiers", #spawned == 6 and allowed_only and spawned[1].buffs.added[1] == "havoc_encroaching_garden")
+
+Managers.state.minion_spawn, Managers.state.extension, Managers.state.game_mode = saved_state.minion_spawn, saved_state.extension, saved_state.game_mode
+Managers.time = saved_time
+Bypass.reset()
 
 -- simulate weights
 Director.on_exit_gameplay()

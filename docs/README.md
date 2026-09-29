@@ -23,6 +23,8 @@ Quick start for testing: disable TwitchVersus and RealmsEvent, keep Realms and R
 
 **Iteration 1.1.0 (2026-09-28):** wave editor (F6 or `/rw_editor`), per-wave name/composition/chance/cooldown/enabled, 5 s minimum interval, HUD percent formatting, `custom_hud`-movable panel. Offline tests: 52 + 45 checks pass. See `CHANGELOG.md`. Still needs in-game verification.
 
+**1.1.1-1.2.0 (2026-09-29):** stimmed-minions fix, editor crash fix (`_create_widgets` shadowing BaseView), and **modifiers** (force Garden/Enraged/etc. onto enemy groups: `3 crushers[enraged+garden]`, editor "Mods" screen). Offline tests: 62 logic + 60 editor. In-game verification pending (matrix rows 17-22 in doc 06).
+
 ## Where the originals are now
 `mods\TwitchVersus` and `mods\RealmsEvent` were purged by the user (empty marker folders). Their files remain in Vortex staging: `C:\Users\ayko4\AppData\Roaming\Vortex\warhammer40kdarktide\mods\<folder>\mods\<mod>\...` (folder names include version/date, e.g. `RealmsEvent 1338 1.1.0 2026-09-23T15-11Z l24cL2qMY`, `DT Twitch Versus realms(crash fix) 1273 5 2026-09-16T16-47Z ndQ1mdFjx(1)`). Read-only reference; do not copy them back into `mods\`.
 

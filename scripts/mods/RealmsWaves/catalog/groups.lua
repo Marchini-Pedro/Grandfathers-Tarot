@@ -55,6 +55,84 @@ local ALIASES = {
 	renegade_vanguard = { "scab vanguard" },
 }
 
+-- Modifiers: Havoc-style conditions that can be forced onto a group of enemies
+-- even if the mission did not load them. Each one is a list of vanilla buff
+-- templates (S\settings\buff\havoc_buff_templates.lua / mutator_buff_templates.lua)
+-- added to the unit right after it spawns, the same way the mutators do.
+-- Only buffs that are self-contained were audited in; see docs/03 ("Havoc conditions").
+--   requires_havoc: the buff reads the Havoc game-mode extension and errors without it.
+-- Recipe syntax: "3 crushers[enraged+garden]".
+Groups.MODIFIERS = {
+	{
+		id = "garden", name = "Encroaching Garden", buffs = { "havoc_encroaching_garden" },
+		aliases = { "garden", "encroaching garden", "gardens embrace" },
+		description = "Extra health, resists impact, and heals nearby enemies.",
+	},
+	{
+		id = "enraged", name = "Enraged", buffs = { "havoc_enraged_enemies" },
+		aliases = { "enraged", "enrage", "rage" },
+		description = "Enraged from the start: faster melee, no stagger, more hit mass, faster movement.",
+	},
+	{
+		id = "toll", name = "Final Toll", buffs = { "havoc_enraged_enemies_trigger" },
+		aliases = { "toll", "final toll", "enraged at half" },
+		description = "Becomes enraged once it drops below half health (the vanilla Final Toll).",
+	},
+	{
+		id = "corrupted", name = "Corrupted", buffs = { "havoc_corrupted_enemies" },
+		aliases = { "corrupted", "corruption", "blight" },
+		description = "Nurgle-corrupted: leaves corruption behind when it dies.",
+	},
+	{
+		id = "bolstering", name = "Bolstering", buffs = { "havoc_bolstering" },
+		aliases = { "bolstering", "bolstered", "bolster" },
+		description = "Bolstered: larger and stronger (stacks).",
+	},
+	{
+		id = "toughened", name = "Toughened Skin", buffs = { "havoc_toughened_skin" }, requires_havoc = true,
+		aliases = { "toughened", "tough", "toughened skin", "tough skin" },
+		description = "Tougher skin against ranged damage.",
+	},
+	{
+		id = "fire", name = "On Fire", buffs = { "common_minion_on_fire" },
+		aliases = { "fire", "burning", "on fire" },
+		description = "Burning: sets players next to it on fire.",
+	},
+	{
+		id = "parasite", name = "Head Parasite", buffs = { "headshot_parasite_enemies" },
+		aliases = { "parasite", "head parasite", "infested" },
+		description = "Nurgle parasite: tougher, faster, immune to suppression. Its visuals may be missing.",
+	},
+}
+
+local modifier_by_id = {}
+local modifier_alias = {}
+local modifier_order = {}
+
+local function normalize_word(word)
+	return (tostring(word or ""):lower():gsub("[^%a]", ""))
+end
+
+for index, modifier in ipairs(Groups.MODIFIERS) do
+	modifier_by_id[modifier.id] = modifier
+	modifier_order[modifier.id] = index
+	modifier_alias[normalize_word(modifier.id)] = modifier.id
+
+	for _, alias in ipairs(modifier.aliases) do
+		modifier_alias[normalize_word(alias)] = modifier.id
+	end
+end
+
+Groups.modifier = function (id)
+	return modifier_by_id[id]
+end
+
+Groups.modifier_id = function (word)
+	return modifier_alias[normalize_word(word)]
+end
+
+Groups.MODIFIER_IDS = "garden, enraged, toll, corrupted, bolstering, toughened, fire, parasite"
+
 local function normalize(word)
 	word = tostring(word or ""):lower()
 	word = word:gsub("[_%-%.]", " ")
@@ -162,7 +240,37 @@ local function split_count(field)
 end
 
 local function part_key(part)
-	return part.one_of and table.concat(part.one_of, "|") or part.breed
+	local key = part.one_of and table.concat(part.one_of, "|") or part.breed
+
+	if part.mods then
+		key = key .. "[" .. table.concat(part.mods, "+") .. "]"
+	end
+
+	return key
+end
+
+-- Splits "enraged|garden" into canonical, de-duplicated modifier ids (in catalog order).
+local function parse_modifiers(inner)
+	local seen, ids = {}, {}
+
+	for word in inner:gmatch("[^|]+") do
+		local id = modifier_alias[normalize_word(word)]
+
+		if not id then
+			return nil, string.format("%q is not a modifier I know. Valid modifiers: %s", word, Groups.MODIFIER_IDS)
+		end
+
+		if not seen[id] then
+			seen[id] = true
+			ids[#ids + 1] = id
+		end
+	end
+
+	table.sort(ids, function (a, b)
+		return modifier_order[a] < modifier_order[b]
+	end)
+
+	return #ids > 0 and ids or nil
 end
 
 -- Returns parts on success, or nil and an error message.
@@ -172,6 +280,15 @@ Groups.parse = function (recipe)
 	end
 
 	local text = " " .. recipe .. " "
+
+	-- protect the modifier list in [...] from the separator handling below:
+	-- "[enraged, garden]" / "[enraged and garden]" -> "[enraged|garden]"
+	text = text:gsub("%[(.-)%]", function (inner)
+		inner = inner:gsub("%s+[aA][nN][dD]%s+", "+")
+		inner = inner:gsub("[,;/%+&%s]+", "|")
+
+		return "[" .. inner .. "]"
+	end)
 
 	text = text:gsub("%s+[aA][nN][dD]%s+", ",")
 	text = text:gsub("[\n\r;/%+&]", ",")
@@ -188,6 +305,21 @@ Groups.parse = function (recipe)
 
 			if name == "" or name:match("^%d+$") then
 				return nil, string.format("%q is a number with no enemy after it. Write it as \"5 trappers\"", field)
+			end
+
+			local mods
+			local base, inner = name:match("^(.-)%s*%[(.-)%]%s*$")
+
+			if base then
+				local err
+
+				mods, err = parse_modifiers(inner)
+
+				if err then
+					return nil, err
+				end
+
+				name = base
 			end
 
 			local new_part
@@ -221,6 +353,8 @@ Groups.parse = function (recipe)
 			end
 
 			if new_part then
+				new_part.mods = mods
+
 				local key = part_key(new_part)
 				local part = by_key[key]
 
@@ -276,14 +410,36 @@ Groups.to_recipe = function (parts)
 			names[1] = Groups.recipe_name(part.breed)
 		end
 
-		fields[#fields + 1] = part.count .. " " .. table.concat(names, "|")
+		local field = part.count .. " " .. table.concat(names, "|")
+
+		if part.mods and #part.mods > 0 then
+			field = field .. "[" .. table.concat(part.mods, "+") .. "]"
+		end
+
+		fields[#fields + 1] = field
 	end
 
 	return table.concat(fields, ", ")
 end
 
+-- "Enraged, Garden" for a part's modifiers ("" when none).
+Groups.describe_mods = function (part)
+	local names = {}
+
+	for i = 1, #(part.mods or {}) do
+		local modifier = modifier_by_id[part.mods[i]]
+
+		names[i] = modifier and modifier.name or tostring(part.mods[i])
+	end
+
+	return table.concat(names, ", ")
+end
+
 -- Short human text for a part: "8 Poxwalker" / "1 random of Plague Ogryn / Chaos Spawn".
-Groups.describe_part = function (part)
+-- With `with_mods` the modifiers follow in brackets: "3 Crusher [Enraged]".
+Groups.describe_part = function (part, with_mods)
+	local text
+
 	if part.one_of then
 		local names = {}
 
@@ -291,10 +447,16 @@ Groups.describe_part = function (part)
 			names[i] = Groups.display_name(part.one_of[i])
 		end
 
-		return string.format("%d random of %s", part.count, table.concat(names, " / "))
+		text = string.format("%d random of %s", part.count, table.concat(names, " / "))
+	else
+		text = string.format("%d %s", part.count, Groups.display_name(part.breed))
 	end
 
-	return string.format("%d %s", part.count, Groups.display_name(part.breed))
+	if with_mods and part.mods and #part.mods > 0 then
+		text = text .. " [" .. Groups.describe_mods(part) .. "]"
+	end
+
+	return text
 end
 
 Groups.total_count = function (parts)
@@ -311,7 +473,7 @@ Groups.summary = function (parts, max_chars)
 	local pieces = {}
 
 	for i = 1, #(parts or {}) do
-		pieces[i] = Groups.describe_part(parts[i])
+		pieces[i] = Groups.describe_part(parts[i], true)
 	end
 
 	local text = table.concat(pieces, ", ")

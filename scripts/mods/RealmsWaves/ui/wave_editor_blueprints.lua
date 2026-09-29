@@ -14,6 +14,7 @@ local colors = Components.colors
 --   show_stepper  - value +  (chance on the list, count in the detail screen)
 --   show_share    share of total chance (wave list)
 --   show_action   right-hand button, label in content.hotspot_action_text
+--   show_mods     "Mods" button (detail screen, where the share column is unused)
 blueprints.row = function (node_id)
 	local passes = {}
 
@@ -43,6 +44,7 @@ blueprints.row = function (node_id)
 	}, "show_stepper")
 
 	Components.text_pass(passes, "share", "share", { 1390, 0, 2 }, { 120, 46 }, 20, colors.muted, "right", "show_share")
+	Components.button_passes(passes, "hotspot_mods", { 1390, 3, 2 }, { 130, 40 }, "", 18, colors.gold, "show_mods")
 	Components.button_passes(passes, "hotspot_action", { 1530, 3, 2 }, { 160, 40 }, "", 20, colors.gold, "show_action")
 
 	return UIWidget.create_definition(passes, node_id, {
@@ -55,6 +57,7 @@ blueprints.row = function (node_id)
 		show_stepper = false,
 		show_share = false,
 		show_action = false,
+		show_mods = false,
 	}, { 1710, 46 })
 end
 

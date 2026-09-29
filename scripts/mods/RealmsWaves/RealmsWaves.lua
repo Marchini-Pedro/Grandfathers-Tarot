@@ -30,7 +30,7 @@ mod.on_all_mods_loaded = function ()
 	RW.protocol = mod:io_dofile(BASE .. "/core/protocol")
 	RW.director = mod:io_dofile(BASE .. "/core/director")
 
-	RW.execute.init({ positions = RW.positions, bypass = RW.bypass })
+	RW.execute.init({ positions = RW.positions, bypass = RW.bypass, groups = RW.groups })
 	RW.director.init({
 		events = RW.events,
 		groups = RW.groups,

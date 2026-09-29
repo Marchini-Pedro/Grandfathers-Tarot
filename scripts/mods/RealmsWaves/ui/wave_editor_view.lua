@@ -20,7 +20,7 @@ local LIST_TOP = definitions.LIST_TOP
 local ROW_HEIGHT = definitions.ROW_HEIGHT
 local ROW_NODE_PREFIX = definitions.ROW_NODE_PREFIX
 
-local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action" }
+local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods" }
 local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
 local BUTTONS = {
 	{ name = "btn_back", width = 180, cb = "cb_back" },
@@ -45,7 +45,12 @@ local function copy_parts(parts)
 	for i = 1, #(parts or {}) do
 		local part = parts[i]
 
-		copy[i] = { breed = part.breed, count = part.count, one_of = part.one_of and { unpack(part.one_of) } or nil }
+		copy[i] = {
+			breed = part.breed,
+			count = part.count,
+			one_of = part.one_of and { unpack(part.one_of) } or nil,
+			mods = part.mods and { unpack(part.mods) } or nil,
+		}
 	end
 
 	return copy
@@ -170,6 +175,7 @@ RealmsWavesView._create_editor_widgets = function (self)
 		content.hotspot_value.pressed_callback = callback(self, "cb_row_value", i)
 		content.hotspot_plus.pressed_callback = callback(self, "cb_row_plus", i)
 		content.hotspot_action.pressed_callback = callback(self, "cb_row_action", i)
+		content.hotspot_mods.pressed_callback = callback(self, "cb_row_mods", i)
 	end
 
 	for i = 1, #BUTTONS do
@@ -246,6 +252,8 @@ RealmsWavesView._source = function (self)
 		return self._parts
 	elseif self._screen == "picker" then
 		return self._breeds
+	elseif self._screen == "mods" then
+		return mod.rw.groups.MODIFIERS
 	end
 
 	return self._waves
@@ -306,17 +314,25 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		header.col_4, header.col_5 = mod:localize("col_count"), ""
 		widgets.bottom_title.content.bottom_title = mod:localize("bottom_detail_title", self._wave.name, rw.groups.total_count(self._parts))
 		widgets.hint_text.content.hint_text = ""
-	else
+	elseif screen == "picker" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_picker", self._wave.name)
 		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", mod:localize("col_enemy"), mod:localize("col_id"), "", ""
 		widgets.bottom_title.content.bottom_title = ""
 		widgets.hint_text.content.hint_text = ""
+	else
+		local part = self._parts[self._part_index]
+
+		widgets.description_text.content.description_text = mod:localize("view_desc_mods", part and rw.groups.describe_part(part) or "")
+		header.col_1, header.col_2, header.col_3 = mod:localize("col_on"), mod:localize("col_modifier"), mod:localize("col_effect")
+		header.col_4, header.col_5 = "", ""
+		widgets.bottom_title.content.bottom_title = ""
+		widgets.hint_text.content.hint_text = mod:localize("hint_mods")
 	end
 
 	local detail = screen == "detail"
 	local show_back = screen ~= "list"
 
-	widgets.hint_text.visible = screen == "list"
+	widgets.hint_text.visible = screen == "list" or screen == "mods"
 	widgets.btn_back.visible = show_back
 	widgets.btn_rename.visible = detail
 	widgets.btn_text.visible = detail
@@ -379,7 +395,7 @@ RealmsWavesView._refresh_rows = function (self)
 
 					content.row_name = item.name
 					content.info = has_parts and rw.groups.summary(item.parts, 95) or mod:localize("row_empty_slot")
-					content.show_check, content.show_stepper, content.show_share, content.show_action = true, true, true, true
+					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = true, true, true, true, false
 					content.checkbox_selected = item.enabled and has_parts == true
 					content.stepper_value = tostring(math.floor(item.pct))
 					content.share = share and string.format("%.1f%%", share) or "-"
@@ -390,15 +406,30 @@ RealmsWavesView._refresh_rows = function (self)
 					end
 				elseif screen == "detail" then
 					content.row_name = rw.groups.describe_part(item)
-					content.info = ""
-					content.show_check, content.show_stepper, content.show_share, content.show_action = false, true, false, true
+					content.info = rw.groups.describe_mods(item)
+					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, true, false, true, true
 					content.stepper_value = tostring(item.count)
 					content.hotspot_action_text = mod:localize("btn_remove")
-				else
+					content.hotspot_mods_text = mod:localize("btn_mods")
+				elseif screen == "picker" then
 					content.row_name = rw.groups.display_name(item)
 					content.info = item
-					content.show_check, content.show_stepper, content.show_share, content.show_action = false, false, false, true
+					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, false, false, true, false
 					content.hotspot_action_text = mod:localize("btn_add")
+				else
+					local part = self._parts[self._part_index]
+					local applied = false
+
+					for j = 1, #(part and part.mods or {}) do
+						if part.mods[j] == item.id then
+							applied = true
+						end
+					end
+
+					content.row_name = item.name
+					content.info = item.requires_havoc and (item.description .. " " .. mod:localize("note_havoc_only")) or item.description
+					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = true, false, false, false, false
+					content.checkbox_selected = applied
 				end
 
 				Components.color_into(widget.style.row_name.text_color, name_color)
@@ -482,7 +513,7 @@ RealmsWavesView.cb_scroll = guarded(function (self, direction)
 end)
 
 RealmsWavesView.cb_back = guarded(function (self)
-	if self._screen == "picker" then
+	if self._screen == "picker" or self._screen == "mods" then
 		self._screen = "detail"
 	else
 		self._screen = "list"
@@ -496,12 +527,58 @@ end)
 -- rows -----------------------------------------------------------------------
 
 RealmsWavesView.cb_row_check = guarded(function (self, row)
+	if self._screen == "mods" then
+		local modifier = self:_item_at(row)
+
+		if modifier then
+			self:_toggle_mod(modifier.id)
+		end
+
+		return
+	end
+
 	local wave = self._screen == "list" and self:_item_at(row)
 
 	if wave then
 		set_setting("on_" .. wave.key, not wave.enabled)
 		self:_reload()
 		self:_apply_screen(true)
+	end
+end)
+
+-- Toggles one modifier on the enemy group being edited (self._part_index).
+RealmsWavesView._toggle_mod = function (self, id)
+	local part = self._parts[self._part_index]
+
+	if not part then
+		return
+	end
+
+	local have = {}
+
+	for i = 1, #(part.mods or {}) do
+		have[part.mods[i]] = true
+	end
+
+	have[id] = not have[id] or nil
+
+	local mods = {}
+
+	for _, modifier in ipairs(mod.rw.groups.MODIFIERS) do
+		if have[modifier.id] then
+			mods[#mods + 1] = modifier.id
+		end
+	end
+
+	part.mods = #mods > 0 and mods or nil
+	self:_save()
+end
+
+RealmsWavesView.cb_row_mods = guarded(function (self, row)
+	if self._screen == "detail" and self._parts[self._offset + row] then
+		self._part_index = self._offset + row
+		self._screen = "mods"
+		self:_apply_screen()
 	end
 end)
 
@@ -516,6 +593,8 @@ RealmsWavesView.cb_row_name = guarded(function (self, row)
 		self:_open_detail(item.key)
 	elseif self._screen == "picker" then
 		self:_add_breed(item)
+	elseif self._screen == "mods" then
+		self:_toggle_mod(item.id)
 	end
 end)
 
@@ -595,7 +674,7 @@ end)
 
 RealmsWavesView._add_breed = function (self, breed)
 	for i = 1, #self._parts do
-		if self._parts[i].breed == breed then
+		if self._parts[i].breed == breed and not self._parts[i].mods then
 			self._parts[i].count = math.min(self._parts[i].count + 1, mod.rw.groups.MAX_BREED_COUNT)
 			self._screen = "detail"
 			self:_save()
@@ -641,6 +720,7 @@ RealmsWavesView.cb_edit_text = guarded(function (self)
 
 	Popup.open(self, {
 		label = mod:localize("popup_recipe_title"),
+		hint = mod:localize("popup_recipe_hint"),
 		value = groups.to_recipe(self._parts),
 		max_length = 300,
 		validate = function (text)

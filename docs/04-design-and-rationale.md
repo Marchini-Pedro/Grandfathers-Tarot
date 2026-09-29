@@ -80,6 +80,15 @@ User requirements added after the first test: fix the percent display, allow a 5
 - **Host-only effect:** only the host's settings drive the draw; the editor shows this in its description text.
 - **Custom HUD:** the `custom_hud` mod builds an edit box for every non-root scenegraph node of every registered HUD element and re-pins saved positions. So the panel is one real-sized node (`panel`, 640 x 210 px at 40,330 by default) with all text inside it; nothing else is needed for it to appear in that mod's editor. In its edit mode (`custom_hud.is_customizing`) the panel shows a sample so there is something to drag.
 
+## Modifiers (1.2.0)
+User requirement: add non-mission-loaded modifiers to enemies, e.g. a Havoc with only Garden, and a wave of "3 crushers with the enraged modifier".
+- **Model:** each enemy group (a part) can carry `mods = { ids }` (`part.mods`, ids from `Groups.MODIFIERS`, kept in catalog order). Stored in the recipe text as `3 crusher[garden+enraged]` (the recipe is the storage format, so no new setting). Groups with different modifiers never merge.
+- **Application:** per unit, right after `spawn_minion` returns (`Execute.apply_modifiers`): for each modifier's buff templates, `buff_extension:is_valid_target(name)` then `add_internally_controlled_buff(name, gameplay_time)`, then `_update_stat_buffs_and_keywords`. Same calls as `MutatorBase._add_buffs_on_unit`. Server side only; minion buffs are RPC-synced so clients see the effects.
+- **Why per-unit buffs and not loading mutators:** loading a mutator (`MutatorManager.load_mutator_from_name`) would affect every enemy in the mission and persist; per-unit buffs affect only the wave units the user chose.
+- **Safety:** every buff call is in a pcall; problems are logged once with `mod:warning` (always visible in the console log). Havoc-only modifiers (Toughened Skin) are skipped outside Havoc missions because the vanilla buff would error there.
+- **Editor:** detail screen row -> **Mods** button -> modifier screen (checkbox rows). Row blueprint got a `show_mods` flag; the screen list is `Groups.MODIFIERS`.
+- **Not verified in game:** the buffs' visuals (garden head effect, enraged eye/colour effects), the enrage shout, and that clients see them.
+
 ## As-built notes
 - Vote mode: candidates are drawn at cycle start and shown during the countdown; votes are accepted the whole time; the last `vote_duration` seconds switch the header to "VOTE NOW". Winner = most votes (ties random); no votes -> weighted pick among the candidates, or skip (setting).
 - Custom recipes: DMF has no text-input widget, so `/rw_custom <slot> <recipe>` stores `custom_N_recipe` and the chance is the numeric option `custom_N_pct` (0 = disabled).

@@ -420,7 +420,7 @@ function POPUP.refresh(view)
 		local panel = widgets[Components.POPUP_PANEL_NAME]
 
 		panel.content.title_text = tostring(spec.label)
-		panel.content.hint_text = edit.error or mod:localize(spec.numeric and "popup_hint_number" or "popup_hint_text")
+		panel.content.hint_text = edit.error or spec.hint or mod:localize(spec.numeric and "popup_hint_number" or "popup_hint_text")
 
 		panel.style.hint_text.text_color = clone_color(edit.error and Components.colors.gold or Components.colors.muted)
 

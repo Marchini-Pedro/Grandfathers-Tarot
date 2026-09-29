@@ -19,6 +19,12 @@
 | 14 | `custom_hud` edit mode: find and drag `HudElementRealmsWavesPanel|panel`; sample panel visible | Panel moves, position persists, sample text shows while editing | not run |
 | 15 | Interval min 5 s, vote mode | Whole countdown is the voting phase; wave fires after 5 s | not run |
 | 16 | HUD percentages | Show `52.1%` style values, no long decimals | not run |
+| 17 | Editor opens without crashing (1.1.2 fix), all screens reachable (list, detail, picker, mods, popups) | No errors in the console log | not run |
+| 18 | Custom wave `3 crushers[enraged+garden]`, `/rw_test custom_1`, normal mission | Crushers spawn with garden head effect and enraged colour/speed; console has no modifier warnings | not run |
+| 19 | Same in a Havoc mission that has only Garden | Enraged crushers still enrage; Garden ones heal neighbours | not run |
+| 20 | `[toughened]` in a normal mission | Skipped, one console warning "needs a Havoc mission"; in Havoc it applies | not run |
+| 21 | Havoc order with stimmed minions | Wave units are sometimes stimmed (1.1.1 fix) | not run |
+| 22 | Client view of modifier effects | Client sees the buff visuals on modified units | not run |
 
 ## Known risks
 - Hooks on `PacingManager.add_aggroed_minion` and the two `MinionSpawnManager` counters must tolerate clients (nil managers) and hot reload.
@@ -35,12 +41,13 @@
 5. Realms native DLL behaviour (not analysed).
 6. `VersusMode.lua` was sampled by grep only, not read fully.
 
+- 2026-09-29: 1.2.0 modifiers implemented and tested offline (see CHANGELOG). Found while auditing buffs: `havoc_toughened_skin` errors outside Havoc (unguarded `extension("havoc")`), hence the Havoc-only gate. Offline only; in-game rows 17-22 pending.
 - 2026-09-29: first in-game open of the wave editor CRASHED (log `console-2026-09-29-00.46.55-a45d7909-*.log`): `wave_editor_view.lua:290: attempt to index field 'title_text' (a nil value)` in `_apply_screen` <- `on_enter`. Cause: my `_create_widgets` override shadowed `BaseView._create_widgets` (`S\ui\views\base_view.lua:140-156`, called from `_on_view_requirements_complete` :110-123 to build the static widgets). Fixed in 1.1.2 (renamed `_create_editor_widgets`). Lesson: RealmsEvent avoided this by naming its helpers `_create_row_widgets` etc.; my offline stub had created static widgets itself, hiding the bug. The stub now mirrors the real flow and a guard test lists every BaseView method name (`BASEVIEW_NAMES` in `tools/editor_test.py`, 79 names from base_view.lua) and fails on any accidental override. Lesson for tests: stubs must reproduce the framework's call flow, not shortcut it.
 
 ## Test tooling (in `tools/`, needs Python `lupa`; set env `PYLIBS` to the folder installed with `pip install --target`)
 - `check_lua.py`: compiles every Lua file (Lua 5.5 via lupa; stricter than LuaJIT).
-- `logic_test.py` (52 checks): recipe parser (incl. `a|b`, caps, round trip), wave settings API (`Events.get/set_def/reset/build_pool`, legacy recipe), votes, director state machine (random, vote, 5 s interval, hub, client, version mismatch), 20,000-roll weight simulation.
-- `editor_test.py` (45 checks): loads the REAL editor view/blueprint/component files against stubbed engine classes (fake `BaseView`, `UIWidget.create_definition`, text-input template) and clicks through list, scroll, toggle, chance stepper, detail, count stepper, remove, picker, rename popup, recipe popup with validation, numeric popup with range check, cooldown, enabled, reset, back navigation, custom-slot workflow. It cannot prove the engine renders or accepts the passes; it does catch nil-index/logic bugs.
+- `logic_test.py` (62 checks): recipe parser (incl. `a|b`, caps, round trip, modifiers `[a+b]`), wave settings API (`Events.get/set_def/reset/build_pool`, legacy recipe), votes, director state machine (random, vote, 5 s interval, hub, client, version mismatch), budget-bypass hooks, the spawner `execute.lua` with stubbed game APIs (expansion, modifier buffs, Havoc gating, contained buff errors, caps, `one_of`), 20,000-roll weight simulation.
+- `editor_test.py` (60 checks, mirrors the real BaseView flow and guards against overriding BaseView methods): loads the REAL editor view/blueprint/component files against stubbed engine classes (fake `BaseView`, `UIWidget.create_definition`, text-input template) and clicks through list, scroll, toggle, chance stepper, detail, count stepper, remove, picker, rename popup, recipe popup with validation, numeric popup with range check, cooldown, enabled, reset, back navigation, custom-slot workflow. It cannot prove the engine renders or accepts the passes; it does catch nil-index/logic bugs.
 
 ## Resolved during implementation
 - Unverified #3 (counter coverage): grep of the game source (commit `0f0cb45`) shows every reader of the enemy counts goes through `MinionSpawnManager:num_spawned_minions()` or `:total_allocated_num_enemies()` (terror_event_manager.lua:435, pacing_manager.lua:449, horde_pacing.lua:79 and :516, auto_event.lua:509 and :689, server_metrics_manager.lua:178); the private field `_num_spawned_minions` is only touched inside minion_spawn_manager.lua. So hooking those two methods is complete for this version.

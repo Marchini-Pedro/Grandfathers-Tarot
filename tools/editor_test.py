@@ -186,6 +186,34 @@ check("picker add returns to detail", view._screen == "detail" and #view._parts 
 local found = false; for _, p in ipairs(view._parts) do if p.breed == first_breed then found = true end end
 check("picker: breed added", found, first_breed)
 
+-- modifiers screen ---------------------------------------------------------------
+check("detail: Mods button on enemy rows", row(1).content.show_mods and row(1).content.hotspot_mods_text == "btn_mods" and not row(1).content.show_share)
+click_row(1, "hotspot_mods")
+check("mods screen opens", view._screen == "mods" and view._widgets_by_name.description_text.content.description_text:find("view_desc_mods") ~= nil and view._widgets_by_name.btn_back.visible)
+check("mods screen lists all 8 modifiers with checkboxes", row(8).visible and not row(9).visible and row(1).content.show_check and not row(1).content.show_stepper and not row(1).content.show_action and not row(1).content.show_mods, row(8).content.row_name)
+check("mods screen: names, descriptions, havoc note", row(1).content.row_name == "Encroaching Garden" and row(1).content.info:find("heals nearby") ~= nil and row(6).content.row_name == "Toughened Skin" and row(6).content.info:find("note_havoc_only") ~= nil and row(2).content.info:find("note_havoc_only") == nil)
+check("mods screen: nothing ticked yet", not row(1).content.checkbox_selected and not row(2).content.checkbox_selected)
+click_row(1, "hotspot_check")
+check("tick Garden -> saved in recipe, checkbox on", row(1).content.checkbox_selected and settings["wave_def_wave_small"]:find("%[garden%]") ~= nil, settings["wave_def_wave_small"])
+click_row(2, "hotspot_name")
+check("click name toggles Enraged too", row(2).content.checkbox_selected and settings["wave_def_wave_small"]:find("%[garden%+enraged%]") ~= nil, settings["wave_def_wave_small"])
+check("modifiers stored on the part", #view._parts[1].mods == 2 and view._parts[1].mods[1] == "garden" and view._parts[1].mods[2] == "enraged")
+click("btn_back")
+check("back from mods returns to detail with modifiers listed", view._screen == "detail" and row(1).content.info == "Encroaching Garden, Enraged" and row(1).content.row_name == "6 Poxwalker", row(1).content.info)
+click_row(1, "hotspot_mods"); click_row(1, "hotspot_check"); click_row(2, "hotspot_check")
+check("untick both -> modifiers cleared", view._parts[1].mods == nil and not row(1).content.checkbox_selected)
+click("btn_back")
+check("cleared modifiers leave no brackets in recipe", settings["wave_def_wave_small"]:find("%[") == nil, settings["wave_def_wave_small"])
+-- a part with modifiers is not merged with a plain part when adding the same breed
+click_row(1, "hotspot_mods"); click_row(1, "hotspot_check"); click("btn_back")
+local n_before = #view._parts
+click("btn_add")
+local poxwalker_index; for i, b in ipairs(view._breeds) do if b == "chaos_poxwalker" then poxwalker_index = i end end
+view._offset = math.max(0, poxwalker_index - 1); view:_refresh_rows()
+click_row(1, "hotspot_action")
+check("adding a breed that exists with modifiers creates a separate group", #view._parts == n_before + 1, #view._parts .. " vs " .. n_before)
+view._parts[1].mods = nil; view:_save()
+
 -- rename via popup
 click("btn_rename")
 check("rename popup opens", view._popup ~= nil and view._widgets_by_name.rw_popup_panel.visible)
