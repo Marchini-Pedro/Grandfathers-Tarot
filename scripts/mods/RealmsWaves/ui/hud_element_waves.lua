@@ -129,12 +129,25 @@ HudElementRealmsWavesPanel._refresh = function (self)
 		votes_total = votes_total + (cands[i].votes or 0)
 	end
 
-	local sig = view.phase .. "|" .. tostring(view.mode) .. "|" .. seconds .. "|" .. tostring(view.version) .. "|" .. tostring(view.my_vote) .. "|" .. votes_total .. "|" .. tostring(view == SAMPLE)
+	-- compared field by field: building a signature string here cost one allocation per frame
+	local is_sample = view == SAMPLE
+	local sig = self._sig
 
-	if sig == self._sig then
+	if sig
+		and sig.phase == view.phase
+		and sig.mode == view.mode
+		and sig.seconds == seconds
+		and sig.version == view.version
+		and sig.my_vote == view.my_vote
+		and sig.votes_total == votes_total
+		and sig.is_sample == is_sample
+	then
 		return
 	end
 
+	sig = sig or {}
+	sig.phase, sig.mode, sig.seconds, sig.version = view.phase, view.mode, seconds, view.version
+	sig.my_vote, sig.votes_total, sig.is_sample = view.my_vote, votes_total, is_sample
 	self._sig = sig
 	self._visible = true
 

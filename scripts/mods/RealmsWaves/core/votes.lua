@@ -42,11 +42,18 @@ Votes.remove_peer = function (peer_id)
 	by_peer[peer_id] = nil
 end
 
-Votes.counts = function ()
-	local counts = {}
+-- One scratch table is reused: the HUD asks for the counts every frame on the host (through
+-- Director.view), and a fresh table per call was steady garbage. Every caller reads the result
+-- immediately and never keeps it, so sharing it is safe.
+local counts = {}
 
+Votes.counts = function ()
 	for i = 1, option_count do
 		counts[i] = 0
+	end
+
+	for i = #counts, option_count + 1, -1 do
+		counts[i] = nil
 	end
 
 	for _, option in pairs(by_peer) do

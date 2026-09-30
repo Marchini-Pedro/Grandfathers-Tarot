@@ -2,6 +2,10 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## 1.6.2
+- **Performance: two per-frame allocations removed from the HUD path** (found by a code review after a Mod Performance Monitor screenshot; no measurement was taken). (a) `Votes.counts()` built a new table on every call and the host's HUD calls it every frame through `Director.view()` -> `refresh_votes()`; it now reuses one scratch table (every caller reads it immediately and never keeps it). (b) `HudElementRealmsWavesPanel._refresh` built a signature string (8 concatenations) every frame to detect changes; it now compares the fields one by one against a reused table. Behaviour is unchanged. The rest of the idle per-frame path (director timers, `Positions.player_units`, the four budget hooks) does no allocation worth removing; the position search is cached (`CANDIDATE_TTL`, `FAILED_SEARCH_TTL`) and the spawn feed runs every 0.15 s only while a wave has units queued.
+- Tests: `check_lua.py` 19 files 0 failures, `logic_test.py` 0 failures, `editor_test.py` 184/184, `entry_test.py` 9/9. The HUD change has no offline test (the HUD element is not loaded by the stubs); not verified in game.
+
 ## Game 1.13.0 compatibility check (no code change)
 - The Darktide source clone was updated from 1.12.5 (`0f0cb45`) to **1.13.0** (`419fe18`, 2026-09-29). Every hook and game call of RealmsWaves was compared old vs new (hook targets, function signatures, hooked function bodies, removed identifiers): nothing RealmsWaves hooks or calls was removed, renamed or changed in signature, so **no code change was needed**. Not run in game.
 - The `S\...:line` citations in `docs/03` still refer to 1.12.5 and may have shifted by a few lines in files 1.13.0 changed (`breeds.lua`, `spawn_point_queries.lua`, `nav_queries.lua`, `wwise_game_sync_settings.lua`, `ui_widget.lua`).
