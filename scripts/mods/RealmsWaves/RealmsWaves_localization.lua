@@ -4,7 +4,7 @@
 return {
 	mod_name = { en = "Realms Waves" },
 	mod_description = {
-		en = "Random enemy waves for Realms (LAN) sessions. Waves spawn near the squad but out of sight, ignore the director's spawn limits, and are picked at random or by an in-game vote. Everything is synced to all players' HUD. Edit waves in the wave editor (keybind below, or /rw_editor). Move the wave panel with the Custom HUD mod. Host needs the mod; clients need it to see the HUD and vote.",
+		en = "Random enemy waves for Realms (LAN) sessions. Waves spawn near the squad but out of sight, ignore the director's spawn limits, and are picked at random or by an in-game vote. Everything is synced to all players' HUD. Edit waves in the wave editor (keybind below, or /rw_editor). Move the wave panel with the Custom HUD mod. Host needs the mod; clients need it to see the HUD and vote. Spawn distances are measured from the nearest player. The memory guard pauses spawning when the game uses that much memory (the game itself crashes at 1024 MB).",
 	},
 
 	mode = { en = "Wave selection mode" },
@@ -12,10 +12,10 @@ return {
 	mode_vote = { en = "Vote (players choose)" },
 
 	group_timing = { en = "Timing and voting" },
-	initial_delay = { en = "Extra delay before the first wave" },
+	initial_delay = { en = "First wave delay" },
 	interval_min = { en = "Minimum time between waves" },
 	interval_max = { en = "Maximum time between waves" },
-	vote_duration = { en = "Final vote window (highlighted)" },
+	vote_duration = { en = "Final vote window" },
 	ballot_size = { en = "Candidates on a ballot" },
 	novote_fallback = { en = "If nobody votes" },
 	fallback_random = { en = "Pick a candidate at random" },
@@ -23,19 +23,19 @@ return {
 
 	group_spawn = { en = "Spawning" },
 	max_per_wave = { en = "Max enemies per wave" },
-	max_alive = { en = "Max wave enemies alive at once" },
-	heap_guard_mb = { en = "Memory guard: pause spawning above this game memory (the game crashes at 1024)" },
+	max_alive = { en = "Max wave enemies alive" },
+	heap_guard_mb = { en = "Memory guard (pause above)" },
 	unit_megabytes = { en = "MB" },
-	min_distance = { en = "Min spawn distance from nearest player" },
-	max_distance = { en = "Max spawn distance from nearest player" },
+	min_distance = { en = "Min spawn distance" },
+	max_distance = { en = "Max spawn distance" },
 	monster_min_distance = { en = "Monster min spawn distance" },
 	monster_max_distance = { en = "Monster max spawn distance" },
 
 	group_multipliers = { en = "Enemy number multipliers (apply to every wave)" },
 	mult_normal = { en = "Normal and elite enemies" },
-	mult_boss = { en = "Bosses (monsters, captains, twins)" },
-	mult_special = { en = "Specials (hounds, bombers, snipers...)" },
-	unit_percent = { en = "percent" },
+	mult_boss = { en = "Bosses (incl. twins)" },
+	mult_special = { en = "Specials (hounds...)" },
+	unit_percent = { en = "pct" },
 
 	group_controls = { en = "Keys" },
 	open_editor_bind = { en = "Open the wave editor" },
@@ -51,8 +51,6 @@ return {
 
 	unit_seconds = { en = "s" },
 	unit_meters = { en = "m" },
-	unit_enemies = { en = "enemies" },
-	unit_options = { en = "options" },
 
 	-- HUD panel (always localized with arguments, so "%%" is a literal percent sign)
 	hud_wave_in = { en = "Next wave in %s" },

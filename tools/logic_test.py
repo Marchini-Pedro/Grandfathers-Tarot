@@ -1022,7 +1022,21 @@ do
   end
   check("localization: no stray % in any string (DMF formats every string)", #bare == 0, table.concat(bare, ","))
   check("localization: 'count' words are now 'weight'", loc.col_count.en == "Weight" and loc.popup_count_title.en == "Weight of %s")
-  check("localization: multiplier and search strings exist", loc.mult_normal and loc.mult_boss and loc.mult_special and loc.group_multipliers and loc.btn_search and loc.popup_search_hint and loc.picker_status and loc.unit_percent.en == "percent")
+  check("localization: multiplier and search strings exist", loc.mult_normal and loc.mult_boss and loc.mult_special and loc.group_multipliers and loc.btn_search and loc.popup_search_hint and loc.picker_status and loc.unit_percent.en == "pct")
+  -- DMF option rows: the title column holds about 27 characters on one line, the value column about 8
+  -- (value + unit, e.g. "1000 pct"); longer text wraps into several lines and overlaps the next row.
+  local titles = { "initial_delay", "interval_min", "interval_max", "vote_duration", "ballot_size", "novote_fallback", "max_per_wave", "max_alive", "heap_guard_mb", "min_distance", "max_distance", "monster_min_distance", "monster_max_distance", "mult_normal", "mult_boss", "mult_special", "open_editor_bind", "vote_1_bind", "vote_2_bind", "vote_3_bind", "vote_4_bind", "vote_5_bind", "hud_enabled", "debug", "fallback_random", "fallback_skip" }
+  local long = {}
+  for _, id in ipairs(titles) do
+    local text = loc[id] and loc[id].en
+    if not text then long[#long + 1] = id .. "(missing)" elseif #text > 27 then long[#long + 1] = id .. "(" .. #text .. ")" end
+  end
+  check("localization: every option title fits one line (<= 27 characters)", #long == 0, table.concat(long, ","))
+  local wide = {}
+  for id, entry in pairs(loc) do
+    if id:find("^unit_") and #entry.en > 3 then wide[#wide + 1] = id .. "=" .. entry.en end
+  end
+  check("localization: unit labels are short (<= 3 characters) so value and unit stay on one line", #wide == 0, table.concat(wide, ","))
 end
 
 -- Positions.spread with stubbed nav queries -----------------------------------------

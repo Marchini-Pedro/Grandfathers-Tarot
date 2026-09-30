@@ -46,7 +46,7 @@ return {
 					numeric("interval_min", 150, 5, 1800, "unit_seconds"),
 					numeric("interval_max", 300, 5, 1800, "unit_seconds"),
 					numeric("vote_duration", 25, 5, 120, "unit_seconds"),
-					numeric("ballot_size", 3, 2, 5, "unit_options"),
+					numeric("ballot_size", 3, 2, 5),
 					{
 						setting_id = "novote_fallback",
 						type = "dropdown",
@@ -62,8 +62,8 @@ return {
 				setting_id = "group_spawn",
 				type = "group",
 				sub_widgets = {
-					numeric("max_per_wave", 80, 1, 500, "unit_enemies"),
-					numeric("max_alive", 120, 10, 1000, "unit_enemies"),
+					numeric("max_per_wave", 80, 1, 500),
+					numeric("max_alive", 120, 10, 1000),
 					numeric("heap_guard_mb", 800, 300, 1000, "unit_megabytes", 10),
 					numeric("min_distance", 22, 8, 100, "unit_meters"),
 					numeric("max_distance", 65, 20, 200, "unit_meters"),
