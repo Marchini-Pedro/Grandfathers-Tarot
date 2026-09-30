@@ -627,6 +627,23 @@ do
   local function note() return view._widgets_by_name.bottom_title.content.bottom_title end
   local function type_into_popup(text) view._widgets_by_name.rw_popup_input.content.input_text = text; view:update(0.01, 0, input_stub2) end
 
+  -- Back is drawn (and its hotspot handled) before the buttons of the screen it returns to. A button of the
+  -- destination screen at the same spot would receive the same click in the same frame (click-through), e.g.
+  -- Back on a wave's screen opening the presets page. So Back must not overlap any destination button.
+  do
+    local sg = view._definitions.scenegraph_definition
+    local function overlaps(a, b)
+      local ax, ay, aw, ah = sg[a].position[1], sg[a].position[2], sg[a].size[1], sg[a].size[2]
+      local bx, by, bw, bh = sg[b].position[1], sg[b].position[2], sg[b].size[1], sg[b].size[2]
+      return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
+    end
+    local hit = {}
+    for _, name in ipairs({ "btn_presets", "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "btn_search", "btn_stay" }) do
+      if overlaps("btn_back", name) then hit[#hit + 1] = name end
+    end
+    check("Back does not overlap any button of the screens it returns to (no click-through)", #hit == 0, table.concat(hit, ","))
+  end
+
   click("btn_back")
   check("presets: Presets button only on the wave list", view._screen == "list" and view._widgets_by_name.btn_presets.visible and not view._widgets_by_name.btn_pload.visible)
   click("btn_presets")

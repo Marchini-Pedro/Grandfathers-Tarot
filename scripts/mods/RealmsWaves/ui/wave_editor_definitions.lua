@@ -53,7 +53,9 @@ local scenegraph_definition = {
 	btn_enabled = node(1065, 826, 260, 44, 2),
 	btn_reset = node(1345, 826, 300, 44, 2),
 	-- presets: list screen button (where Back sits on the other screens), and one preset's actions in two rows
-	btn_presets = node(125, 826, 300, 44, 2),
+	-- NOT under Back (x 125-305): Back is drawn before this button, so a click on Back that switches to the
+	-- list would land on a Presets button at the same spot in the same frame and open the presets page.
+	btn_presets = node(325, 826, 300, 44, 2),
 	btn_pload = node(325, 826, 250, 44, 2),
 	btn_psave = node(595, 826, 400, 44, 2),
 	btn_prename = node(1015, 826, 200, 44, 2),
