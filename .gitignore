@@ -1,0 +1,7 @@
+# Python caches from the offline test scripts
+__pycache__/
+*.pyc
+
+# preview images and dumps the tools can write next to themselves
+tools/*.png
+tools/*.json
