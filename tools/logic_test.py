@@ -821,6 +821,8 @@ do
   check("tarot: at the pick exactly the winner's wave is spawned", #started_defs == 1 and started_defs[1].key == winner, tostring(started_defs[1] and started_defs[1].key) .. " vs " .. winner)
   check("tarot: the resolved hand stays in the state for the reveal (drawn), the next interval already runs", v.phase == "waiting" and v.drawn == true and #v.hand == 3 and v.hand_seq == seq and v.remaining > 95 and v.chosen ~= "", v.remaining)
   check("tarot: the synced state says drawn (dn=1) and still holds the winner", sent[#sent].state.dn == 1 or (Director.update(1.1) == nil and sent[#sent].state.dn == 1))
+  check("tarot: the resolved hand carries its age (da) and every card its cooldown (c)", (function() local st = sent[#sent].state; return type(st.da) == "number" and st.da >= 0 and st.da < 3 and type(st.h[1].c) == "number" end)(), tostring(sent[#sent].state.da))
+  check("tarot: the host's own view has the age too, and it grows", Director.view().drawn_age >= 0 and Director.view().drawn == true)
   Director.update(17)
   check("tarot: the resolved hand is dropped after 16 s", Director.view().hand == nil and not Director.view().drawn)
 
@@ -940,7 +942,20 @@ do
   Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 50.0, b = 3, k = {}, z = 1, cd = { wave_small = 30 } })
   Director.update(10)
   check("client: a paused host freezes them", math.abs(Director.cooldown_remaining("wave_small") - 30) < 0.5, Director.cooldown_remaining("wave_small"))
-  is_server = true
+  -- the age of a resolved hand and the card cooldown travel with the state (the HUD places its timeline from them)
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 90.0, b = 3, k = {}, sq = 21, w = 1, dn = 1, da = 3.5, y = 0, z = 0,
+    h = { { k = "a", n = "A", s = "rage", t = 2, b = {}, c = 240 }, { k = "b", n = "B", s = "rage", t = 2, b = {}, c = 1e9 }, { k = "c", n = "C", s = "rage", t = 2, b = {} } } })
+  local drawn_view = Director.view()
+  check("client: a resolved hand carries its age (seconds since the pick) and counts it up locally", drawn_view.drawn == true and drawn_view.drawn_age >= 3.5 and drawn_view.drawn_age < 3.6, drawn_view.drawn_age)
+  Director.update(2)
+  check("client: ...it keeps counting between states", math.abs(Director.view().drawn_age - 5.5) < 0.2, Director.view().drawn_age)
+  check("client: a card's cooldown is read, capped (a day) and 0 when missing", drawn_view.hand[1].cooldown == 240 and drawn_view.hand[2].cooldown == 86400 and drawn_view.hand[3].cooldown == 0)
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 90.0, b = 3, k = {}, sq = 22, w = 1, dn = 1, da = 999, z = 1, h = { { k = "a", n = "A", s = "rage", t = 2, b = {} } } })
+  Director.update(5)
+  check("client: the age is capped and a paused host freezes it", Director.view().drawn_age == 32, Director.view().drawn_age)
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 90.0, b = 3, k = {}, sq = 23, w = 1, dn = 1, da = 4, z = 1, h = { { k = "a", n = "A", s = "rage", t = 2, b = {} } } })
+  Director.update(5)
+  check("client: a paused host's age does not run", math.abs(Director.view().drawn_age - 4) < 0.01, Director.view().drawn_age)  is_server = true
 
   -- legacy modes still work next to the tarot
   settings.mode = "random"
@@ -1919,7 +1934,7 @@ do
   check("localization: multiplier and search strings exist", loc.mult_normal and loc.mult_boss and loc.mult_special and loc.group_multipliers and loc.btn_search and loc.popup_search_hint and loc.picker_status and loc.unit_percent.en == "pct")
   -- DMF option rows: the title column holds about 27 characters on one line, the value column about 8
   -- (value + unit, e.g. "1000 pct"); longer text wraps into several lines and overlaps the next row.
-  local titles = { "initial_delay", "interval_min", "interval_max", "vote_duration", "ballot_size", "novote_fallback", "max_per_wave", "max_alive", "heap_guard_mb", "min_distance", "max_distance", "monster_min_distance", "monster_max_distance", "mult_normal", "mult_boss", "mult_special", "open_editor_bind", "vote_1_bind", "vote_2_bind", "vote_3_bind", "vote_4_bind", "vote_5_bind", "hud_enabled", "hud_show_percent", "colour_enemies", "colour_spidey", "interval_random", "debug", "fallback_random", "fallback_skip" }
+  local titles = { "initial_delay", "interval_min", "interval_max", "vote_duration", "ballot_size", "novote_fallback", "max_per_wave", "max_alive", "heap_guard_mb", "min_distance", "max_distance", "monster_min_distance", "monster_max_distance", "mult_normal", "mult_boss", "mult_special", "open_editor_bind", "vote_1_bind", "vote_2_bind", "vote_3_bind", "vote_4_bind", "vote_5_bind", "hud_enabled", "hud_show_percent", "colour_enemies", "colour_spidey", "interval_random", "debug", "fallback_random", "fallback_skip", "tarot_cards", "tarot_seconds", "tarot_roulette", "tarot_winner", "tarot_eye_open", "tarot_eye_size", "tarot_rot_short", "tarot_rot_long", "tarot_longest", "group_spread", "mode_tarot", "mode_random", "mode_vote" }
   local long = {}
   for _, id in ipairs(titles) do
     local text = loc[id] and loc[id].en

@@ -50,7 +50,7 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 0. UI primitive feasibility (report in doc 06, results log 2026-10-01)
 - [x] 1. Card data model: `catalog/cards.lua`, `su_/th_/wh_/cl_` settings, tarot names for the standard waves, one-time rename, sharing format
 - [x] 2. Draw director (hand, winner, cooldown exclusion, sync, legacy modes kept): `core/director.lua`, protocol 2 / 2.0.0, options `mode` (default tarot), `tarot_cards`, `tarot_seconds`
-- [ ] 3. The Spread HUD
+- [x] 3. The Spread HUD: `ui/spread.lua`, widgets, element, the `The Spread (your screen)` options, `tools/hud_test.py` (offline only; the shapes are unseen)
 - [ ] 4. The Deck screen, cooldown looks, custom card builder
 - [ ] 5. Mod options
 - [ ] 6. Optional: per-group health and size multipliers
@@ -82,11 +82,12 @@ mods\RealmsWaves\
     spawn\positions.lua                  hidden-from-all-players candidate points near players
     spawn\execute.lua                    drip-feed spawner (2 per 0.15 s), direct spawn_minion, caps
     spawn\budget_bypass.lua              tracked-unit set + hooks that hide them from director counters
-    ui\hud_element_waves.lua (+ _definitions)   synced panel
+    ui\hud_element_waves.lua (+ _definitions)   synced HUD: the old text panel (legacy modes) and, in 2.0.0, The Spread
+    ui\spread.lua                        2.0.0: the arithmetic of the Spread (layout, timeline, roulette, eye, icons, rot), pure Lua
 ```
 `RealmsWaves` was appended to `mods\mod_load_order.txt` (last line). The originals (TwitchVersus, RealmsEvent) were NOT disabled: the user should disable them while using RealmsWaves.
 
-Test tooling (outside the repo, scratchpad only): Python `lupa` (Lua 5.5, not LuaJIT) installed with `pip --target` into the session scratchpad; `check_lua.py` compiles every file, `logic_test.py` runs the stubbed logic tests. Both are easy to recreate; Lua 5.5 is stricter than LuaJIT (e.g. assigning to a `for` variable), which is a useful extra check.
+Test tooling (outside the repo, scratchpad only): Python `lupa` (Lua 5.5, not LuaJIT) installed with `pip --target` into the session scratchpad; `check_lua.py` compiles every file, `logic_test.py` runs the stubbed logic tests; `editor_test.py`, `entry_test.py` and (2.0.0) `hud_test.py` drive the real view, entry script and HUD with stubbed engine classes (all in `tools\`, run all five after every change). They are easy to recreate; Lua 5.5 is stricter than LuaJIT (e.g. assigning to a `for` variable), which is a useful extra check.
 
 ## Reuse (what was actually reused vs rewritten)
 - Reused as pattern/code: RealmsEvent's protocol rules (dot-calls, argument validation, availability guard, `cjson`, `mod:get("debug")`), its "first objective started" trigger, `is_server()` authority check, `mod.update` signature handling, `SpawnPointQueries.occluded_positions_in_group` path, spawn param table (`optional_aggro_state`, `optional_target_unit`, rotation from the target unit); TwitchVersus's breed alias table and recipe rules, drip-feed rate, HUD element structure, NOT_A_MISSION hub check, dropdown/keybind/group option shapes.

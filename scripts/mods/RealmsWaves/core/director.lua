@@ -51,7 +51,7 @@ local paused = false -- /rw_pause: every clock is frozen
 local stopped = false -- /rw_stop: the director does nothing until /rw_start
 local timer_check = 0
 
-local view = { phase = "off", mode = "tarot", remaining = 0, ballot_id = 0, chosen = "", cands = {}, version = 0, my_vote = nil, hand = nil, win = 0, hand_seq = 0, drawn = false, hand_seconds = 0 }
+local view = { phase = "off", mode = "tarot", remaining = 0, ballot_id = 0, chosen = "", cands = {}, version = 0, my_vote = nil, hand = nil, win = 0, hand_seq = 0, drawn = false, drawn_age = 0, hand_seconds = 0 }
 
 local function number_setting(id, fallback)
 	local value = tonumber(mod:get(id))
@@ -587,13 +587,15 @@ local function snapshot()
 			for i = 1, #state.hand.cards do
 				local card = state.hand.cards[i]
 
-				cards[i] = { k = card.key, n = card.name, s = card.suit, t = card.threat, b = card.breeds, q = card.whisper, m = card.modifiers, r = card.rare and 1 or 0 }
+				cards[i] = { k = card.key, n = card.name, s = card.suit, t = card.threat, b = card.breeds, q = card.whisper, m = card.modifiers, r = card.rare and 1 or 0, c = card.cooldown }
 			end
 
 			snap.h, snap.w, snap.sq = cards, state.hand.win, state.hand.seq
 		end
 
 		snap.dn = state.drawn and 1 or 0
+			-- seconds since the pick, so a client (or a late joiner) can place the reveal and the rot on the timeline
+			snap.da = state.drawn and round1(state.drawn_age or 0) or nil
 		snap.y = round1(state.hand_seconds or 0)
 		snap.cd = Director.cooldown_map()
 		snap.e = state.empty and (state.cooling and 2 or 1) or 0
@@ -1047,6 +1049,7 @@ Director.on_state = function (sender, s)
 					whisper = tostring(item.q or ""):sub(1, 60),
 					modifiers = tostring(item.m or ""):sub(1, 100),
 					rare = item.r == 1,
+						cooldown = math.max(0, math.min(86400, tonumber(item.c) or 0)),
 				}
 			end
 		end
@@ -1068,6 +1071,7 @@ Director.on_state = function (sender, s)
 		paused = s.z == 1,
 		hand = hand,
 		drawn = s.dn == 1,
+		drawn_age = math.max(0, math.min(DRAWN_KEEP * 2, tonumber(s.da) or 0)),
 		hand_seconds = tonumber(s.y) or 0,
 	}
 
@@ -1187,6 +1191,8 @@ Director.view = function ()
 	view.win = source.hand and source.hand.win or 0
 	view.hand_seq = source.hand and source.hand.seq or 0
 	view.drawn = source.drawn == true
+	-- seconds since the pick: the host's own clock, or the synced age plus the time since it arrived (frozen while paused)
+	view.drawn_age = Director.is_host() and (source.drawn_age or 0) or (source.paused and (source.drawn_age or 0) or (source.drawn_age or 0) + (now() - client_received_at))
 	view.hand_seconds = source.hand_seconds or 0
 	view.paused = Director.is_host() and paused or source.paused == true
 	view.version = version

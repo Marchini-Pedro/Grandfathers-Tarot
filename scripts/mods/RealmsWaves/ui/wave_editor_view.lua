@@ -1063,10 +1063,11 @@ end)
 
 -- rows -----------------------------------------------------------------------
 
--- Settings screen: flip a yes/no row (the "mode" row maps to random/vote).
+-- Settings screen: flip a yes/no row (the "mode" row maps to vote / the Tarot draw; the Random countdown is chosen in
+-- the mod options).
 RealmsWavesView._toggle_setting = function (self, item)
 	if item.kind == "mode" then
-		set_setting("mode", item.on and "random" or "vote")
+		set_setting("mode", item.on and "tarot" or "vote")
 	elseif item.kind == "toggle" then
 		set_setting(item.id, not item.on)
 	else

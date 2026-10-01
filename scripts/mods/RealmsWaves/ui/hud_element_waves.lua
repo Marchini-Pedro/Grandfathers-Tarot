@@ -1,14 +1,23 @@
--- On-screen panel: countdown, upcoming wave(s), live votes, incoming banner.
--- It renders whatever core/director.lua's view() returns; on the host that is
--- the authoritative state, on clients the last state the host synced. The text
--- is rebuilt only when the state or the displayed second changes.
+-- On-screen wave HUD. It renders whatever core/director.lua's view() returns; on the host that is the authoritative
+-- state, on clients the last state the host synced.
 --
--- Position: the "panel" scenegraph node is movable with the custom_hud mod
--- (its edit mode lists this element as "HudElementRealmsWavesPanel|panel").
--- While that edit mode is open a sample panel is shown so there is something to drag.
+--   Tarot draw (default): "The Spread". A hand of cards with a fuse; the last seconds a highlight ticks across the cards
+--   and lands on the winner (the host chose it when the hand was dealt); the winner's eye opens, the others fall away and
+--   the winner is eaten by rot. Where the Spread is on its timeline comes from the view only (remaining seconds, seconds
+--   since the pick), so every player sees the same picture, even one who joined in the middle of it.
+--   Random countdown / Votes (legacy): the old text panel.
+--
+-- No allocation per frame: geometry and colours are written into the widget styles when the hand changes, a stage is
+-- entered or the highlight moves, and only the winner animates every frame. The arithmetic is in ui/spread.lua.
+--
+-- Position: the "panel" scenegraph node is the ONE movable node of the custom_hud mod (its edit mode lists this element as
+-- "HudElementRealmsWavesPanel|panel"); a sample hand is shown while that edit mode is open.
 local mod = get_mod("RealmsWaves")
 
 local Definitions = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/hud_element_waves_definitions")
+
+local Spread = Definitions.Spread
+local Z = Definitions.Z
 
 local HudElementRealmsWavesPanel = class("HudElementRealmsWavesPanel", "HudElementBase")
 
@@ -18,10 +27,51 @@ local COLOUR_LINE = { 255, 235, 235, 235 }
 local COLOUR_MINE = { 255, 120, 235, 120 }
 local COLOUR_HINT = { 200, 190, 190, 190 }
 
-local function time_text(seconds)
-	seconds = math.max(0, math.ceil(seconds))
+local GLOW_SPREAD = { 3, 7, 12 } -- how far each glow layer reaches beyond the card
+local GLOW_ALPHA = { 0.30, 0.17, 0.08 }
+local WASH_COLOR = { 70, 52, 20 } -- the brown tint of a rotting card
+local FLY_RING = { 138, 154, 85 }
+local FLY_CORE = { 29, 33, 19 }
+local DRIP_COLOR = { 111, 130, 34 }
 
-	return string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
+local CARD = { "card_1", "card_2", "card_3", "card_4", "card_5" }
+local GLOW = { "glow_1", "glow_2", "glow_3" }
+local RARE = { "rare_t", "rare_b", "rare_l", "rare_r" }
+local EYE_T = { "eye_t1", "eye_t2", "eye_t3", "eye_t4", "eye_t5", "eye_t6", "eye_t7" }
+local ICON_T = { "icon_t1", "icon_t2", "icon_t3", "icon_t4" }
+local ICON_C = { "icon_c1", "icon_c2", "icon_c3", "icon_c4" }
+local TH_O = { "th_o1", "th_o2", "th_o3", "th_o4", "th_o5" }
+local TH_I = { "th_i1", "th_i2", "th_i3", "th_i4", "th_i5" }
+local DOT = { "dot_1", "dot_2", "dot_3", "dot_4", "dot_5", "dot_6" }
+local BLOT_C = { "blot_c1", "blot_c2", "blot_c3", "blot_c4", "blot_c5" }
+local BLOT_R = { "blot_r1", "blot_r2", "blot_r3", "blot_r4", "blot_r5" }
+local DRIP = { "drip_1", "drip_2", "drip_3" }
+local FLY_R = { "fly_r1", "fly_r2", "fly_r3", "fly_r4", "fly_r5", "fly_r6", "fly_r7", "fly_r8", "fly_r9" }
+local FLY_C = { "fly_c1", "fly_c2", "fly_c3", "fly_c4", "fly_c5", "fly_c6", "fly_c7", "fly_c8", "fly_c9" }
+
+-- the player's own timeline options (screen only) with their defaults, see the options menu
+local TIMING = {
+	roulette = { "tarot_roulette", 1.6 },
+	winner = { "tarot_winner", 1.6 },
+	eye = { "tarot_eye_open", 0.4 },
+	eye_size = { "tarot_eye_size", 28 },
+	rot_short = { "tarot_rot_short", 1.2 },
+	rot_long = { "tarot_rot_long", 3.0 },
+	longest = { "tarot_longest", 10 }, -- minutes
+}
+
+local function option(spec)
+	local value = mod:get(spec[1])
+
+	return type(value) == "number" and value or spec[2]
+end
+
+local function cards_module()
+	return mod.rw and mod.rw.cards
+end
+
+local function time_text(seconds)
+	return Spread.time_text(seconds)
 end
 
 -- 52.100000000000001 -> "52.1", 12.0 -> "12"
@@ -66,13 +116,88 @@ local SAMPLE = {
 	},
 }
 
+-- what the custom_hud edit mode shows when nothing is running: a hand, mid-countdown
+local SAMPLE_TAROT = {
+	phase = "hand",
+	mode = "tarot",
+	remaining = 7.4,
+	hand_seconds = 10,
+	hand_seq = -1,
+	win = 2,
+	drawn = false,
+	drawn_age = 0,
+	version = 0,
+	cands = {},
+	hand = {
+		{ key = "s1", name = "The Multitude", suit = "swarm", threat = 3, breeds = { "chaos_poxwalker", "renegade_rifleman" }, whisper = "Too many to count.", modifiers = "", rare = false, cooldown = 120 },
+		{ key = "s2", name = "The Devil", suit = "fateful", threat = 5, breeds = { "chaos_beast_of_nurgle", "chaos_spawn" }, whisper = "Something big is listening.", modifiers = "", rare = false, cooldown = 240 },
+		{ key = "s3", name = "The Tower", suit = "blight", threat = 3, breeds = { "chaos_poxwalker_bomber" }, whisper = "Pop, pop, pop.", modifiers = "", rare = false, cooldown = 150 },
+		{ key = "s4", name = "Death", suit = "fateful", threat = 5, breeds = { "renegade_shocktrooper", "chaos_ogryn_executor", "renegade_executor", "chaos_plague_ogryn" }, whisper = "It was always going to end here.", modifiers = "Enraged", rare = true, cooldown = 300 },
+	},
+}
+
+-- every widget hidden (the legacy lines emptied); the stages show what they need
+local function set_all_hidden(self)
+	local by_name = self._widgets_by_name
+
+	for name, widget in pairs(by_name) do
+		widget.visible = false
+
+		if name == "legacy" then
+			for i = 0, Definitions.LINES - 1 do
+				widget.content["line_" .. i] = ""
+			end
+		end
+	end
+end
+
 HudElementRealmsWavesPanel.init = function (self, parent, draw_layer, start_scale)
 	HudElementRealmsWavesPanel.super.init(self, parent, draw_layer, start_scale, Definitions)
 
 	self._sig = nil
 	self._visible = false
+
+	-- the Spread's state
+	self._layout = Spread.new_layout()
+	self._timeline = Spread.new_timeline()
+	self._rot = Spread.new_rot()
+	self._shape_icon = Spread.new_shape(Spread.ICON_TRIS, Spread.ICON_CIRCS)
+	self._shape_eye = Spread.new_shape(Spread.EYE_TRIS, Spread.EYE_CIRCS)
+	self._T = { roulette = 1.6, winner = 1.6, eye = 0.4, eye_size = 28, rot_short = 1.2, rot_long = 3.0, longest = 10, rot = 1.2, k = 0 }
+	self._cards = {}
+
+	for i = 1, Spread.MAX_CARDS do
+		self._cards[i] = { mode = 0, eye_open = 0, suit = nil, threat = 1, dots = 0, name = "", x = 0, y = 0, cw = 0, ch = 0, tri_col = { 1, 1, 1, 1 }, circ_col = { 1, 1, 1, 1 }, rare = false }
+	end
+
+	self._seq, self._count, self._win, self._stage, self._hi = nil, 0, 1, nil, 0
+	self._clock, self._seconds, self._paused = 0, nil, nil
+	self._fuse_w, self._fuse_urgent = nil, nil
+
+	self:_init_header()
+	set_all_hidden(self)
 end
 
+-- ----------------------------------------------------------------------------------------- visibility
+HudElementRealmsWavesPanel._hide = function (self)
+	if self._visible then
+		set_all_hidden(self)
+	end
+
+	self._visible = false
+	self._shown = nil
+	self._sig = nil
+	self._seq, self._stage, self._count, self._hi = nil, nil, 0, 0
+	self._seconds, self._paused = nil, nil
+end
+
+local function customizing()
+	local custom_hud = get_mod("custom_hud")
+
+	return custom_hud ~= nil and custom_hud.is_customizing == true
+end
+
+-- ----------------------------------------------------------------------------------- legacy text panel
 local function set_line(widget, index, text, colour)
 	local style = widget.style["line_" .. index]
 
@@ -83,44 +208,7 @@ local function set_line(widget, index, text, colour)
 	target[1], target[2], target[3], target[4] = colour[1], colour[2], colour[3], colour[4]
 end
 
-HudElementRealmsWavesPanel._hide = function (self)
-	local widget = self._widgets_by_name.panel
-
-	if widget and self._visible then
-		for i = 0, Definitions.LINES - 1 do
-			widget.content["line_" .. i] = ""
-		end
-	end
-
-	self._visible = false
-	self._sig = nil
-end
-
-local function customizing()
-	local custom_hud = get_mod("custom_hud")
-
-	return custom_hud ~= nil and custom_hud.is_customizing == true
-end
-
-HudElementRealmsWavesPanel._refresh = function (self)
-	local rw = mod.rw
-	local director = rw and rw.director
-	local sample = customizing()
-
-	if not director or not mod:is_enabled() or (mod:get("hud_enabled") == false and not sample) then
-		return self:_hide()
-	end
-
-	local view = director.view()
-
-	if sample and view.phase == "off" then
-		view = SAMPLE
-	end
-
-	if view.phase == "off" then
-		return self:_hide()
-	end
-
+HudElementRealmsWavesPanel._refresh_legacy = function (self, view, is_sample)
 	local seconds = math.ceil(view.remaining)
 	local votes_total = 0
 	local cands = view.cands or {}
@@ -130,7 +218,6 @@ HudElementRealmsWavesPanel._refresh = function (self)
 	end
 
 	-- compared field by field: building a signature string here cost one allocation per frame
-	local is_sample = view == SAMPLE
 	local sig = self._sig
 
 	if sig
@@ -151,9 +238,8 @@ HudElementRealmsWavesPanel._refresh = function (self)
 	sig.my_vote, sig.votes_total, sig.is_sample = view.my_vote, votes_total, is_sample
 	sig.paused = view.paused == true
 	self._sig = sig
-	self._visible = true
 
-	local widget = self._widgets_by_name.panel
+	local widget = self._widgets_by_name.legacy
 
 	if not widget then
 		return
@@ -217,13 +303,723 @@ HudElementRealmsWavesPanel._refresh = function (self)
 	end
 end
 
+-- ----------------------------------------------------------------------------------- the Spread: helpers
+local function place_tri(style, slot, ox, oy, z)
+	style.visible = slot.on
+
+	if slot.on then
+		local offset, corners = style.offset, style.triangle_corners
+
+		offset[1], offset[2], offset[3] = ox, oy, z + slot.z
+		corners[1][1], corners[1][2], corners[2][1], corners[2][2], corners[3][1], corners[3][2] = slot.x1, slot.y1, slot.x2, slot.y2, slot.x3, slot.y3
+	end
+end
+
+local function place_circ(style, slot, ox, oy, z)
+	style.visible = slot.on
+
+	if slot.on then
+		local offset, size = style.offset, style.size
+		local diameter = slot.r * 2
+
+		offset[1], offset[2], offset[3] = ox + slot.cx - slot.r, oy + slot.cy - slot.r, z + slot.z
+		size[1], size[2] = diameter, diameter
+	end
+end
+
+local function box(style, x, y, w, h)
+	local offset, size = style.offset, style.size
+
+	offset[1], offset[2], size[1], size[2] = x, y, w, h
+end
+
+-- text styles keep their colour in text_color, the shapes in color
+local function paint(style, alpha, rgb)
+	Spread.set_color(style.text_color or style.color, alpha, rgb)
+end
+
+HudElementRealmsWavesPanel._read_timing = function (self)
+	local T = self._T
+
+	T.roulette = option(TIMING.roulette)
+	T.winner = option(TIMING.winner)
+	T.eye = option(TIMING.eye)
+	T.eye_size = option(TIMING.eye_size)
+	T.rot_short = option(TIMING.rot_short)
+	T.rot_long = option(TIMING.rot_long)
+	T.longest = option(TIMING.longest)
+end
+
+-- ---------------------------------------------------------------------------------------- the header
+HudElementRealmsWavesPanel._init_header = function (self)
+	local widget = self._widgets_by_name.header
+	local style = widget.style
+	local half = Spread.NODE_WIDTH / 2
+
+	box(style.label, 0, 0, half - 6, Spread.TIME_HEIGHT)
+	box(style.time, half + 6, 0, half - 6, Spread.TIME_HEIGHT)
+	box(style.status, 0, 0, Spread.NODE_WIDTH, Spread.TIME_HEIGHT)
+
+	style.label.offset[3], style.time.offset[3], style.status.offset[3] = Z.header, Z.header, Z.header
+end
+
+-- the fuse sits under the cards; its width is written every frame while a hand is burning
+HudElementRealmsWavesPanel._place_fuse = function (self)
+	local layout = self._layout
+	local style = self._widgets_by_name.header.style
+
+	box(style.fuse_track, layout.x0, layout.fuse_y, layout.total_w, Spread.FUSE_HEIGHT)
+	box(style.fuse_fill, layout.x0, layout.fuse_y, layout.total_w, Spread.FUSE_HEIGHT)
+	self._fuse_w, self._fuse_urgent = nil, nil
+end
+
+-- ------------------------------------------------------------------------------------------ a card
+-- The bottom row (threat diamonds, dots) and the background layer follow the card's height while the winner is
+-- rotting: scale = 1.06 on the winner, shrink < 1 once the rot sags it from its top edge.
+HudElementRealmsWavesPanel._apply_body = function (self, index, scale, shrink)
+	local rec = self._cards[index]
+	local widget = self._widgets_by_name[CARD[index]]
+	local style = widget.style
+	local w, h = rec.cw * scale, rec.ch * scale * shrink
+	local x, y = rec.x - (w - rec.cw) / 2, rec.y
+
+	box(style.bg, x, y, w, h)
+	box(style.accent, x, y, Spread.ACCENT_WIDTH, h)
+
+	for j = 1, #GLOW do
+		local g = GLOW_SPREAD[j]
+
+		box(style[GLOW[j]], x - g, y - g, w + 2 * g, h + 2 * g)
+	end
+
+	box(style.rare_t, x, y, w, 1)
+	box(style.rare_b, x, y + h - 1, w, 1)
+	box(style.rare_l, x, y, 1, h)
+	box(style.rare_r, x + w - 1, y, 1, h)
+
+	-- the bottom row keeps its distance from the bottom edge
+	local cy = rec.y + h - Spread.PAD_Y - Spread.ROW_HEIGHT / 2
+	local side = Spread.THREAT_SIDE
+
+	for j = 1, #TH_O do
+		local cx = rec.x + Spread.ACCENT_WIDTH + Spread.PAD_X + side / 2 + (j - 1) * Spread.THREAT_PITCH
+		local outer, inner = style[TH_O[j]], style[TH_I[j]]
+
+		outer.offset[1], outer.offset[2] = cx - side / 2, cy - side / 2
+		inner.offset[1], inner.offset[2] = cx - (side - 2) / 2, cy - (side - 2) / 2
+	end
+
+	for j = 1, rec.dots do
+		local dot = style[DOT[j]]
+		local dx = rec.x + rec.cw - Spread.PAD_X - Spread.DOT - (rec.dots - j) * Spread.DOT_PITCH
+
+		box(dot, dx, cy - Spread.DOT / 2, Spread.DOT, Spread.DOT)
+	end
+end
+
+-- Colours of everything that depends on the card's state: mode 0 = resting, 1 = highlighted by the roulette,
+-- 2 = the winner. The inside of the suit marks, the eye and the empty diamonds take the card's own background colour.
+HudElementRealmsWavesPanel._apply_colors = function (self, index)
+	local rec = self._cards[index]
+	local style = self._widgets_by_name[CARD[index]].style
+	local suit = rec.suit
+
+	if not suit then
+		return
+	end
+
+	local Cards = cards_module()
+	local bg = rec.mode > 0 and suit.hi or suit.card
+	local intensity = rec.mode == 2 and 1.2 or 1
+
+	rec.bg = bg
+
+	paint(style.bg, 255, bg)
+	paint(style.accent, 255, suit.accent)
+
+	for j = 1, #GLOW do
+		paint(style[GLOW[j]], Spread.alpha(GLOW_ALPHA[j] * intensity), suit.accent)
+		style[GLOW[j]].visible = rec.mode > 0
+	end
+
+	for j = 1, #RARE do
+		paint(style[RARE[j]], 255, Cards.BASE.pus)
+		style[RARE[j]].visible = rec.rare
+	end
+
+	paint(style.name, 255, suit.text)
+
+	for j = 1, Spread.ICON_TRIS do
+		paint(style[ICON_T[j]], 255, rec.tri_col[j] == 2 and bg or suit.accent)
+	end
+
+	for j = 1, Spread.ICON_CIRCS do
+		paint(style[ICON_C[j]], 255, rec.circ_col[j] == 2 and bg or suit.accent)
+	end
+
+	for j = 1, #TH_O do
+		local filled = j <= rec.threat
+
+		paint(style[TH_O[j]], 255, filled and Cards.THREAT_COLORS[rec.threat] or Cards.BASE.muted)
+		paint(style[TH_I[j]], 255, bg)
+		style[TH_I[j]].visible = not filled
+		style[TH_O[j]].visible = true
+	end
+
+	self:_apply_eye(index, rec.eye_open)
+end
+
+-- the eye: shut on every card in the hand, opens on the winner. Faint (16 percent) while shut, 50 once chosen.
+HudElementRealmsWavesPanel._apply_eye = function (self, index, open)
+	local rec = self._cards[index]
+	local style = self._widgets_by_name[CARD[index]].style
+	local suit = rec.suit
+
+	if not suit then
+		return
+	end
+
+	rec.eye_open = open
+
+	local size = self._T.eye_size
+	local shape = self._shape_eye
+	local pupil, lashes = Spread.eye(size, open, shape)
+	local ox, oy = rec.x + rec.cw / 2 - size / 2, rec.y + rec.ch * 0.56 - size / 2
+	local base = rec.mode == 2 and 0.5 or 0.16
+	local z = Z.card + 7
+
+	for j = 1, Spread.EYE_TRIS do
+		local slot = shape.tri[j]
+		local s = style[EYE_T[j]]
+
+		place_tri(s, slot, ox, oy, z)
+
+		if slot.on then
+			if slot.col == 2 then
+				paint(s, 255, rec.bg)
+			else
+				paint(s, Spread.alpha(base * (j >= 5 and lashes or 1)), suit.accent)
+			end
+		end
+	end
+
+	local c = shape.circ[1]
+	local pupil_style = style.eye_c1
+
+	place_circ(pupil_style, c, ox, oy, z)
+
+	if c.on then
+		paint(pupil_style, Spread.alpha(base * pupil), suit.accent)
+	end
+end
+
+-- Places a card of the hand in the Spread: text, geometry and colours (state: resting, eye shut).
+HudElementRealmsWavesPanel._setup_card = function (self, index, card)
+	local Cards = cards_module()
+	local layout = self._layout
+	local rec = self._cards[index]
+	local widget = self._widgets_by_name[CARD[index]]
+	local style = widget.style
+	local suit = Cards.suit(card.suit)
+
+	rec.suit = suit
+	rec.mode, rec.eye_open = 0, 0
+	rec.threat = math.max(1, math.min(5, card.threat or 1))
+	rec.name = card.name
+	rec.rare = card.rare == true
+	rec.x, rec.y, rec.cw, rec.ch = layout.x[index], Spread.CARDS_Y, layout.cw, layout.ch
+
+	-- dots: one per distinct enemy colour (the player's own colour settings), a neutral one when colouring is off
+	local colors = mod.rw and mod.rw.colors
+	local dots = Cards.dots_from_breeds(card.breeds, function (breed)
+		return colors and colors.rgb(breed) or Cards.BASE.muted
+	end)
+
+	rec.dots = #dots
+
+	for j = 1, #DOT do
+		local dot = style[DOT[j]]
+
+		dot.visible = j <= rec.dots
+
+		if dots[j] then
+			paint(dot, 255, dots[j])
+		end
+
+		dot.offset[3] = Z.card + 16
+	end
+
+	widget.content.name = card.name
+	box(style.name, rec.x + Spread.ACCENT_WIDTH + Spread.PAD_X, rec.y + Spread.PAD_Y, layout.name_w, layout.lines * Spread.NAME_LINE)
+	style.name.visible = true
+	style.name.offset[3] = Z.card + 20
+
+	-- the suit mark in the top right corner
+	local shape = self._shape_icon
+
+	Spread.icon(suit.icon, Spread.ICON, shape)
+
+	local ox, oy = rec.x + rec.cw - Spread.PAD_X - Spread.ICON, rec.y + Spread.PAD_Y
+
+	for j = 1, Spread.ICON_TRIS do
+		place_tri(style[ICON_T[j]], shape.tri[j], ox, oy, Z.card + 10)
+		rec.tri_col[j] = shape.tri[j].col
+	end
+
+	for j = 1, Spread.ICON_CIRCS do
+		place_circ(style[ICON_C[j]], shape.circ[j], ox, oy, Z.card + 10)
+		rec.circ_col[j] = shape.circ[j].col
+	end
+
+	for j = 1, #TH_O do
+		style[TH_O[j]].offset[3], style[TH_I[j]].offset[3] = Z.card + 14, Z.card + 15
+	end
+
+	for j = 1, #GLOW do
+		style[GLOW[j]].offset[3] = Z.card + j - 1
+	end
+
+	style.bg.offset[3], style.accent.offset[3] = Z.card + 4, Z.card + 5
+	style.bg.visible, style.accent.visible = true, true
+
+	for j = 1, #RARE do
+		style[RARE[j]].offset[3] = Z.card + 6
+	end
+
+	widget.visible = true
+	widget.alpha_multiplier = 1
+	widget.color_intensity_multiplier = 1
+	widget.offset[2] = 0
+
+	self:_apply_body(index, 1, 1)
+	self:_apply_colors(index)
+end
+
+-- 0 resting, 1 highlighted (raised, glowing), 2 the winner
+HudElementRealmsWavesPanel._set_mode = function (self, index, mode)
+	local rec = self._cards[index]
+
+	if rec.mode == mode or index > self._count then
+		return
+	end
+
+	rec.mode = mode
+
+	self._widgets_by_name[CARD[index]].offset[2] = mode == 1 and -5 or 0
+	self:_apply_colors(index)
+end
+
+-- ----------------------------------------------------------------------------------------- the hand
+-- A new hand: lay it out and set every card up. Called when the hand number changes.
+HudElementRealmsWavesPanel._setup_hand = function (self, view)
+	local Cards = cards_module()
+	local hand = view.hand
+	local T = self._T
+
+	self:_read_timing()
+	Spread.layout(self._layout, hand)
+
+	local count = self._layout.count
+
+	self._count, self._seq = count, view.hand_seq
+	self._win = math.max(1, math.min(count, view.win or 1))
+	self._hi = 0
+
+	for i = 1, Spread.MAX_CARDS do
+		if i <= count then
+			self:_setup_card(i, hand[i])
+		else
+			self._widgets_by_name[CARD[i]].visible = false
+		end
+	end
+
+	-- how hard and how long the winner will rot: from its cooldown and the player's timeline options
+	local longest = math.max(2, T.longest) * 60
+	local cooldown = hand[self._win].cooldown or Cards.DEFAULT_COOLDOWN
+
+	T.k = Cards.rot_strength(cooldown, longest)
+	T.rot = Cards.rot_duration(cooldown, longest, T.rot_short, T.rot_long)
+
+	self:_place_fuse()
+	self._stage = nil
+end
+
+HudElementRealmsWavesPanel._clear_hand = function (self)
+	for i = 1, Spread.MAX_CARDS do
+		self._widgets_by_name[CARD[i]].visible = false
+	end
+
+	self._widgets_by_name.fx.visible = false
+	self._widgets_by_name.banner.visible = false
+	self._seq, self._count, self._stage, self._hi = nil, 0, nil, 0
+end
+
+-- The text of the banner under the Spread ("THE CARD IS DRAWN", the name, the whisper, the modifiers).
+HudElementRealmsWavesPanel._setup_banner = function (self, card)
+	local Cards = cards_module()
+	local widget = self._widgets_by_name.banner
+	local style = widget.style
+	local suit = Cards.suit(card.suit)
+	local y = self._layout.banner_y
+	local width = Spread.NODE_WIDTH
+
+	widget.content.kicker = string.upper(mod:localize("hud_card_drawn"))
+	widget.content.name = card.name
+	widget.content.whisper = "\"" .. tostring(card.whisper or "") .. "\""
+	widget.content.mods = string.upper(card.modifiers or "")
+
+	box(style.kicker, 0, y, width, 18)
+	box(style.name, 0, y + 18, width, 40)
+	box(style.whisper, 0, y + 58, width, 22)
+	box(style.mods, 0, y + 82, width, 18)
+
+	paint(style.kicker, 255, Cards.BASE.whisper)
+	paint(style.name, 255, suit.accent)
+	paint(style.whisper, 255, Cards.BASE.whisper)
+	paint(style.mods, 255, Cards.BASE.rust)
+
+	for _, id in ipairs({ "kicker", "name", "whisper", "mods" }) do
+		style[id].visible = id ~= "mods" or widget.content.mods ~= ""
+	end
+end
+
+-- ------------------------------------------------------------------------------------------ stages
+-- Puts everything in the state a stage needs, whatever came before (a late joiner may enter at any stage).
+HudElementRealmsWavesPanel._enter_stage = function (self, stage, view)
+	local by_name = self._widgets_by_name
+	local count = self._count
+
+	self._stage = stage
+
+	if stage == "waiting" then
+		for i = 1, Spread.MAX_CARDS do
+			by_name[CARD[i]].visible = false
+		end
+
+		by_name.fx.visible = false
+		by_name.banner.visible = false
+		self._hi = 0
+
+		return
+	end
+
+	for i = 1, count do
+		local widget = by_name[CARD[i]]
+
+		widget.visible = true
+
+		if stage == "hand" or stage == "roulette" then
+			widget.alpha_multiplier, widget.color_intensity_multiplier = 1, 1
+			self._cards[i].eye_open = 0
+			self:_set_mode(i, 0)
+			self:_apply_body(i, 1, 1)
+			self:_apply_eye(i, 0)
+		else
+			self:_set_mode(i, i == self._win and 2 or 0)
+		end
+	end
+
+	if stage == "hand" or stage == "roulette" then
+		by_name.banner.visible = false
+		by_name.fx.visible = false
+	else
+		-- reveal and rot: the banner is set up for both (it fades out in the first moments of the rot)
+		self:_setup_banner(view.hand[self._win])
+		by_name.fx.visible = stage == "rot"
+	end
+end
+
+-- the highlight of the roulette moves to the card `hi` (1-based, 0 = none)
+HudElementRealmsWavesPanel._tick_roulette = function (self, hi)
+	if hi == self._hi then
+		return
+	end
+
+	if self._hi > 0 then
+		self:_set_mode(self._hi, 0)
+	end
+
+	self._hi = hi
+
+	if hi > 0 then
+		self:_set_mode(hi, 1)
+	end
+end
+
+-- the banner under the Spread fades in with the reveal and out again 0.3 s after the winner has been shown
+HudElementRealmsWavesPanel._tick_banner = function (self, tl)
+	local banner = self._widgets_by_name.banner
+	local rise = Spread.clamp(tl.reveal_t / 0.3, 0, 1)
+	local out = 1 - Spread.clamp((tl.reveal_t - self._T.winner) / 0.3, 0, 1)
+	local alpha = math.min(rise, out)
+
+	banner.visible = alpha > 0.01
+	banner.alpha_multiplier = alpha
+	banner.offset[2] = -8 * (1 - rise)
+end
+
+-- Every frame of the reveal: the winner rises, grows and opens its eye, the others fall away.
+HudElementRealmsWavesPanel._tick_reveal = function (self, tl)
+	local by_name = self._widgets_by_name
+	local pop = 1 - (1 - tl.pop) * (1 - tl.pop) -- ease out
+	local fall = math.min(6, 6 * (1 - tl.lose) / 0.72)
+
+	for i = 1, self._count do
+		local widget = by_name[CARD[i]]
+
+		if i == self._win then
+			widget.offset[2] = -6 * pop
+			self:_apply_body(i, 1 + 0.06 * pop, 1)
+
+			if self._cards[i].eye_open < 1 or tl.eye < 1 then
+				self:_apply_eye(i, tl.eye)
+			end
+		else
+			widget.alpha_multiplier = tl.lose
+			widget.offset[2] = fall
+		end
+	end
+
+	self:_tick_banner(tl)
+end
+
+-- Every frame of the rot: the winner browns, sags and fades, blotches grow over it, flies circle it, drips fall.
+HudElementRealmsWavesPanel._tick_rot = function (self, tl)
+	local by_name = self._widgets_by_name
+	local rec = self._cards[self._win]
+	local fx = Spread.rot_fx(self._rot, tl.rot_p, self._T.k, rec.cw, rec.ch, self._clock)
+	local widget = by_name[CARD[self._win]]
+	local scale = 1.06
+
+	for i = 1, self._count do
+		if i ~= self._win then
+			by_name[CARD[i]].alpha_multiplier = tl.lose
+		end
+	end
+
+	widget.alpha_multiplier = fx.fade
+	widget.color_intensity_multiplier = fx.bright
+	widget.offset[2] = -6
+
+	if rec.eye_open < 1 then
+		self:_apply_eye(self._win, 1)
+	end
+
+	self:_apply_body(self._win, scale, fx.shrink)
+	self:_tick_banner(tl)
+
+	-- the effects are drawn in node coordinates over the card
+	local style = by_name.fx.style
+	local w, h = rec.cw * scale, rec.ch * scale * fx.shrink
+	local ox, oy = rec.x - (w - rec.cw) / 2, rec.y - 6
+
+	by_name.fx.alpha_multiplier = fx.fade
+
+	box(style.wash, ox, oy, w, h)
+	paint(style.wash, Spread.alpha(fx.wash), WASH_COLOR)
+	style.wash.visible = fx.wash > 0.01
+
+	for i = 1, 5 do
+		local blotch = fx.blotch[i]
+		local circle, square = style[BLOT_C[i]], style[BLOT_R[i]]
+
+		circle.visible, square.visible = blotch.circle, blotch.rect
+
+		if blotch.circle then
+			box(circle, ox + blotch.cx - blotch.r, oy + blotch.cy - blotch.r, blotch.r * 2, blotch.r * 2)
+			paint(circle, 235, Spread.BLOTCH_COLORS[i])
+		elseif blotch.rect then
+			box(square, ox + blotch.x0, oy + blotch.y0, blotch.x1 - blotch.x0, blotch.y1 - blotch.y0)
+			paint(square, 235, Spread.BLOTCH_COLORS[i])
+		end
+	end
+
+	for i = 1, Spread.DRIPS do
+		local drip = fx.drips[i]
+		local s = style[DRIP[i]]
+
+		s.visible = drip.on
+
+		if drip.on then
+			box(s, ox + drip.x, oy + drip.y, 3, drip.h)
+			paint(s, Spread.alpha(drip.alpha), DRIP_COLOR)
+		end
+	end
+
+	for i = 1, Spread.MAX_FLIES do
+		local fly = fx.flies[i]
+		local ring, core = style[FLY_R[i]], style[FLY_C[i]]
+
+		ring.visible, core.visible = fly.on, fly.on
+
+		if fly.on then
+			box(ring, ox + fly.x - 3.5, oy + fly.y - 3.5, 7, 7)
+			box(core, ox + fly.x - 2.5, oy + fly.y - 2.5, 5, 5)
+			paint(ring, 255, FLY_RING)
+			paint(core, 255, FLY_CORE)
+		end
+	end
+end
+
+-- ----------------------------------------------------------------------------------- the time and fuse
+HudElementRealmsWavesPanel._refresh_header = function (self, view, tl)
+	local Cards = cards_module()
+	local header = self._widgets_by_name.header
+	local style = header.style
+	local stage = tl.stage
+
+	header.visible = true
+
+	-- gone while the pick is shown and rotting; faded out over the first moments of the reveal
+	if stage == "rot" then
+		header.alpha_multiplier = 0
+	elseif stage == "reveal" then
+		header.alpha_multiplier = 1 - Spread.clamp(tl.reveal_t / 0.3, 0, 1)
+	else
+		header.alpha_multiplier = 1
+	end
+
+	local burning = stage == "hand" or stage == "roulette"
+	local seconds = math.ceil(math.max(0, view.remaining))
+	local paused = view.paused == true
+
+	if view.empty and stage == "waiting" then
+		-- nothing can be drawn: say why instead of a countdown
+		local key = view.cooling and "hud_all_cooling" or "hud_empty_tarot"
+
+		if self._seconds ~= key then
+			self._seconds, self._paused = key, nil
+			header.content.status = mod:localize(key)
+			paint(style.status, 255, Cards.BASE.muted)
+		end
+
+		style.status.visible, style.label.visible, style.time.visible = true, false, false
+		style.fuse_track.visible, style.fuse_fill.visible = false, false
+
+		return
+	end
+
+	style.status.visible, style.label.visible, style.time.visible = false, true, true
+
+	if self._seconds ~= seconds or self._paused ~= paused then
+		self._seconds, self._paused = seconds, paused
+
+		local text = time_text(view.remaining)
+
+		header.content.label = mod:localize("hud_next_card")
+		header.content.time = paused and (text .. " " .. mod:localize("hud_paused")) or text
+		paint(style.label, 255, Cards.BASE.muted)
+	end
+
+	local urgent = tl.urgent
+
+	paint(style.time, 255, urgent and Cards.BASE.rust or Cards.BASE.text)
+
+	if burning then
+		local width = self._layout.total_w * tl.fuse
+
+		style.fuse_track.visible, style.fuse_fill.visible = true, width > 0.5
+		paint(style.fuse_track, 255, Cards.BASE.line)
+
+		if self._fuse_w ~= width then
+			self._fuse_w = width
+			style.fuse_fill.size[1] = width
+		end
+
+		if self._fuse_urgent ~= urgent then
+			self._fuse_urgent = urgent
+			paint(style.fuse_fill, 255, urgent and Cards.BASE.rust or Cards.BASE.bile)
+		end
+	else
+		style.fuse_track.visible, style.fuse_fill.visible = false, false
+	end
+end
+
+-- ----------------------------------------------------------------------------------------- the Spread
+HudElementRealmsWavesPanel._refresh_tarot = function (self, view, dt)
+	local tl = self._timeline
+	local has_hand = view.hand ~= nil and #view.hand > 0
+
+	self._clock = self._clock + dt
+	self._widgets_by_name.legacy.visible = false
+
+	if has_hand and view.hand_seq ~= self._seq then
+		-- a new hand (or one seen for the first time, e.g. after joining): lay it out
+		self:_setup_hand(view)
+	elseif not has_hand and self._seq ~= nil then
+		self:_clear_hand()
+	end
+
+	Spread.timeline(view, self._T, tl)
+
+	if tl.stage ~= self._stage then
+		self:_enter_stage(tl.stage, view)
+	end
+
+	local stage = self._stage
+
+	if stage == "roulette" then
+		self:_tick_roulette(tl.hi)
+	elseif stage == "reveal" then
+		self:_tick_reveal(tl)
+	elseif stage == "rot" then
+		self:_tick_rot(tl)
+	end
+
+	self:_refresh_header(view, tl)
+end
+
+-- ------------------------------------------------------------------------------------------ update
+HudElementRealmsWavesPanel._refresh = function (self, dt)
+	local rw = mod.rw
+	local director = rw and rw.director
+	local sample = customizing()
+
+	if not director or not mod:is_enabled() or (mod:get("hud_enabled") == false and not sample) then
+		return self:_hide()
+	end
+
+	local view = director.view()
+
+	if sample and view.phase == "off" then
+		view = (mod:get("mode") == "random" or mod:get("mode") == "vote") and SAMPLE or SAMPLE_TAROT
+	end
+
+	if view.phase == "off" then
+		return self:_hide()
+	end
+
+	self._visible = true
+
+	if view.mode == "tarot" then
+		if self._shown ~= "tarot" then
+			self._shown = "tarot"
+			set_all_hidden(self)
+			self._sig, self._seq, self._stage, self._seconds = nil, nil, nil, nil
+		end
+
+		self:_refresh_tarot(view, dt)
+	else
+		-- Random countdown / Votes: the old text panel; the Spread's widgets stay hidden
+		if self._shown ~= "legacy" then
+			self._shown = "legacy"
+			set_all_hidden(self)
+			self._sig, self._seq, self._stage, self._count = nil, nil, nil, 0
+		end
+
+		self._widgets_by_name.legacy.visible = true
+		self:_refresh_legacy(view, view == SAMPLE)
+	end
+end
+
 HudElementRealmsWavesPanel.update = function (self, dt, t, ui_renderer, render_settings, input_service)
 	HudElementRealmsWavesPanel.super.update(self, dt, t, ui_renderer, render_settings, input_service)
 
-	local ok, err = pcall(self._refresh, self)
+	local ok, err = pcall(self._refresh, self, dt)
 
 	if not ok then
 		self._sig = nil
+		self._seq, self._stage = nil, nil
 
 		if not self._reported then
 			self._reported = true

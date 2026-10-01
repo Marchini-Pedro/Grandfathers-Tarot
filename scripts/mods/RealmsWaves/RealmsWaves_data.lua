@@ -12,6 +12,18 @@ local function numeric(id, default, min, max, unit, step)
 	}
 end
 
+local function decimal(id, default, min, max, unit)
+	return {
+		setting_id = id,
+		type = "numeric",
+		default_value = default,
+		range = { min, max },
+		decimals_number = 1,
+		step_size_value = 0.1,
+		unit_text = unit,
+	}
+end
+
 local function keybind(id, function_name, default)
 	return {
 		setting_id = id,
@@ -100,7 +112,20 @@ return {
 				},
 			},
 			{
-				setting_id = "group_hud",
+				setting_id = "group_spread",
+					type = "group",
+					sub_widgets = {
+						decimal("tarot_roulette", 1.6, 0.4, 4, "unit_seconds"),
+						decimal("tarot_winner", 1.6, 0.6, 5, "unit_seconds"),
+						decimal("tarot_eye_open", 0.4, 0.1, 1.5, "unit_seconds"),
+						numeric("tarot_eye_size", 28, 10, 80, "unit_pixels"),
+						decimal("tarot_rot_short", 1.2, 0.4, 4, "unit_seconds"),
+						decimal("tarot_rot_long", 3.0, 0.8, 8, "unit_seconds"),
+						numeric("tarot_longest", 10, 2, 30, "unit_minutes"),
+					},
+				},
+				{
+					setting_id = "group_hud",
 				type = "group",
 				sub_widgets = {
 					{ setting_id = "hud_enabled", type = "checkbox", default_value = true },

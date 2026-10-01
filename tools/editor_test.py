@@ -785,7 +785,7 @@ do
   local di = find_row("mode"); click_row(di, "hotspot_check")
   local vote_on = settings.mode == "vote"
   click_row(di, "hotspot_check")
-  check("settings: vote mode toggle writes mode=vote, then random", vote_on and settings.mode == "random")
+  check("settings: vote mode toggle writes mode=vote, then back to the tarot draw", vote_on and settings.mode == "tarot")
   local ci = find_row("colour_enemies"); click_row(ci, "hotspot_check")
   check("settings: colour toggle mutes the Spidey Sense row", settings.colour_enemies == false and view:_item_at(find_row("colour_spidey")).muted == true)
   click_row(ci, "hotspot_check")

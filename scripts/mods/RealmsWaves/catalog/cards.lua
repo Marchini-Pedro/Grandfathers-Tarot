@@ -239,6 +239,20 @@ Cards.dots = function (parts, rgb_of)
 	return list
 end
 
+-- The same dots from a plain list of breed names (what a synced card carries): the HUD of a client has no recipe,
+-- only the enemy kinds, and colours them with its own settings (Spidey Sense and so on).
+Cards.dots_from_breeds = function (breeds, rgb_of)
+	local list, parts = nil, {}
+
+	for i = 1, #(breeds or {}) do
+		parts[i] = { breed = breeds[i] }
+	end
+
+	list = Cards.dots(parts, rgb_of)
+
+	return list
+end
+
 Cards.MAX_WHISPER = 40
 
 Cards.clean_whisper = function (text)

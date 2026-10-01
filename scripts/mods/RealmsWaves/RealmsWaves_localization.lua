@@ -8,9 +8,9 @@ return {
 	},
 
 	mode = { en = "Wave selection mode" },
-	mode_tarot = { en = "Tarot draw (a hand of cards, one is picked)" },
-	mode_random = { en = "Random countdown (host rolls)" },
-	mode_vote = { en = "Votes (players choose, legacy)" },
+	mode_tarot = { en = "Tarot draw" },
+	mode_random = { en = "Random countdown" },
+	mode_vote = { en = "Votes (legacy)" },
 	tarot_cards = { en = "Cards drawn" },
 	tarot_seconds = { en = "Seconds before the pick" },
 
@@ -61,6 +61,18 @@ return {
 
 	unit_seconds = { en = "s" },
 	unit_meters = { en = "m" },
+	unit_minutes = { en = "min" },
+	unit_pixels = { en = "px" },
+
+	-- The Spread: the timeline of the reveal, on your own screen only
+	group_spread = { en = "The Spread (your screen)" },
+	tarot_roulette = { en = "Roulette" },
+	tarot_winner = { en = "Winner shown" },
+	tarot_eye_open = { en = "Eye opening" },
+	tarot_eye_size = { en = "Eye size" },
+	tarot_rot_short = { en = "Rot, shortest cooldown" },
+	tarot_rot_long = { en = "Rot, longest cooldown" },
+	tarot_longest = { en = "Longest cooldown" },
 
 	-- HUD panel (always localized with arguments, so "%%" is a literal percent sign)
 	hud_wave_in = { en = "Next wave in %s" },
@@ -68,6 +80,10 @@ return {
 	hud_vote_now = { en = "VOTE NOW: %s left. %s" },
 	hud_incoming = { en = "WAVE INCOMING: %s" },
 	hud_paused = { en = "(PAUSED)" },
+	hud_next_card = { en = "Next card in" },
+	hud_card_drawn = { en = "The card is drawn" },
+	hud_empty_tarot = { en = "No card is in the draw (open the wave editor)" },
+	hud_all_cooling = { en = "Every card is resting" },
 	msg_anti_snowball = { en = "RealmsWaves: a player died, the wave timers are delayed by %s seconds." },
 	hud_no_votes = { en = "No votes, wave skipped" },
 	hud_empty = { en = "Waves: nothing to draw (open the wave editor). Timed waves still run." },
@@ -126,7 +142,7 @@ return {
 		en = "Waves arrive after a time between the minimum and the maximum, or after exactly the minimum when the time is not random. The wave names and chances are shown from the start of the wait; the vote is highlighted during the final vote window.",
 	},
 	set_mode = { en = "Players vote on the next wave" },
-	set_mode_info = { en = "On: players pick between waves with the vote keys. Off: the host rolls the next wave by chance. Host setting." },
+	set_mode_info = { en = "On: the old vote mode, players pick between waves with the vote keys. Off: the Tarot draw. The Random countdown is chosen in the mod options. Host setting." },
 	set_interval_random = { en = "Random time between waves" },
 	set_interval_random_info = { en = "On: a random time between the minimum and maximum below. Off: always the same time, the minimum. Host setting." },
 	set_interval_min = { en = "Minimum time between waves" },

@@ -17,7 +17,7 @@ A standalone Darktide mod, compatible with the **Realms Server** mod (LAN / list
 
 ## Current status
 See the checkboxes in `05-implementation-plan.md`. Update this line when a phase completes.
-**Status (2026-10-01): 1.13.0 is the last released state (git tag `v1.13.0`, backup zip in `Content\backups\`); the 2.0.0 "Grandfather's Tarot" rebuild is in progress (checklist in `05-implementation-plan.md`: steps 0-2 done: UI feasibility, card data model, tarot draw director; HUD, Deck screen, options still open). Everything is verified offline only (compile check + stubbed logic/editor/entry tests); the in-game matrix in `06-verification-and-open-issues.md` has not been run.**
+**Status (2026-10-01): 1.13.0 is the last released state (git tag `v1.13.0`, backup zip in `Content\backups\`); the 2.0.0 "Grandfather's Tarot" rebuild is in progress (checklist in `05-implementation-plan.md`: steps 0-3 done: UI feasibility, card data model, tarot draw director, the Spread HUD; Deck screen, the remaining options and the optional multipliers still open). Everything is verified offline only (compile check + stubbed logic/editor/entry tests); the in-game matrix in `06-verification-and-open-issues.md` has not been run.**
 
 Quick start for testing: disable TwitchVersus and RealmsEvent, keep Realms and RealmsWaves enabled (RealmsWaves is already the last line of `mods\mod_load_order.txt`), start a mission as host, use `/rw_status`, `/rw_test hound_frenzy`, `/rw_skip`, `/rw_roll`, `/rw_custom`. Vote keys default to F1-F3 (mod options).
 
