@@ -11,6 +11,8 @@
 --   rw_welcome host -> client   proto, version, ok(1/0)
 --   rw_state   host -> others   state json (phase, mode, remaining, ballot, candidates)
 --   rw_vote    client -> host   ballot_id, option
+--   rw_waves   client -> host   the client's enabled waves as one preset text ("RW1|...", catalog/presets.lua);
+--                               used only when the host has "use everyone's waves" on
 local mod = get_mod("RealmsWaves")
 
 local Protocol = {}
@@ -22,6 +24,8 @@ local RPC_HELLO = "rw_hello"
 local RPC_WELCOME = "rw_welcome"
 local RPC_STATE = "rw_state"
 local RPC_VOTE = "rw_vote"
+local RPC_WAVES = "rw_waves"
+local MAX_WAVES_TEXT = 60000 -- the Realms limit is 96 KiB per message; a full setup is about 15 KB
 
 local _realms = nil
 local _handlers = {}
@@ -118,7 +122,17 @@ local function on_vote(sender, ballot_id, option)
 	end
 end
 
--- handlers: { on_hello, on_welcome, on_state, on_vote, on_peer_joined, on_peer_left }
+local function on_waves(sender, text)
+	if not valid_sender(sender) or type(text) ~= "string" or #text > MAX_WAVES_TEXT then
+		return
+	end
+
+	if _handlers.on_waves then
+		_handlers.on_waves(sender, text)
+	end
+end
+
+-- handlers: { on_hello, on_welcome, on_state, on_vote, on_waves, on_peer_joined, on_peer_left }
 Protocol.init = function (handlers)
 	_handlers = handlers or {}
 	_realms = get_mod("Realms")
@@ -134,6 +148,7 @@ Protocol.init = function (handlers)
 		{ RPC_WELCOME, on_welcome },
 		{ RPC_STATE, on_state },
 		{ RPC_VOTE, on_vote },
+		{ RPC_WAVES, on_waves },
 	}
 
 	for i = 1, #rpcs do
@@ -175,6 +190,14 @@ end
 
 Protocol.send_vote = function (ballot_id, option)
 	return send(RPC_VOTE, "host", ballot_id, option)
+end
+
+Protocol.send_waves = function (text)
+	if type(text) ~= "string" or #text > MAX_WAVES_TEXT then
+		return false, "waves text too long"
+	end
+
+	return send(RPC_WAVES, "host", text)
 end
 
 return Protocol

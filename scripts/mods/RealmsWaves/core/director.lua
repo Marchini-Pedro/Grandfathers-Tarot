@@ -12,7 +12,7 @@ local mod = get_mod("RealmsWaves")
 
 local Director = {}
 
-local Events, Groups, Protocol, Execute, Votes, Positions
+local Events, Groups, Protocol, Execute, Votes, Positions, Presets
 
 local INCOMING_SECONDS = 6
 local EMPTY_POOL_RETRY = 20
@@ -35,6 +35,7 @@ local recheck_timer = 0
 local ballot_seq = 0
 local last_fired = {}
 local my_vote, my_vote_ballot = nil, nil
+local peer_waves = {} -- host: peer id -> that player's enabled waves (pool-ready), see Director.on_waves
 
 local view = { phase = "off", mode = "random", remaining = 0, ballot_id = 0, chosen = "", cands = {}, version = 0, my_vote = nil }
 
@@ -79,6 +80,54 @@ Director.init = function (deps)
 	Execute = deps.execute
 	Votes = deps.votes
 	Positions = deps.positions
+	Presets = deps.presets
+end
+
+-- ------------------------------------------------------- everyone's waves (host + clients)
+
+-- Waves of the other players, when the host switched "use everyone's waves" on (nil = host's own only).
+Director.extra_waves = function ()
+	if mod:get("pool_all_players") ~= true then
+		return nil
+	end
+
+	local extra = {}
+
+	for _, waves in pairs(peer_waves) do
+		for i = 1, #waves do
+			extra[#extra + 1] = waves[i]
+		end
+	end
+
+	table.sort(extra, function (a, b)
+		return a.key < b.key
+	end)
+
+	return extra
+end
+
+-- Host: a client told us its enabled waves (one preset text). Invalid text is ignored as a whole.
+Director.on_waves = function (sender, text)
+	if not Director.is_host() or not Presets then
+		return
+	end
+
+	local preset = Presets.decode(text, Events, Groups)
+
+	if preset then
+		peer_waves[sender] = Presets.pool_waves(preset, sender, Events, Groups)
+	end
+end
+
+-- Client: tell the host which waves are enabled here. Sent after the handshake and whenever the editor closes.
+Director.send_waves = function ()
+	if Director.is_host() or client_disabled or not in_mission or not Presets or not Protocol.is_available() then
+		return false
+	end
+
+	local text = Presets.encode(Presets.enabled_waves(get_setting, Events, Groups))
+
+	return Protocol.send_waves(text) == true
 end
 
 local function mark_changed()
@@ -166,7 +215,7 @@ end
 
 local function start_cycle(first)
 	local mode = mod:get("mode") == "vote" and "vote" or "random"
-	local pool = Events.build_pool(get_setting, Groups)
+	local pool = Events.build_pool(get_setting, Groups, Director.extra_waves())
 
 	ballot_seq = ballot_seq + 1
 
@@ -390,6 +439,7 @@ end
 -- ------------------------------------------------------------------ lifecycle
 
 Director.reset = function ()
+	peer_waves = {}
 	host_state, client_state = nil, nil
 	started = false
 	start_signal = false
@@ -484,6 +534,10 @@ Director.on_welcome = function (sender, proto, version_text, ok)
 
 	client_disabled = not ok
 
+	if ok then
+		Director.send_waves()
+	end
+
 	if not ok then
 		mod:warning("RealmsWaves: version mismatch with host (host %s, proto %d, local %s, proto %d); disabled", tostring(version_text), proto, Protocol.VERSION, Protocol.PROTO)
 	end
@@ -542,6 +596,7 @@ end
 Director.on_peer_left = function (peer_id)
 	if Director.is_host() then
 		Votes.remove_peer(peer_id)
+		peer_waves[peer_id] = nil
 		mark_changed()
 	end
 end
@@ -669,15 +724,28 @@ Director.simulate = function (rolls)
 	return pool, counts, total
 end
 
+-- (number of waves, number of players) received from clients, for /rw_status
+Director.peer_wave_count = function ()
+	local waves, players = 0, 0
+
+	for _, list in pairs(peer_waves) do
+		waves = waves + #list
+		players = players + 1
+	end
+
+	return waves, players
+end
+
 Director.status = function ()
 	local state = Director.view()
 	local exec = Execute.status()
 
 	return string.format(
-		"phase=%s mode=%s remaining=%.0fs cands=%d host=%s started=%s in_mission=%s disabled=%s | tracked=%d queued=%d jobs=%d stage=%s err=%s | lua heap %.0f MB (guard %d, paused %s)",
+		"phase=%s mode=%s remaining=%.0fs cands=%d host=%s started=%s in_mission=%s disabled=%s | tracked=%d queued=%d jobs=%d stage=%s err=%s | lua heap %.0f MB (guard %d, paused %s) | everyone's waves: %s, %d from %d players",
 		state.phase, tostring(state.mode), state.remaining or 0, #(state.cands or {}), tostring(Director.is_host()), tostring(started), tostring(in_mission), tostring(client_disabled),
 		exec.tracked, exec.queued, exec.jobs, tostring(exec.stage), tostring(exec.last_error),
-		exec.heap_mb or 0, exec.heap_guard_mb or 0, tostring(exec.heap_paused)
+		exec.heap_mb or 0, exec.heap_guard_mb or 0, tostring(exec.heap_paused),
+		mod:get("pool_all_players") == true and "on" or "off", Director.peer_wave_count()
 	)
 end
 

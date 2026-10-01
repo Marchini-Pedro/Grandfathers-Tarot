@@ -218,6 +218,57 @@ Presets.capture_wave = function (get_setting, key, Events, Groups)
 	return current and snapshot(key, current, Groups) or nil
 end
 
+-- Every enabled wave that has enemies and a chance above 0, as full snapshots (not only the changed ones):
+-- what a client tells the host so its waves can join the draw. { name, waves }.
+Presets.enabled_waves = function (get_setting, Events, Groups)
+	local waves = {}
+
+	for _, key in ipairs(Events.keys()) do
+		local wave = Events.get(key, get_setting, Groups)
+
+		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 then
+			waves[#waves + 1] = snapshot(key, wave, Groups)
+		end
+	end
+
+	return { name = "waves", waves = waves }
+end
+
+-- A decoded preset as wave-likes the draw can use (Events.build_pool's `extra`). `owner` (a peer id) goes
+-- into each key so waves of different players never collide. At most `limit` waves (default 40).
+Presets.pool_waves = function (preset, owner, Events, Groups, limit)
+	local list = {}
+
+	for i, wave in ipairs(preset.waves or {}) do
+		if i > (limit or 40) then
+			break
+		end
+
+		local parts = wave.recipe ~= "" and Groups.parse(wave.recipe) or nil
+
+		if parts and #parts > 0 and wave.enabled and wave.pct > 0 then
+			local standard = Events.get_standard(wave.key)
+
+			list[#list + 1] = {
+				key = tostring(owner) .. ":" .. wave.key,
+				name = wave.name ~= "" and wave.name or wave.key,
+				parts = parts,
+				enabled = true,
+				pct = wave.pct,
+				cooldown = wave.cd,
+				spread = wave.sp,
+				rep_every = wave.re,
+				rep_for = wave.rf,
+				dmin = wave.dmin or 0,
+				dmax = wave.dmax or 0,
+				monster = standard and standard.monster or false,
+				owner = owner,
+			}
+		end
+	end
+
+	return list
+end
 -- ------------------------------------------------------------------- text format
 
 local function wave_text(wave)

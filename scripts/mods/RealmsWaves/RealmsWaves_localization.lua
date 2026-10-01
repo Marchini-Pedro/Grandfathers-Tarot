@@ -51,6 +51,7 @@ return {
 	colour_enemies = { en = "Colour enemy names" },
 	colour_spidey = { en = "Use Spidey Sense colours" },
 	interval_random = { en = "Random time between waves" },
+	pool_all_players = { en = "Use everyone's waves" },
 	debug = { en = "Debug logging" },
 
 	unit_seconds = { en = "s" },
@@ -126,6 +127,8 @@ return {
 	set_vote_duration_info = { en = "Seconds before a wave arrives that its vote is open and highlighted. Never longer than the wait. Host setting." },
 	set_ballot_size = { en = "Waves on a vote ballot" },
 	set_ballot_size_info = { en = "How many different waves players can vote between (2 to 5). Host setting." },
+	set_pool_all_players = { en = "Use everyone's waves" },
+	set_pool_all_players_info = { en = "On: the enabled waves of every player with the mod join the draw, not only the host's. Identical waves count once. Host setting." },
 	set_hud_show_percent = { en = "Show chances in the vote" },
 	set_hud_show_percent_info = { en = "Your screen only: show each wave's chance (percent) next to its name in the wave panel." },
 	set_colour_enemies = { en = "Colour enemy names" },

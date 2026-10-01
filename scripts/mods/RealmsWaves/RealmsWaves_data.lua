@@ -44,6 +44,7 @@ return {
 				sub_widgets = {
 					numeric("initial_delay", 45, 0, 600, "unit_seconds"),
 					{ setting_id = "interval_random", type = "checkbox", default_value = true },
+					{ setting_id = "pool_all_players", type = "checkbox", default_value = false },
 					numeric("interval_min", 150, 5, 1800, "unit_seconds"),
 					numeric("interval_max", 300, 5, 1800, "unit_seconds"),
 					numeric("vote_duration", 25, 5, 120, "unit_seconds"),

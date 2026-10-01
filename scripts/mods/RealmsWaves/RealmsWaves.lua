@@ -64,6 +64,7 @@ mod.on_all_mods_loaded = function ()
 		execute = RW.execute,
 		votes = RW.votes,
 		positions = RW.positions,
+		presets = RW.presets,
 	})
 
 	RW.bypass.install()
@@ -91,6 +92,7 @@ mod.on_all_mods_loaded = function ()
 		on_welcome = Director.on_welcome,
 		on_state = Director.on_state,
 		on_vote = Director.on_vote,
+		on_waves = Director.on_waves,
 		on_peer_joined = Director.on_peer_joined,
 		on_peer_left = Director.on_peer_left,
 	})

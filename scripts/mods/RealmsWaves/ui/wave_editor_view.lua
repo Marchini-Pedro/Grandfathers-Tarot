@@ -120,6 +120,14 @@ RealmsWavesView.on_exit = function (self)
 	self._screen = "list"
 	Popup.cancel(self)
 	self:_refresh_text_flag()
+
+	-- a client's waves may have changed: tell the host (used when it has "use everyone's waves" on)
+	local director = mod.rw and mod.rw.director
+
+	if director and director.send_waves then
+		pcall(director.send_waves)
+	end
+
 	RealmsWavesView.super.on_exit(self)
 end
 
@@ -348,6 +356,7 @@ local SETTINGS_ROWS = {
 	{ id = "initial_delay", kind = "number", default = 45, min = 0, max = 600, step = 5 },
 	{ id = "vote_duration", kind = "number", default = 25, min = 5, max = 120, step = 5 },
 	{ id = "ballot_size", kind = "number", default = 3, min = 2, max = 5, step = 1 },
+	{ id = "pool_all_players", kind = "toggle", default = false },
 	{ id = "hud_show_percent", kind = "toggle", default = true },
 	{ id = "colour_enemies", kind = "toggle", default = true },
 	{ id = "colour_spidey", kind = "toggle", default = true, needs = "colour_enemies" },

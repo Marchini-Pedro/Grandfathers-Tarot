@@ -683,7 +683,16 @@ do
   check("settings: button visible on the wave list", view._widgets_by_name.btn_settings.visible)
   click("btn_settings")
   check("settings: screen opens with rows, Back only", view._screen == "settings" and row(10).visible and not view._widgets_by_name.btn_settings.visible and view._widgets_by_name.btn_back.visible and view._widgets_by_name.hint_text.visible)
-  local function find_row(id) for i = 1, 10 do local it = view:_item_at(i); if it and it.id == id then return i, it end end end
+  -- the screen has 11 rows (capacity 10): scroll just enough to bring the wanted row into view
+  local function find_row(id)
+    for idx, it in ipairs(view._settings_rows) do
+      if it.id == id then
+        view._offset = idx > 10 and idx - 10 or 0
+        view:_refresh_rows(); view:_set_interaction_enabled()
+        return idx - view._offset, it
+      end
+    end
+  end
   local ri, rit = find_row("interval_random")
   check("settings: random-time toggle defaults on", rit and rit.on == true and row(ri).content.show_check and row(ri).content.checkbox_selected)
   local mi, mit = find_row("interval_min")

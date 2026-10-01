@@ -351,8 +351,11 @@ end
 
 -- Builds the list of waves that can be drawn right now (enabled, has enemies, chance > 0),
 -- with each chance normalised over that set so it always totals 100.
+-- `extra` (optional): waves of other players (see Presets.pool_waves) that join the draw. A wave whose
+-- composition is identical to one already in the pool is not added twice (the host's own wins), and a
+-- name that is already taken gets " (2)", " (3)"... so a ballot never shows two identical lines.
 -- Returns list of { key, name, def, raw, pct, cooldown } and the raw total.
-Events.build_pool = function (get_setting, Groups)
+Events.build_pool = function (get_setting, Groups, extra)
 	local pool = {}
 	local total = 0
 	local keys = Events.keys()
@@ -368,11 +371,43 @@ Events.build_pool = function (get_setting, Groups)
 		end
 	end
 
+	if extra then
+		local recipes, names = {}, {}
+
+		for i = 1, #pool do
+			recipes[Groups.to_recipe(pool[i].def.parts)] = true
+			names[pool[i].name] = 1
+		end
+
+		for i = 1, #extra do
+			local wave = extra[i]
+
+			if wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 then
+				local recipe = Groups.to_recipe(wave.parts)
+
+				if not recipes[recipe] then
+					recipes[recipe] = true
+
+					local name = wave.name
+					local used = names[name]
+
+					names[name] = (used or 0) + 1
+
+					if used then
+						name = string.format("%s (%d)", name, used + 1)
+					end
+
+					pool[#pool + 1] = { key = wave.key, name = name, def = Events.spawn_def(wave), raw = wave.pct, cooldown = wave.cooldown, owner = wave.owner }
+					total = total + wave.pct
+				end
+			end
+		end
+	end
+
 	for i = 1, #pool do
 		pool[i].pct = total > 0 and pool[i].raw / total * 100 or 0
 	end
 
 	return pool, total
 end
-
 return Events

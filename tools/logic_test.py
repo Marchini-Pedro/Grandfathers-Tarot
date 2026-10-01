@@ -268,9 +268,11 @@ local Protocol = {
   send_hello = function() sent.hello = (sent.hello or 0) + 1 end,
   send_welcome = function(peer, ok) sent.welcome = { peer, ok } end,
   send_vote = function(b, o) sent.vote = { b, o } end,
+  send_waves = function(text) sent.waves = text; sent.waves_count = (sent.waves_count or 0) + 1; return true end,
 }
 local Director = load("core/director")
-Director.init({ events = Events, groups = Groups, protocol = Protocol, execute = Execute, votes = Votes, positions = Positions })
+local PresetsMod = load("catalog/presets")
+Director.init({ events = Events, groups = Groups, protocol = Protocol, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod })
 
 -- random mode
 settings.mode = "random"; settings.interval_min = 100; settings.interval_max = 100; settings.initial_delay = 0; settings.vote_duration = 25
@@ -387,6 +389,121 @@ v = Director.view()
 check("client: version mismatch disables", v.phase == "off", v.phase)
 is_server = true
 
+-- everyone's waves: clients tell the host their enabled waves, the host merges them into the draw ------------------
+do
+  local Presets = PresetsMod
+  local keys = Events.keys()
+  local function disable_all_host_waves() for _, k in ipairs(keys) do settings["on_" .. k] = false end end
+  local function restore_host_waves() for _, k in ipairs(keys) do settings["on_" .. k] = nil end end
+  local function peer_text(waves) return Presets.encode({ name = "waves", waves = waves }) end
+  local function w(key, name, recipe, pct) return { key = key, name = name, recipe = recipe, enabled = true, pct = pct, cd = 0, sp = 3, re = 10, rf = 60, dmin = 0, dmax = 0 } end
+
+  -- client side: sends after the handshake only
+  is_server = false
+  sent.waves, sent.waves_count = nil, nil
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  Director.on_welcome("host_peer", 1, "9.9.9", false)
+  check("pool: a client whose handshake failed sends nothing", sent.waves == nil)
+  client_ok = nil
+  Director.on_welcome("host_peer", 1, "1.0.0", true)
+  local decoded = sent.waves and Presets.decode(sent.waves, Events, Groups)
+  local enabled_count = 0; for _, k in ipairs(keys) do local wv = Events.get(k, function(id) return settings[id] end, Groups); if wv.enabled and wv.parts and #wv.parts > 0 and wv.pct > 0 then enabled_count = enabled_count + 1 end end
+  check("pool: after a good handshake the client sends its enabled waves as one preset text", decoded ~= nil and #decoded.waves == enabled_count and enabled_count >= 12, decoded and #decoded.waves or tostring(sent.waves))
+  local all_enabled = true; for _, wv in ipairs(decoded.waves) do if not wv.enabled or wv.pct <= 0 or wv.recipe == "" then all_enabled = false end end
+  check("pool: only enabled waves with enemies and a chance are sent (full snapshots, not only the changed ones)", all_enabled)
+  settings.on_custom_1 = true
+  check("pool: send_waves works on a client and returns true", Director.send_waves() == true)
+  settings.on_custom_1 = nil
+
+  -- host side
+  is_server = true
+  check("pool: a host never sends its waves to itself", Director.send_waves() == false)
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  local friend_text = peer_text({ w("custom_1", "Friend Special", "4 hounds", 500), w("wave_small", "Small Wave", "8 poxwalker, 4 dreg, 2 rifleman", 18) })
+  settings.pool_all_players = nil
+  Director.on_waves("peer_a", friend_text)
+  check("pool: option off (default) -> the host's own waves only", Director.extra_waves() == nil)
+  settings.pool_all_players = true
+  local extra = Director.extra_waves()
+  check("pool: option on -> the friend's waves are available", extra ~= nil and #extra >= 1 and extra[1].key:find("^peer_a:") ~= nil, extra and #extra)
+  local pool = Events.build_pool(function(id) return settings[id] end, Groups, extra)
+  local names = {}; for _, e in ipairs(pool) do names[e.name] = (names[e.name] or 0) + 1 end
+  local total = 0; for _, e in ipairs(pool) do total = total + e.pct end
+  check("pool: the friend's special wave joins the host's pool and the chances still total 100", names["Friend Special"] == 1 and math.abs(total - 100) < 1e-6, total)
+  check("pool: a wave identical to one of the host's counts once (the host's wins)", names["Small Wave"] == 1, tostring(names["Small Wave"]))
+  -- name collisions get a suffix
+  local clash = Events.build_pool(function(id) return settings[id] end, Groups, { { key = "x:1", name = "Small Wave", parts = Groups.parse("5 mutants"), enabled = true, pct = 5, cooldown = 0, spread = 3, rep_every = 10, rep_for = 60, dmin = 0, dmax = 0 } })
+  local suffixed; for _, e in ipairs(clash) do if e.key == "x:1" then suffixed = e.name end end
+  check("pool: a friend's wave with an already used name gets '(2)'", suffixed == "Small Wave (2)", tostring(suffixed))
+  -- the spawn definition of a friend's wave is complete
+  local friend; for _, e in ipairs(pool) do if e.name == "Friend Special" then friend = e end end
+  check("pool: the friend's wave carries a full spawn definition", friend and friend.def.parts and friend.def.parts[1].breed == "chaos_hound" and friend.def.parts[1].count == 4 and friend.def.cooldown == 0 and friend.def.spread == 3 and friend.raw == 500)
+
+  -- a full cycle where only the friend's wave exists: it is drawn and spawned
+  disable_all_host_waves()
+  local friend_text = peer_text({ w("custom_1", "Friend Special", "4 hounds", 500) })
+  settings.mode = "random"; settings.interval_min = 100; settings.interval_max = 100; settings.initial_delay = 0
+  Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
+  Director.on_enter_gameplay()
+  Director.on_waves("peer_a", friend_text)
+  Director.on_mission_started(); Director.update(0.1)
+  local view_now = Director.view()
+  check("pool: with no host waves the friend's wave is the next wave", view_now.phase == "waiting" and #view_now.cands == 1 and view_now.cands[1].name == "Friend Special" and view_now.cands[1].pct == 100, view_now.phase .. "/" .. #view_now.cands)
+  Director.update(50); Director.update(50.5)
+  check("pool: and it spawns with the friend's composition", #started_defs == 1 and started_defs[1].name == "Friend Special" and started_defs[1].parts[1].breed == "chaos_hound", #started_defs)
+  -- option off: nothing to draw
+  settings.pool_all_players = false
+  Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_waves("peer_a", friend_text); Director.on_mission_started(); Director.update(0.1)
+  check("pool: option off -> the friend's wave is not drawn (empty pool)", Director.view().empty == true)
+  settings.pool_all_players = true
+
+  -- housekeeping: bad text ignored, peers leaving, mission end, non-hosts ignore it
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  Director.on_waves("peer_b", "garbage"); Director.on_waves("peer_b", friend_text:sub(1, 30))
+  check("pool: damaged text from a peer is ignored", Director.extra_waves() ~= nil and #Director.extra_waves() == 0)
+  Director.on_waves("peer_a", friend_text)
+  Director.on_waves("peer_b", peer_text({ w("custom_2", "Second Friend", "2 mutants", 40) }))
+  check("pool: two peers both count", #Director.extra_waves() == 2)
+  Director.on_peer_left("peer_b")
+  check("pool: a peer leaving takes its waves out of the draw", #Director.extra_waves() == 1 and Director.extra_waves()[1].key:find("^peer_a:") ~= nil)
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  check("pool: ending the mission forgets them", #Director.extra_waves() == 0)
+  is_server = false
+  Director.on_waves("peer_a", friend_text)
+  is_server = true
+  check("pool: a client ignores received waves", #Director.extra_waves() == 0)
+  local huge = {}; for i = 1, 60 do huge[i] = w("custom_" .. ((i - 1) % 20 + 1), "N" .. i, "1 hound", 5) end
+  Director.on_waves("peer_c", peer_text(huge))
+  check("pool: at most 40 waves per player are accepted", #Director.extra_waves() <= 20)
+  restore_host_waves(); settings.pool_all_players = nil
+  settings.interval_min = 100; settings.interval_max = 100
+  Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
+end
+-- protocol layer: RPCs registered, rw_waves send/receive validation ------------------------------------------------
+do
+  local registered, sent_rpcs = {}, {}
+  local realms = {
+    network_is_available = function() return true end,
+    network_register = function(m, name, handler) registered[name] = handler; return true end,
+    network_send = function(m, name, recipient, ...) sent_rpcs[#sent_rpcs + 1] = { name = name, recipient = recipient, args = { ... }, mod = m }; return true end,
+    network_on_peer_joined = function() end, network_on_peer_left = function() end,
+  }
+  local real_get_mod = get_mod
+  get_mod = function(name) if name == "Realms" then return realms end return real_get_mod(name) end
+  cjson = { encode = function(v) return "{json}" end, decode = function(t) return { p = "waiting" } end }
+  local P = load("core/protocol")
+  local received = {}
+  P.init({ on_waves = function(sender, text) received[#received + 1] = { sender, text } end, on_vote = function() end })
+  local names = {}; for name in pairs(registered) do names[#names + 1] = name end; table.sort(names)
+  check("protocol: five RPCs registered (hello, state, vote, waves, welcome)", table.concat(names, ",") == "rw_hello,rw_state,rw_vote,rw_waves,rw_welcome", table.concat(names, ","))
+  check("protocol: send_waves goes to the host with the text as one argument (dot call: mod first)", P.send_waves("RW1|x") == true and sent_rpcs[#sent_rpcs].name == "rw_waves" and sent_rpcs[#sent_rpcs].recipient == "host" and sent_rpcs[#sent_rpcs].args[1] == "RW1|x" and sent_rpcs[#sent_rpcs].mod == mod)
+  local n = #sent_rpcs
+  check("protocol: a text over the size limit is not sent", P.send_waves(string.rep("x", 60001)) == false and #sent_rpcs == n and P.send_waves(42) == false)
+  registered.rw_waves("peer_a", "RW1|ok")
+  registered.rw_waves("", "RW1|no sender"); registered.rw_waves(nil, "x"); registered.rw_waves("peer_a", 42); registered.rw_waves("peer_a", string.rep("y", 60001))
+  check("protocol: received waves are validated (sender, type, size) before the handler runs", #received == 1 and received[1][1] == "peer_a" and received[1][2] == "RW1|ok", #received)
+  get_mod = real_get_mod; cjson = nil
+end
 -- /rw_test by name ------------------------------------------------------------------
 do
   local get = function(id) return settings[id] end
