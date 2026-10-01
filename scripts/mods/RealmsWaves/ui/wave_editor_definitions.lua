@@ -60,7 +60,9 @@ local scenegraph_definition = {
 	btn_presets = node(325, 800, 300, 44, 2),
 	btn_settings = node(645, 800, 340, 44, 2), -- list screen: timing, voting and display settings
 	btn_wimport = node(1005, 800, 300, 44, 2), -- list screen: import a shared wave into the first free custom slot
-	btn_share = node(1450, 962, 280, 44, 2), -- detail screen: export this wave / import over it
+	-- detail screen: export this wave / import over it. Top right of the panel, beside the title line (the
+	-- steppers need every pixel of the three rows below)
+	btn_share = node(1500, 754, 300, 42, 2),
 	btn_pload = node(325, 800, 250, 44, 2),
 	btn_psave = node(595, 800, 400, 44, 2),
 	btn_prename = node(1015, 800, 200, 44, 2),
@@ -73,8 +75,9 @@ local scenegraph_definition = {
 	stepper_spread = node(125, 910, 480, 48, 2),
 	stepper_every = node(640, 910, 640, 48, 2),
 	stepper_for = node(1300, 910, 515, 48, 2),
-	stepper_dmin = node(125, 962, 640, 48, 2),
-	stepper_dmax = node(790, 962, 640, 48, 2),
+	stepper_dmin = node(125, 962, 540, 48, 2),
+	stepper_dmax = node(680, 962, 540, 48, 2),
+	stepper_timer = node(1235, 962, 580, 48, 2), -- fixed timer: this wave ignores its chance and spawns every N seconds
 	-- input popup, centred
 	rw_popup_panel = node(560, 400, 800, 260, 45),
 	rw_popup_input = node(600, 470, 720, 46, 50),

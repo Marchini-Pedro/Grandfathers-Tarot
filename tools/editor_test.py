@@ -760,6 +760,46 @@ do
   click("btn_back")
   check("distance: steppers hidden again on the list", not W.stepper_dmin.visible and not W.stepper_dmax.visible and view._screen == "list")
 end
+-- fixed timer: a wave that ignores its chance and spawns every N seconds ----------------------------------------------
+do
+  local W = view._widgets_by_name
+  local inp = { get = function() return nil end, is_null_service = function() return false end }
+  local PPt = dofile(BASE .. "/ui/wave_editor_components.lua")
+  click_row(1, "hotspot_name")
+  check("timer: stepper in the detail screen, off by default", W.stepper_timer.visible and W.stepper_timer.content.stepper_value == "val_off" and W.stepper_timer.content.extra == "extra_timer_off" and W.stepper_timer.content.label == "lbl_timer")
+  check("timer: chance row says nothing special while the timer is off", W.stepper_chance.content.extra:find("extra_share") ~= nil)
+  click("stepper_timer", "hotspot_plus")
+  check("timer: first + from off gives 30 s", settings.ev_wave_small == 30 and W.stepper_timer.content.stepper_value == "30" and W.stepper_timer.content.extra == "extra_timer_on")
+  click("stepper_timer", "hotspot_plus"); click("stepper_timer", "hotspot_plus")
+  check("timer: steps of 5 s below a minute", settings.ev_wave_small == 40)
+  settings.ev_wave_small = 60; view:_reload(); view:_apply_screen(true)
+  click("stepper_timer", "hotspot_plus")
+  check("timer: 15 s steps from a minute", settings.ev_wave_small == 75)
+  settings.ev_wave_small = 300; view:_reload(); view:_apply_screen(true)
+  click("stepper_timer", "hotspot_plus")
+  check("timer: one minute steps from five minutes", settings.ev_wave_small == 360)
+  settings.ev_wave_small = 3600; view:_reload(); view:_apply_screen(true)
+  click("stepper_timer", "hotspot_plus")
+  check("timer: capped at 3600 s", settings.ev_wave_small == 3600)
+  settings.ev_wave_small = 10; view:_reload(); view:_apply_screen(true)
+  click("stepper_timer", "hotspot_minus"); click("stepper_timer", "hotspot_minus")
+  check("timer: stepping down below 5 s switches it off", settings.ev_wave_small == 0 and W.stepper_timer.content.stepper_value == "val_off")
+  click("stepper_timer", "hotspot_value")
+  check("timer: clicking the value opens a popup (0 to 3600)", view._popup ~= nil and view._popup.spec.min == 0 and view._popup.spec.max == 3600)
+  view._widgets_by_name.rw_popup_input.content.input_text = "3"; view:update(0.01, 0, inp); PPt.Popup.commit(view)
+  check("timer: a typed value below 5 becomes 5", settings.ev_wave_small == 5)
+  settings.ev_wave_small = 90; view:_reload(); view:_apply_screen(true)
+  check("timer: with a timer the chance row says the wave is not drawn and the cooldown says it is ignored", W.stepper_chance.content.extra == "extra_timer_wave" and W.stepper_cooldown.content.extra == "extra_timer_ignored")
+  click("btn_back")
+  check("timer: the wave list shows 'every 90 s' instead of a share", row(1).content.share == "share_timer:90", tostring(row(1).content.share))
+  check("timer: the timed wave leaves the shares of the others (they total 100 without it)", view._waves[1].timer == 90 and view._total_pct > 0 and row(2).content.share ~= "-")
+  local sum = 0
+  for i = 2, 10 do local sh = tonumber((row(i).content.share or ""):match("^([%d%.]+)")); if sh then sum = sum + sh end end
+  for i = 11, #view._waves do local it = view._waves[i]; local share = view:_share_of(it); if share then sum = sum + share end end
+  check("timer: the visible shares still add up to 100", math.abs(sum - 100) < 0.5, sum)
+  click_row(1, "hotspot_name"); click("btn_reset"); click("btn_back")
+  check("timer: Reset to default clears the timer", settings.ev_wave_small == 0 and row(1).content.share ~= "share_timer:90")
+end
 -- sharing one wave ------------------------------------------------------------------------------------------------
 do
   local P = mod.rw.presets
@@ -861,7 +901,7 @@ do
     -- widgets shown together on one screen must not overlap and must stay inside the bottom panel
     local screens = {
       list = { "btn_presets", "btn_settings", "btn_wimport", "btn_back" },
-      detail = { "btn_back", "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "btn_share" },
+      detail = { "btn_back", "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "btn_share" },
       picker = { "btn_back", "btn_search", "btn_stay" },
       preset_view = { "btn_back", "btn_pload", "btn_psave", "btn_prename", "btn_pexport", "btn_pimport", "btn_pundo", "btn_pclear" },
     }

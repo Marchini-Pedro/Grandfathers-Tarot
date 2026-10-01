@@ -21,7 +21,7 @@ local ROW_HEIGHT = definitions.ROW_HEIGHT
 local ROW_NODE_PREFIX = definitions.ROW_NODE_PREFIX
 
 local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same" }
-local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax" }
+local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer" }
 local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
 local BUTTONS = {
 	{ name = "btn_back", width = 180, cb = "cb_back" },
@@ -264,8 +264,9 @@ RealmsWavesView._create_editor_widgets = function (self)
 		{ name = "stepper_spread", width = 480, step = 1, cb = "spread" },
 		{ name = "stepper_every", width = 640, step = 1, cb = "every" },
 		{ name = "stepper_for", width = 515, step = 5, cb = "for" },
-		{ name = "stepper_dmin", width = 640, step = 5, cb = "dmin" },
-		{ name = "stepper_dmax", width = 640, step = 5, cb = "dmax" },
+		{ name = "stepper_dmin", width = 540, step = 5, cb = "dmin" },
+		{ name = "stepper_dmax", width = 540, step = 5, cb = "dmax" },
+		{ name = "stepper_timer", width = 580, step = 1, cb = "timer" },
 	}
 
 	for i = 1, #extra_steppers do
@@ -310,7 +311,7 @@ RealmsWavesView._reload = function (self)
 			self._wave = wave
 		end
 
-		if wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 then
+		if wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 and not (wave.timer > 0) then
 			total = total + wave.pct
 		end
 	end
@@ -320,7 +321,7 @@ RealmsWavesView._reload = function (self)
 end
 
 RealmsWavesView._share_of = function (self, wave)
-	if wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 and (self._total_pct or 0) > 0 then
+	if wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 and not (wave.timer > 0) and (self._total_pct or 0) > 0 then
 		return wave.pct / self._total_pct * 100
 	end
 
@@ -671,13 +672,13 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 
 		chance.label = mod:localize("lbl_chance")
 		chance.stepper_value = tostring(math.floor(wave.pct))
-		chance.extra = share and mod:localize("extra_share", string.format("%.1f", share)) or mod:localize("extra_not_drawn")
+		chance.extra = wave.timer > 0 and mod:localize("extra_timer_wave") or share and mod:localize("extra_share", string.format("%.1f", share)) or mod:localize("extra_not_drawn")
 
 		local cooldown = widgets.stepper_cooldown.content
 
 		cooldown.label = mod:localize("lbl_cooldown")
 		cooldown.stepper_value = tostring(math.floor(wave.cooldown))
-		cooldown.extra = mod:localize("extra_cooldown")
+		cooldown.extra = mod:localize(wave.timer > 0 and "extra_timer_ignored" or "extra_cooldown")
 
 		local spread = widgets.stepper_spread.content
 
@@ -707,6 +708,13 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		dist_max.label = mod:localize("lbl_dmax")
 		dist_max.stepper_value = wave.dmax > 0 and tostring(math.floor(wave.dmax)) or mod:localize("val_auto")
 		dist_max.extra = wave.dmax > 0 and mod:localize("extra_dist_own") or mod:localize("extra_dist_auto", math.floor(option_max))
+
+		-- fixed timer: 0 = off (the wave is drawn by its chance), otherwise it spawns every N seconds on its own
+		local timer = widgets.stepper_timer.content
+
+		timer.label = mod:localize("lbl_timer")
+		timer.stepper_value = wave.timer > 0 and tostring(math.floor(wave.timer)) or mod:localize("val_off")
+		timer.extra = mod:localize(wave.timer > 0 and "extra_timer_on" or "extra_timer_off")
 	end
 
 	self:_refresh_rows()
@@ -745,7 +753,7 @@ RealmsWavesView._refresh_rows = function (self)
 					content.show_rep = false
 					content.checkbox_selected = item.enabled and has_parts == true
 					content.stepper_value = tostring(math.floor(item.pct))
-					content.share = share and string.format("%.1f%%", share) or "-"
+					content.share = item.timer > 0 and mod:localize("share_timer", math.floor(item.timer)) or share and string.format("%.1f%%", share) or "-"
 					content.hotspot_action_text = action and mod:localize(pending and "btn_sure" or ("btn_" .. action)) or ""
 
 					if not (item.enabled and has_parts) then
@@ -1550,6 +1558,41 @@ end)
 
 RealmsWavesView.cb_dmax_input = guarded(function (self)
 	self:_setting_input("dmax_", "dmax", "popup_dmax_title", 0, 200)
+end)
+
+-- Fixed timer: from "off" the first + gives 30 s; 5 s steps up to 60 s, then 15 s up to 5 minutes, then 1 minute;
+-- going down below 5 s switches it off.
+local function next_timer(value, delta)
+	if delta > 0 then
+		if value <= 0 then
+			return 30
+		end
+
+		return math.min(3600, value + (value < 60 and 5 or (value < 300 and 15 or 60)))
+	end
+
+	local next_value = value - (value <= 60 and 5 or (value <= 300 and 15 or 60))
+
+	return next_value < 5 and 0 or next_value
+end
+
+RealmsWavesView.cb_timer_step = guarded(function (self, delta)
+	set_setting("ev_" .. self._key, next_timer(math.floor(self._wave.timer), delta))
+	self:_reload()
+	self:_apply_screen(true)
+end)
+
+RealmsWavesView.cb_timer_input = guarded(function (self)
+	Popup.open(self, {
+		label = mod:localize("popup_timer_title", self._wave.name),
+		value = tostring(math.floor(self._wave.timer)),
+		numeric = true, min = 0, max = 3600, integer = true,
+		set = function (value)
+			set_setting("ev_" .. self._key, (value > 0 and value < 5) and 5 or value)
+			self:_reload()
+			self:_apply_screen(true)
+		end,
+	})
 end)
 
 -- presets ----------------------------------------------------------------------

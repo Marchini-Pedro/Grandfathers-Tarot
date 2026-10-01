@@ -11,7 +11,9 @@
 -- Text format (one line, safe to paste into chat):
 --   RW1|<name>|<wave count>|<wave>|<wave>...|<check>
 --   wave = key~name~enabled(1/0)~chance~cooldown~spread~repeat_every~repeat_for~recipe~min_distance~max_distance
---   (texts exported before 1.8.0 have no distance fields, 9 instead of 11: they import with distances 0 = use the options)
+--   ~fixed_timer_seconds (0 = off; see events.lua "ev_")
+--   (texts exported before 1.8.0 have no distance fields (9 fields), before 1.11.0 no timer (11 fields): the missing
+--   values import as 0 = use the options / no timer)
 -- Every free-text field has %, |, ~ and control characters percent-encoded (%7C ...). <check> is 4 hex digits
 -- computed from everything before it, so text that was cut short or altered while being copied (chat clients
 -- love to wrap lines) is refused instead of half-imported.
@@ -34,6 +36,7 @@ local RANGES = {
 	rf = { 0, 3600 },
 	dmin = { 0, 200 },
 	dmax = { 0, 200 },
+	timer = { 0, 3600 },
 }
 
 local function no_settings()
@@ -118,7 +121,7 @@ local function recipe_of(wave, Groups)
 end
 
 local function same_wave(a, b)
-	return a.name == b.name and a.recipe == b.recipe and a.enabled == b.enabled and a.pct == b.pct and a.cd == b.cd and a.sp == b.sp and a.re == b.re and a.rf == b.rf and a.dmin == b.dmin and a.dmax == b.dmax
+	return a.name == b.name and a.recipe == b.recipe and a.enabled == b.enabled and a.pct == b.pct and a.cd == b.cd and a.sp == b.sp and a.re == b.re and a.rf == b.rf and a.dmin == b.dmin and a.dmax == b.dmax and a.timer == b.timer
 end
 
 -- A wave as stored in a preset.
@@ -135,6 +138,7 @@ local function snapshot(key, wave, Groups)
 		rf = whole(wave.rep_for),
 		dmin = whole(wave.dmin),
 		dmax = whole(wave.dmax),
+		timer = whole(wave.timer),
 	}
 end
 
@@ -185,6 +189,7 @@ Presets.apply_wave = function (wave, key, set_setting, Events, Groups)
 	set_setting("rf_" .. key, wave.rf)
 	set_setting("dmin_" .. key, wave.dmin or 0)
 	set_setting("dmax_" .. key, wave.dmax or 0)
+	set_setting("ev_" .. key, wave.timer or 0)
 end
 
 -- Writes a preset over the current setup: every wave goes back to its default first.
@@ -226,7 +231,8 @@ Presets.enabled_waves = function (get_setting, Events, Groups)
 	for _, key in ipairs(Events.keys()) do
 		local wave = Events.get(key, get_setting, Groups)
 
-		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 then
+		-- timed waves run on the host's own clock for that player only, they never join someone else's draw
+		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 and not (wave.timer > 0) then
 			waves[#waves + 1] = snapshot(key, wave, Groups)
 		end
 	end
@@ -246,7 +252,7 @@ Presets.pool_waves = function (preset, owner, Events, Groups, limit)
 
 		local parts = wave.recipe ~= "" and Groups.parse(wave.recipe) or nil
 
-		if parts and #parts > 0 and wave.enabled and wave.pct > 0 then
+		if parts and #parts > 0 and wave.enabled and wave.pct > 0 and not ((wave.timer or 0) > 0) then
 			local standard = Events.get_standard(wave.key)
 
 			list[#list + 1] = {
@@ -284,6 +290,7 @@ local function wave_text(wave)
 		escape(wave.recipe),
 		tostring(wave.dmin or 0),
 		tostring(wave.dmax or 0),
+		tostring(wave.timer or 0),
 	}, "~")
 end
 
@@ -292,7 +299,7 @@ end
 local function parse_wave(text, Groups)
 	local parts = split(text, "~")
 
-	if #parts ~= 9 and #parts ~= 11 then
+	if #parts ~= 9 and #parts ~= 11 and #parts ~= 12 then
 		return nil, "a wave in the text is damaged"
 	end
 
@@ -309,12 +316,12 @@ local function parse_wave(text, Groups)
 	end
 
 	-- 9 fields = exported before the per-wave distances existed: both 0 (use the options)
-	parts[10], parts[11] = parts[10] or "0", parts[11] or "0"
+	parts[10], parts[11], parts[12] = parts[10] or "0", parts[11] or "0", parts[12] or "0"
 
 	local numbers = {}
 
 	-- fields 4-8 are chance, cooldown, spread, repeat every, repeat for; 10-11 the distances (9 is the recipe)
-	for _, field in ipairs({ { "pct", 4 }, { "cd", 5 }, { "sp", 6 }, { "re", 7 }, { "rf", 8 }, { "dmin", 10 }, { "dmax", 11 } }) do
+	for _, field in ipairs({ { "pct", 4 }, { "cd", 5 }, { "sp", 6 }, { "re", 7 }, { "rf", 8 }, { "dmin", 10 }, { "dmax", 11 }, { "timer", 12 } }) do
 		local id = field[1]
 		local value = tonumber(parts[field[2]])
 
@@ -337,6 +344,7 @@ local function parse_wave(text, Groups)
 		rf = numbers.rf,
 		dmin = numbers.dmin,
 		dmax = numbers.dmax,
+		timer = numbers.timer,
 	}
 end
 

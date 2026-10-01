@@ -504,6 +504,102 @@ do
   check("protocol: received waves are validated (sender, type, size) before the handler runs", #received == 1 and received[1][1] == "peer_a" and received[1][2] == "RW1|ok", #received)
   get_mod = real_get_mod; cjson = nil
 end
+-- fixed-timer waves: ignore the chance, run on their own clock, independent of the draw -----------------------------
+do
+  local Presets = PresetsMod
+  local store = {}
+  local function g(id) return store[id] end
+  local function s(id, v) store[id] = v end
+  local wave = Events.get("custom_1", g, Groups)
+  check("timer: default is off (0)", wave.timer == 0)
+  store.ev_custom_1 = 1
+  check("timer: a value below 5 seconds is raised to 5 (never a 1 second flood)", Events.get("custom_1", g, Groups).timer == 5)
+  store.ev_custom_1 = 45; Events.set_def(s, "custom_1", "Pulse", Groups.parse("2 hounds"), Groups); store.on_custom_1 = true
+  wave = Events.get("custom_1", g, Groups)
+  check("timer: stored value is read and reaches the spawn definition", wave.timer == 45 and Events.spawn_def(wave).timer == 45)
+  local pool = Events.build_pool(g, Groups)
+  local in_pool = false; for _, e in ipairs(pool) do if e.key == "custom_1" then in_pool = true end end
+  check("timer: a timed wave is not in the draw pool (its chance is ignored)", not in_pool)
+  local total = 0; for _, e in ipairs(pool) do total = total + e.pct end
+  check("timer: the chances of the other waves still total 100", math.abs(total - 100) < 1e-6, total)
+  local timed = Events.timed_waves(g, Groups)
+  check("timer: timed_waves lists it with its period", #timed == 1 and timed[1].key == "custom_1" and timed[1].every == 45 and timed[1].def.parts[1].breed == "chaos_hound", #timed)
+  store.on_custom_1 = false
+  check("timer: a disabled wave does not run", #Events.timed_waves(g, Groups) == 0)
+  store.on_custom_1 = true; store.wave_def_custom_1 = ""
+  check("timer: an empty wave does not run", #Events.timed_waves(g, Groups) == 0)
+  store.wave_def_custom_1 = "Pulse\t2 hounds"
+  Events.reset(s, "custom_1")
+  check("timer: reset turns it off", store.ev_custom_1 == 0)
+
+  -- presets and wave sharing carry it
+  store.ev_custom_2 = 60; Events.set_def(s, "custom_2", "Beat", Groups.parse("3 mutants"), Groups); store.on_custom_2 = true
+  local cap = Presets.capture(g, Events, Groups)
+  local beat; for _, w2 in ipairs(cap.waves) do if w2.key == "custom_2" then beat = w2 end end
+  check("timer: presets capture it", beat and beat.timer == 60)
+  cap.name = "T"
+  local back = Presets.decode(Presets.encode(cap), Events, Groups)
+  local back_beat; for _, w2 in ipairs(back.waves) do if w2.key == "custom_2" then back_beat = w2 end end
+  check("timer: presets round trip it", back_beat and back_beat.timer == 60)
+  local applied = {}
+  Presets.apply(back, function(id, v) applied[id] = v end, Events, Groups)
+  check("timer: applying a preset writes it (and 0 for the others)", applied.ev_custom_2 == 60 and applied.ev_wave_small == 0)
+  local one = Presets.decode_wave(Presets.encode_wave(Presets.capture_wave(g, "custom_2", Events, Groups)), Events, Groups)
+  check("timer: a shared single wave carries it", one and one.timer == 60)
+  local old11 = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0"), Events, Groups)
+  local old9 = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds"), Events, Groups)
+  check("timer: texts from before 1.11.0 (9 or 11 fields) import with no timer", old11 and old11.timer == 0 and old9 and old9.timer == 0)
+  local clamp = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~99999"), Events, Groups)
+  check("timer: out-of-range timer clamped to 3600, bad value refused", clamp and clamp.timer == 3600 and Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~soon"), Events, Groups) == nil)
+  local sent_text = Presets.enabled_waves(g, Events, Groups)
+  local sends_timed = false; for _, w2 in ipairs(sent_text.waves) do if w2.key == "custom_2" then sends_timed = true end end
+  check("timer: a client does not offer its timed waves to the host's draw", not sends_timed)
+  check("timer: ...and the host never merges a timed wave from a peer", #Presets.pool_waves({ waves = { { key = "custom_2", name = "Beat", recipe = "3 mutants", enabled = true, pct = 10, cd = 0, sp = 3, re = 10, rf = 60, dmin = 0, dmax = 0, timer = 60 } } }, "p", Events, Groups) == 0)
+end
+
+do
+  -- the director: own clock, independent of the draw
+  settings.mode = "random"; settings.interval_min = 1000; settings.interval_max = 1000; settings.initial_delay = 0; settings.vote_duration = 25
+  settings.wave_def_custom_1 = "Pulse\t2 hounds"; settings.on_custom_1 = true; settings.ev_custom_1 = 20
+  started_waves = {}; started_defs = {}
+  Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01)
+  local v = Director.view()
+  local on_ballot = false; for _, cand in ipairs(v.cands) do if cand.key == "custom_1" then on_ballot = true end end
+  check("timer: the timed wave is never the 'next wave' of the draw", v.phase == "waiting" and not on_ballot)
+  local function count_pulse() local n = 0; for _, nme in ipairs(started_waves) do if nme == "Pulse" then n = n + 1 end end return n end
+  for _ = 1, 19 do Director.update(1) end
+  check("timer: nothing before its period is over", count_pulse() == 0, count_pulse())
+  Director.update(1.5)
+  check("timer: spawns once after 20 s", count_pulse() == 1 and started_defs[#started_defs].parts[1].breed == "chaos_hound", count_pulse())
+  for _ = 1, 20 do Director.update(1) end
+  check("timer: and again after another 20 s (the draw has not fired: its interval is 1000 s)", count_pulse() == 2 and #started_waves == 2, count_pulse() .. "/" .. #started_waves)
+  settings.ev_custom_1 = 5
+  for _ = 1, 8 do Director.update(1) end
+  check("timer: a shorter period (5 s) takes effect without waiting out the old 20 s", count_pulse() >= 3, count_pulse())
+  local before = count_pulse()
+  settings.on_custom_1 = false
+  for _ = 1, 30 do Director.update(1) end
+  check("timer: disabling the wave stops it (at most the spawn that was already due)", count_pulse() - before <= 1, count_pulse() - before)
+  local stopped = count_pulse()
+  for _ = 1, 30 do Director.update(1) end
+  check("timer: ...for good", count_pulse() == stopped)
+  check("timer: /rw_status counts timed waves", Director.timed_wave_count() == 0)
+  settings.on_custom_1 = true; settings.ev_custom_1 = 20
+  for _ = 1, 2 do Director.update(1) end
+  check("timer: re-enabled -> running again", Director.timed_wave_count() == 1)
+  -- no living player: the clock stops
+  local players = Positions.player_units
+  Positions.player_units = function() return {} end
+  local n_before = count_pulse()
+  for _ = 1, 60 do Director.update(1) end
+  check("timer: the clock does not run without a living player", count_pulse() == n_before)
+  Positions.player_units = players
+  Director.on_exit_gameplay()
+  check("timer: the mission ending clears the clocks", Director.timed_wave_count() == 0)
+  settings.wave_def_custom_1, settings.on_custom_1, settings.ev_custom_1 = nil, nil, nil
+  settings.interval_min, settings.interval_max = 100, 100
+  started_waves = {}; started_defs = {}
+end
 -- /rw_test by name ------------------------------------------------------------------
 do
   local get = function(id) return settings[id] end
@@ -1303,6 +1399,11 @@ do
     if id:find("^unit_") and #entry.en > 3 then wide[#wide + 1] = id .. "=" .. entry.en end
   end
   check("localization: unit labels are short (<= 3 characters) so value and unit stay on one line", #wide == 0, table.concat(wide, ","))
+  -- text next to the detail-screen steppers: node width minus 440 px, about 10 px per character
+  local fits = { extra_dist_auto = 10, extra_dist_own = 10, extra_timer_off = 14, extra_timer_on = 14, extra_timer_wave = 42, extra_timer_ignored = 36, val_off = 4, val_auto = 4, share_timer = 12 }
+  local cramped = {}
+  for id, limit in pairs(fits) do if not loc[id] or #(loc[id].en:gsub("%%s", "00")) > limit then cramped[#cramped + 1] = id end end
+  check("localization: texts beside the steppers fit their space", #cramped == 0, table.concat(cramped, ","))
 end
 
 -- Positions.spread with stubbed nav queries -----------------------------------------

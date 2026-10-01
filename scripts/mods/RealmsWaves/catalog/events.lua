@@ -153,6 +153,9 @@ Events.DEFAULT_REPEAT_FOR = 60 -- seconds the repeats keep coming
 --   rf_<key>        number              keep repeating for N seconds
 --   dmin_<key>      number              minimum spawn distance in metres for this wave (0 = use the options)
 --   dmax_<key>      number              maximum spawn distance in metres for this wave (0 = use the options)
+--   ev_<key>        number              FIXED TIMER: seconds between automatic spawns of this wave (0 = off). A wave with a
+--                                       timer ignores its chance weight and cooldown and never takes part in the draw:
+--                                       it runs on its own clock, independent of the other waves.
 local DEF_SEPARATOR = "\t"
 
 local function clean_name(name)
@@ -224,6 +227,12 @@ Events.get = function (key, get_setting, Groups)
 	wave.rep_for = tonumber(get_setting("rf_" .. key)) or Events.DEFAULT_REPEAT_FOR
 	wave.dmin = math.max(0, tonumber(get_setting("dmin_" .. key)) or 0)
 	wave.dmax = math.max(0, tonumber(get_setting("dmax_" .. key)) or 0)
+	-- 0 = off; anything else is at least 5 seconds (a 1 second timer would only flood the map)
+	wave.timer = math.max(0, tonumber(get_setting("ev_" .. key)) or 0)
+
+	if wave.timer > 0 and wave.timer < 5 then
+		wave.timer = 5
+	end
 
 	return wave
 end
@@ -331,6 +340,7 @@ Events.reset = function (set_setting, key)
 	set_setting("rf_" .. key, Events.DEFAULT_REPEAT_FOR)
 	set_setting("dmin_" .. key, 0)
 	set_setting("dmax_" .. key, 0)
+	set_setting("ev_" .. key, 0)
 end
 
 -- The definition handed to the spawner (Execute.start_wave) for a resolved wave.
@@ -346,7 +356,25 @@ Events.spawn_def = function (wave)
 		rep_for = wave.rep_for,
 		dmin = wave.dmin,
 		dmax = wave.dmax,
+		timer = wave.timer,
 	}
+end
+
+-- Waves that run on a fixed timer: enabled, with enemies and a timer above 0 seconds.
+-- Returns a list of { key, name, def, every } (seconds). Chance weight and cooldown play no part.
+Events.timed_waves = function (get_setting, Groups)
+	local list = {}
+	local keys = Events.keys()
+
+	for i = 1, #keys do
+		local wave = Events.get(keys[i], get_setting, Groups)
+
+		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.timer > 0 then
+			list[#list + 1] = { key = wave.key, name = wave.name, def = Events.spawn_def(wave), every = wave.timer }
+		end
+	end
+
+	return list
 end
 
 -- Builds the list of waves that can be drawn right now (enabled, has enemies, chance > 0),
@@ -363,7 +391,8 @@ Events.build_pool = function (get_setting, Groups, extra)
 	for i = 1, #keys do
 		local wave = Events.get(keys[i], get_setting, Groups)
 
-		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 then
+		-- a wave with a fixed timer runs on its own clock (Events.timed_waves), it is never drawn
+		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 and not (wave.timer > 0) then
 			local def = Events.spawn_def(wave)
 
 			pool[#pool + 1] = { key = wave.key, name = wave.name, def = def, raw = wave.pct, cooldown = wave.cooldown }

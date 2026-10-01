@@ -36,6 +36,8 @@ local ballot_seq = 0
 local last_fired = {}
 local my_vote, my_vote_ballot = nil, nil
 local peer_waves = {} -- host: peer id -> that player's enabled waves (pool-ready), see Director.on_waves
+local timers = {} -- host: wave key -> { every, remaining, wave } for waves with a fixed timer
+local timer_check = 0
 
 local view = { phase = "off", mode = "random", remaining = 0, ballot_id = 0, chosen = "", cands = {}, version = 0, my_vote = nil }
 
@@ -352,6 +354,63 @@ local function try_start()
 	end
 end
 
+-- --------------------------------------------------------------- fixed-timer waves
+
+-- A wave with a fixed timer ("ev_<key>" seconds, set in the wave editor) ignores its chance and cooldown and
+-- never takes part in the draw or the vote: it spawns every N seconds on its own clock, whatever the other
+-- waves do. The clocks start with the mission's first cycle and only run while a player is alive.
+local function fire_timed(wave)
+	local ok, err = Execute.start_wave(wave.def)
+
+	if not ok then
+		mod:warning("RealmsWaves: timed wave %s not started: %s", tostring(wave.key), tostring(err))
+	end
+end
+
+local function update_timed_waves(dt)
+	-- the waves are re-read once a second: they can be enabled, edited or given another timer while playing
+	timer_check = timer_check - dt
+
+	if timer_check <= 0 then
+		timer_check = 1
+
+		local live = {}
+		local list = Events.timed_waves(get_setting, Groups)
+
+		for i = 1, #list do
+			local wave = list[i]
+			local timer = timers[wave.key]
+
+			live[wave.key] = true
+
+			if not timer then
+				timers[wave.key] = { every = wave.every, remaining = wave.every, wave = wave }
+			else
+				-- a changed period never leaves the clock waiting longer than the new period
+				timer.remaining = math.min(timer.remaining, wave.every)
+				timer.every = wave.every
+				timer.wave = wave
+			end
+		end
+
+		for key in pairs(timers) do
+			if not live[key] then
+				timers[key] = nil
+			end
+		end
+	end
+
+	for _, timer in pairs(timers) do
+		timer.remaining = timer.remaining - dt
+
+		if timer.remaining <= 0 then
+			timer.remaining = timer.every
+
+			fire_timed(timer.wave)
+		end
+	end
+end
+
 local function host_update(dt)
 	if not started then
 		try_start()
@@ -366,6 +425,8 @@ local function host_update(dt)
 	if #Positions.player_units() == 0 then
 		return
 	end
+
+	update_timed_waves(dt)
 
 	state.remaining = state.remaining - dt
 
@@ -440,6 +501,7 @@ end
 
 Director.reset = function ()
 	peer_waves = {}
+	timers, timer_check = {}, 0
 	host_state, client_state = nil, nil
 	started = false
 	start_signal = false
@@ -725,6 +787,17 @@ Director.simulate = function (rolls)
 end
 
 -- (number of waves, number of players) received from clients, for /rw_status
+-- number of waves currently running on a fixed timer, for /rw_status
+Director.timed_wave_count = function ()
+	local count = 0
+
+	for _ in pairs(timers) do
+		count = count + 1
+	end
+
+	return count
+end
+
 Director.peer_wave_count = function ()
 	local waves, players = 0, 0
 
@@ -741,11 +814,11 @@ Director.status = function ()
 	local exec = Execute.status()
 
 	return string.format(
-		"phase=%s mode=%s remaining=%.0fs cands=%d host=%s started=%s in_mission=%s disabled=%s | tracked=%d queued=%d jobs=%d stage=%s err=%s | lua heap %.0f MB (guard %d, paused %s) | everyone's waves: %s, %d from %d players",
+		"phase=%s mode=%s remaining=%.0fs cands=%d host=%s started=%s in_mission=%s disabled=%s | tracked=%d queued=%d jobs=%d stage=%s err=%s | lua heap %.0f MB (guard %d, paused %s) | timed waves: %d | everyone's waves: %s, %d from %d players",
 		state.phase, tostring(state.mode), state.remaining or 0, #(state.cands or {}), tostring(Director.is_host()), tostring(started), tostring(in_mission), tostring(client_disabled),
 		exec.tracked, exec.queued, exec.jobs, tostring(exec.stage), tostring(exec.last_error),
 		exec.heap_mb or 0, exec.heap_guard_mb or 0, tostring(exec.heap_paused),
-		mod:get("pool_all_players") == true and "on" or "off", Director.peer_wave_count()
+		Director.timed_wave_count(), mod:get("pool_all_players") == true and "on" or "off", Director.peer_wave_count()
 	)
 end
 
