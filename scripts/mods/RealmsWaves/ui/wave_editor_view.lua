@@ -21,7 +21,7 @@ local ROW_HEIGHT = definitions.ROW_HEIGHT
 local ROW_NODE_PREFIX = definitions.ROW_NODE_PREFIX
 
 local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same" }
-local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for" }
+local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax" }
 local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
 local BUTTONS = {
 	{ name = "btn_back", width = 180, cb = "cb_back" },
@@ -254,6 +254,8 @@ RealmsWavesView._create_editor_widgets = function (self)
 		{ name = "stepper_spread", width = 480, step = 1, cb = "spread" },
 		{ name = "stepper_every", width = 640, step = 1, cb = "every" },
 		{ name = "stepper_for", width = 515, step = 5, cb = "for" },
+		{ name = "stepper_dmin", width = 640, step = 5, cb = "dmin" },
+		{ name = "stepper_dmax", width = 640, step = 5, cb = "dmax" },
 	}
 
 	for i = 1, #extra_steppers do
@@ -678,6 +680,18 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		rep_for.label = mod:localize("lbl_repeat_for")
 		rep_for.stepper_value = tostring(math.floor(wave.rep_for))
 		rep_for.extra = mod:localize("extra_seconds_short")
+
+		-- this wave's own spawn distances; 0 shows "auto" = the options' values
+		local dist_min, dist_max = widgets.stepper_dmin.content, widgets.stepper_dmax.content
+		local option_min = tonumber(mod:get(wave.monster and "monster_min_distance" or "min_distance")) or (wave.monster and 28 or 22)
+		local option_max = tonumber(mod:get(wave.monster and "monster_max_distance" or "max_distance")) or (wave.monster and 75 or 65)
+
+		dist_min.label = mod:localize("lbl_dmin")
+		dist_min.stepper_value = wave.dmin > 0 and tostring(math.floor(wave.dmin)) or mod:localize("val_auto")
+		dist_min.extra = wave.dmin > 0 and mod:localize("extra_dist_own") or mod:localize("extra_dist_auto", math.floor(option_min))
+		dist_max.label = mod:localize("lbl_dmax")
+		dist_max.stepper_value = wave.dmax > 0 and tostring(math.floor(wave.dmax)) or mod:localize("val_auto")
+		dist_max.extra = wave.dmax > 0 and mod:localize("extra_dist_own") or mod:localize("extra_dist_auto", math.floor(option_max))
 	end
 
 	self:_refresh_rows()
@@ -1504,6 +1518,23 @@ end)
 
 RealmsWavesView.cb_for_input = guarded(function (self)
 	self:_setting_input("rf_", "rep_for", "popup_for_title", 0, 3600)
+end)
+
+-- this wave's own spawn distances (0 = auto: the values from the options menu)
+RealmsWavesView.cb_dmin_step = guarded(function (self, delta)
+	self:_setting_step("dmin_", "dmin", delta, 0, 200)
+end)
+
+RealmsWavesView.cb_dmin_input = guarded(function (self)
+	self:_setting_input("dmin_", "dmin", "popup_dmin_title", 0, 200)
+end)
+
+RealmsWavesView.cb_dmax_step = guarded(function (self, delta)
+	self:_setting_step("dmax_", "dmax", delta, 0, 200)
+end)
+
+RealmsWavesView.cb_dmax_input = guarded(function (self)
+	self:_setting_input("dmax_", "dmax", "popup_dmax_title", 0, 200)
 end)
 
 -- presets ----------------------------------------------------------------------

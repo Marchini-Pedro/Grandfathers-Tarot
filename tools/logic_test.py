@@ -504,8 +504,9 @@ Managers.time = { time = function() return 5 end }
 local spread_calls = {}
 local cand_calls, cand_fail = 0, false
 local cand_reason, ring_fail, ring_calls = "no hidden points near players", false, 0
+local last_range = nil
 local StubPositions = {
-  candidates = function() cand_calls = cand_calls + 1; if cand_fail then return nil, cand_reason end return { "a", "b" } end,
+  candidates = function(min_d, max_d) cand_calls = cand_calls + 1; last_range = { min_d, max_d }; if cand_fail then return nil, cand_reason end return { "a", "b" } end,
   test_candidates = function() ring_calls = ring_calls + 1; if ring_fail then return nil, "no walkable ground within reach of the player" end return { "ring" } end,
   pick = function(list) return "pos" end,
   random_player_unit = function() return "player" end,
@@ -671,6 +672,66 @@ do
   minion_spawn.spawn_minion = orig_spawn
   local doubled = false; for _, u in ipairs(spawned) do if #u.buffs.added > 0 then doubled = true end end
   check("rotten: not added again when the unit already has it", #spawned == 2 and not doubled)
+end
+-- per-wave spawn distances: 0 = the options, otherwise this wave's own value
+do
+  local function range_for(def)
+    Execute.reset(); last_range = nil
+    def.name = "dist"; def.parts = Groups.parse("1 hound")
+    run_wave(def)
+    return last_range
+  end
+  settings.min_distance, settings.max_distance, settings.monster_min_distance, settings.monster_max_distance = 22, 65, 28, 75
+  local r = range_for({})
+  check("distance: no own values -> the options (22-65 m)", r and r[1] == 22 and r[2] == 65, r and (r[1] .. "-" .. r[2]))
+  r = range_for({ monster = true })
+  check("distance: monster waves use the monster options (28-75 m)", r and r[1] == 28 and r[2] == 75)
+  r = range_for({ dmin = 40, dmax = 90 })
+  check("distance: a wave's own min and max replace the options", r and r[1] == 40 and r[2] == 90, r and (r[1] .. "-" .. r[2]))
+  r = range_for({ dmin = 40 })
+  check("distance: only a minimum set -> the option maximum stays", r and r[1] == 40 and r[2] == 65)
+  r = range_for({ dmax = 30 })
+  check("distance: only a maximum set -> the option minimum stays (22-30)", r and r[1] == 22 and r[2] == 30, r and (r[1] .. "-" .. r[2]))
+  r = range_for({ dmin = 80 })
+  check("distance: a minimum above the option maximum pushes the maximum up (never an empty range)", r and r[1] == 80 and r[2] > 80, r and (r[1] .. "-" .. r[2]))
+  r = range_for({ dmax = 15 })
+  check("distance: a maximum below the option minimum pulls the minimum down", r and r[2] == 15 and r[1] < 15, r and (r[1] .. "-" .. r[2]))
+  -- cached positions of a wave with other distances are not reused
+  Execute.reset(); last_range = nil; cand_calls = 0
+  run_wave({ name = "a", parts = Groups.parse("1 hound") })
+  local first_calls = cand_calls
+  run_wave({ name = "b", parts = Groups.parse("1 hound"), dmin = 60, dmax = 100 })
+  check("distance: positions cached for other distances are not reused", last_range and last_range[1] == 60 and cand_calls > first_calls)
+  -- through the catalog
+  local store = {}
+  local function g(id) return store[id] end
+  local function s(id, v) store[id] = v end
+  local wave = Events.get("wave_small", g, Groups)
+  check("distance: default is 0/0 (use the options)", wave.dmin == 0 and wave.dmax == 0)
+  store.dmin_wave_small = 35; store.dmax_wave_small = 120
+  wave = Events.get("wave_small", g, Groups)
+  local sdef = Events.spawn_def(wave)
+  check("distance: stored values reach the spawn definition", sdef.dmin == 35 and sdef.dmax == 120)
+  Events.reset(s, "wave_small")
+  check("distance: reset puts them back to 0", store.dmin_wave_small == 0 and store.dmax_wave_small == 0)
+  -- presets
+  local Presets = load("catalog/presets")
+  store.dmin_custom_2 = 30; store.dmax_custom_2 = 80; store.wave_def_custom_2 = "Far\t3 hounds"; store.on_custom_2 = true
+  local cap = Presets.capture(g, Events, Groups)
+  local far; for _, w in ipairs(cap.waves) do if w.key == "custom_2" then far = w end end
+  check("distance: presets capture them", far and far.dmin == 30 and far.dmax == 80)
+  cap.name = "D"
+  local back = Presets.decode(Presets.encode(cap), Events, Groups)
+  local back_far; for _, w in ipairs(back.waves) do if w.key == "custom_2" then back_far = w end end
+  check("distance: presets round trip them", back_far and back_far.dmin == 30 and back_far.dmax == 80)
+  local applied = {}
+  Presets.apply(back, function(id, v) applied[id] = v end, Events, Groups)
+  check("distance: applying a preset writes them", applied.dmin_custom_2 == 30 and applied.dmax_custom_2 == 80 and applied.dmin_wave_small == 0)
+  local old = Presets.decode(Presets.seal("RW1|old|1|custom_1~A~1~10~60~3~10~60~3 hounds"), Events, Groups)
+  check("distance: a preset exported before 1.8.0 (9 fields) still imports, distances 0", old and old.waves[1].dmin == 0 and old.waves[1].dmax == 0)
+  local clamped = Presets.decode(Presets.seal("RW1|x|1|custom_1~A~1~10~60~3~10~60~3 hounds~9999~-5"), Events, Groups)
+  check("distance: out-of-range distances are clamped (0-200)", clamped and clamped.waves[1].dmin == 200 and clamped.waves[1].dmax == 0)
+  check("distance: a non-numeric distance is refused", Presets.decode(Presets.seal("RW1|x|1|custom_1~A~1~10~60~3~10~60~3 hounds~far~5"), Events, Groups) == nil)
 end
 -- twin captains: the shield starts down (toughness template start_depleted) and must be raised via optional_init_toughness
 do

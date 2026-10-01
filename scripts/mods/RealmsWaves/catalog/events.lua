@@ -151,6 +151,8 @@ Events.DEFAULT_REPEAT_FOR = 60 -- seconds the repeats keep coming
 --   sp_<key>        number              spawn spread radius in metres (0 = all at the spawn point)
 --   re_<key>        number              repeat every N seconds  (only used by groups with "@rep")
 --   rf_<key>        number              keep repeating for N seconds
+--   dmin_<key>      number              minimum spawn distance in metres for this wave (0 = use the options)
+--   dmax_<key>      number              maximum spawn distance in metres for this wave (0 = use the options)
 local DEF_SEPARATOR = "\t"
 
 local function clean_name(name)
@@ -220,6 +222,8 @@ Events.get = function (key, get_setting, Groups)
 	wave.spread = tonumber(get_setting("sp_" .. key)) or Events.DEFAULT_SPREAD
 	wave.rep_every = tonumber(get_setting("re_" .. key)) or Events.DEFAULT_REPEAT_EVERY
 	wave.rep_for = tonumber(get_setting("rf_" .. key)) or Events.DEFAULT_REPEAT_FOR
+	wave.dmin = math.max(0, tonumber(get_setting("dmin_" .. key)) or 0)
+	wave.dmax = math.max(0, tonumber(get_setting("dmax_" .. key)) or 0)
 
 	return wave
 end
@@ -325,6 +329,8 @@ Events.reset = function (set_setting, key)
 	set_setting("sp_" .. key, Events.DEFAULT_SPREAD)
 	set_setting("re_" .. key, Events.DEFAULT_REPEAT_EVERY)
 	set_setting("rf_" .. key, Events.DEFAULT_REPEAT_FOR)
+	set_setting("dmin_" .. key, 0)
+	set_setting("dmax_" .. key, 0)
 end
 
 -- The definition handed to the spawner (Execute.start_wave) for a resolved wave.
@@ -338,6 +344,8 @@ Events.spawn_def = function (wave)
 		spread = wave.spread,
 		rep_every = wave.rep_every,
 		rep_for = wave.rep_for,
+		dmin = wave.dmin,
+		dmax = wave.dmax,
 	}
 end
 

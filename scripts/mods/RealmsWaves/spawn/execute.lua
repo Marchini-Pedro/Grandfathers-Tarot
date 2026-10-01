@@ -324,6 +324,8 @@ Execute.start_wave = function (def)
 		test = def.test == true, -- explicit /rw_test: may fall back to a ring around the player where no hidden points exist
 		monster = def.monster == true,
 		spread = tonumber(def.spread) or 0,
+		dmin = math.max(0, tonumber(def.dmin) or 0),
+		dmax = math.max(0, tonumber(def.dmax) or 0),
 		queue = queue,
 		spawned = 0,
 		age = 0,
@@ -388,8 +390,9 @@ end
 
 -- Returns the candidate list for a job, or nil. Sets job.reason when it fails.
 local function candidates_for(job)
-	local kind = (job.test and "test_" or "") .. (job.monster and "monster" or "normal")
-	local entry = cache[kind]
+	-- waves with their own spawn distances must not share cached positions with the others
+	local key = (job.test and "test_" or "") .. (job.monster and "monster" or "normal") .. ":" .. job.dmin .. ":" .. job.dmax
+	local entry = cache[key]
 
 	if entry and entry.list and clock - entry.at < CANDIDATE_TTL and #entry.list > 0 then
 		job.reason = nil
@@ -416,6 +419,23 @@ local function candidates_for(job)
 		max_d = number_setting("max_distance", 65)
 	end
 
+	-- this wave's own distances (0 = keep the options' value)
+	if job.dmin > 0 then
+		min_d = job.dmin
+	end
+
+	if job.dmax > 0 then
+		max_d = job.dmax
+	end
+
+	if max_d <= min_d then
+		if job.dmax > 0 and job.dmin == 0 then
+			min_d = math.max(0, max_d - 10)
+		else
+			max_d = min_d + 10
+		end
+	end
+
 	local list, reason = Positions.candidates(min_d, max_d)
 
 	if not list and job.test and NO_MAIN_PATH[reason] and Positions.test_candidates then
@@ -425,13 +445,13 @@ local function candidates_for(job)
 	if not list then
 		throttled_log("spawn", reason)
 
-		cache[kind] = { at = clock, list = false, reason = reason }
+		cache[key] = { at = clock, list = false, reason = reason }
 		job.reason = reason
 
 		return nil
 	end
 
-	cache[kind] = { at = clock, list = list }
+	cache[key] = { at = clock, list = list }
 	job.reason = nil
 
 	return list

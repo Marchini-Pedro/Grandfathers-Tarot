@@ -40,36 +40,39 @@ local scenegraph_definition = {
 	scroll_up = node(1771, 168, 44, 36, 2),
 	scroll_down = node(1771, 696, 44, 36, 2),
 	list_range = node(1400, 700, 340, 28, 2),
-	bottom_panel = node(105, 770, 1710, 250, 0),
-	bottom_title = node(125, 780, 900, 34, 2),
-	hint_text = node(125, 885, 1660, 120, 2), -- below the button row (826)
+	-- Bottom panel: a title line, one row of buttons (y 800) and up to three rows of steppers (858, 910, 962).
+	-- Rows are 52 px apart; the panel ends at 1030 so the last stepper row stays above the input legend.
+	bottom_panel = node(105, 750, 1710, 280, 0),
+	bottom_title = node(125, 758, 900, 34, 2),
+	hint_text = node(125, 852, 1660, 120, 2), -- below the button row (800)
 
-	btn_back = node(125, 826, 180, 44, 2),
-	btn_search = node(325, 826, 420, 44, 2), -- enemy picker only (same spot as Rename)
-	btn_stay = node(765, 826, 560, 44, 2), -- enemy picker only: stay after adding / back to the wave
-	btn_rename = node(325, 826, 200, 44, 2),
-	btn_text = node(545, 826, 250, 44, 2),
-	btn_add = node(815, 826, 230, 44, 2),
-	btn_enabled = node(1065, 826, 260, 44, 2),
-	btn_reset = node(1345, 826, 300, 44, 2),
+	btn_back = node(125, 800, 180, 44, 2),
+	btn_search = node(325, 800, 420, 44, 2), -- enemy picker only (same spot as Rename)
+	btn_stay = node(765, 800, 560, 44, 2), -- enemy picker only: stay after adding / back to the wave
+	btn_rename = node(325, 800, 200, 44, 2),
+	btn_text = node(545, 800, 250, 44, 2),
+	btn_add = node(815, 800, 230, 44, 2),
+	btn_enabled = node(1065, 800, 260, 44, 2),
+	btn_reset = node(1345, 800, 300, 44, 2),
 	-- presets: list screen button (where Back sits on the other screens), and one preset's actions in two rows
 	-- NOT under Back (x 125-305): Back is drawn before this button, so a click on Back that switches to the
 	-- list would land on a Presets button at the same spot in the same frame and open the presets page.
-	btn_presets = node(325, 826, 300, 44, 2),
-	btn_settings = node(645, 826, 340, 44, 2), -- list screen: timing, voting and display settings
-	btn_pload = node(325, 826, 250, 44, 2),
-	btn_psave = node(595, 826, 400, 44, 2),
-	btn_prename = node(1015, 826, 200, 44, 2),
-	btn_pexport = node(1235, 826, 220, 44, 2),
-	btn_pimport = node(1475, 826, 220, 44, 2),
-	btn_pundo = node(125, 890, 380, 44, 2),
-	btn_pclear = node(525, 890, 260, 44, 2),
-	stepper_chance = node(125, 890, 900, 48, 2),
-	stepper_cooldown = node(1000, 890, 800, 48, 2),
-	stepper_spread = node(125, 945, 480, 48, 2),
-	stepper_every = node(640, 945, 640, 48, 2),
-	stepper_for = node(1300, 945, 515, 48, 2),
-
+	btn_presets = node(325, 800, 300, 44, 2),
+	btn_settings = node(645, 800, 340, 44, 2), -- list screen: timing, voting and display settings
+	btn_pload = node(325, 800, 250, 44, 2),
+	btn_psave = node(595, 800, 400, 44, 2),
+	btn_prename = node(1015, 800, 200, 44, 2),
+	btn_pexport = node(1235, 800, 220, 44, 2),
+	btn_pimport = node(1475, 800, 220, 44, 2),
+	btn_pundo = node(125, 858, 380, 44, 2),
+	btn_pclear = node(525, 858, 260, 44, 2),
+	stepper_chance = node(125, 858, 860, 48, 2),
+	stepper_cooldown = node(1000, 858, 800, 48, 2),
+	stepper_spread = node(125, 910, 480, 48, 2),
+	stepper_every = node(640, 910, 640, 48, 2),
+	stepper_for = node(1300, 910, 515, 48, 2),
+	stepper_dmin = node(125, 962, 640, 48, 2),
+	stepper_dmax = node(790, 962, 640, 48, 2),
 	-- input popup, centred
 	rw_popup_panel = node(560, 400, 800, 260, 45),
 	rw_popup_input = node(600, 470, 720, 46, 50),

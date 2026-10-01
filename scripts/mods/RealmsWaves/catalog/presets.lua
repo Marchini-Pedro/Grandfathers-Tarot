@@ -10,7 +10,8 @@
 --
 -- Text format (one line, safe to paste into chat):
 --   RW1|<name>|<wave count>|<wave>|<wave>...|<check>
---   wave = key~name~enabled(1/0)~chance~cooldown~spread~repeat_every~repeat_for~recipe
+--   wave = key~name~enabled(1/0)~chance~cooldown~spread~repeat_every~repeat_for~recipe~min_distance~max_distance
+--   (texts exported before 1.8.0 have no distance fields, 9 instead of 11: they import with distances 0 = use the options)
 -- Every free-text field has %, |, ~ and control characters percent-encoded (%7C ...). <check> is 4 hex digits
 -- computed from everything before it, so text that was cut short or altered while being copied (chat clients
 -- love to wrap lines) is refused instead of half-imported.
@@ -30,6 +31,8 @@ local RANGES = {
 	sp = { 0, 100 },
 	re = { 1, 600 },
 	rf = { 0, 3600 },
+	dmin = { 0, 200 },
+	dmax = { 0, 200 },
 }
 
 local function no_settings()
@@ -114,7 +117,7 @@ local function recipe_of(wave, Groups)
 end
 
 local function same_wave(a, b)
-	return a.name == b.name and a.recipe == b.recipe and a.enabled == b.enabled and a.pct == b.pct and a.cd == b.cd and a.sp == b.sp and a.re == b.re and a.rf == b.rf
+	return a.name == b.name and a.recipe == b.recipe and a.enabled == b.enabled and a.pct == b.pct and a.cd == b.cd and a.sp == b.sp and a.re == b.re and a.rf == b.rf and a.dmin == b.dmin and a.dmax == b.dmax
 end
 
 -- A wave as stored in a preset.
@@ -129,6 +132,8 @@ local function snapshot(key, wave, Groups)
 		sp = whole(wave.spread),
 		re = whole(wave.rep_every),
 		rf = whole(wave.rep_for),
+		dmin = whole(wave.dmin),
+		dmax = whole(wave.dmax),
 	}
 end
 
@@ -187,6 +192,8 @@ Presets.apply = function (preset, set_setting, Events, Groups)
 			set_setting("sp_" .. key, wave.sp)
 			set_setting("re_" .. key, wave.re)
 			set_setting("rf_" .. key, wave.rf)
+			set_setting("dmin_" .. key, wave.dmin or 0)
+			set_setting("dmax_" .. key, wave.dmax or 0)
 
 			written = written + 1
 		end
@@ -211,6 +218,8 @@ Presets.encode = function (preset)
 			tostring(wave.re),
 			tostring(wave.rf),
 			escape(wave.recipe),
+			tostring(wave.dmin or 0),
+			tostring(wave.dmax or 0),
 		}, "~")
 	end
 
@@ -254,7 +263,7 @@ Presets.decode = function (text, Events, Groups)
 	for i = 4, #fields do
 		local parts = split(fields[i], "~")
 
-		if #parts ~= 9 then
+		if #parts ~= 9 and #parts ~= 11 then
 			return nil, string.format("wave %d of the preset text is damaged", i - 3)
 		end
 
@@ -279,8 +288,13 @@ Presets.decode = function (text, Events, Groups)
 
 			local numbers = {}
 
-			for index, id in ipairs({ "pct", "cd", "sp", "re", "rf" }) do
-				local value = tonumber(parts[3 + index])
+			-- 9 fields = exported before the per-wave distances existed: both 0 (use the options)
+			parts[10], parts[11] = parts[10] or "0", parts[11] or "0"
+
+			-- fields 4-8 are chance, cooldown, spread, repeat every, repeat for; 10-11 the distances (9 is the recipe)
+			for _, field in ipairs({ { "pct", 4 }, { "cd", 5 }, { "sp", 6 }, { "re", 7 }, { "rf", 8 }, { "dmin", 10 }, { "dmax", 11 } }) do
+				local id = field[1]
+				local value = tonumber(parts[field[2]])
 
 				if not value then
 					return nil, string.format("wave %s has a bad %s value", name ~= "" and name or key, id)
@@ -299,6 +313,8 @@ Presets.decode = function (text, Events, Groups)
 				sp = numbers.sp,
 				re = numbers.re,
 				rf = numbers.rf,
+				dmin = numbers.dmin,
+				dmax = numbers.dmax,
 			}
 		end
 	end

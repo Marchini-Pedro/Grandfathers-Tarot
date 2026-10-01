@@ -727,6 +727,30 @@ do
   settings["wave_def_custom_1"] = "Custom 1\t3 hounds"; settings["on_custom_1"] = true; view:_reload(); view:_apply_screen(true)
 end
 
+-- per-wave spawn distances in the detail screen ------------------------------------------------------------------
+do
+  local input_stub4 = { get = function() return nil end, is_null_service = function() return false end }
+  local W = view._widgets_by_name
+  click_row(1, "hotspot_name")
+  check("distance: both steppers shown in the detail screen, auto by default", W.stepper_dmin.visible and W.stepper_dmax.visible and W.stepper_dmin.content.stepper_value == "val_auto" and W.stepper_dmin.content.extra == "extra_dist_auto:22" and W.stepper_dmax.content.extra == "extra_dist_auto:65", W.stepper_dmin.content.extra .. "/" .. W.stepper_dmax.content.extra)
+  click("stepper_dmin", "hotspot_plus")
+  check("distance: + sets 5 m and the label says it is this wave's own value", settings.dmin_wave_small == 5 and W.stepper_dmin.content.stepper_value == "5" and W.stepper_dmin.content.extra == "extra_dist_own")
+  click("stepper_dmin", "hotspot_value")
+  check("distance: clicking the value opens a popup (0 to 200)", view._popup ~= nil and view._popup.spec.min == 0 and view._popup.spec.max == 200)
+  view._widgets_by_name.rw_popup_input.content.input_text = "45"; view:update(0.01, 0, input_stub4)
+  local PP4 = dofile(BASE .. "/ui/wave_editor_components.lua"); PP4.Popup.commit(view)
+  check("distance: popup sets the minimum", settings.dmin_wave_small == 45 and W.stepper_dmin.content.stepper_value == "45")
+  click("stepper_dmax", "hotspot_plus"); click("stepper_dmax", "hotspot_plus")
+  check("distance: maximum steps by 5", settings.dmax_wave_small == 10)
+  click("stepper_dmin", "hotspot_minus")
+  check("distance: minus steps back", settings.dmin_wave_small == 40)
+  settings.dmin_wave_small = 0; view:_reload(); view:_apply_screen(true); click("stepper_dmin", "hotspot_minus")
+  check("distance: cannot go below 0 (auto)", settings.dmin_wave_small == 0 and W.stepper_dmin.content.stepper_value == "val_auto")
+  click("btn_reset")
+  check("distance: Reset to default puts both back to auto", settings.dmin_wave_small == 0 and settings.dmax_wave_small == 0 and W.stepper_dmax.content.stepper_value == "val_auto")
+  click("btn_back")
+  check("distance: steppers hidden again on the list", not W.stepper_dmin.visible and not W.stepper_dmax.visible and view._screen == "list")
+end
 -- presets ----------------------------------------------------------------------------------------------------
 do
   local PP = dofile(BASE .. "/ui/wave_editor_components.lua")
@@ -756,6 +780,29 @@ do
       if overlaps("btn_back", name) then hit[#hit + 1] = name end
     end
     check("Back does not overlap any button of the screens it returns to (no click-through)", #hit == 0, table.concat(hit, ","))
+
+    -- widgets shown together on one screen must not overlap and must stay inside the bottom panel
+    local screens = {
+      list = { "btn_presets", "btn_settings", "btn_back" },
+      detail = { "btn_back", "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax" },
+      picker = { "btn_back", "btn_search", "btn_stay" },
+      preset_view = { "btn_back", "btn_pload", "btn_psave", "btn_prename", "btn_pexport", "btn_pimport", "btn_pundo", "btn_pclear" },
+    }
+    local problems = {}
+    local panel = sg.bottom_panel
+    for screen, names in pairs(screens) do
+      for i = 1, #names do
+        local n = sg[names[i]]
+        if n.position[2] < panel.position[2] or n.position[2] + n.size[2] > panel.position[2] + panel.size[2] or n.position[1] + n.size[1] > panel.position[1] + panel.size[1] then
+          problems[#problems + 1] = screen .. ":" .. names[i] .. " outside the panel"
+        end
+        for j = i + 1, #names do
+          if overlaps(names[i], names[j]) then problems[#problems + 1] = screen .. ":" .. names[i] .. "/" .. names[j] end
+        end
+      end
+    end
+    check("layout: widgets of one screen never overlap and stay inside the bottom panel", #problems == 0, table.concat(problems, ", "))
+    check("layout: the bottom panel ends above the input legend (y <= 1030)", panel.position[2] + panel.size[2] <= 1030)
   end
 
   click("btn_back")
