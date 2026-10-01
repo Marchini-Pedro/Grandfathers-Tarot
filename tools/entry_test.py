@@ -80,6 +80,12 @@ mod.echo = function(self, fmt, ...) echoed[#echoed + 1] = string.format(fmt, ...
 commands.rw_stop(); commands.rw_pause("on"); commands.rw_next()
 check("entry: the commands answer in chat (a client or a stopped host gets a reason, never an error)", #echoed == 3 and echoed[1]:find("RealmsWaves") ~= nil, table.concat(echoed, " | "))
 
+-- the animation probe: registered, and in a game without any wave unit (or without the engine's Unit table) it only says so
+echoed = {}
+check("entry: /rw_anim is registered", type(commands.rw_anim) == "function")
+local anim_ok, anim_err = pcall(commands.rw_anim)
+check("entry: /rw_anim without the engine table (this harness has none) answers instead of failing", anim_ok and #echoed == 2 and echoed[1]:find("Unit functions about animation", 1, true) ~= nil and echoed[2]:find("cannot be looked at", 1, true) ~= nil, anim_ok and table.concat(echoed, " | ") or anim_err)
+
 RW.text_input_active = true
 mod.on_unload()
 check("unload: the flag is cleared and this instance's hook becomes a pass-through (stale hooks after a reload never block keys)", RW.dead == true and RW.text_input_active == false and (function() dmf_calls = {}; RW.text_input_active = true; hook(original); return #dmf_calls == 1 end)())

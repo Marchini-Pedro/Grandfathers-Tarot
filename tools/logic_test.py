@@ -1363,6 +1363,43 @@ do
   check("tuning: a missing extension only skips that step (hit mass still changed) and is logged once", #spawned == 2 and spawned[1].ext.health_system.mass == 4 and logged == 1, logged)
   check("tuning: health_modifier is nil for 100 or nothing", Tuning.health_modifier({ health = 100 }) == nil and Tuning.health_modifier(nil) == nil and Tuning.health_modifier({ health = 250 }) == 2.5)
 
+  -- the animation probe (/rw_anim): which engine functions and which animation variables exist, never an error
+  do
+    local function probe_unit(breed, vars, dead_unit)
+      local u = { breed = breed, vars = vars or {}, is_dead = dead_unit }
+      u.ext = { unit_data_system = { breed = function() return { name = breed } end } }
+      return u
+    end
+    local saved_unit_table = Unit
+    Unit = {
+      animation_event = function() end, animation_set_variable = function() end, set_local_scale = function() end, world_position = function() end,
+      animation_find_variable = function(unit, name) return unit.vars[name] end,
+      animation_get_variable_min_max = function(unit, index) return 0.5, 2.5 end,
+      alive = function(unit) return not unit.is_dead end,
+      set_data = "not a function",
+    }
+    local crusher = probe_unit("chaos_ogryn_executor", { anim_move_speed = 3, attack_speed = 7 })
+    local crusher2 = probe_unit("chaos_ogryn_executor", { anim_move_speed = 3 })
+    local hound = probe_unit("chaos_hound", {})
+    local gone = probe_unit("renegade_executor", { anim_move_speed = 1 }, true)
+    local lines = Tuning.probe({ crusher, crusher2, hound, gone })
+    local all = table.concat(lines, "\n")
+    check("probe: the engine's functions about animation, speed, time, scale or rate are listed (sorted), others and non-functions are not", lines[1]:find("(5): animation_event, animation_find_variable, animation_get_variable_min_max, animation_set_variable, set_local_scale", 1, true) ~= nil, lines[1])
+    check("probe: world_position and a non-function are not listed", not lines[1]:find("world_position", 1, true) and not lines[1]:find("set_data", 1, true))
+    check("probe: a unit's candidate variables are listed with their range, the control variable included", all:find("chaos_ogryn_executor has animation variables: attack_speed (0.5 to 2.5), anim_move_speed (0.5 to 2.5)", 1, true) ~= nil, all)
+    check("probe: one line per breed (the second crusher adds none)", select(2, all:gsub("chaos_ogryn_executor has", "")) == 1)
+    check("probe: a breed with none of them says so", all:find("chaos_hound has animation variables: none of the candidates", 1, true) ~= nil)
+    check("probe: a unit that is gone is skipped", all:find("renegade_executor", 1, true) == nil and #lines == 3, #lines)
+    check("probe: no unit alive gives the hint", Tuning.probe({})[2]:find("spawn one first", 1, true) ~= nil and Tuning.probe(nil)[2]:find("spawn one first", 1, true) ~= nil)
+    Unit.animation_find_variable = function() error("engine quirk") end
+    local quirk_ok, quirk_lines = pcall(Tuning.probe, { crusher })
+    check("probe: an engine call that raises is contained (that unit just has none)", quirk_ok and quirk_lines[2]:find("none of the candidates", 1, true) ~= nil)
+    Unit = nil
+    local no_engine_ok, no_engine = pcall(Tuning.probe, { crusher })
+    check("probe: without the engine's Unit table it still answers (0 functions, and says the units cannot be looked at)", no_engine_ok and no_engine[1]:find("(0)", 1, true) ~= nil and no_engine[2]:find("cannot be looked at", 1, true) ~= nil, no_engine_ok and no_engine[2] or no_engine)
+    Unit = saved_unit_table
+  end
+
   -- a client puts the sizes on units when they exist there
   local present = {}
   Managers.state.unit_spawner = {

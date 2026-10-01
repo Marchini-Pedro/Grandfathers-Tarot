@@ -270,6 +270,26 @@ mod:command("rw_status", "RealmsWaves: print director state and spawn counters",
 	end
 end)
 
+-- /rw_anim: what the engine and the nearby wave units offer for the speed of an animation (see Tuning.probe)
+mod:command("rw_anim", "RealmsWaves: report what the game offers to change an enemy's animation speed (spawn a wave first, then run this near it); the text is also in the console log", function ()
+	local units = RW.bypass and RW.bypass.units(40) or {}
+	local ok, lines = pcall(RW.tuning.probe, units)
+
+	if not ok then
+		mod:echo("RealmsWaves: the probe failed: %s", tostring(lines))
+
+		return
+	end
+
+	for _, line in ipairs(lines) do
+		mod:echo("RealmsWaves: %s", line)
+
+		if mod.info then
+			mod:info("RealmsWaves: %s", line)
+		end
+	end
+end)
+
 mod:command("rw_start", "RealmsWaves: (host) start the wave cycle now (also after /rw_stop), e.g. after a hot reload", function ()
 	mod:echo("RealmsWaves: %s", RW.director.force_start() and "cycle started" or "not started (host in a mission only)")
 end)

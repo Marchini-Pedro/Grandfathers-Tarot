@@ -483,6 +483,102 @@ Tuning.update_client = function (dt)
 	end
 end
 
+-- ------------------------------------------------------------------------------------ the animation probe
+-- "Animation attack speed" (how fast the swing itself plays, per unit) was asked for, but no script of the game does it:
+-- a minion's animation is steered by events and by the variables its state machine lists (in practice the two that blend
+-- the locomotion). Whether a state machine has a variable that scales attacks, or the engine a call that sets a unit's
+-- animation speed, can only be seen in the running game, so /rw_anim reports both and the feature is built on the answer
+-- (docs/07-learnings-and-gaps.md).
+Tuning.ANIM_CANDIDATES = {
+	"attack_speed", "anim_speed", "animation_speed", "attack_anim_speed", "anim_attack_speed", "melee_speed", "speed_scale",
+	"time_scale", "playback_speed", "anim_playback_speed", "speed",
+	"anim_move_speed", "moving_attack_fwd_speed", -- controls: the variables the breeds list, they should be found
+}
+
+local ENGINE_WORDS = { "anim", "speed", "time", "scale", "rate" }
+
+-- the name of the breed of a unit ("?" when it cannot be read)
+local function breed_name(unit)
+	local ok, name = pcall(function ()
+		local data = ScriptUnit.has_extension(unit, "unit_data_system")
+		local breed = data and data:breed()
+
+		return breed and breed.name
+	end)
+
+	return ok and name or "?"
+end
+
+-- Returns a list of text lines: the functions of the engine's Unit table that mention animation, speed, time, scale or
+-- rate, then for each given unit (one per breed) which of the candidate variables its animation state machine has.
+Tuning.probe = function (units)
+	local lines = {}
+	local found = {}
+
+	if type(Unit) == "table" then
+		for key, value in pairs(Unit) do
+			if type(key) == "string" and type(value) == "function" then
+				local lower = key:lower()
+
+				for i = 1, #ENGINE_WORDS do
+					if lower:find(ENGINE_WORDS[i], 1, true) then
+						found[#found + 1] = key
+
+						break
+					end
+				end
+			end
+		end
+	end
+
+	table.sort(found)
+	lines[#lines + 1] = string.format("Unit functions about animation, speed, time, scale or rate (%d): %s", #found, table.concat(found, ", "))
+
+	local seen = {}
+	local breeds = 0
+	local can_look = type(Unit) == "table" and type(Unit.animation_find_variable) == "function"
+
+	for _, unit in ipairs(can_look and units or {}) do
+		local name = breed_name(unit)
+
+		if not seen[name] and alive(unit) then
+			seen[name] = true
+			breeds = breeds + 1
+
+			local have = {}
+
+			for i = 1, #Tuning.ANIM_CANDIDATES do
+				local candidate = Tuning.ANIM_CANDIDATES[i]
+				local ok, index = pcall(Unit.animation_find_variable, unit, candidate)
+
+				if ok and index ~= nil then
+					local detail = candidate
+
+					if Unit.animation_get_variable_min_max then
+						local got, low, high = pcall(Unit.animation_get_variable_min_max, unit, index)
+
+						if got and low ~= nil then
+							detail = string.format("%s (%s to %s)", candidate, tostring(low), tostring(high))
+						end
+					end
+
+					have[#have + 1] = detail
+				end
+			end
+
+			lines[#lines + 1] = string.format("%s has animation variables: %s", name, #have > 0 and table.concat(have, ", ") or "none of the candidates")
+		end
+	end
+
+	if not can_look then
+		lines[#lines + 1] = "This game has no Unit.animation_find_variable, so the variables of a unit cannot be looked at."
+	elseif breeds == 0 then
+		lines[#lines + 1] = "No wave unit is alive to look at: spawn one first (/rw_test <wave>) and run this again close to it."
+	end
+
+	return lines
+end
+
 Tuning.status = function ()
 	return { tuned = #tuned, sizes_known = (function () local n = 0 for _ in pairs(scaled) do n = n + 1 end return n end)(), unsent = #outbox, pending = #inbox }
 end

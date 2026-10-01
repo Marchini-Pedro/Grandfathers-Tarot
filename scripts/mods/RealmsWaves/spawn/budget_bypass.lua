@@ -52,6 +52,23 @@ Bypass.count = function ()
 	return tracked_count
 end
 
+-- Up to `max` living tracked units (for the /rw_anim probe).
+Bypass.units = function (max)
+	local list = {}
+
+	for unit in pairs(tracked) do
+		if ALIVE[unit] then
+			list[#list + 1] = unit
+
+			if #list >= (max or 8) then
+				break
+			end
+		end
+	end
+
+	return list
+end
+
 Bypass.is_tracked = function (unit)
 	return tracked[unit] == true
 end
