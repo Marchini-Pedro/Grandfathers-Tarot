@@ -12,6 +12,7 @@
 --   RW1|<name>|<wave count>|<wave>|<wave>...|<check>
 --   wave = key~name~enabled(1/0)~chance~cooldown~spread~repeat_every~repeat_for~recipe~min_distance~max_distance
 --   ~fixed_timer_seconds (0 = off; see events.lua "ev_") ~deleted(1/0, a standard wave the player removed)
+--   ~suit ~threat_override(0-5) ~whisper(text) ~cooldown_look(rot|whisper|vial or empty)   (the tarot card data)
 --   (texts exported before 1.8.0 have no distance fields (9 fields), before 1.11.0 no timer (11 fields): the missing
 --   values import as 0 = use the options / no timer)
 -- Every free-text field has %, |, ~ and control characters percent-encoded (%7C ...). <check> is 4 hex digits
@@ -28,6 +29,22 @@ Presets.WAVE_PREFIX = "RWW1" -- one wave on its own
 Presets.UNDO_ID = "preset_undo"
 
 -- inclusive ranges, the same as the editor's steppers/popups
+local SUITS = { plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true }
+local LOOKS = { rot = true, whisper = true, vial = true }
+local MAX_WHISPER = 40 -- same limit as Cards.MAX_WHISPER
+
+-- a whisper as stored: no control characters, single spaces, at most MAX_WHISPER characters
+local function clean_whisper(text)
+	text = tostring(text or ""):gsub("[%c]", " "):gsub("%s+", " ")
+	text = text:gsub("^%s+", ""):gsub("%s+$", "")
+
+	if #text > MAX_WHISPER then
+		text = text:sub(1, MAX_WHISPER):gsub("%s+$", "")
+	end
+
+	return text
+end
+
 local RANGES = {
 	pct = { 0, 1000 },
 	cd = { 0, 3600 },
@@ -121,7 +138,7 @@ local function recipe_of(wave, Groups)
 end
 
 local function same_wave(a, b)
-	return a.name == b.name and a.recipe == b.recipe and a.enabled == b.enabled and a.pct == b.pct and a.cd == b.cd and a.sp == b.sp and a.re == b.re and a.rf == b.rf and a.dmin == b.dmin and a.dmax == b.dmax and a.timer == b.timer and a.deleted == b.deleted
+	return a.name == b.name and a.recipe == b.recipe and a.enabled == b.enabled and a.pct == b.pct and a.cd == b.cd and a.sp == b.sp and a.re == b.re and a.rf == b.rf and a.dmin == b.dmin and a.dmax == b.dmax and a.timer == b.timer and a.deleted == b.deleted and a.suit == b.suit and a.thr == b.thr and a.whisper == b.whisper and a.look == b.look
 end
 
 -- A wave as stored in a preset.
@@ -140,6 +157,10 @@ local function snapshot(key, wave, Groups)
 		dmax = whole(wave.dmax),
 		timer = whole(wave.timer),
 		deleted = wave.deleted == true,
+		suit = SUITS[wave.suit] and wave.suit or "plague",
+		thr = math.max(0, math.min(5, whole(wave.threat_override))),
+		whisper = clean_whisper(wave.whisper),
+		look = LOOKS[wave.look] and wave.look or "",
 	}
 end
 
@@ -192,6 +213,11 @@ Presets.apply_wave = function (wave, key, set_setting, Events, Groups)
 	set_setting("dmax_" .. key, wave.dmax or 0)
 	set_setting("ev_" .. key, wave.timer or 0)
 	set_setting("del_" .. key, wave.deleted == true)
+	-- tarot data; a text from before the Tarot (no suit) leaves the card's own defaults
+	set_setting("su_" .. key, wave.suit or "")
+	set_setting("th_" .. key, wave.thr or 0)
+	set_setting("wh_" .. key, wave.whisper or "")
+	set_setting("cl_" .. key, wave.look or "")
 end
 
 -- Writes a preset over the current setup: every wave goes back to its default first.
@@ -270,6 +296,10 @@ Presets.pool_waves = function (preset, owner, Events, Groups, limit)
 				dmin = wave.dmin or 0,
 				dmax = wave.dmax or 0,
 				monster = standard and standard.monster or false,
+				suit = wave.suit or (standard and standard.suit) or "plague",
+				threat_override = wave.thr or 0,
+				whisper = wave.whisper or (standard and standard.whisper) or "",
+				look = wave.look or "",
 				owner = owner,
 			}
 		end
@@ -294,6 +324,10 @@ local function wave_text(wave)
 		tostring(wave.dmax or 0),
 		tostring(wave.timer or 0),
 		wave.deleted and "1" or "0",
+		wave.suit or "",
+		tostring(wave.thr or 0),
+		escape(wave.whisper or ""),
+		wave.look or "",
 	}, "~")
 end
 
@@ -302,7 +336,7 @@ end
 local function parse_wave(text, Groups)
 	local parts = split(text, "~")
 
-	if #parts ~= 9 and #parts ~= 11 and #parts ~= 12 and #parts ~= 13 then
+	if #parts ~= 9 and #parts ~= 11 and #parts ~= 12 and #parts ~= 13 and #parts ~= 17 then
 		return nil, "a wave in the text is damaged"
 	end
 
@@ -349,6 +383,11 @@ local function parse_wave(text, Groups)
 		dmax = numbers.dmax,
 		timer = numbers.timer,
 		deleted = parts[13] == "1",
+		-- 17 fields = with the tarot data; an unknown suit from a friend becomes plague, an unknown look is dropped
+		suit = parts[14] ~= nil and (SUITS[parts[14]] and parts[14] or (parts[14] ~= "" and "plague" or nil)) or nil,
+		thr = math.max(0, math.min(5, whole(tonumber(parts[15]) or 0))),
+		whisper = clean_whisper(unescape(parts[16] or "")),
+		look = LOOKS[parts[17]] and parts[17] or "",
 	}
 end
 

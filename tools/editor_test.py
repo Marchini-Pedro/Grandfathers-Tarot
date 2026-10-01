@@ -139,10 +139,10 @@ local function click_row(i, hotspot) row(i).content[hotspot].pressed_callback() 
 
 -- list screen
 check("list: 32 waves (12 standard + 20 custom)", #view._waves == 32, #view._waves)
-check("list: first row is Small Wave", row(1).content.row_name == "Small Wave" and row(1).visible, row(1).content.row_name)
+check("list: first row is The Fool (the old Small Wave)", row(1).content.row_name == "The Fool" and row(1).visible, row(1).content.row_name)
 check("list: composition summary", row(1).content.info:find("8 Poxwalker") ~= nil, row(1).content.info)
 check("list: row flags (every wave with enemies has a Delete button)", row(1).content.show_check and row(1).content.show_stepper and row(1).content.show_share and row(1).content.show_action and row(1).content.hotspot_action_text == "btn_delete")
-check("list: share shown", row(1).content.share == "18.0%", row(1).content.share)
+check("list: share shown", row(1).content.share == "10.6%", row(1).content.share)
 check("list: 10 rows visible", row(10).visible and view._offset == 0)
 check("list: buttons hidden", not view._widgets_by_name.btn_back.visible and not view._widgets_by_name.stepper_chance.visible)
 
@@ -209,17 +209,17 @@ check("toggle enabled off", settings["on_wave_medium"] == false and row(2).conte
 click_row(2, "hotspot_check")
 check("toggle enabled on", settings["on_wave_medium"] == true and row(2).content.checkbox_selected == true)
 click_row(1, "hotspot_plus")
-check("chance +1", settings["pct_wave_small"] == 19 and row(1).content.stepper_value == "19", settings["pct_wave_small"])
+check("chance +1", settings["pct_wave_small"] == 6 and row(1).content.stepper_value == "6", settings["pct_wave_small"])
 click_row(1, "hotspot_minus"); click_row(1, "hotspot_minus")
-check("chance -2", settings["pct_wave_small"] == 17)
+check("chance -2", settings["pct_wave_small"] == 4)
 
 -- open detail (click the row)
 click_row(1, "hotspot_name")
-check("detail: screen and title", view._screen == "detail" and view._widgets_by_name.description_text.content.description_text == "view_desc_detail:Small Wave")
+check("detail: screen and title", view._screen == "detail" and view._widgets_by_name.description_text.content.description_text == "view_desc_detail:The Fool")
 check("detail: composition rows", row(1).content.row_name == "8 Poxwalker" and row(4).content.row_name == "2 Rifleman" and not row(5).visible, row(1).content.row_name)
 check("detail: row flags", not row(1).content.show_check and row(1).content.show_stepper and not row(1).content.show_share and row(1).content.show_action)
 check("detail: buttons visible", view._widgets_by_name.btn_rename.visible and view._widgets_by_name.btn_add.visible and view._widgets_by_name.stepper_cooldown.visible)
-check("detail: steppers show values", view._widgets_by_name.stepper_chance.content.stepper_value == "17" and view._widgets_by_name.stepper_cooldown.content.stepper_value == "60")
+check("detail: steppers show values", view._widgets_by_name.stepper_chance.content.stepper_value == "4" and view._widgets_by_name.stepper_cooldown.content.stepper_value == "120")
 
 -- count stepper writes an override
 click_row(1, "hotspot_plus")
@@ -583,9 +583,9 @@ PopupOwner.Popup.cancel(view)
 
 -- chance/cooldown steppers and enabled toggle in detail
 view._widgets_by_name.stepper_cooldown.content.hotspot_plus.pressed_callback()
-check("cooldown +5", settings["cd_wave_small"] == 65 and view._widgets_by_name.stepper_cooldown.content.stepper_value == "65", settings["cd_wave_small"])
+check("cooldown +5", settings["cd_wave_small"] == 125 and view._widgets_by_name.stepper_cooldown.content.stepper_value == "125", settings["cd_wave_small"])
 view._widgets_by_name.stepper_chance.content.hotspot_plus.pressed_callback()
-check("chance +1 in detail (the reset above restored 18)", settings["pct_wave_small"] == 19, settings["pct_wave_small"])
+check("chance +1 in detail (the reset above restored 5)", settings["pct_wave_small"] == 6, settings["pct_wave_small"])
 click("btn_enabled")
 check("enabled toggled in detail", settings["on_wave_small"] == false and view._widgets_by_name.btn_enabled.content.hotspot_text == "btn_enabled_off")
 
@@ -597,7 +597,7 @@ check("standard wave: last enemy kept", #view._parts == 1 and echoes[#echoes]:fi
 
 -- reset
 click("btn_reset")
-check("reset restores built-in", view._wave.name == "Small Wave" and #view._parts == 4 and settings["on_wave_small"] == true and settings["pct_wave_small"] == 18)
+check("reset restores built-in", view._wave.name == "The Fool" and #view._parts == 4 and settings["on_wave_small"] == true and settings["pct_wave_small"] == 5)
 
 -- back navigation: detail -> list, back key
 click("btn_back")
@@ -689,7 +689,7 @@ do
   click("btn_default")
   check("actions: first click only asks 'Sure?'", view._widgets_by_name.btn_default.content.hotspot_text == "btn_sure" and settings["del_wave_small"] == true)
   click("btn_default")
-  check("actions: second click restores every wave to the defaults (deleted ones too, custom ones emptied)", settings["del_wave_small"] == false and settings["wave_def_wave_small"] == "" and settings["pct_wave_small"] == 18 and settings["pct_boss_ambush"] ~= 99 and #view._waves == 32 and row(1).content.row_name == "Small Wave" and view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_title", tostring(#view._waves))
+  check("actions: second click restores every wave to the defaults (deleted ones too, custom ones emptied)", settings["del_wave_small"] == false and settings["wave_def_wave_small"] == "" and settings["pct_wave_small"] == 5 and settings["pct_boss_ambush"] ~= 99 and #view._waves == 32 and row(1).content.row_name == "The Fool" and view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_title", tostring(#view._waves))
   check("actions: the replaced setup is kept for Undo last load", settings.preset_undo ~= nil and settings.preset_undo ~= "")
   settings.preset_undo = nil
   click("btn_default"); view:update(0.01, 500, input_stub3)
@@ -740,7 +740,7 @@ do
   check("help: the wave screen explains the fixed timer, distances and sharing", W2.help_text.content.help_text == "help_detail")
   W2.btn_help.content.hotspot.is_hover = false; view:update(0.01, 0, input_stub3); click("btn_back")
   check("help: texts exist in the localization for every screen", (function() local ok = true; for _, k in ipairs({ "hint_list", "hint_mods", "hint_presets", "hint_settings", "help_detail", "help_picker", "help_preset_view" }) do if not dofile(MODROOT .. "/scripts/mods/RealmsWaves/RealmsWaves_localization.lua")[k] then ok = false end end return ok end)())
-  settings["pct_wave_small"] = 18
+  settings["pct_wave_small"] = 5
 
   -- settings screen
   check("settings: More options button (top right corner) visible on the wave list", view._widgets_by_name.btn_settings.visible and view._widgets_by_name.btn_settings.content.hotspot_text == "btn_settings")

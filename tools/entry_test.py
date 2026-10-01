@@ -31,7 +31,8 @@ mod.add_require_path = function() end
 mod.register_view = function(self, def) views[#views + 1] = def end
 mod.command = function(self, name, desc, fn) commands[name] = fn end
 mod.get = function() return nil end
-mod.set = function() end
+local stored = {}
+mod.set = function(self, id, value) stored[id] = value end
 mod.echo = function() end
 mod.warning = function() end
 mod.error = function() end
@@ -64,6 +65,7 @@ check("keybinds: while a popup text box is open -> DMF's check is skipped (typin
 RW.text_input_active = false
 check("keybinds: popup closed -> keybinds work again", (function() dmf_calls = {}; hook(original); return #dmf_calls == 1 end)())
 
+check("entry: the one-time tarot rename ran and its flag is stored", stored.tarot_migrated == true and RW.cards ~= nil and type(RW.cards.migrate) == "function")
 -- player deaths feed the anti-snowball option; the new console commands exist
 check("entry: the player-death event is registered for anti-snowballing", registered_events.event_player_died == "_on_player_died" and type(mod._on_player_died) == "function")
 local forwarded = 0

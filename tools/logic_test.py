@@ -186,7 +186,8 @@ check("standard waves use known breeds", #unknown == 0, table.concat(unknown, ",
 local pool, total = Events.build_pool(function(id) return settings[id] end, Groups)
 local sum = 0; for i = 1, #pool do sum = sum + pool[i].pct end
 check("default pool 12 events", #pool == 12, #pool)
-check("default raw total 100", math.abs(total - 100) < 1e-9, total)
+local lo, hi = math.huge, 0; for _, e in ipairs(Events.STANDARD) do lo = math.min(lo, e.default_pct); hi = math.max(hi, e.default_pct) end
+check("default weights are on the 1-10 scale of the weight pips", lo >= 1 and hi <= 10, lo .. ".." .. hi)
 check("pct sums to 100", math.abs(sum - 100) < 1e-6, sum)
 
 local get = function(id) return settings[id] end
@@ -216,10 +217,10 @@ check("renormalised to 100", math.abs(sum - 100) < 1e-6, sum)
 local before = Events.get("wave_small", get, Groups)
 Events.set_def(set, "wave_small", "Tiny Rush", Groups.parse("3 poxwalkers"), Groups)
 local after = Events.get("wave_small", get, Groups)
-check("standard override", after.name == "Tiny Rush" and #after.parts == 1 and after.modified and not after.is_custom and before.name == "Small Wave")
+check("standard override", after.name == "Tiny Rush" and #after.parts == 1 and after.modified and not after.is_custom and before.name == "The Fool")
 Events.reset(set, "wave_small")
 after = Events.get("wave_small", get, Groups)
-check("standard reset", after.name == "Small Wave" and #after.parts == 4 and not after.modified and after.enabled and after.pct == 18, after.name)
+check("standard reset", after.name == "The Fool" and #after.parts == 4 and not after.modified and after.enabled and after.pct == 5, after.name)
 
 -- disabling, cooldown override, empty custom
 set("on_wave_large", false); set("cd_wave_large", 5)
@@ -420,7 +421,7 @@ do
   is_server = true
   check("pool: a host never sends its waves to itself", Director.send_waves() == false)
   Director.on_exit_gameplay(); Director.on_enter_gameplay()
-  local friend_text = peer_text({ w("custom_1", "Friend Special", "4 hounds", 500), w("wave_small", "Small Wave", "8 poxwalker, 4 dreg, 2 rifleman", 18) })
+  local friend_text = peer_text({ w("custom_1", "Friend Special", "4 hounds", 500), w("wave_small", "The Fool", "8 poxwalker, 6 scab, 4 dreg, 2 rifleman", 5) })
   settings.pool_all_players = nil
   Director.on_waves("peer_a", friend_text)
   check("pool: option off (default) -> the host's own waves only", Director.extra_waves() == nil)
@@ -431,11 +432,11 @@ do
   local names = {}; for _, e in ipairs(pool) do names[e.name] = (names[e.name] or 0) + 1 end
   local total = 0; for _, e in ipairs(pool) do total = total + e.pct end
   check("pool: the friend's special wave joins the host's pool and the chances still total 100", names["Friend Special"] == 1 and math.abs(total - 100) < 1e-6, total)
-  check("pool: a wave identical to one of the host's counts once (the host's wins)", names["Small Wave"] == 1, tostring(names["Small Wave"]))
+  check("pool: a wave identical to one of the host's counts once (the host's wins)", names["The Fool"] == 1, tostring(names["The Fool"]))
   -- name collisions get a suffix
-  local clash = Events.build_pool(function(id) return settings[id] end, Groups, { { key = "x:1", name = "Small Wave", parts = Groups.parse("5 mutants"), enabled = true, pct = 5, cooldown = 0, spread = 3, rep_every = 10, rep_for = 60, dmin = 0, dmax = 0 } })
+  local clash = Events.build_pool(function(id) return settings[id] end, Groups, { { key = "x:1", name = "The Fool", parts = Groups.parse("5 mutants"), enabled = true, pct = 5, cooldown = 0, spread = 3, rep_every = 10, rep_for = 60, dmin = 0, dmax = 0 } })
   local suffixed; for _, e in ipairs(clash) do if e.key == "x:1" then suffixed = e.name end end
-  check("pool: a friend's wave with an already used name gets '(2)'", suffixed == "Small Wave (2)", tostring(suffixed))
+  check("pool: a friend's wave with an already used name gets '(2)'", suffixed == "The Fool (2)", tostring(suffixed))
   -- the spawn definition of a friend's wave is complete
   local friend; for _, e in ipairs(pool) do if e.name == "Friend Special" then friend = e end end
   check("pool: the friend's wave carries a full spawn definition", friend and friend.def.parts and friend.def.parts[1].breed == "chaos_hound" and friend.def.parts[1].count == 4 and friend.def.cooldown == 0 and friend.def.spread == 3 and friend.raw == 500)
@@ -788,11 +789,11 @@ do
   check("find: by key", found("custom_2") == "custom_2" and found("hound_frenzy") == "hound_frenzy" and found("CUSTOM_2") == "custom_2")
   check("find: renamed custom wave by name with underscores", found("mutants_everywhere") == "custom_2")
   check("find: by name with spaces, any case, punctuation", found("Mutants Everywhere") == "custom_2" and found("MUTANTS everywhere!") == "custom_2" and found("mutants-everywhere") == "custom_2")
-  check("find: built-in wave by its displayed name", found("Small Wave") == "wave_small" and found("hound_frenzy") == "hound_frenzy" and found("hound frenzy") == "hound_frenzy")
-  check("find: unique prefix", found("mutants_ever") == "custom_2" and found("boss") == "boss_ambush")
+  check("find: built-in wave by its displayed name", found("The Fool") == "wave_small" and found("the hunt") == "hound_frenzy" and found("hound_frenzy") == "hound_frenzy" and found("Rain of Rot") == "grenade_legion")
+  check("find: unique prefix", found("mutants_ever") == "custom_2" and found("the_dev") == "boss_ambush" and found("the_watch") == "sniper_elite")
   check("find: unique substring", found("everywhere") == "custom_2")
-  local amb2_key, amb2_err = found("ambush")
-  check("find: a substring shared by two waves (Boss Ambush, Mutant Ambush) is ambiguous", amb2_key == nil and amb2_err:find("Boss Ambush") ~= nil and amb2_err:find("Mutant Ambush") ~= nil, amb2_err)
+  local amb2_key, amb2_err = found("the")
+  check("find: a substring shared by two waves (The Fool, The Pilgrims: 'the_p' is no prefix of both, 'the' is) is ambiguous", amb2_key == nil and amb2_err:find("The Fool") ~= nil and amb2_err:find("The Pilgrims") ~= nil, amb2_err)
   local amb_key, amb_err = found("mutant")
   check("find: ambiguous text is refused and lists the candidates", amb_key == nil and amb_err:find("several waves match") and amb_err:find("Mutants Everywhere") and amb_err:find("Mutant Ambush"), amb_err)
   local unk_key, unk_err = found("no_such_wave")
@@ -1151,7 +1152,7 @@ do
   local std_text = Presets.encode_wave(std)
   local std_back = Presets.decode_wave(std_text, Events, Groups)
   Presets.apply_wave(std_back, "wave_large", ts, Events, Groups)
-  check("wave share: a standard wave applied onto another standard wave", Presets.capture_wave(tg, "wave_large", Events, Groups).name == "Small Wave")
+  check("wave share: a standard wave applied onto another standard wave", Presets.capture_wave(tg, "wave_large", Events, Groups).name == "The Fool")
   local function bad(t) local w, e = Presets.decode_wave(t, Events, Groups); return w == nil and type(e) == "string" and e end
   check("wave share: empty text refused", bad("  ") ~= false)
   check("wave share: a whole preset is refused with a pointer to the Presets screen", (bad(Presets.encode({ name = "x", waves = {} })) or ""):find("Presets screen") ~= nil)
@@ -1234,6 +1235,110 @@ do
   local cut40 = Groups.render_segments(segs, 20, painter.markup)
   check("cut: render_segments keeps the colours of the visible part and the ellipsis is plain", cut40:gsub("{#[^}]*}", "") == "Purple, Red, Pus-..." and cut40:find("{#color(4,5,6)}Red{#reset()}", 1, true) ~= nil and cut40:find("{#color(7,8,9)}Pus-{#reset()}", 1, true) ~= nil, cut40)
   check("cut: nothing is cut when the text fits", Groups.render_segments(segs, 100, painter.markup):gsub("{#[^}]*}", "") == "Purple, Red, Pus-Hardened Skin")
+end
+-- The Grandfather's Tarot: card data (catalog/cards.lua) --------------------------------------------------------------
+do
+  local Cards = load("catalog/cards")
+  local Presets = PresetsMod
+  local function rec(r) return Groups.parse(r) end
+  -- the palette is the reference page's, exactly
+  check("tarot: six suits in order, every colour a 3-number rgb", #Cards.SUIT_ORDER == 6 and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
+  check("tarot: plague suit values from the palette", table.concat(Cards.SUITS.plague.card, ",") == "30,36,19" and table.concat(Cards.SUITS.plague.accent, ",") == "183,194,58" and table.concat(Cards.SUITS.fateful.frame, ",") == "138,122,74" and table.concat(Cards.SUITS.murmur.frame, ",") == "85,96,58")
+  check("tarot: threat colours 1..5", table.concat(Cards.THREAT_COLORS[1], ",") == "167,194,124" and table.concat(Cards.THREAT_COLORS[3], ",") == "227,207,74" and table.concat(Cards.THREAT_COLORS[5], ",") == "207,74,48")
+  check("tarot: the suit ids of the catalog and of the card module are the same set", (function() for id in pairs(Events.SUITS) do if not Cards.SUITS[id] then return false end end for id in pairs(Cards.SUITS) do if not Events.SUITS[id] then return false end end return true end)())
+  check("tarot: every suit has its line from the brief", Cards.SUITS.plague.whisper == "Something is growing." and Cards.SUITS.murmur.whisper == "Do you hear it?" and Cards.SUITS.rage.whisper == "Faster. Faster." and Cards.SUITS.blight.whisper == "The air turns." and Cards.SUITS.swarm.whisper == "Too many to count." and Cards.SUITS.fateful.whisper == "The last page.")
+  -- threat by the numbers
+  local function th(r) return (Cards.threat_auto(rec(r), Groups)) end
+  check("threat: base 1 up to 8 enemies, 2 up to 24, 3 up to 60, 4 up to 120, 5 above (fodder only)", th("8 poxwalker") == 1 and th("9 poxwalker") == 2 and th("24 poxwalker") == 2 and th("25 poxwalker") == 3 and th("30 poxwalker, 30 scab") == 3 and th("30 poxwalker, 30 scab, 1 dreg") == 4 and th("60 poxwalker, 60 scab") == 4 and (Cards.threat_auto({ { breed = "chaos_poxwalker", count = 121 } }, Groups)) == 5, th("8 poxwalker") .. th("9 poxwalker") .. th("25 poxwalker"))
+  check("threat: +1 with elites, +1 with specials, +2 with a boss, never above 5", th("3 crushers") == 2 and th("5 hounds") == 2 and th("1 plague ogryn") == 3 and th("5 hounds, 3 crushers") == 3 and th("8 poxwalker, 1 plague ogryn, 1 hound, 1 crusher") == 5 and th("60 poxwalker, 40 scab, 1 plague ogryn") == 5, th("3 crushers") .. th("5 hounds") .. th("1 plague ogryn"))
+  local _, parts_info = Cards.threat_auto(rec("30 poxwalker, 3 crushers, 2 hounds"), Groups)
+  check("threat: the explanation pieces for 'Threat N by the numbers'", parts_info.count == 35 and parts_info.base == 3 and parts_info.elite and parts_info.special and not parts_info.boss)
+  check("threat: a manual override wins, 0 means automatic, junk is ignored", Cards.threat(rec("3 crushers"), 4, Groups) == 4 and Cards.threat(rec("3 crushers"), 0, Groups) == 2 and Cards.threat(rec("3 crushers"), 9, Groups) == 2 and Cards.threat(rec("3 crushers"), nil, Groups) == 2)
+  check("threat: a random group counts its kinds (a boss in the group is a boss)", th("1 plague ogryn|chaos spawn") == 3 and th("1 hound|crusher") == 3)
+  -- suit suggestion
+  check("suggest: boss -> fateful, specials -> blight, more than 60 and no elites -> swarm, else none", Cards.suggest_suit(rec("1 plague ogryn"), Groups) == "fateful" and Cards.suggest_suit(rec("5 hounds"), Groups) == "blight" and Cards.suggest_suit(rec("40 poxwalker, 30 scab"), Groups) == "swarm" and Cards.suggest_suit(rec("40 poxwalker, 30 scab, 1 crusher"), Groups) == nil and Cards.suggest_suit(rec("5 poxwalker"), Groups) == nil and Cards.suggest_suit(rec("1 plague ogryn, 5 hounds"), Groups) == "fateful")
+  -- dots: one per enemy colour
+  local Colors = load("catalog/colors")
+  Colors.init({ kind = Groups.kind, option = function() end })
+  local function rgb_of(b) return Colors.rgb(b) end
+  local d1 = Cards.dots(rec("30 poxwalker, 30 scab, 30 dreg"), rgb_of)
+  check("dots: the three fodder breeds share one colour -> one dot", #d1 == 1 and table.concat(d1[1], ",") == "135,135,135")
+  local d2 = Cards.dots(rec("6 tox bomber, 6 bomber"), rgb_of)
+  check("dots: two kinds -> two dots, in order of appearance", #d2 == 2 and table.concat(d2[1], ",") == "170,255,50" and table.concat(d2[2], ",") == "255,175,100")
+  local d3 = Cards.dots(rec("1 plague ogryn|beast of nurgle|chaos spawn|packmaster"), rgb_of)
+  check("dots: a random group of bosses -> one boss-red dot", #d3 == 1 and table.concat(d3[1], ",") == "255,50,50")
+  check("dots: at most 6", #Cards.dots(rec("1 hound, 1 crusher, 1 mauler, 1 mutant, 1 trapper, 1 bomber, 1 tox bomber, 1 sniper"), rgb_of) == 6)
+  check("dots: enemies without a colour are skipped", #Cards.dots(rec("3 hounds"), function() return nil end) == 0)
+  -- whisper, look, rarity
+  check("whisper: own text, else the suit's line; cleaned and cut at 40", Cards.whisper({ whisper = "It grows.", suit = "swarm" }) == "It grows." and Cards.whisper({ whisper = "", suit = "swarm" }) == "Too many to count." and Cards.whisper({ whisper = "   ", suit = "rage" }) == "Faster. Faster." and #Cards.clean_whisper(string.rep("ab ", 30)) <= 40 and Cards.clean_whisper("a\n\tb") == "a b" and Cards.whisper({ suit = "nope" }) == "Something is growing.")
+  check("look: whisper for every murmur card, rot for the rest, an explicit look wins, junk ignored", Cards.look({ suit = "murmur" }) == "whisper" and Cards.look({ suit = "rage" }) == "rot" and Cards.look({ suit = "blight", look = "vial" }) == "vial" and Cards.look({ suit = "murmur", look = "rot" }) == "rot" and Cards.look({ suit = "blight", look = "nonsense" }) == "rot")
+  check("rare: weight 1-2 is rare, 0 and 3+ are not", Cards.is_rare(1) and Cards.is_rare(2) and not Cards.is_rare(3) and not Cards.is_rare(0) and not Cards.is_rare(nil))
+  check("suit: an unknown suit falls back to plague", Cards.normalize_suit("nonsense") == "plague" and Cards.normalize_suit(nil) == "plague" and Cards.normalize_suit("rage") == "rage")
+  -- rot formulas of the reference page
+  check("rot: strength is 0 at 30 s, 1 at the longest cooldown, clamped, and grows with the cooldown", Cards.rot_strength(30, 600) == 0 and math.abs(Cards.rot_strength(600, 600) - 1) < 1e-9 and Cards.rot_strength(5000, 600) == 1 and Cards.rot_strength(120, 600) > 0.4 and Cards.rot_strength(120, 600) < 0.5 and Cards.rot_strength(240, 600) > Cards.rot_strength(120, 600), Cards.rot_strength(120, 600))
+  check("rot: duration lerps from the shortest to the longest rot (1.2 s at 30 s, 3.0 s at the longest)", math.abs(Cards.rot_duration(30, 600, 1.2, 3) - 1.2) < 1e-9 and math.abs(Cards.rot_duration(600, 600, 1.2, 3) - 3) < 1e-9)
+  local sz = Cards.rot_sizes(1)
+  check("rot: blotch 14 + 52k, flies 3 + round(6k), drips 14 + 40k", Cards.rot_sizes(0).blotch == 14 and sz.blotch == 66 and Cards.rot_sizes(0).flies == 3 and sz.flies == 9 and sz.drip == 54 and Cards.rot_sizes(0).drip == 14)
+  check("rot and renewal: grey -> brown -> ochre -> the suit accent at p 0, 0.35, 0.7, 1; the text opacity goes 0.5 -> 1", table.concat(Cards.rot_color(0, { 183, 194, 58 }), ",") == "74,74,64" and table.concat(Cards.rot_color(0.35, { 183, 194, 58 }), ",") == "90,70,49" and table.concat(Cards.rot_color(0.7, { 183, 194, 58 }), ",") == "194,122,44" and table.concat(Cards.rot_color(1, { 183, 194, 58 }), ",") == "183,194,58" and Cards.rot_text_alpha(0) == 0.5 and Cards.rot_text_alpha(1) == 1)
+  check("murmur returns: the card opacity goes 0.6 -> 1 and the whisper appears letter by letter", Cards.murmur_card_alpha(0) == 0.6 and Cards.murmur_card_alpha(1) == 1 and Cards.whisper_letters("Do you hear it?", 0) == 0 and Cards.whisper_letters("Do you hear it?", 1) == 15 and Cards.whisper_letters("Do you hear it?", 0.5) > 0 and Cards.whisper_letters("Do you hear it?", 0.5) < 15)
+  -- the default cards
+  local function def(key) return Events.get(key, function() return nil end, Groups) end
+  check("defaults: the standard waves are tarot cards under their old keys", def("boss_ambush").name == "The Devil" and def("boss_ambush").suit == "fateful" and def("bomber_frenzy").name == "The Tower" and def("hound_frenzy").name == "The Hunt" and def("hound_frenzy").suit == "rage" and def("grenade_legion").name == "Rain of Rot" and def("sniper_elite").name == "The Watching Moon" and def("sniper_elite").suit == "murmur" and def("elite_squad").name == "The Chariot" and def("wave_small").name == "The Fool" and def("wave_small").suit == "swarm")
+  check("defaults: Rain of Rot is the only vial; the Murmur suit gets the whisper look through the suit rule", def("grenade_legion").look == "vial" and (function() local n = 0; for _, k in ipairs(Events.keys()) do if def(k).look == "vial" then n = n + 1 end end return n end)() == 1 and Cards.look({ suit = def("sniper_elite").suit, look = def("sniper_elite").look }) == "whisper")
+  check("defaults: every default card has a valid suit, a cooldown of at least 30 s (multiples of 30) and a weight 1-10", (function() for _, e in ipairs(Events.STANDARD) do if not Events.SUITS[e.suit] or e.cooldown < 30 or e.cooldown % 30 ~= 0 or e.default_pct < 1 or e.default_pct > 10 then return false end end return true end)())
+  check("defaults: a custom card is a plague card with a 120 s cooldown and weight 10", def("custom_1").suit == "plague" and def("custom_1").cooldown == 120 and def("custom_1").threat_override == 0 and def("custom_1").whisper == "" and def("custom_1").look == "")
+  check("defaults: one default per name (no two default cards share a name)", (function() local seen = {}; for _, e in ipairs(Events.STANDARD) do if seen[e.name] then return false end seen[e.name] = true end return true end)())
+  -- stored values and describe()
+  local st = { su_custom_1 = "murmur", th_custom_1 = 5, wh_custom_1 = "Listen.", cl_custom_1 = "rot", wave_def_custom_1 = "The Pale Choir\t24 poxwalker, 2 crushers[rotten]", on_custom_1 = true, pct_custom_1 = 2 }
+  local w1 = Events.get("custom_1", function(id) return st[id] end, Groups)
+  check("settings: suit, threat override, whisper and look are read from su_/th_/wh_/cl_", w1.suit == "murmur" and w1.threat_override == 5 and w1.whisper == "Listen." and w1.look == "rot")
+  local card = Cards.describe(w1, Groups, rgb_of)
+  check("describe: a custom card gets name, suit, threat, dots, whisper, look, rarity, modifier line", card.name == "The Pale Choir" and card.suit == "murmur" and card.threat == 5 and card.threat_auto == 4 and card.whisper == "Listen." and card.own_whisper and card.look == "rot" and card.rare and card.weight == 2 and card.modifiers == "Rotten Armor" and #card.dots == 2 and card.breeds[1] == "chaos_poxwalker" and card.enabled, card.threat_auto)
+  st.su_custom_1 = "bogus"; st.th_custom_1 = 99; st.cl_custom_1 = "x"; st.wh_custom_1 = nil
+  local w2 = Events.get("custom_1", function(id) return st[id] end, Groups)
+  check("settings: junk values fall back (suit plague, threat 5 at most, no look, no whisper)", w2.suit == "plague" and w2.threat_override == 5 and w2.look == "" and w2.whisper == "")
+  local sets = {}
+  Events.reset(function(id, v) sets[id] = v end, "custom_1")
+  check("settings: reset clears the card data", sets.su_custom_1 == "" and sets.th_custom_1 == 0 and sets.wh_custom_1 == "" and sets.cl_custom_1 == "")
+  -- sharing and spreads carry the card data
+  local store = { su_custom_2 = "rage", th_custom_2 = 2, wh_custom_2 = "Run | now ~ 100%", cl_custom_2 = "vial", wave_def_custom_2 = "Chase\t5 hounds", on_custom_2 = true, cd_custom_2 = 180 }
+  local function g(id) return store[id] end
+  local snap = Presets.capture_wave(g, "custom_2", Events, Groups)
+  check("share: the snapshot holds suit, threat override, whisper, look", snap.suit == "rage" and snap.thr == 2 and snap.whisper == "Run | now ~ 100%" and snap.look == "vial" and snap.cd == 180)
+  local text = Presets.encode_wave(snap)
+  local back = Presets.decode_wave(text, Events, Groups)
+  check("share: a wave text round trip keeps them, awkward characters included", back and back.suit == "rage" and back.thr == 2 and back.whisper == "Run | now ~ 100%" and back.look == "vial" and back.cd == 180, text)
+  local target = {}
+  Presets.apply_wave(back, "custom_9", function(id, v) target[id] = v end, Events, Groups)
+  check("share: applying writes them onto the chosen slot", target.su_custom_9 == "rage" and target.th_custom_9 == 2 and target.wh_custom_9 == "Run | now ~ 100%" and target.cl_custom_9 == "vial" and target.cd_custom_9 == 180)
+  local unknown = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~120~3~10~60~3 hounds~0~0~0~0~chaos~9~ok~sparkle"), Events, Groups)
+  check("share: an unknown suit from a friend becomes plague, a threat above 5 is capped, an unknown look is dropped", unknown and unknown.suit == "plague" and unknown.thr == 5 and unknown.look == "" and unknown.whisper == "ok")
+  local older = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~0~0"), Events, Groups)
+  check("share: a text from before the tarot (13 fields) imports and keeps the card's own suit (suit nil)", older and older.suit == nil and older.thr == 0 and older.whisper == "" and older.look == "")
+  local tw = {}
+  Presets.apply_wave(older, "hound_frenzy", function(id, v) tw[id] = v end, Events, Groups)
+  check("share: ...and applying it does not overwrite the suit with a default", tw.su_hound_frenzy == "")
+  local long = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~120~3~10~60~3 hounds~0~0~0~0~swarm~0~" .. string.rep("x", 90) .. "~rot"), Events, Groups)
+  check("share: a whisper longer than 40 characters is cut", long and #long.whisper <= 40)
+  local cap = Presets.capture(g, Events, Groups)
+  cap.name = "Spread"
+  local pb = Presets.decode(Presets.encode(cap), Events, Groups)
+  local pw; for _, w in ipairs(pb.waves) do if w.key == "custom_2" then pw = w end end
+  check("spread: a preset carries suit, threat override, whisper, look, cooldown", pw and pw.suit == "rage" and pw.thr == 2 and pw.look == "vial" and pw.whisper == "Run | now ~ 100%" and pw.cd == 180)
+  -- the one-time rename of the user's old waves
+  local mig = {}
+  local function mg(id) return mig[id] end
+  local function ms(id, v) mig[id] = v end
+  Events.set_def(ms, "custom_1", "Horde Fodder", rec("30 poxwalker, 30 scab, 30 dreg"), Groups); mig.on_custom_1 = true
+  Events.set_def(ms, "custom_2", "HOLY SHIT WE LOST", rec("5 shocktrooper, 10 crusher"), Groups)
+  Events.set_def(ms, "grenade_legion", "Grenade chaos", rec("6 tox bomber, 6 bomber"), Groups)
+  Events.set_def(ms, "custom_3", "My Own Name", rec("3 hounds"), Groups)
+  Events.set_def(ms, "custom_4", "Dog wave", rec("5 hounds"), Groups); mig.su_custom_4 = "blight" -- the user already chose a suit: left alone
+  local renamed = Cards.migrate(mg, ms, Events, Groups)
+  check("migration: the old names become their tarot cards with the right suit", renamed == 3 and Events.get("custom_1", mg, Groups).name == "The Multitude" and mig.su_custom_1 == "swarm" and Events.get("custom_2", mg, Groups).name == "Death" and mig.su_custom_2 == "fateful" and Events.get("grenade_legion", mg, Groups).name == "Rain of Rot" and mig.su_grenade_legion == "blight" and mig.cl_grenade_legion == "vial", tostring(renamed))
+  check("migration: a name the user chose and a card whose suit the user already set are left alone", Events.get("custom_3", mg, Groups).name == "My Own Name" and mig.su_custom_3 == nil and Events.get("custom_4", mg, Groups).name == "Dog wave" and mig.su_custom_4 == "blight")
+  check("migration: recipes and settings are kept", #Events.get("custom_1", mg, Groups).parts == 3 and Events.get("custom_1", mg, Groups).enabled == true)
+  check("migration: running it again changes nothing (the suits are set now)", Cards.migrate(mg, ms, Events, Groups) == 0)
 end
 -- twin captains: the shield starts down (toughness template start_depleted) and must be raised via optional_init_toughness
 do

@@ -25,6 +25,19 @@ mod.on_all_mods_loaded = function ()
 	RW.groups = mod:io_dofile(BASE .. "/catalog/groups")
 	RW.presets = mod:io_dofile(BASE .. "/catalog/presets")
 	RW.colors = mod:io_dofile(BASE .. "/catalog/colors")
+	RW.cards = mod:io_dofile(BASE .. "/catalog/cards")
+
+	-- 2.0.0: the waves became tarot cards. Waves the user had named in the old way are renamed ONCE (and get their suit);
+	-- the flag is stored first so a failure can never repeat it. A later rename by the user always stays.
+	if mod:get("tarot_migrated") ~= true then
+		mod:set("tarot_migrated", true)
+
+		local ok, renamed = pcall(RW.cards.migrate, function (id) return mod:get(id) end, function (id, value) mod:set(id, value) end, RW.events, RW.groups)
+
+		if ok and renamed and renamed > 0 then
+			mod:echo("RealmsWaves 2.0: %d of your waves were renamed to their tarot cards.", renamed)
+		end
+	end
 
 	-- Enemy name colours: the player's Spidey Sense colours when that mod is installed, else our palette by kind.
 	RW.colors.init({

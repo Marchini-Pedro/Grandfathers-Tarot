@@ -46,6 +46,15 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 1.6.0 presets: 5 named slots (`preset_1..5`, `preset_undo`), text import/export (`catalog/presets.lua`, format `RW1|...|check`), Presets screens in the wave editor, tests (logic + 30 editor checks)
 - [ ] In-game verification (rows 42-48 in doc 06)
 
+### 2.0.0: The Grandfather's Tarot (spec: the pasted brief of 2026-10-01, reference page https://claude.ai/artifact/3MAB8UZa1yPtPgkYt7Rbuu)
+- [x] 0. UI primitive feasibility (report in doc 06, results log 2026-10-01)
+- [x] 1. Card data model: `catalog/cards.lua`, `su_/th_/wh_/cl_` settings, tarot names for the standard waves, one-time rename, sharing format
+- [ ] 2. Draw director (hand, winner, cooldown exclusion, sync, legacy modes kept)
+- [ ] 3. The Spread HUD
+- [ ] 4. The Deck screen, cooldown looks, custom card builder
+- [ ] 5. Mod options
+- [ ] 6. Optional: per-group health and size multipliers
+
 Deviations from the original plan (all deliberate):
 - No separate `handshake.lua`: hello/welcome live in `core/director.lua` (the handshake is just a version check).
 - `rw_state` is ONE JSON argument, and host -> clients uses `"others"` (Realms docs' own example) so there is no loopback to filter.
