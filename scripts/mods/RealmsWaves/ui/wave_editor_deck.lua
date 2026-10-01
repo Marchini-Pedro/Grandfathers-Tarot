@@ -19,6 +19,20 @@ local function mix(a, b, t)
 	return { a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t }
 end
 
+-- Seconds of cooldown left on a card (0 when it is not resting, when there is no director, or when asking it fails: the
+-- editor is also opened in the hub, where no mission runs).
+local function cooldown_left(key, length)
+	local director = mod.rw and mod.rw.director
+
+	if not director or not director.cooldown_remaining then
+		return 0
+	end
+
+	local ok, left = pcall(director.cooldown_remaining, key, length)
+
+	return ok and tonumber(left) or 0
+end
+
 -- the first n bytes of a text, never cutting a multi-byte character
 local function utf8_cut(text, n)
 	if n >= #text then
@@ -170,8 +184,7 @@ DeckView.install = function (View, h)
 			return colors and colors.rgb(breed) or Cards.BASE.muted
 		end)
 		local suit = Cards.suit(card.suit)
-		local director = rw.director
-		local remaining = director and director.cooldown_remaining and director.cooldown_remaining(wave.key, card.cooldown) or 0
+		local remaining = cooldown_left(wave.key, card.cooldown)
 		local state = Deck.state(card, remaining)
 		local sat = state == "off" and 0.7 or 0
 
@@ -569,7 +582,6 @@ DeckView.install = function (View, h)
 		end
 
 		-- the resting cards: the clock, the look, and the moment a card is back (repaint + ping)
-		local director = mod.rw.director
 		local ping_on = mod:get("tarot_ping") ~= false
 
 		for i = 1, Deck.CAPACITY do
@@ -577,7 +589,7 @@ DeckView.install = function (View, h)
 			local fx = widget and widget.visible and widget.content.fx
 
 			if fx and fx.state == "cooling" then
-				local remaining = director and director.cooldown_remaining and director.cooldown_remaining(fx.key, fx.cooldown) or 0
+				local remaining = cooldown_left(fx.key, fx.cooldown)
 
 				if remaining <= 0 then
 					self:_paint_tile(widget, fx.wave)

@@ -406,8 +406,12 @@ do
   reload()
   check("off: back in the draw and still resting: the rot look is back with the right colour", tile(3).content.card_state == "cooling" and same(tile(3).style.suit_label.text_color, Cards.rot_color(0.5, accent)))
   rem.wave_large = nil
+  mod.rw.director = { cooldown_remaining = function() error("no mission here") end }
+  reload(); step(0.01)
+  check("hub: a director that cannot answer (the editor also opens in the hub) is read as 'nothing is resting'", tile(3).content.card_state == "in" and tile(3).content.state_left == "tile_in" and tile(1).visible)
   mod.rw.director = nil
   reload()
+  check("hub: no director at all is the same", tile(3).content.card_state == "in")
 end
 
 -- the card face: the card builder (suit, threat, whisper, cooldown look, cooldown) ------------------------------------------
