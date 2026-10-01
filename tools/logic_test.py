@@ -264,7 +264,7 @@ local Execute = {
 }
 local sent = {}
 local Protocol = {
-  PROTO = 1, VERSION = "1.0.0",
+  PROTO = 2, VERSION = "2.0.0",
   is_available = function() return true end,
   send_state = function(state, rcpt) sent[#sent+1] = { state = state, rcpt = rcpt } return true end,
   send_hello = function() sent.hello = (sent.hello or 0) + 1 end,
@@ -274,7 +274,8 @@ local Protocol = {
 }
 local Director = load("core/director")
 local PresetsMod = load("catalog/presets")
-Director.init({ events = Events, groups = Groups, protocol = Protocol, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod })
+local CardsMod = load("catalog/cards")
+Director.init({ events = Events, groups = Groups, protocol = Protocol, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod, cards = CardsMod })
 
 -- random mode
 settings.mode = "random"; settings.interval_min = 100; settings.interval_max = 100; settings.initial_delay = 0; settings.vote_duration = 25
@@ -777,6 +778,187 @@ do
   check("modifier colours: the enemy part keeps the enemy's colour around them", text:find("{#color(240,240,240)}3 Crusher{#reset()}{#color(240,240,240)} [{#reset()}", 1, true) ~= nil and text:find("{#color(240,240,240)}]", 1, true) ~= nil)
   local head, mods, tail = Groups.describe_part_pieces(parts[1])
   check("modifier colours: describe_part is unchanged by the refactor", head == "3 Crusher" and #mods == 2 and mods[1].id == "garden" and tail == " (+2 per repeat)" and Groups.describe_part(parts[1], true) == "3 Crusher [Purple, Enraged] (+2 per repeat)" and Groups.describe_part(parts[2]) == "5 Hound")
+end
+-- The tarot draw: hand, winner, cooldowns, sync ------------------------------------------------------------------------
+do
+  local keys = Events.keys()
+  local function reset_settings()
+    for _, k in ipairs(keys) do settings["on_" .. k] = nil; settings["pct_" .. k] = nil; settings["cd_" .. k] = nil end
+    settings.mode = nil; settings.tarot_cards = 3; settings.tarot_seconds = 10
+    settings.interval_min = 100; settings.interval_max = 100; settings.interval_random = false; settings.initial_delay = 0
+  end
+  -- only these waves are in the draw: { { key, weight, cooldown }, ... }
+  local function only(list)
+    for _, k in ipairs(keys) do settings["on_" .. k] = false end
+    for _, e in ipairs(list) do settings["on_" .. e[1]] = true; settings["pct_" .. e[1]] = e[2] or 5; settings["cd_" .. e[1]] = e[3] or 0 end
+  end
+  local function start()
+    started_waves = {}; started_defs = {}
+    Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01)
+    return Director.view()
+  end
+  local function key_of_def(def) return def.key end
+  reset_settings()
+
+  -- the cycle: wait, deal, pick
+  only({ { "wave_small", 5, 0 }, { "wave_medium", 5, 0 }, { "wave_large", 5, 0 }, { "wave_huge", 5, 0 }, { "boss_ambush", 5, 0 } })
+  local v = start()
+  check("tarot: the default mode is the tarot draw; the first state is a countdown without a hand", v.mode == "tarot" and v.phase == "waiting" and v.hand == nil and v.remaining > 99 and not v.drawn, tostring(v.mode) .. "/" .. tostring(v.phase))
+  Director.update(85)
+  check("tarot: the hand is NOT dealt before the last 'seconds before the pick'", Director.view().phase == "waiting" and Director.view().hand == nil)
+  Director.update(6)
+  v = Director.view()
+  check("tarot: the hand is dealt 10 s before the pick (3 cards, all different)", v.phase == "hand" and #v.hand == 3 and v.hand[1].key ~= v.hand[2].key and v.hand[2].key ~= v.hand[3].key and v.hand[1].key ~= v.hand[3].key and v.hand_seconds > 8 and v.hand_seconds < 10, tostring(v.hand and #v.hand))
+  check("tarot: the winner is chosen when the hand is dealt (1..3) and synced with it", v.win >= 1 and v.win <= 3 and sent[#sent].state.w == v.win and #sent[#sent].state.h == 3 and sent[#sent].state.sq == v.hand_seq and sent[#sent].state.p == "hand")
+  local c1 = sent[#sent].state.h[1]
+  check("tarot: a synced card carries name, suit, threat, enemies, whisper, rare flag (no percentage)", c1.k and c1.n and Events.SUITS[c1.s] and c1.t >= 1 and c1.t <= 5 and type(c1.b) == "table" and #c1.b >= 1 and type(c1.q) == "string" and c1.q ~= "" and (c1.r == 0 or c1.r == 1) and c1.p == nil)
+  local winner = v.hand[v.win].key
+  local seq = v.hand_seq
+  Director.update(8)
+  check("tarot: nothing is spawned before the pick", #started_defs == 0)
+  Director.update(1.5)
+  v = Director.view()
+  check("tarot: at the pick exactly the winner's wave is spawned", #started_defs == 1 and started_defs[1].key == winner, tostring(started_defs[1] and started_defs[1].key) .. " vs " .. winner)
+  check("tarot: the resolved hand stays in the state for the reveal (drawn), the next interval already runs", v.phase == "waiting" and v.drawn == true and #v.hand == 3 and v.hand_seq == seq and v.remaining > 95 and v.chosen ~= "", v.remaining)
+  check("tarot: the synced state says drawn (dn=1) and still holds the winner", sent[#sent].state.dn == 1 or (Director.update(1.1) == nil and sent[#sent].state.dn == 1))
+  Director.update(17)
+  check("tarot: the resolved hand is dropped after 16 s", Director.view().hand == nil and not Director.view().drawn)
+
+  -- one card = no roulette; weights; uniform winner
+  only({ { "wave_small", 5, 0 } })
+  v = start(); Director.update(95)
+  check("tarot: a single card in the pool makes a hand of one (no roulette: the winner is card 1)", #Director.view().hand == 1 and Director.view().win == 1)
+  settings.tarot_cards = 5
+  only({ { "wave_small", 5, 0 }, { "wave_medium", 5, 0 } })
+  v = start(); Director.update(95)
+  check("tarot: fewer cards than asked for -> a smaller hand (2 of 5)", #Director.view().hand == 2)
+  settings.tarot_cards = 1
+  only({ { "wave_small", 5, 0 }, { "wave_medium", 5, 0 }, { "wave_large", 5, 0 } })
+  v = start(); Director.update(95)
+  check("tarot: 'cards drawn' = 1 deals one card", #Director.view().hand == 1)
+  settings.tarot_cards = 9
+  only({ { "wave_small", 5, 0 }, { "wave_medium", 5, 0 }, { "wave_large", 5, 0 }, { "wave_huge", 5, 0 }, { "boss_ambush", 5, 0 }, { "bomber_frenzy", 5, 0 }, { "hound_frenzy", 5, 0 } })
+  v = start(); Director.update(95)
+  check("tarot: never more than 5 cards, whatever the option says", #Director.view().hand == 5)
+
+  -- chance weights decide who is DEALT, the final pick among the hand is uniform
+  settings.tarot_cards = 2; settings.tarot_seconds = 5; settings.interval_min = 5; settings.interval_max = 5
+  only({ { "wave_small", 10, 0 }, { "wave_medium", 1, 0 }, { "wave_large", 1, 0 } })
+  v = start()
+  local dealt, wins, hands, bad_hand = { wave_small = 0, wave_medium = 0, wave_large = 0 }, { wave_small = 0, wave_medium = 0, wave_large = 0 }, 0, false
+  local seen_seq = {}
+  for _ = 1, 3000 do
+    Director.update(0.5)
+    local view_now = Director.view()
+    if view_now.phase == "hand" and not seen_seq[view_now.hand_seq] then
+      seen_seq[view_now.hand_seq] = true
+      hands = hands + 1
+      if #view_now.hand ~= 2 or view_now.hand[1].key == view_now.hand[2].key then bad_hand = true end
+      for _, cd in ipairs(view_now.hand) do dealt[cd.key] = dealt[cd.key] + 1 end
+      wins[view_now.hand[view_now.win].key] = wins[view_now.hand[view_now.win].key] + 1
+    end
+  end
+  check("tarot: hands are always 2 different cards (a card never twice in one hand)", hands > 250 and not bad_hand, hands)
+  check("tarot: the heavy card is dealt into almost every hand (weights drive the deal)", dealt.wave_small / hands > 0.93, dealt.wave_small / hands)
+  check("tarot: but it wins only about half the time, not 83 percent (the pick among the hand is uniform)", wins.wave_small / hands > 0.40 and wins.wave_small / hands < 0.58, wins.wave_small / hands)
+  check("tarot: the light cards win too, roughly equally", wins.wave_medium > 0.1 * hands and wins.wave_large > 0.1 * hands and math.abs(wins.wave_medium - wins.wave_large) < 0.12 * hands, wins.wave_medium .. "/" .. wins.wave_large)
+
+  -- cooldown: a drawn card is out of EVERY draw for its full cooldown
+  settings.tarot_cards = 5; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100
+  only({ { "wave_small", 5, 1000 }, { "wave_medium", 5, 1000 } })
+  v = start(); Director.update(95)
+  v = Director.view()
+  local first_keys = { v.hand[1].key, v.hand[2].key }
+  Director.update(6)
+  local fired_key = started_defs[1] and started_defs[1].key
+  check("cooldown: the first hand holds both cards, one is picked", #v.hand == 2 and fired_key ~= nil)
+  check("cooldown: the picked card is listed as cooling down with its seconds left (synced as cd)", (function() local m = sent[#sent].state.cd; return type(m) == "table" and m[fired_key] and m[fired_key] > 990 and m[fired_key] <= 1000 end)(), tostring(sent[#sent].state.cd and sent[#sent].state.cd[fired_key]))
+  Director.update(95)
+  v = Director.view()
+  local other = fired_key == "wave_small" and "wave_medium" or "wave_small"
+  check("cooldown: the next hand has ONLY the other card (the picked one stays out)", v.phase == "hand" and #v.hand == 1 and v.hand[1].key == other, v.hand and v.hand[1] and v.hand[1].key)
+  Director.update(11)
+  Director.update(95)
+  v = Director.view()
+  check("cooldown: with every card cooling down nothing is dealt: the state says so (e=2: all cooling) and it tries again soon", v.phase == "waiting" and v.empty == true and v.cooling == true and sent[#sent].state.e == 2 and v.remaining <= 10.5, tostring(v.empty) .. "/" .. tostring(v.cooling) .. "/" .. v.remaining)
+  Director.update(1100)
+  Director.update(95)
+  check("cooldown: after the full cooldown the cards are dealt again", Director.view().hand ~= nil and #Director.view().hand >= 1, Director.view().hand and #Director.view().hand)
+  check("cooldown: the host can read how long is left", (function() local ok = Director.cooldown_remaining("wave_small", 1000); return type(ok) == "number" end)())
+  -- /rw_pause freezes the cooldown clock too
+  only({ { "wave_small", 5, 100 } })
+  v = start(); Director.update(95); Director.update(6)
+  Director.pause(true); Director.update(500)
+  check("cooldown: the clock does not run while paused", Director.cooldown_remaining("wave_small", 100) > 90, Director.cooldown_remaining("wave_small", 100))
+  Director.pause(false)
+  Director.update(95)
+  check("cooldown: ...so the card is still out when the countdown resumes and dealt again only after its cooldown", Director.view().hand == nil or Director.view().empty or Director.view().drawn == true)
+
+  -- empty pool, skip, next, short intervals, anti-snowball
+  only({})
+  v = start(); Director.update(95)
+  check("tarot: nothing in the draw -> an empty state (e=1), no hand, no wave", Director.view().empty == true and Director.view().hand == nil and Director.view().cooling == false and #started_defs == 0 and sent[#sent].state.e == 1)
+  only({ { "wave_small", 5, 0 }, { "wave_medium", 5, 0 } })
+  v = start()
+  Director.skip()
+  Director.update(0.1)
+  check("tarot: /rw_skip while waiting deals a hand and picks at once", #started_defs == 1 and Director.view().drawn == true and #Director.view().hand == 2)
+  Director.update(20)
+  local before_next = #started_defs
+  Director.next_wave()
+  v = Director.view()
+  check("tarot: /rw_next throws the hand away without spawning and starts a full new interval", #started_defs == before_next and v.hand == nil and not v.drawn and v.remaining > 99 and v.phase == "waiting")
+  settings.interval_min = 6; settings.interval_max = 6
+  v = start()
+  check("tarot: an interval shorter than 'seconds before the pick' deals at once (the hand is as long as the interval)", Director.view().phase == "hand" and Director.view().hand_seconds <= 6, Director.view().phase)
+  settings.interval_min = 100; settings.interval_max = 100
+  settings.anti_snowball = true; settings.anti_snowball_delay = 30
+  v = start(); Director.update(95)
+  local secs = Director.view().hand_seconds
+  Director.on_player_died()
+  check("tarot: anti-snowballing with a hand on the table delays the pick and lengthens the fuse", Director.view().remaining > 30 and Director.view().hand_seconds > secs and Director.view().phase == "hand", Director.view().hand_seconds)
+  settings.anti_snowball = nil; settings.anti_snowball_delay = nil
+
+  -- the client side: validation and cooldown countdown
+  is_server = false
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  Director.on_state("host_peer", { p = "hand", m = "tarot", r = 8.0, b = 3, c = "", k = {}, e = 0, z = 0, sq = 7, w = 2, dn = 0, y = 10,
+    h = { { k = "a", n = "The Devil", s = "fateful", t = 5, b = { "chaos_plague_ogryn", 42, "chaos_spawn" }, q = "Something big.", m = "Purple", r = 1 }, { k = "b", n = "Bogus", s = "nonsense", t = 99, b = {}, q = 12, r = 0 } },
+    cd = { wave_small = 30, junk = "x" } })
+  local cv = Director.view()
+  check("client: the tarot hand is rendered from the synced state (winner, sequence, cards)", cv.mode == "tarot" and cv.phase == "hand" and #cv.hand == 2 and cv.win == 2 and cv.hand_seq == 7 and cv.hand[1].name == "The Devil" and cv.hand[1].suit == "fateful" and cv.hand[1].rare == true and cv.hand[1].modifiers == "Purple", tostring(cv.win))
+  check("client: every field is validated (unknown suit -> plague, threat capped at 5, non-string enemies dropped, whisper made a string)", cv.hand[2].suit == "plague" and cv.hand[2].threat == 5 and #cv.hand[1].breeds == 2 and cv.hand[2].whisper == "12")
+  Director.on_state("host_peer", { p = "hand", m = "tarot", r = 8.0, b = 3, k = {}, sq = 8, w = 9, h = { { k = "a", n = "x", s = "rage", t = 1, b = {} }, 5, "junk" } })
+  check("client: a winner index outside the hand is pulled inside it, junk cards are skipped", Director.view().win == 1 and #Director.view().hand == 1)
+  local many = {}; for i = 1, 9 do many[i] = { k = "k" .. i, n = "N" .. i, s = "swarm", t = 1, b = {} } end
+  Director.on_state("host_peer", { p = "hand", m = "tarot", r = 8.0, b = 3, k = {}, sq = 9, w = 3, h = many })
+  check("client: at most 5 cards are accepted", #Director.view().hand == 5)
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 50.0, b = 3, k = {}, sq = 0, dn = 1, y = 10, cd = { wave_small = 30, junk = "x", [5] = 3 } })
+  check("client: the cooldown map is read (numbers by string keys only) and no hand means no hand", Director.view().hand == nil and Director.cooldown_remaining("wave_small") > 29 and Director.cooldown_remaining("junk") == 0 and Director.cooldown_remaining("nothing") == 0)
+  Director.update(10)
+  check("client: cooldowns count down locally between states", math.abs(Director.cooldown_remaining("wave_small") - 20) < 0.5, Director.cooldown_remaining("wave_small"))
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 50.0, b = 3, k = {}, z = 1, cd = { wave_small = 30 } })
+  Director.update(10)
+  check("client: a paused host freezes them", math.abs(Director.cooldown_remaining("wave_small") - 30) < 0.5, Director.cooldown_remaining("wave_small"))
+  is_server = true
+
+  -- legacy modes still work next to the tarot
+  settings.mode = "random"
+  only({ { "wave_small", 5, 0 } })
+  v = start()
+  check("legacy: random mode is unchanged (one pending wave, no hand)", v.mode == "random" and #v.cands == 1 and v.hand == nil)
+  settings.mode = "vote"; settings.ballot_size = 3
+  only({ { "wave_small", 5, 0 }, { "wave_medium", 5, 0 }, { "wave_large", 5, 0 } })
+  v = start()
+  check("legacy: vote mode is unchanged (a ballot of 3, no hand)", v.mode == "vote" and #v.cands == 3 and v.hand == nil)
+  settings.mode = "tarot"
+  v = start()
+  check("tarot: 'tarot' selected explicitly", v.mode == "tarot" and #v.cands == 0)
+  settings.mode = "something odd"
+  check("tarot: an unknown mode value means tarot", start().mode == "tarot")
+  reset_settings(); settings.ballot_size = nil
+  settings.interval_min = 100; settings.interval_max = 100
+  Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
 end
 -- /rw_test by name ------------------------------------------------------------------
 do

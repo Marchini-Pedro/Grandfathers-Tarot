@@ -84,6 +84,7 @@ mod.on_all_mods_loaded = function ()
 		votes = RW.votes,
 		positions = RW.positions,
 		presets = RW.presets,
+		cards = RW.cards,
 	})
 
 	RW.bypass.install()

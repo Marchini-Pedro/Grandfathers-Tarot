@@ -60,12 +60,19 @@ Per-event percent setting (stored as raw weight). Normalised across enabled even
 - Host sends compact `rw_state` on every change and about once per second for the countdown (remaining seconds, not absolute time: peers' clocks differ). Clients render from the last received state and interpolate locally between updates. Late joiners get the state on `peer_joined` and after `welcome`.
 - Host drops its own broadcast loopback (as RealmsEvent) and renders from the same state table it sends.
 
+### 8. The tarot draw (2.0.0, default mode)
+- **Cycle**: `waiting` (interval countdown) -> at `remaining <= hand_window` the host deals a hand (`phase = hand`) -> at 0 the winner spawns, the next interval starts at once and the hand stays 16 s in the state with `drawn = true`. `hand_window = min(tarot_seconds, interval)`.
+- **Deal**: eligible = enabled, has enemies, weight > 0, not on a fixed timer, not cooling down. X cards (`tarot_cards`, 1-5) are drawn by weight without replacement; fewer eligible cards than X means a smaller hand. The winner index is `math.random(1, #hand)` (uniform) and is chosen at the deal and sent with it, so every client's roulette lands on the same card. One card: no roulette.
+- **Cooldown**: `last_fired[key]` is stamped with `cd_clock` (seconds of played time: it advances only when the director is not paused and a player is alive) and a card is eligible again only when `cd_clock - last_fired >= cooldown`. Nothing eligible: `empty` state (`e = 1` nothing in the draw, `e = 2` all cooling down), retry after 10 s.
+- **Clients** never run the draw: they render the last hand, keep the cooldown map (`cd`: seconds left per cooling card) and count it down locally.
+- Everything a card shows comes from `Cards.describe` on the host (name, suit, threat, enemy kinds, whisper, rarity, modifiers), so a client without a card's wave (a friend's custom card) still draws it. A card never carries its chance.
+
 ## Protocol (Realms mod-network; JSON-safe args; prefix `rw_`) (as built)
 | RPC | Direction | Args |
 |---|---|---|
-| `rw_hello` | client -> "host" | proto (1), version ("1.0.0") |
+| `rw_hello` | client -> "host" | proto (2 since 2.0.0), version ("2.0.0") |
 | `rw_welcome` | host -> peer id | proto, version, ok (1/0) |
-| `rw_state` | host -> "others" (or one peer id) | ONE json string: `{p=phase, m=mode, r=remaining_s, b=ballot_id, c=chosen_name, e=empty, k=[{k=key,n=name,p=pct,v=votes}]}` |
+| `rw_state` | host -> "others" (or one peer id) | ONE json string: `{p=phase, m=mode, r=remaining_s, b=ballot_id, c=chosen_name, e=empty (0/1; 2 = all cooling down in tarot), z=paused, k=[{k=key,n=name,p=pct,v=votes}]}`; tarot adds `h` (hand, up to 5 of `{k,n,s,t,b,q,m,r}`), `w` (winner index), `sq` (hand number), `dn` (resolved 0/1), `y` (hand seconds), `cd` (map card key -> seconds of cooldown left) |
 | `rw_vote` | client -> "host" | ballot_id, option |
 (The planned `rw_wave` banner RPC was dropped: the HUD panel's "incoming" phase covers it.)
 Version mismatch disables the mod on that client (`rw_welcome ok=0`). Peers without the mod are not "capable" and are skipped by Realms. Host sends state on every change, once per second for the countdown, to a peer on `peer_joined`, and in reply to `rw_hello`. Clients interpolate `remaining` locally from the time of receipt (peers' clocks differ).

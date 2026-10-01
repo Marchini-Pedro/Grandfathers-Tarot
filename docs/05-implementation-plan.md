@@ -49,7 +49,7 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 ### 2.0.0: The Grandfather's Tarot (spec: the pasted brief of 2026-10-01, reference page https://claude.ai/artifact/3MAB8UZa1yPtPgkYt7Rbuu)
 - [x] 0. UI primitive feasibility (report in doc 06, results log 2026-10-01)
 - [x] 1. Card data model: `catalog/cards.lua`, `su_/th_/wh_/cl_` settings, tarot names for the standard waves, one-time rename, sharing format
-- [ ] 2. Draw director (hand, winner, cooldown exclusion, sync, legacy modes kept)
+- [x] 2. Draw director (hand, winner, cooldown exclusion, sync, legacy modes kept): `core/director.lua`, protocol 2 / 2.0.0, options `mode` (default tarot), `tarot_cards`, `tarot_seconds`
 - [ ] 3. The Spread HUD
 - [ ] 4. The Deck screen, cooldown looks, custom card builder
 - [ ] 5. Mod options
@@ -76,7 +76,8 @@ mods\RealmsWaves\
     core\protocol.lua                    Realms RPCs: rw_hello, rw_welcome, rw_state, rw_vote
     core\director.lua                    timer, draw/ballot, vote handling, state sync, HUD view(), debug helpers
     core\votes.lua                       tally (one vote per peer, ties random)
-    catalog\events.lua                   12 standard waves (default chances sum to 100) + build_pool() normalisation
+    catalog\events.lua                   12 standard waves (tarot names since 2.0.0) + build_pool() normalisation
+    catalog\cards.lua                    2.0.0: palette, suits, threat, dots, whisper, cooldown looks, rot formulas, migration
     catalog\groups.lua                   recipe parser ("5 trappers, 5 mutants")
     spawn\positions.lua                  hidden-from-all-players candidate points near players
     spawn\execute.lua                    drip-feed spawner (2 per 0.15 s), direct spawn_minion, caps

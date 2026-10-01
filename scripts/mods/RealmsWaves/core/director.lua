@@ -1,22 +1,31 @@
 -- Wave director: timer, event selection, vote handling, state sync.
 --
--- Host is authoritative. Each cycle it draws the next wave (random mode: one
--- pending wave; vote mode: a ballot of N candidates, all visible from the start
--- of the countdown so players see "the next possible waves"). Votes are accepted
--- during the whole countdown; the last `vote_duration` seconds are the highlighted
--- "voting" phase. At zero the wave spawns and an "incoming" banner state is shown.
+-- Host is authoritative. Modes (option "mode"):
+--   tarot (default, 2.0.0): "The Grandfather's Tarot". Every cycle the host waits an interval, deals a HAND of X cards
+--     (weighted by chance weight, no repeats, only cards that are in the draw and off cooldown), shows it for Y seconds
+--     and then picks ONE of the hand with equal chance. The winner is chosen when the hand is dealt and synced with
+--     it; clients only animate the roulette and land on the host's card. The picked card stays out of every draw for
+--     its full cooldown. One card in the hand = no roulette.
+--   random: one pending wave drawn by weight at the start of the countdown.
+--   vote: a ballot of N candidates, votes accepted during the whole countdown, the last `vote_duration` seconds are
+--     the highlighted "voting" phase.
+-- At zero the wave spawns (legacy modes show an "incoming" banner state; tarot keeps the resolved hand in the state
+-- for a while so every screen can play the reveal).
 --
--- Phases: off | waiting | voting | incoming
+-- Phases: off | waiting | voting | incoming (legacy) | hand (tarot)
 -- Clients only render the last state received from the host and cast votes.
 local mod = get_mod("RealmsWaves")
 
 local Director = {}
 
-local Events, Groups, Protocol, Execute, Votes, Positions, Presets
+local Events, Groups, Protocol, Execute, Votes, Positions, Presets, Cards
 
 local INCOMING_SECONDS = 6
 local EMPTY_POOL_RETRY = 20
 local SEND_INTERVAL = 1
+local TAROT_RETRY = 10 -- seconds until the next try when no card can be dealt
+local DRAWN_KEEP = 16 -- seconds a resolved hand stays in the synced state (the reveal and the rot play from it)
+local HAND_MAX = 5
 
 local host_state = nil
 local client_state = nil
@@ -33,7 +42,8 @@ local gameplay_active = false
 local start_signal = false
 local recheck_timer = 0
 local ballot_seq = 0
-local last_fired = {}
+local last_fired = {} -- wave key -> cd_clock when it was drawn
+local cd_clock = 0 -- seconds of PLAYED time (frozen by /rw_pause, stopped without a living player): cooldowns run on it
 local my_vote, my_vote_ballot = nil, nil
 local peer_waves = {} -- host: peer id -> that player's enabled waves (pool-ready), see Director.on_waves
 local timers = {} -- host: wave key -> { every, remaining, wave } for waves with a fixed timer
@@ -41,7 +51,7 @@ local paused = false -- /rw_pause: every clock is frozen
 local stopped = false -- /rw_stop: the director does nothing until /rw_start
 local timer_check = 0
 
-local view = { phase = "off", mode = "random", remaining = 0, ballot_id = 0, chosen = "", cands = {}, version = 0, my_vote = nil }
+local view = { phase = "off", mode = "tarot", remaining = 0, ballot_id = 0, chosen = "", cands = {}, version = 0, my_vote = nil, hand = nil, win = 0, hand_seq = 0, drawn = false, hand_seconds = 0 }
 
 local function number_setting(id, fallback)
 	local value = tonumber(mod:get(id))
@@ -85,6 +95,7 @@ Director.init = function (deps)
 	Votes = deps.votes
 	Positions = deps.positions
 	Presets = deps.presets
+	Cards = deps.cards
 end
 
 -- ------------------------------------------------------- everyone's waves (host + clients)
@@ -139,6 +150,62 @@ local function mark_changed()
 	version = version + 1
 end
 
+-- ------------------------------------------------------------------------ cooldowns of the cards
+-- Seconds left of a card's cooldown: on the host from its own clocks, on a client from the last state (counted
+-- down locally, frozen while the host is paused).
+
+local cool_map, cool_map_at = {}, -math.huge
+local client_cooldowns = {}
+
+-- { [key] = seconds left } for the cards in the draw that are cooling down, whole seconds, refreshed at most once a
+-- second (it is sent with every state).
+Director.cooldown_map = function ()
+	if cd_clock - cool_map_at < 1 and cool_map_at <= cd_clock then
+		return cool_map
+	end
+
+	cool_map, cool_map_at = {}, cd_clock
+
+	local pool = Events.build_pool(get_setting, Groups, Director.extra_waves())
+
+	for i = 1, #pool do
+		local since = last_fired[pool[i].key]
+
+		if since then
+			local left = since + pool[i].cooldown - cd_clock
+
+			if left > 0 then
+				cool_map[pool[i].key] = math.ceil(left)
+			end
+		end
+	end
+
+	return cool_map
+end
+
+-- Seconds until `key` can be dealt again (0 = ready). `length` (the card's cooldown) is needed on the host.
+Director.cooldown_remaining = function (key, length)
+	if Director.is_host() then
+		local since = last_fired[key]
+
+		if not since then
+			return 0
+		end
+
+		return math.max(0, since + (tonumber(length) or 0) - cd_clock)
+	end
+
+	local entry = client_cooldowns[key]
+
+	if not entry then
+		return 0
+	end
+
+	local elapsed = (client_state and client_state.paused) and 0 or (now() - client_received_at)
+
+	return math.max(0, entry - elapsed)
+end
+
 -- ---------------------------------------------------------------- selection
 
 local function weighted_pick(list)
@@ -173,7 +240,7 @@ local function draw(pool, n)
 		local entry = pool[i]
 		local since = last_fired[entry.key]
 
-		if since == nil or clock - since >= entry.cooldown then
+		if since == nil or cd_clock - since >= entry.cooldown then
 			fresh[#fresh + 1] = entry
 		else
 			cooling[#cooling + 1] = entry
@@ -217,8 +284,180 @@ local function random_interval(first)
 	return interval
 end
 
+-- ------------------------------------------------------------------ the draw (tarot mode)
+
+local start_tarot_cycle
+
+-- Cards that can be dealt now: in the draw (enabled, with enemies, weight above 0, not timed or deleted) and off
+-- cooldown. A card that was drawn stays out of EVERY draw for its full cooldown (no fallback to cooling cards).
+-- Returns the ready entries, the size of the whole pool and the number of cards that are cooling down.
+local function eligible_cards()
+	local pool = Events.build_pool(get_setting, Groups, Director.extra_waves())
+	local ready, cooling = {}, 0
+
+	for i = 1, #pool do
+		local entry = pool[i]
+		local since = last_fired[entry.key]
+
+		if since == nil or cd_clock - since >= entry.cooldown then
+			ready[#ready + 1] = entry
+		else
+			cooling = cooling + 1
+		end
+	end
+
+	return ready, #pool, cooling
+end
+
+-- A pool entry as a card (Cards.describe: suit, threat, whisper, look, ...), plus the host-only spawn entry.
+local function card_of(entry)
+	local def = entry.def
+	local card = Cards.describe({
+		key = entry.key, name = entry.name, parts = def.parts, suit = def.suit, threat_override = def.threat_override,
+		whisper = def.whisper, look = def.look, pct = entry.raw, cooldown = entry.cooldown, enabled = true,
+	}, Groups, nil)
+
+	card.entry = entry
+
+	return card
+end
+
+-- Deals the hand: up to `tarot_cards` cards by chance weight without repeats, then the winner by a uniform roll.
+-- The winner is decided HERE and travels with the hand; nobody else rolls. Returns false when no card can be dealt.
+local function deal(state)
+	local ready, pool_size, cooling = eligible_cards()
+	local count = math.max(1, math.min(HAND_MAX, math.floor(number_setting("tarot_cards", 4))))
+	local picks = {}
+
+	while #picks < count and #ready > 0 do
+		local index = weighted_pick(ready)
+
+		if not index then
+			break
+		end
+
+		picks[#picks + 1] = table.remove(ready, index)
+	end
+
+	if #picks == 0 then
+		state.cooling = pool_size > 0 and cooling > 0
+
+		return false
+	end
+
+	local cards = {}
+
+	for i = 1, #picks do
+		cards[i] = card_of(picks[i])
+	end
+
+	ballot_seq = ballot_seq + 1
+	state.hand = { cards = cards, win = math.random(1, #cards), seq = ballot_seq }
+	state.hand_seconds = math.max(0, state.remaining)
+	state.drawn = false
+	state.drawn_age = 0
+	state.empty = false
+	state.phase = "hand"
+	mark_changed()
+
+	return true
+end
+
+-- The wave of the picked card goes out; its cooldown starts now.
+local function pick_card(state)
+	local card = state.hand.cards[state.hand.win]
+	local ok, err = Execute.start_wave(card.entry.def)
+
+	if not ok then
+		mod:warning("RealmsWaves: card %s not started: %s", tostring(card.key), tostring(err))
+	end
+
+	last_fired[card.key] = cd_clock
+
+	return card
+end
+
+-- Time to the next pick. `keep_hand`: the hand that was just resolved stays in the state for the reveal.
+start_tarot_cycle = function (first, keep_hand, interval)
+	interval = interval or random_interval(first)
+
+	local seconds = math.max(5, math.min(30, number_setting("tarot_seconds", 10)))
+
+	host_state = {
+		phase = "waiting",
+		mode = "tarot",
+		remaining = interval,
+		-- the hand is dealt this many seconds before the pick (never more than the whole interval)
+		hand_window = math.min(seconds, interval),
+		hand_seconds = 0,
+		ballot_id = ballot_seq,
+		chosen = keep_hand and keep_hand.cards[keep_hand.win].name or "",
+		cands = {},
+		hand = keep_hand,
+		drawn = keep_hand ~= nil,
+		drawn_age = 0,
+	}
+
+	Votes.close()
+	mark_changed()
+end
+
+local function resolve_tarot()
+	local state = host_state
+
+	if state.empty then
+		start_tarot_cycle(false, nil, TAROT_RETRY)
+
+		return
+	end
+
+	-- a pick without a hand (/rw_skip while waiting) deals one first
+	if not state.hand or state.drawn then
+		if not deal(state) then
+			start_tarot_cycle(false, nil, TAROT_RETRY)
+			host_state.empty = true
+			host_state.cooling = state.cooling
+
+			return
+		end
+	end
+
+	pick_card(state)
+	start_tarot_cycle(false, state.hand)
+end
+
+local function tarot_tick(state, dt)
+	if state.drawn then
+		state.drawn_age = state.drawn_age + dt
+
+		if state.drawn_age >= DRAWN_KEEP then
+			state.hand, state.drawn = nil, false
+			mark_changed()
+		end
+	end
+
+	if not state.empty and state.phase == "waiting" and state.remaining <= state.hand_window and not deal(state) then
+		-- nothing to deal (no card in the draw, or every card is cooling down): look again soon
+		state.empty = true
+		state.remaining = TAROT_RETRY
+		mark_changed()
+	end
+
+	if state.remaining <= 0 then
+		resolve_tarot()
+	end
+end
+
 local function start_cycle(first)
-	local mode = mod:get("mode") == "vote" and "vote" or "random"
+	local setting = mod:get("mode")
+	local mode = setting == "vote" and "vote" or setting == "random" and "random" or "tarot"
+
+	if mode == "tarot" then
+		start_tarot_cycle(first, nil)
+
+		return
+	end
+
 	local pool = Events.build_pool(get_setting, Groups, Director.extra_waves())
 
 	ballot_seq = ballot_seq + 1
@@ -268,7 +507,7 @@ local function fire(cand)
 		mod:warning("RealmsWaves: wave %s not started: %s", tostring(cand.key), tostring(err))
 	end
 
-	last_fired[cand.key] = clock
+	last_fired[cand.key] = cd_clock
 	host_state.phase = "incoming"
 	host_state.remaining = INCOMING_SECONDS
 	host_state.chosen = cand.name
@@ -337,7 +576,30 @@ local function snapshot()
 		k[i] = { k = cand.key, n = cand.name, p = cand.pct, v = cand.votes }
 	end
 
-	return { p = state.phase, m = state.mode, r = round1(state.remaining), b = state.ballot_id, c = state.chosen, k = k, e = state.empty and 1 or 0, z = paused and 1 or 0 }
+	local snap = { p = state.phase, m = state.mode, r = round1(state.remaining), b = state.ballot_id, c = state.chosen, k = k, e = state.empty and 1 or 0, z = paused and 1 or 0 }
+
+	if state.mode == "tarot" then
+		-- the hand (cards, the winner, a number that identifies this hand), whether it is already resolved, the
+		-- hand's length in seconds and the cards that are cooling down (seconds left, by key)
+		if state.hand then
+			local cards = {}
+
+			for i = 1, #state.hand.cards do
+				local card = state.hand.cards[i]
+
+				cards[i] = { k = card.key, n = card.name, s = card.suit, t = card.threat, b = card.breeds, q = card.whisper, m = card.modifiers, r = card.rare and 1 or 0 }
+			end
+
+			snap.h, snap.w, snap.sq = cards, state.hand.win, state.hand.seq
+		end
+
+		snap.dn = state.drawn and 1 or 0
+		snap.y = round1(state.hand_seconds or 0)
+		snap.cd = Director.cooldown_map()
+		snap.e = state.empty and (state.cooling and 2 or 1) or 0
+	end
+
+	return snap
 end
 
 local function broadcast()
@@ -441,11 +703,14 @@ local function host_update(dt)
 	if not paused then
 		update_timed_waves(dt)
 
+		cd_clock = cd_clock + dt
 		state.remaining = state.remaining - dt
 	end
 
 	if paused then
 		-- nothing to resolve
+	elseif state.mode == "tarot" then
+		tarot_tick(state, dt)
 	elseif state.phase == "incoming" then
 		if state.remaining <= 0 then
 			start_cycle(false)
@@ -525,6 +790,9 @@ Director.reset = function ()
 	changed = true
 	send_timer = 0
 	last_fired = {}
+	cd_clock = 0
+	cool_map, cool_map_at = {}, -math.huge
+	client_cooldowns = {}
 	my_vote, my_vote_ballot = nil, nil
 	Votes.close()
 	Execute.reset()
@@ -686,6 +954,11 @@ Director.on_player_died = function ()
 
 	if host_state.phase ~= "incoming" then
 		host_state.remaining = host_state.remaining + delay
+
+		-- a hand already on the table stays: its fuse simply gets longer
+		if host_state.mode == "tarot" and host_state.phase == "hand" then
+			host_state.hand_seconds = math.max(host_state.hand_seconds or 0, host_state.remaining)
+		end
 	end
 
 	for _, timer in pairs(timers) do
@@ -745,6 +1018,44 @@ Director.on_state = function (sender, s)
 		end
 	end
 
+	-- the tarot hand: every field is validated (sizes, suit, threat), the winner index is kept inside the hand
+	local hand
+
+	if type(s.h) == "table" and #s.h > 0 then
+		local cards = {}
+
+		for i = 1, math.min(#s.h, HAND_MAX) do
+			local item = s.h[i]
+
+			if type(item) == "table" then
+				local breeds = {}
+
+				if type(item.b) == "table" then
+					for j = 1, math.min(#item.b, 8) do
+						if type(item.b[j]) == "string" then
+							breeds[#breeds + 1] = item.b[j]:sub(1, 48)
+						end
+					end
+				end
+
+				cards[#cards + 1] = {
+					key = tostring(item.k):sub(1, 64),
+					name = tostring(item.n):sub(1, 60),
+					suit = Events.SUITS[item.s] and item.s or "plague",
+					threat = math.max(1, math.min(5, math.floor(tonumber(item.t) or 1))),
+					breeds = breeds,
+					whisper = tostring(item.q or ""):sub(1, 60),
+					modifiers = tostring(item.m or ""):sub(1, 100),
+					rare = item.r == 1,
+				}
+			end
+		end
+
+		if #cards > 0 then
+			hand = { cards = cards, win = math.max(1, math.min(#cards, math.floor(tonumber(s.w) or 1))), seq = tonumber(s.sq) or 0 }
+		end
+	end
+
 	client_state = {
 		phase = tostring(s.p),
 		mode = tostring(s.m),
@@ -752,9 +1063,23 @@ Director.on_state = function (sender, s)
 		ballot_id = tonumber(s.b) or 0,
 		chosen = tostring(s.c or ""),
 		cands = cands,
-		empty = s.e == 1,
+		empty = (tonumber(s.e) or 0) > 0,
+		cooling = s.e == 2,
 		paused = s.z == 1,
+		hand = hand,
+		drawn = s.dn == 1,
+		hand_seconds = tonumber(s.y) or 0,
 	}
+
+	client_cooldowns = {}
+
+	if type(s.cd) == "table" then
+		for key, left in pairs(s.cd) do
+			if type(key) == "string" and tonumber(left) then
+				client_cooldowns[key:sub(1, 64)] = tonumber(left)
+			end
+		end
+	end
 
 	client_received_at = now()
 
@@ -799,7 +1124,7 @@ Director.local_vote = function (option)
 	end
 
 	if state.mode ~= "vote" then
-		return false, "voting is off (mode is random)"
+		return false, "voting is off (the draw mode is not Votes)"
 	end
 
 	local cand = state.cands[option]
@@ -857,6 +1182,12 @@ Director.view = function ()
 	view.chosen = source.chosen
 	view.cands = source.cands
 	view.empty = source.empty
+	view.cooling = source.cooling == true
+	view.hand = source.hand and source.hand.cards or nil
+	view.win = source.hand and source.hand.win or 0
+	view.hand_seq = source.hand and source.hand.seq or 0
+	view.drawn = source.drawn == true
+	view.hand_seconds = source.hand_seconds or 0
 	view.paused = Director.is_host() and paused or source.paused == true
 	view.version = version
 	view.my_vote = my_vote_ballot == source.ballot_id and my_vote or nil

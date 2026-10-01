@@ -8,8 +8,11 @@ return {
 	},
 
 	mode = { en = "Wave selection mode" },
-	mode_random = { en = "Random (host rolls)" },
-	mode_vote = { en = "Vote (players choose)" },
+	mode_tarot = { en = "Tarot draw (a hand of cards, one is picked)" },
+	mode_random = { en = "Random countdown (host rolls)" },
+	mode_vote = { en = "Votes (players choose, legacy)" },
+	tarot_cards = { en = "Cards drawn" },
+	tarot_seconds = { en = "Seconds before the pick" },
 
 	group_timing = { en = "Timing and voting" },
 	initial_delay = { en = "First wave delay" },

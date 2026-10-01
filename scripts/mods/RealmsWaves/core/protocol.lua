@@ -9,7 +9,8 @@
 -- RPCs (prefix rw_):
 --   rw_hello   client -> host   proto, version
 --   rw_welcome host -> client   proto, version, ok(1/0)
---   rw_state   host -> others   state json (phase, mode, remaining, ballot, candidates)
+--   rw_state   host -> others   state json (phase, mode, remaining, ballot, candidates; tarot mode: the hand, its winner,
+--                               the cards on cooldown)
 --   rw_vote    client -> host   ballot_id, option
 --   rw_waves   client -> host   the client's enabled waves as one preset text ("RW1|...", catalog/presets.lua);
 --                               used only when the host has "use everyone's waves" on
@@ -17,8 +18,9 @@ local mod = get_mod("RealmsWaves")
 
 local Protocol = {}
 
-Protocol.PROTO = 1
-Protocol.VERSION = "1.0.0"
+-- 2 / 2.0.0: the synced state carries the tarot hand (h, w, sq, dn, y, cd); the handshake refuses older peers
+Protocol.PROTO = 2
+Protocol.VERSION = "2.0.0"
 
 local RPC_HELLO = "rw_hello"
 local RPC_WELCOME = "rw_welcome"

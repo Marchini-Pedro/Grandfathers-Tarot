@@ -32,8 +32,9 @@ return {
 			{
 				setting_id = "mode",
 				type = "dropdown",
-				default_value = "random",
+				default_value = "tarot",
 				options = {
+					{ text = "mode_tarot", value = "tarot" },
 					{ text = "mode_random", value = "random" },
 					{ text = "mode_vote", value = "vote" },
 				},
@@ -42,6 +43,8 @@ return {
 				setting_id = "group_timing",
 				type = "group",
 				sub_widgets = {
+					numeric("tarot_cards", 4, 1, 5),
+					numeric("tarot_seconds", 10, 5, 30, "unit_seconds"),
 					numeric("initial_delay", 45, 0, 600, "unit_seconds"),
 					{ setting_id = "interval_random", type = "checkbox", default_value = true },
 					{ setting_id = "pool_all_players", type = "checkbox", default_value = false },
