@@ -13,6 +13,7 @@ return {
 	mode_vote = { en = "Votes (legacy)" },
 	tarot_cards = { en = "Cards drawn" },
 	tarot_seconds = { en = "Seconds before the pick" },
+	tarot_default_cooldown = { en = "Default card cooldown" },
 
 	group_timing = { en = "Timing and voting" },
 	initial_delay = { en = "First wave delay" },

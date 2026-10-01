@@ -1934,7 +1934,7 @@ do
   check("localization: multiplier and search strings exist", loc.mult_normal and loc.mult_boss and loc.mult_special and loc.group_multipliers and loc.btn_search and loc.popup_search_hint and loc.picker_status and loc.unit_percent.en == "pct")
   -- DMF option rows: the title column holds about 27 characters on one line, the value column about 8
   -- (value + unit, e.g. "1000 pct"); longer text wraps into several lines and overlaps the next row.
-  local titles = { "initial_delay", "interval_min", "interval_max", "vote_duration", "ballot_size", "novote_fallback", "max_per_wave", "max_alive", "heap_guard_mb", "min_distance", "max_distance", "monster_min_distance", "monster_max_distance", "mult_normal", "mult_boss", "mult_special", "open_editor_bind", "vote_1_bind", "vote_2_bind", "vote_3_bind", "vote_4_bind", "vote_5_bind", "hud_enabled", "hud_show_percent", "colour_enemies", "colour_spidey", "interval_random", "debug", "fallback_random", "fallback_skip", "tarot_cards", "tarot_seconds", "tarot_roulette", "tarot_winner", "tarot_eye_open", "tarot_eye_size", "tarot_rot_short", "tarot_rot_long", "tarot_longest", "group_spread", "mode_tarot", "mode_random", "mode_vote", "tarot_scale", "tarot_opacity", "tarot_timer_below", "tarot_hide_icon", "tarot_ping", "tarot_font", "font_novarese_bold", "font_novarese", "font_friz", "font_proxima", "font_rexlia", "font_machine" }
+  local titles = { "initial_delay", "interval_min", "interval_max", "vote_duration", "ballot_size", "novote_fallback", "max_per_wave", "max_alive", "heap_guard_mb", "min_distance", "max_distance", "monster_min_distance", "monster_max_distance", "mult_normal", "mult_boss", "mult_special", "open_editor_bind", "vote_1_bind", "vote_2_bind", "vote_3_bind", "vote_4_bind", "vote_5_bind", "hud_enabled", "hud_show_percent", "colour_enemies", "colour_spidey", "interval_random", "debug", "fallback_random", "fallback_skip", "tarot_cards", "tarot_seconds", "tarot_default_cooldown", "tarot_roulette", "tarot_winner", "tarot_eye_open", "tarot_eye_size", "tarot_rot_short", "tarot_rot_long", "tarot_longest", "group_spread", "mode_tarot", "mode_random", "mode_vote", "tarot_scale", "tarot_opacity", "tarot_timer_below", "tarot_hide_icon", "tarot_ping", "tarot_font", "font_novarese_bold", "font_novarese", "font_friz", "font_proxima", "font_rexlia", "font_machine" }
   local long = {}
   for _, id in ipairs(titles) do
     local text = loc[id] and loc[id].en
@@ -1962,6 +1962,40 @@ do
   local spread_ids = {}
   for _, w in ipairs(spread_group and spread_group.sub_widgets or {}) do spread_ids[w.setting_id] = true end
   check("options: the look options sit in the group 'The Spread (your screen)'", spread_ids.tarot_scale and spread_ids.tarot_opacity and spread_ids.tarot_timer_below and spread_ids.tarot_hide_icon and spread_ids.tarot_ping and spread_ids.tarot_font and spread_ids.tarot_roulette)
+  -- the default cooldown of a card of your own
+  do
+    local dc = find("tarot_default_cooldown", all)
+    local timing = find("group_timing", all)
+    local listed = false
+    for _, w in ipairs(timing.sub_widgets) do if w.setting_id == "tarot_default_cooldown" then listed = true end end
+    check("options: 'Default card cooldown' is 30-1800 s in 30 s steps, default 120, with the timing options", dc and dc.type == "numeric" and dc.range[1] == 30 and dc.range[2] == 1800 and dc.step_size_value == 30 and dc.default_value == 120 and listed and loc.tarot_default_cooldown.en == "Default card cooldown")
+    local function getter(id) return settings[id] end
+    local function cd() return Events.get("custom_5", getter, Groups).cooldown end
+    settings.wave_def_custom_5 = "Mine\t3 hounds"; settings.cd_custom_5 = nil; settings.tarot_default_cooldown = nil; settings.tarot_longest = nil
+    check("default cooldown: a card of your own with no cooldown set rests 120 s", cd() == 120, cd())
+    settings.tarot_default_cooldown = 180
+    check("default cooldown: the option sets it", cd() == 180)
+    settings.tarot_default_cooldown = 45
+    check("default cooldown: rounded to the 30 s grid (45 -> 60)", cd() == 60, cd())
+    settings.tarot_default_cooldown = 5
+    check("default cooldown: never below 30 s", cd() == 30)
+    settings.tarot_default_cooldown = 1800
+    check("default cooldown: never above the longest cooldown option (10 minutes by default, 30 at most)", cd() == 600)
+    settings.tarot_longest = 30
+    check("default cooldown: ...which follows that option", cd() == 1800)
+    settings.tarot_longest = 4
+    check("default cooldown: ...also when it is short (4 minutes)", cd() == 240)
+    settings.tarot_longest = nil
+    settings.cd_custom_5 = 90
+    check("default cooldown: a cooldown set on the card itself always wins", cd() == 90)
+    settings.tarot_default_cooldown = 300
+    check("default cooldown: a standard card keeps its own cooldown (The Fool 120 s)", Events.get("wave_small", getter, Groups).cooldown == 120)
+    Events.reset(function(id, value) settings[id] = value end, "custom_5")
+    check("default cooldown: a custom slot that is reset goes back to the option (cd_ cleared)", settings.cd_custom_5 == nil and cd() == 300, tostring(settings.cd_custom_5))
+    Events.reset(function(id, value) settings[id] = value end, "wave_small")
+    check("default cooldown: resetting a standard card restores its own cooldown", settings.cd_wave_small == 120)
+    settings.tarot_default_cooldown = nil; settings.wave_def_custom_5 = nil; settings.cd_custom_5 = nil; settings.cd_wave_small = nil
+  end
   -- text next to the detail-screen steppers: node width minus 440 px, about 10 px per character
   local fits = { extra_dist_auto = 10, extra_dist_own = 10, extra_timer_off = 14, extra_timer_on = 14, extra_timer_wave = 42, extra_timer_ignored = 36, val_off = 4, val_auto = 4, share_timer = 12 }
   local cramped = {}

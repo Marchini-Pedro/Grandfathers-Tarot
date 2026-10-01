@@ -140,6 +140,15 @@ end
 
 Events.DEFAULT_CUSTOM_PCT = 10
 Events.DEFAULT_CUSTOM_COOLDOWN = 120
+
+-- The cooldown of a card of your own that has none set: the option "Default card cooldown" (default 120 s), in 30 s
+-- steps from 30 s up to the longest cooldown option (10 minutes by default).
+Events.default_cooldown = function (get_setting)
+	local value = tonumber(get_setting("tarot_default_cooldown")) or Events.DEFAULT_CUSTOM_COOLDOWN
+	local longest = math.max(2, tonumber(get_setting("tarot_longest")) or 10) * 60
+
+	return math.max(30, math.min(longest, math.floor(value / 30 + 0.5) * 30))
+end
 Events.DEFAULT_SPREAD = 3 -- metres around the chosen spawn point
 Events.DEFAULT_REPEAT_EVERY = 10 -- seconds between repeat ticks
 Events.DEFAULT_REPEAT_FOR = 60 -- seconds the repeats keep coming
@@ -239,7 +248,7 @@ Events.get = function (key, get_setting, Groups)
 		wave.enabled = false
 	end
 	wave.pct = tonumber(get_setting("pct_" .. key)) or (std and std.default_pct) or Events.DEFAULT_CUSTOM_PCT
-	wave.cooldown = tonumber(get_setting("cd_" .. key)) or (std and std.cooldown) or Events.DEFAULT_CUSTOM_COOLDOWN
+	wave.cooldown = tonumber(get_setting("cd_" .. key)) or (std and std.cooldown) or Events.default_cooldown(get_setting)
 	wave.spread = tonumber(get_setting("sp_" .. key)) or Events.DEFAULT_SPREAD
 	wave.rep_every = tonumber(get_setting("re_" .. key)) or Events.DEFAULT_REPEAT_EVERY
 	wave.rep_for = tonumber(get_setting("rf_" .. key)) or Events.DEFAULT_REPEAT_FOR
@@ -378,7 +387,7 @@ Events.reset = function (set_setting, key)
 	set_setting("wave_def_" .. key, "")
 	set_setting("on_" .. key, std ~= nil)
 	set_setting("pct_" .. key, std and std.default_pct or Events.DEFAULT_CUSTOM_PCT)
-	set_setting("cd_" .. key, std and std.cooldown or Events.DEFAULT_CUSTOM_COOLDOWN)
+	set_setting("cd_" .. key, std and std.cooldown or nil) -- a custom card goes back to the default cooldown option
 	set_setting("sp_" .. key, Events.DEFAULT_SPREAD)
 	set_setting("re_" .. key, Events.DEFAULT_REPEAT_EVERY)
 	set_setting("rf_" .. key, Events.DEFAULT_REPEAT_FOR)
