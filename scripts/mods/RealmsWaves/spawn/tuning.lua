@@ -390,7 +390,15 @@ local function send_batches(list, recipient)
 			batch[#batch + 1] = list[i]
 		end
 
-		Protocol.send_scales(batch, recipient)
+		-- a peer that left or a network that fails is not our business: skip the rest, never break the frame
+		local ok, err = pcall(Protocol.send_scales, batch, recipient)
+
+		if not ok then
+			warn_once(string.format("sizes could not be sent to the other players: %s", tostring(err)))
+
+			return
+		end
+
 		from = from + SEND_BATCH
 	end
 end

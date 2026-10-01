@@ -1363,6 +1363,143 @@ do
   check("tuning: a missing extension only skips that step (hit mass still changed) and is logged once", #spawned == 2 and spawned[1].ext.health_system.mass == 4 and logged == 1, logged)
   check("tuning: health_modifier is nil for 100 or nothing", Tuning.health_modifier({ health = 100 }) == nil and Tuning.health_modifier(nil) == nil and Tuning.health_modifier({ health = 250 }) == 2.5)
 
+  -- ------------------------------------------------------------------------- what can happen in a real match
+  -- (players joining late, a player gone, a mission restarting, a game without the mod, damaged or doubled messages)
+  do
+    local before_units = Tuning.status().sizes_known
+    local crowd = {}
+    for i = 1, 250 do
+      local u = { gid = 5000 + i, buffs = make_buff_ext("x") }
+      u.buffs.stats = {}
+      u.buffs.stat_buffs = function(self) return self.stats end
+      crowd[i] = u
+      Tuning.apply(u, { size = 150 }, "crowd")
+    end
+    sent_scales = {}
+    Tuning.update(0.3)
+    local flushed = 0
+    for _, s in ipairs(sent_scales) do flushed = flushed + #s.list end
+    check("join: 250 new sizes leave in batches of at most 100 (three messages), none lost", #sent_scales == 3 and flushed == 250 and #sent_scales[1].list == 100 and #sent_scales[3].list == 50, #sent_scales)
+    sent_scales = {}
+    Tuning.send_all("joiner")
+    local to_joiner, per_message_ok = 0, true
+    for _, s in ipairs(sent_scales) do
+      to_joiner = to_joiner + #s.list
+      if s.recipient ~= "joiner" or #s.list > 100 then per_message_ok = false end
+    end
+    check("join: a player who joins in the middle of a big fight gets every living size, only him, in batches of at most 100", per_message_ok and to_joiner == Tuning.status().sizes_known and to_joiner >= 250 and #sent_scales == math.ceil(to_joiner / 100), to_joiner)
+    for i = 1, 100 do dead[crowd[i]] = true end
+    sent_scales = {}
+    Tuning.send_all("joiner_two")
+    local after_deaths = 0
+    for _, s in ipairs(sent_scales) do after_deaths = after_deaths + #s.list end
+    check("join: units that died before he arrived are not sent", after_deaths == to_joiner - 100, after_deaths)
+    Tuning.update(0.3)
+    check("join: ...and the host forgets them (no growth over a long mission)", Tuning.status().sizes_known == to_joiner - 100, Tuning.status().sizes_known)
+
+    -- a peer that left, or a network that fails, while sizes are going out
+    fake_protocol.send_scales = function() error("peer is gone") end
+    local failed_ok = pcall(Tuning.send_all, "crashed_player")
+    Tuning.apply(crowd[200], { size = 120 }, "crowd")
+    local update_ok = pcall(function () Tuning.update(0.3); Tuning.update(0.3) end)
+    check("leave: a send to a player who crashed or left raises nothing (not in send_all, not in the host's update)", failed_ok and update_ok)
+    local warned_send = 0
+    for _, e in ipairs(echoes) do if e:find("sizes could not be sent", 1, true) then warned_send = warned_send + 1 end end
+    check("leave: ...and it is logged once, not every frame", warned_send == 1, warned_send)
+    fake_protocol.send_scales = function(list, recipient) sent_scales[#sent_scales + 1] = { list = list, recipient = recipient }; return true end
+    sent_scales = {}
+    Tuning.send_all("next_joiner")
+    check("leave: the next player is served normally afterwards", #sent_scales >= 1 and sent_scales[1].recipient == "next_joiner")
+    fake_protocol.is_available = function() return false end
+    sent_scales = {}
+    Tuning.apply(crowd[201], { size = 130 }, "crowd")
+    local quiet_ok = pcall(function () Tuning.update(0.3); Tuning.send_all("anyone") end)
+    check("mods: without the Realms network (nobody to tell) nothing is sent and nothing fails", quiet_ok and #sent_scales == 0)
+    fake_protocol.is_available = function() return true end
+
+    -- a unit that died: the stat hook and the end-of-attack hook no longer know it
+    local gone = crowd[1]
+    Tuning.apply(gone, { gap = 50 }, "crowd")
+    dead[gone] = true
+    Tuning.update(0.3)
+    gone.buffs.stats.melee_attack_speed = 1.2
+    stat_hook(gone.buffs, 5)
+    check("leave: a dead unit's record is dropped, the stat hook leaves its stats alone (and nothing leaks)", gone.buffs.stats.melee_attack_speed == 1.2)
+    check("leave: the mission restarting (Tuning.reset) forgets everything the host knew", (function() Tuning.reset(); local s = Tuning.status(); return s.tuned == 0 and s.sizes_known == 0 and s.unsent == 0 and s.pending == 0 end)())
+  end
+
+  -- the client side with a damaged or unlucky world
+  do
+    local saved_spawner2 = Managers.state.unit_spawner
+    Managers.state.unit_spawner = nil
+    Tuning.reset()
+    Tuning.receive({ { id = 1, pct = 120 } })
+    local nil_ok = pcall(Tuning.update_client, 1)
+    check("client: before the game's unit spawner exists nothing fails and the size waits", nil_ok and Tuning.status().pending == 1)
+    Managers.state.unit_spawner = { unit_exists = function() error("session is closing") end, unit = function() error("session is closing") end }
+    local raising_ok = pcall(Tuning.update_client, 1)
+    check("client: a spawner that raises (the session is closing) is contained and the size waits", raising_ok and Tuning.status().pending == 1)
+    Tuning.update_client(25)
+    check("client: ...and gives up after 20 s", Tuning.status().pending == 0)
+    local flood = {}
+    for i = 1, 1000 do flood[i] = { id = i, pct = 110 } end
+    Tuning.receive(flood)
+    check("client: a flood of sizes (a broken or hostile host) is capped at 600 waiting entries", Tuning.status().pending == 600, Tuning.status().pending)
+    Tuning.reset()
+    local present2, applied2 = { [9] = { name = "u9" } }, {}
+    Managers.state.unit_spawner = { unit_exists = function(self, id) return present2[id] ~= nil end, unit = function(self, id) return present2[id] end }
+    local saved_set_scale = Unit.set_local_scale
+    Unit.set_local_scale = function(unit, node, v) applied2[#applied2 + 1] = v.x end
+    Tuning.receive({ { id = 9, pct = 150 } })
+    Tuning.receive({ { id = 9, pct = 150 } }) -- the host answered two hellos: the same size twice
+    Tuning.update_client(0.1)
+    check("client: the same size sent twice is applied twice to the same value (harmless), nothing is left waiting", #applied2 == 2 and applied2[1] == 1.5 and applied2[2] == 1.5 and Tuning.status().pending == 0)
+    Unit.set_local_scale = saved_set_scale
+    Managers.state.unit_spawner = saved_spawner2
+    Tuning.reset()
+  end
+
+  -- the handshake of a player who joins: the director gives a late player the sizes, only when versions agree
+  do
+    local welcomed, sent_all = {}, {}
+    local P3 = {
+      PROTO = 2, VERSION = "2.0.0", is_available = function() return true end, send_state = function() return true end, send_hello = function() end,
+      send_welcome = function(peer, ok) welcomed[#welcomed + 1] = { peer, ok } end, send_waves = function() return true end,
+    }
+    local fake_tuning = { send_all = function(peer) sent_all[#sent_all + 1] = peer end, receive = function() end, update_client = function() end, status = function() return { tuned = 0, sizes_known = 0, unsent = 0, pending = 0 } end }
+    local D3 = load("core/director")
+    D3.init({ events = Events, groups = Groups, protocol = P3, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod, cards = CardsMod, tuning = fake_tuning })
+    is_server = true
+    D3.on_hello("late_peer", 2, "2.0.0")
+    check("handshake: a player with the same version is welcomed and gets the sizes of the units already out there", #welcomed == 1 and welcomed[1][2] == true and sent_all[1] == "late_peer")
+    D3.on_hello("old_peer", 1, "1.0.0")
+    check("handshake: a player with another version (older mod) is refused and gets no sizes", welcomed[2][2] == false and #sent_all == 1)
+    fake_tuning.send_all = function() error("peer is gone") end
+    local hello_ok = pcall(D3.on_hello, "flaky_peer", 2, "2.0.0")
+    check("handshake: a player who drops while he is being served cannot break the host", hello_ok and welcomed[3] and welcomed[3][2] == true)
+    is_server = false
+    sent_all = {}
+    fake_tuning.send_all = function(peer) sent_all[#sent_all + 1] = peer end
+    D3.on_hello("someone", 2, "2.0.0")
+    check("handshake: a non-host never answers a hello", #sent_all == 0 and #welcomed == 3)
+    local got = 0
+    fake_tuning.receive = function() got = got + 1 end
+    D3.on_welcome("host_peer", 2, "9.9.9", false)
+    D3.on_scale("host_peer", { { id = 1, pct = 120 } })
+    check("handshake: a client that refused the host's version (the mod is disabled there) takes no sizes", got == 0)
+    D3.on_welcome("host_peer", 2, "2.0.0", true)
+    D3.on_scale("host_peer", { { id = 1, pct = 120 } })
+    check("handshake: ...and takes them after a good welcome", got == 1)
+    local D4 = load("core/director")
+    D4.init({ events = Events, groups = Groups, protocol = P3, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod, cards = CardsMod })
+    is_server = true
+    local no_tuning_ok = pcall(D4.on_hello, "peer", 2, "2.0.0")
+    is_server = false
+    local no_tuning_scale = pcall(D4.on_scale, "host_peer", { { id = 1, pct = 120 } })
+    is_server = true
+    check("mods: a director built without the custom-mods module (an older install) still welcomes and ignores sizes", no_tuning_ok and no_tuning_scale)
+  end
+
   -- the animation probe (/rw_anim): which engine functions and which animation variables exist, never an error
   do
     local function probe_unit(breed, vars, dead_unit)
