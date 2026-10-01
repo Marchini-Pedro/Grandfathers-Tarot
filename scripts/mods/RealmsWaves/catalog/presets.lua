@@ -11,7 +11,7 @@
 -- Text format (one line, safe to paste into chat):
 --   RW1|<name>|<wave count>|<wave>|<wave>...|<check>
 --   wave = key~name~enabled(1/0)~chance~cooldown~spread~repeat_every~repeat_for~recipe~min_distance~max_distance
---   ~fixed_timer_seconds (0 = off; see events.lua "ev_")
+--   ~fixed_timer_seconds (0 = off; see events.lua "ev_") ~deleted(1/0, a standard wave the player removed)
 --   (texts exported before 1.8.0 have no distance fields (9 fields), before 1.11.0 no timer (11 fields): the missing
 --   values import as 0 = use the options / no timer)
 -- Every free-text field has %, |, ~ and control characters percent-encoded (%7C ...). <check> is 4 hex digits
@@ -121,7 +121,7 @@ local function recipe_of(wave, Groups)
 end
 
 local function same_wave(a, b)
-	return a.name == b.name and a.recipe == b.recipe and a.enabled == b.enabled and a.pct == b.pct and a.cd == b.cd and a.sp == b.sp and a.re == b.re and a.rf == b.rf and a.dmin == b.dmin and a.dmax == b.dmax and a.timer == b.timer
+	return a.name == b.name and a.recipe == b.recipe and a.enabled == b.enabled and a.pct == b.pct and a.cd == b.cd and a.sp == b.sp and a.re == b.re and a.rf == b.rf and a.dmin == b.dmin and a.dmax == b.dmax and a.timer == b.timer and a.deleted == b.deleted
 end
 
 -- A wave as stored in a preset.
@@ -139,6 +139,7 @@ local function snapshot(key, wave, Groups)
 		dmin = whole(wave.dmin),
 		dmax = whole(wave.dmax),
 		timer = whole(wave.timer),
+		deleted = wave.deleted == true,
 	}
 end
 
@@ -190,6 +191,7 @@ Presets.apply_wave = function (wave, key, set_setting, Events, Groups)
 	set_setting("dmin_" .. key, wave.dmin or 0)
 	set_setting("dmax_" .. key, wave.dmax or 0)
 	set_setting("ev_" .. key, wave.timer or 0)
+	set_setting("del_" .. key, wave.deleted == true)
 end
 
 -- Writes a preset over the current setup: every wave goes back to its default first.
@@ -291,6 +293,7 @@ local function wave_text(wave)
 		tostring(wave.dmin or 0),
 		tostring(wave.dmax or 0),
 		tostring(wave.timer or 0),
+		wave.deleted and "1" or "0",
 	}, "~")
 end
 
@@ -299,7 +302,7 @@ end
 local function parse_wave(text, Groups)
 	local parts = split(text, "~")
 
-	if #parts ~= 9 and #parts ~= 11 and #parts ~= 12 then
+	if #parts ~= 9 and #parts ~= 11 and #parts ~= 12 and #parts ~= 13 then
 		return nil, "a wave in the text is damaged"
 	end
 
@@ -345,6 +348,7 @@ local function parse_wave(text, Groups)
 		dmin = numbers.dmin,
 		dmax = numbers.dmax,
 		timer = numbers.timer,
+		deleted = parts[13] == "1",
 	}
 end
 

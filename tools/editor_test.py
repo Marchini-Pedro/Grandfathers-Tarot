@@ -141,7 +141,7 @@ local function click_row(i, hotspot) row(i).content[hotspot].pressed_callback() 
 check("list: 32 waves (12 standard + 20 custom)", #view._waves == 32, #view._waves)
 check("list: first row is Small Wave", row(1).content.row_name == "Small Wave" and row(1).visible, row(1).content.row_name)
 check("list: composition summary", row(1).content.info:find("8 Poxwalker") ~= nil, row(1).content.info)
-check("list: row flags (an unchanged standard wave has no action button)", row(1).content.show_check and row(1).content.show_stepper and row(1).content.show_share and not row(1).content.show_action)
+check("list: row flags (every wave with enemies has a Delete button)", row(1).content.show_check and row(1).content.show_stepper and row(1).content.show_share and row(1).content.show_action and row(1).content.hotspot_action_text == "btn_delete")
 check("list: share shown", row(1).content.share == "18.0%", row(1).content.share)
 check("list: 10 rows visible", row(10).visible and view._offset == 0)
 check("list: buttons hidden", not view._widgets_by_name.btn_back.visible and not view._widgets_by_name.stepper_chance.visible)
@@ -441,7 +441,7 @@ click_row(2, "hotspot_name")
 check("click name toggles Enraged too", row(2).content.checkbox_selected and settings["wave_def_wave_small"]:find("%[garden%+enraged%]") ~= nil, settings["wave_def_wave_small"])
 check("modifiers stored on the part", #view._parts[1].mods == 2 and view._parts[1].mods[1] == "garden" and view._parts[1].mods[2] == "enraged")
 click("btn_back")
-check("back from mods returns to detail with modifiers listed", view._screen == "detail" and row(1).content.info == "Purple, Enraged" and row(1).content.row_name == "6 Poxwalker", row(1).content.info)
+check("back from mods returns to detail with modifiers listed", view._screen == "detail" and (row(1).content.info:gsub("{#[^}]*}", "")) == "Purple, Enraged" and row(1).content.info:find("{#color(138,43,226)}Purple", 1, true) ~= nil and row(1).content.info:find("{#color(255,54,36)}Enraged", 1, true) ~= nil and row(1).content.row_name == "6 Poxwalker", row(1).content.info)
 click_row(1, "hotspot_mods"); click_row(1, "hotspot_check"); click_row(2, "hotspot_check")
 check("untick both -> modifiers cleared", view._parts[1].mods == nil and not row(1).content.checkbox_selected)
 click("btn_back")
@@ -625,7 +625,7 @@ do
   local input_stub3 = { get = function() return nil end, is_null_service = function() return false end }
 
   click("btn_back")
-  check("list: unchanged standard wave shows no action button", not row(1).content.show_action)
+  check("list: a standard wave shows Delete too", row(1).content.show_action and row(1).content.hotspot_action_text == "btn_delete")
 
   -- colours
   local plain = view._widgets_by_name.rw_row_1.content.info:gsub("{#[^}]*}", "")
@@ -633,17 +633,17 @@ do
   settings.colour_enemies = false; view:_refresh_rows()
   check("colours: switched off -> plain text", row(1).content.info:find("{#", 1, true) == nil)
   settings.colour_enemies = nil; view:_refresh_rows()
-  check("colours: kind palette (poxwalker is normal, hound is special, spawn is boss)", table.concat(C.rgb("chaos_poxwalker"), ",") == "200,215,200" and table.concat(C.rgb("chaos_hound"), ",") == "255,160,60" and table.concat(C.rgb("chaos_spawn"), ",") == "240,90,90")
+  check("colours: kind palette (poxwalker is normal, hound is special, spawn is boss)", table.concat(C.rgb("chaos_poxwalker"), ",") == "135,135,135" and table.concat(C.rgb("chaos_hound"), ",") == "255,235,40" and table.concat(C.rgb("chaos_spawn"), ",") == "255,50,50")
   check("colours: Spidey Sense colour wins for the enemies it knows (crusher)", table.concat(C.rgb("chaos_ogryn_executor"), ",") == "64,224,208")
   C.clear_cache(); settings.colour_spidey = false
-  check("colours: Spidey Sense colours can be switched off", table.concat(C.rgb("chaos_ogryn_executor"), ",") == "235,205,90")
+  check("colours: Spidey Sense colours can be switched off", table.concat(C.rgb("chaos_ogryn_executor"), ",") == "240,240,240")
   settings.colour_spidey = nil; C.clear_cache()
   spidey.crusher_front_colour = "no_such_colour"
-  check("colours: unknown Spidey Sense colour name falls back to the palette", table.concat(C.rgb("chaos_ogryn_executor"), ",") == "235,205,90")
+  check("colours: unknown Spidey Sense colour name falls back to the palette", table.concat(C.rgb("chaos_ogryn_executor"), ",") == "240,240,240")
   spidey.crusher_front_colour = "turquoise"; C.clear_cache()
 
   click_row(1, "hotspot_name")
-  check("colours: detail rows colour the enemy name", table.concat({ table.unpack(row(1).style.row_name.text_color, 2, 4) }, ",") == "200,215,200", table.concat(row(1).style.row_name.text_color, ","))
+  check("colours: detail rows colour the enemy name", table.concat({ table.unpack(row(1).style.row_name.text_color, 2, 4) }, ",") == "135,135,135", table.concat(row(1).style.row_name.text_color, ","))
   click("btn_back"); click("btn_add")
   local crusher_row
   for off = 0, #view._breeds - 1, 10 do
@@ -671,18 +671,81 @@ do
   check("actions: the confirmation expires after a few seconds", row(3).content.hotspot_action_text == "btn_delete" and view._confirm == nil)
   view._confirm = nil; settings["wave_def_custom_3"] = ""; view._offset = 0; view:_reload(); view:_refresh_rows()
 
-  -- standard wave: Reset only when changed
+  -- any wave can be deleted, the default ones too; Restore defaults brings everything back
+  local first_name = row(1).content.row_name
   settings["pct_wave_small"] = 33
   settings["wave_def_wave_small"] = "My Small\t4 hounds"; view:_reload(); view:_refresh_rows()
-  check("actions: a changed standard wave shows Reset", row(1).content.show_action and row(1).content.hotspot_action_text == "btn_reset")
-  click_row(1, "hotspot_action"); click_row(1, "hotspot_action")
-  check("actions: Reset (after Sure?) restores the built-in wave", settings["wave_def_wave_small"] == "" and settings["pct_wave_small"] == 18 and row(1).content.row_name == "Small Wave" and not row(1).content.show_action)
+  check("actions: a changed standard wave shows Delete", row(1).content.show_action and row(1).content.hotspot_action_text == "btn_delete")
+  click_row(1, "hotspot_action")
+  check("actions: deleting a standard wave also asks 'Sure?' first", row(1).content.hotspot_action_text == "btn_sure" and settings["del_wave_small"] ~= true)
+  click_row(1, "hotspot_action")
+  check("actions: second click hides the standard wave (it is deleted)", settings["del_wave_small"] == true and row(1).content.row_name ~= "My Small" and #view._waves == 31 and view._deleted_count == 1, tostring(row(1).content.row_name) .. " " .. #view._waves)
+  check("actions: the list says how many default waves are deleted", view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_deleted:1")
+  local pool_has = false; for _, e in ipairs(mod.rw.events.build_pool(function(id) return settings[id] end, mod.rw.groups)) do if e.key == "wave_small" then pool_has = true end end
+  check("actions: a deleted wave is not drawn and not found by /rw_test", not pool_has and select(1, mod.rw.events.find("my_small", function(id) return settings[id] end, mod.rw.groups)) == nil)
+  -- Restore defaults
+  settings["pct_boss_ambush"] = 99; view:_reload(); view:_refresh_rows()
+  check("actions: Restore defaults button on the list", view._widgets_by_name.btn_default.visible and view._widgets_by_name.btn_default.content.hotspot_text == "btn_default")
+  click("btn_default")
+  check("actions: first click only asks 'Sure?'", view._widgets_by_name.btn_default.content.hotspot_text == "btn_sure" and settings["del_wave_small"] == true)
+  click("btn_default")
+  check("actions: second click restores every wave to the defaults (deleted ones too, custom ones emptied)", settings["del_wave_small"] == false and settings["wave_def_wave_small"] == "" and settings["pct_wave_small"] == 18 and settings["pct_boss_ambush"] ~= 99 and #view._waves == 32 and row(1).content.row_name == "Small Wave" and view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_title", tostring(#view._waves))
+  check("actions: the replaced setup is kept for Undo last load", settings.preset_undo ~= nil and settings.preset_undo ~= "")
+  settings.preset_undo = nil
+  click("btn_default"); view:update(0.01, 500, input_stub3)
+  check("actions: an unconfirmed Restore defaults expires", view._widgets_by_name.btn_default.content.hotspot_text == "btn_default" and view._confirm == nil)
+  settings["wave_def_custom_1"] = "Custom 1\t3 hounds"; settings["on_custom_1"] = true; view:_reload(); view:_apply_screen(true)
+
+  -- time between waves on the list screen
+  local W2 = view._widgets_by_name
+  check("time: two steppers at the bottom of the list (minimum, maximum), label says what they are", W2.stepper_tmin.visible and W2.stepper_tmax.visible and W2.stepper_tmin.content.label == "set_interval_min" and W2.stepper_tmin.content.stepper_value == "150" and W2.stepper_tmax.content.stepper_value == "300" and not W2.stepper_chance.visible)
+  click("stepper_tmin", "hotspot_plus")
+  check("time: + adds 15 s from 150 and writes interval_min", settings.interval_min == 165 and W2.stepper_tmin.content.stepper_value == "165")
+  settings.interval_min = 20; view:_apply_screen(true)
+  click("stepper_tmin", "hotspot_plus"); check("time: 5 s steps below a minute", settings.interval_min == 25)
+  click("stepper_tmin", "hotspot_minus"); click("stepper_tmin", "hotspot_minus"); click("stepper_tmin", "hotspot_minus"); click("stepper_tmin", "hotspot_minus"); click("stepper_tmin", "hotspot_minus"); click("stepper_tmin", "hotspot_minus")
+  check("time: never below 5 s", settings.interval_min == 5)
+  settings.interval_min = 100; settings.interval_max = 300; view:_apply_screen(true)
+  click("stepper_tmax", "hotspot_minus")
+  check("time: the maximum steps down by 15 s from 300 -> 285", settings.interval_max == 285)
+  settings.interval_max = 105; view:_apply_screen(true)
+  for _ = 1, 3 do click("stepper_tmax", "hotspot_minus") end
+  check("time: lowering the maximum below the minimum pulls the minimum down with it", settings.interval_max <= settings.interval_min and settings.interval_min == settings.interval_max, settings.interval_min .. "/" .. settings.interval_max)
+  settings.interval_min = 100; settings.interval_max = 100; view:_apply_screen(true)
+  click("stepper_tmin", "hotspot_plus"); click("stepper_tmin", "hotspot_plus")
+  check("time: raising the minimum above the maximum pushes the maximum up with it", settings.interval_min >= 130 and settings.interval_max == settings.interval_min, settings.interval_min .. "/" .. settings.interval_max)
+  click("stepper_tmin", "hotspot_value")
+  check("time: clicking the value opens a popup (5 to 1800)", view._popup ~= nil and view._popup.spec.min == 5 and view._popup.spec.max == 1800)
+  view._widgets_by_name.rw_popup_input.content.input_text = "45"; view:update(0.01, 0, input_stub3)
+  local PPtime = dofile(BASE .. "/ui/wave_editor_components.lua"); PPtime.Popup.commit(view)
+  check("time: popup writes the minimum", settings.interval_min == 45)
+  settings.interval_random = false; view:_apply_screen(true)
+  check("time: with random off the minimum is labelled as the fixed time and the maximum says it is not used", W2.stepper_tmin.content.label == "set_interval_fixed" and W2.stepper_tmax.content.extra == "extra_not_random")
+  settings.interval_random = nil; settings.interval_min, settings.interval_max = nil, nil; view:_apply_screen(true)
+
+  -- help tooltip in the corner
+  check("help: '?' corner button visible on every screen, tooltip hidden by default", W2.btn_help.visible and not W2.help_panel.visible and not W2.help_text.visible and not W2.hint_text.visible)
+  W2.btn_help.content.hotspot.is_hover = true; view:update(0.01, 0, input_stub3)
+  check("help: hovering the button shows the tooltip with the text of this screen", W2.help_panel.visible and W2.help_text.visible and W2.help_text.content.help_text == "hint_list")
+  W2.btn_help.content.hotspot.is_hover = false; view:update(0.01, 0, input_stub3)
+  check("help: moving away hides it", not W2.help_panel.visible)
+  click("btn_help"); view:update(0.01, 0, input_stub3)
+  check("help: a click pins it open, another unpins", W2.help_panel.visible and (function() click("btn_help"); view:update(0.01, 0, input_stub3); return not W2.help_panel.visible end)())
+  click("btn_settings")
+  W2.btn_help.content.hotspot.is_hover = true; view:update(0.01, 0, input_stub3)
+  check("help: every screen has its own help text", W2.help_text.content.help_text == "hint_settings")
+  W2.btn_help.content.hotspot.is_hover = false; click("btn_back")
+  click_row(1, "hotspot_name")
+  W2.btn_help.content.hotspot.is_hover = true; view:update(0.01, 0, input_stub3)
+  check("help: the wave screen explains the fixed timer, distances and sharing", W2.help_text.content.help_text == "help_detail")
+  W2.btn_help.content.hotspot.is_hover = false; view:update(0.01, 0, input_stub3); click("btn_back")
+  check("help: texts exist in the localization for every screen", (function() local ok = true; for _, k in ipairs({ "hint_list", "hint_mods", "hint_presets", "hint_settings", "help_detail", "help_picker", "help_preset_view" }) do if not dofile(MODROOT .. "/scripts/mods/RealmsWaves/RealmsWaves_localization.lua")[k] then ok = false end end return ok end)())
   settings["pct_wave_small"] = 18
 
   -- settings screen
-  check("settings: button visible on the wave list", view._widgets_by_name.btn_settings.visible)
+  check("settings: More options button (top right corner) visible on the wave list", view._widgets_by_name.btn_settings.visible and view._widgets_by_name.btn_settings.content.hotspot_text == "btn_settings")
   click("btn_settings")
-  check("settings: screen opens with rows, Back only", view._screen == "settings" and row(10).visible and not view._widgets_by_name.btn_settings.visible and view._widgets_by_name.btn_back.visible and view._widgets_by_name.hint_text.visible)
+  check("settings: screen opens with rows, Back only", view._screen == "settings" and row(10).visible and not view._widgets_by_name.btn_settings.visible and view._widgets_by_name.btn_back.visible and not view._widgets_by_name.hint_text.visible and view._widgets_by_name.btn_help.visible)
   -- the screen has 11 rows (capacity 10): scroll just enough to bring the wanted row into view
   local function find_row(id)
     for idx, it in ipairs(view._settings_rows) do
@@ -800,6 +863,36 @@ do
   click_row(1, "hotspot_name"); click("btn_reset"); click("btn_back")
   check("timer: Reset to default clears the timer", settings.ev_wave_small == 0 and row(1).content.share ~= "share_timer:90")
 end
+-- tighter steppers and the corner buttons ------------------------------------------------------------------------
+do
+  local function gap_report(widget, label)
+    local minus, value, plus
+    for _, p in ipairs(widget.def.passes) do
+      local id = p.style_id or p.content_id
+      if id == "hotspot_minus" then minus = p.style end
+      if id == "hotspot_plus" then plus = p.style end
+      if id == "stepper_value" then value = p.style end
+    end
+    if not (minus and value and plus) then return label .. ": passes not found" end
+    -- horizontal distances between the buttons and the value box (offset x, size w)
+    local g1 = value.offset[1] - (minus.offset[1] + minus.size[1])
+    local g2 = plus.offset[1] - (value.offset[1] + value.size[1])
+    if g1 > 8 or g2 > 8 or g1 < 0 or g2 < 0 then return string.format("%s: gaps %d / %d", label, g1, g2) end
+  end
+  local problems = {}
+  for _, name in ipairs({ "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_dmin", "stepper_timer", "stepper_tmin" }) do
+    local p = gap_report(view._widgets_by_name[name], name); if p then problems[#problems + 1] = p end
+  end
+  local p = gap_report(view._widgets_by_name.rw_row_1, "list/detail row"); if p then problems[#problems + 1] = p end
+  check("steppers: the value sits within 8 px of the - and + buttons (was about 12 and 34 px)", #problems == 0, table.concat(problems, "; "))
+  local sg = view._definitions.scenegraph_definition
+  local function rect(n) return sg[n].position[1], sg[n].position[2], sg[n].size[1], sg[n].size[2] end
+  local function hit(a, b) local ax, ay, aw, ah = rect(a); local bx, by, bw, bh = rect(b); return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah end
+  check("corner: 'More options' and '?' sit top right, clear of the title, the description and each other", not hit("btn_settings", "title_text") and not hit("btn_settings", "description_text") and not hit("btn_help", "title_text") and not hit("btn_help", "description_text") and not hit("btn_settings", "btn_help") and sg.btn_help.position[1] + sg.btn_help.size[1] <= 1920)
+  check("corner: the help tooltip lies inside the screen and below the corner buttons", sg.help_panel.position[2] > sg.btn_help.position[2] + sg.btn_help.size[2] and sg.help_panel.position[1] + sg.help_panel.size[1] <= 1920 and sg.help_panel.position[2] + sg.help_panel.size[2] <= 1080)
+  check("corner: the Back button does not overlap the Restore defaults / Import / Presets buttons (no click-through)", not hit("btn_back", "btn_default") and not hit("btn_back", "btn_wimport") and not hit("btn_back", "btn_presets"))
+  check("list: the bottom row (Presets, Import wave, Restore defaults) does not overlap", not hit("btn_presets", "btn_wimport") and not hit("btn_wimport", "btn_default") and not hit("btn_presets", "btn_default"))
+end
 -- sharing one wave ------------------------------------------------------------------------------------------------
 do
   local P = mod.rw.presets
@@ -900,7 +993,7 @@ do
 
     -- widgets shown together on one screen must not overlap and must stay inside the bottom panel
     local screens = {
-      list = { "btn_presets", "btn_settings", "btn_wimport", "btn_back" },
+      list = { "btn_presets", "btn_wimport", "btn_default", "btn_back", "stepper_tmin", "stepper_tmax" },
       detail = { "btn_back", "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "btn_share" },
       picker = { "btn_back", "btn_search", "btn_stay" },
       preset_view = { "btn_back", "btn_pload", "btn_psave", "btn_prename", "btn_pexport", "btn_pimport", "btn_pundo", "btn_pclear" },
@@ -926,14 +1019,16 @@ do
   check("presets: Presets button only on the wave list", view._screen == "list" and view._widgets_by_name.btn_presets.visible and not view._widgets_by_name.btn_pload.visible)
   click("btn_presets")
   check("presets: screen lists exactly 5 slots, all empty", view._screen == "presets" and row(5).visible and not row(6).visible and row(1).content.info == "preset_slot_empty" and row(1).content.row_name == "1. Preset 1")
-  check("presets: only Back on the presets screen", view._widgets_by_name.btn_back.visible and not view._widgets_by_name.btn_presets.visible and not view._widgets_by_name.btn_psave.visible and view._widgets_by_name.hint_text.visible)
+  check("presets: only Back on the presets screen", view._widgets_by_name.btn_back.visible and not view._widgets_by_name.btn_presets.visible and not view._widgets_by_name.btn_psave.visible and not view._widgets_by_name.hint_text.visible)
   click("btn_back")
   check("presets: back returns to the wave list", view._screen == "list")
   click("btn_presets")
   click_row(2, "hotspot_action")
   check("presets: opening a slot shows its screen and buttons", view._screen == "preset_view" and view._preset_index == 2 and view._widgets_by_name.btn_psave.visible and view._widgets_by_name.btn_pload.visible and view._widgets_by_name.btn_pexport.visible and view._widgets_by_name.btn_pimport.visible)
   check("presets: empty slot has no Clear and no Undo button", not view._widgets_by_name.btn_pclear.visible and not view._widgets_by_name.btn_pundo.visible and note() == "preset_slot_empty_long")
-  click("btn_pload"); check("presets: loading an empty slot only says so", note() == "preset_nothing_to_load" and settings.preset_undo == nil)
+  click("btn_pload"); check("presets: loading an empty slot loads the default waves (a blank preset) and keeps an undo", note() == "preset_loaded_blank:2" and settings.preset_undo ~= nil and settings.preset_undo ~= "")
+  click("btn_pundo")
+  check("presets: Undo last load after loading a blank slot brings the previous waves back", settings.wave_def_custom_1 ~= "" and settings.on_custom_1 == true and settings.preset_undo == "", tostring(settings.wave_def_custom_1))
   click("btn_pexport"); check("presets: exporting an empty slot only says so", view._popup == nil and note() == "preset_nothing_to_export")
   click("btn_prename"); check("presets: renaming an empty slot asks to save first", view._popup == nil and note() == "preset_save_first")
 

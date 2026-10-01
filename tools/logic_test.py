@@ -600,6 +600,182 @@ do
   settings.interval_min, settings.interval_max = 100, 100
   started_waves = {}; started_defs = {}
 end
+-- /rw_stop, /rw_pause, /rw_next, anti-snowballing ------------------------------------------------------------------
+do
+  settings.mode = "random"; settings.interval_min = 100; settings.interval_max = 100; settings.initial_delay = 0; settings.vote_duration = 25
+  settings.wave_def_custom_1 = "Pulse\t2 hounds"; settings.on_custom_1 = true; settings.ev_custom_1 = 30
+  local function fresh()
+    started_waves = {}; started_defs = {}
+    Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01)
+    return Director.view()
+  end
+  local function pulses() local n = 0; for _, nme in ipairs(started_waves) do if nme == "Pulse" then n = n + 1 end end return n end
+
+  -- pause
+  local v = fresh()
+  local r0 = v.remaining
+  Director.update(10)
+  local r1 = Director.view().remaining
+  check("pause: the countdown runs normally first", r0 - r1 > 9.9 and r0 - r1 < 10.1, r0 - r1)
+  check("pause: /rw_pause returns the new state", Director.pause() == true and Director.is_paused() == true)
+  Director.update(40)
+  v = Director.view()
+  check("pause: the countdown stands still while paused", math.abs(v.remaining - r1) < 0.01 and v.paused == true, v.remaining)
+  Director.update(50)
+  check("pause: nothing fires while paused (not the draw, not the fixed timer)", #started_waves == 0, #started_waves)
+  check("pause: the synced state says paused (z=1) so clients freeze their countdown", sent[#sent].state.z == 1 or (Director.update(1.5) == nil and sent[#sent].state.z == 1))
+  check("pause: a second call (or 'off') releases it", Director.pause() == false and Director.pause(true) == true and Director.pause(false) == false)
+  Director.update(5)
+  check("pause: the clocks run again after the release", r1 - Director.view().remaining > 4.9)
+  -- clients freeze their own interpolation
+  is_server = false
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  Director.on_state("host_peer", { p = "waiting", m = "random", r = 50.0, b = 1, c = "", k = {}, e = 0, z = 1 })
+  local cv = Director.view()
+  check("pause: a client shows the frozen time and the paused flag", cv.paused == true and math.abs(cv.remaining - 50) < 0.01)
+  Director.on_state("host_peer", { p = "waiting", m = "random", r = 50.0, b = 1, c = "", k = {}, e = 0, z = 0 })
+  check("pause: ...and not paused afterwards", Director.view().paused == false)
+  is_server = true
+  check("pause: a client cannot pause", (function() is_server = false; local ok, why = Director.pause(); is_server = true; return ok == nil and why:find("only the host") ~= nil end)())
+
+  -- next
+  v = fresh()
+  local first_ballot = v.ballot_id
+  Director.update(30)
+  check("next: only the host and only with a running cycle", (function() is_server = false; local ok = Director.next_wave(); is_server = true; return ok == false end)())
+  local before_waves = #started_waves
+  check("next: /rw_next draws a new wave and a full new timer, spawning nothing for the dropped one", Director.next_wave() == true and Director.view().ballot_id ~= first_ballot and Director.view().remaining > 99 and #started_waves == before_waves and Director.view().phase == "waiting", Director.view().remaining)
+  Director.pause(true)
+  Director.next_wave()
+  check("next: leaves the pause", Director.is_paused() == false)
+
+  -- stop
+  v = fresh()
+  Director.update(10)
+  check("stop: /rw_stop works for the host", Director.stop() == true and Director.is_stopped() == true)
+  check("stop: the panel is gone (phase off) and the host sends an 'off' state to the others", Director.view().phase == "off" and sent[#sent].state.p == "off")
+  started_waves = {}
+  Director.update(200); Director.update(200)
+  check("stop: no wave, no vote, no fixed timer while stopped", #started_waves == 0 and Director.timed_wave_count() == 0)
+  check("stop: pause/next/skip are refused with a reason while stopped", select(1, Director.pause()) == nil and Director.next_wave() == false)
+  check("stop: /rw_start starts it again", Director.force_start() == true and Director.is_stopped() == false and Director.view().phase == "waiting")
+  check("stop: a client cannot stop", (function() is_server = false; local ok = Director.stop(); is_server = true; return ok == false end)())
+
+  -- anti-snowballing
+  v = fresh()
+  Director.update(5)
+  local rem = Director.view().remaining
+  settings.anti_snowball = nil
+  check("anti-snowball: off by default -> a death changes nothing", Director.on_player_died() == false and math.abs(Director.view().remaining - rem) < 0.01)
+  settings.anti_snowball = true; settings.anti_snowball_delay = 30
+  Director.update(1) -- lets the fixed timer register
+  rem = Director.view().remaining
+  check("anti-snowball: on -> a death delays the countdown by the slider's seconds", Director.on_player_died() == true and math.abs(Director.view().remaining - (rem + 30)) < 0.01, Director.view().remaining - rem)
+  settings.anti_snowball_delay = 5
+  rem = Director.view().remaining
+  Director.on_player_died()
+  check("anti-snowball: the slider value is used (5 s)", math.abs(Director.view().remaining - (rem + 5)) < 0.01)
+  -- the fixed timer is pushed back too: it was due 30 s after the start (about 7 s in), +30 +5 -> not before ~65 s
+  for _ = 1, 50 do Director.update(1) end
+  check("anti-snowball: fixed timers are delayed as well (nothing fired after 56 s although the period is 30 s)", pulses() == 0, pulses())
+  for _ = 1, 15 do Director.update(1) end
+  check("anti-snowball: ...and they come after the delay", pulses() >= 1, pulses())
+  Director.pause(true)
+  rem = Director.view().remaining
+  Director.on_player_died()
+  check("anti-snowball: while paused the delay still adds up", Director.view().remaining > rem)
+  Director.pause(false)
+  is_server = false
+  check("anti-snowball: a client does nothing", Director.on_player_died() == false)
+  is_server = true
+  check("anti-snowball: an incoming banner is not extended (the wave already fired)", (function()
+    fresh(); Director.update(101)
+    local phase = Director.view().phase
+    local remaining = Director.view().remaining
+    Director.on_player_died()
+    return phase == "incoming" and math.abs(Director.view().remaining - remaining) < 0.01
+  end)())
+  Director.stop()
+  check("anti-snowball: nothing while stopped", Director.on_player_died() == false)
+  Director.force_start()
+  settings.anti_snowball, settings.anti_snowball_delay = nil, nil
+  settings.wave_def_custom_1, settings.on_custom_1, settings.ev_custom_1 = nil, nil, nil
+  settings.interval_min, settings.interval_max = 100, 100
+  Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
+end
+
+-- deleted standard waves (del_<key>) -------------------------------------------------------------------------------
+do
+  local Presets = PresetsMod
+  local store = {}
+  local function g(id) return store[id] end
+  local function s(id, v) store[id] = v end
+  local wave = Events.get("wave_small", g, Groups)
+  check("deleted: a standard wave is not deleted by default", wave.deleted == false and wave.enabled == true)
+  store.del_wave_small = true
+  wave = Events.get("wave_small", g, Groups)
+  check("deleted: a deleted wave reads as deleted and disabled", wave.deleted == true and wave.enabled == false)
+  local in_pool = false; for _, e in ipairs(Events.build_pool(g, Groups)) do if e.key == "wave_small" then in_pool = true end end
+  local timed_ok = true; store.ev_wave_small = 30; for _, tw in ipairs(Events.timed_waves(g, Groups)) do if tw.key == "wave_small" then timed_ok = false end end
+  check("deleted: never in the draw and never timed", not in_pool and timed_ok)
+  check("deleted: Events.find does not find it any more", select(1, Events.find("small_wave", g, Groups)) == nil)
+  check("deleted: custom slots cannot be 'deleted' (that is emptying the slot)", (function() store.del_custom_1 = true; return Events.get("custom_1", g, Groups).deleted == false end)())
+  store.del_custom_1 = nil
+  local cap = Presets.capture(g, Events, Groups)
+  local cw; for _, w2 in ipairs(cap.waves) do if w2.key == "wave_small" then cw = w2 end end
+  check("deleted: presets capture it", cw and cw.deleted == true)
+  cap.name = "D"
+  local back = Presets.decode(Presets.encode(cap), Events, Groups)
+  local bw; for _, w2 in ipairs(back.waves) do if w2.key == "wave_small" then bw = w2 end end
+  check("deleted: presets round trip it", bw and bw.deleted == true)
+  local applied = {}
+  Presets.apply(back, function(id, v) applied[id] = v end, Events, Groups)
+  check("deleted: loading a preset deletes it again, and waves not in the preset come back", applied.del_wave_small == true and applied.del_wave_large == false)
+  Presets.apply({ waves = {} }, s, Events, Groups)
+  check("deleted: restoring the defaults (empty preset) brings every deleted wave back", store.del_wave_small == false and Events.get("wave_small", g, Groups).enabled == true)
+  local sent_waves = Presets.enabled_waves(function(id) return id == "del_wave_small" and true or nil end, Events, Groups)
+  local has_small = false; for _, w2 in ipairs(sent_waves.waves) do if w2.key == "wave_small" then has_small = true end end
+  check("deleted: a client does not send its deleted waves to the host", not has_small)
+  local old12 = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~0"), Events, Groups)
+  check("deleted: texts without the deleted field (12 fields) still import", old12 and old12.deleted == false)
+end
+
+-- modifier colours like Improved Havoc Tags -------------------------------------------------------------------------
+do
+  local Colors = load("catalog/colors")
+  local tags_settings = nil -- nil = Improved Havoc Tags not installed
+  Colors.init({ kind = Groups.kind, option = function(id) return settings[id] end, havoc_setting = function(id) return tags_settings and tags_settings[id] or nil end })
+  local function rgb(id) local c = Colors.modifier_rgb(id); return c and table.concat(c, ",") end
+  check("modifier colours: without the mod, ITS defaults (purple/garden blue-violet, enraged red, orange, rotten green...)", rgb("garden") == "138,43,226" and rgb("enraged") == "255,54,36" and rgb("bolstering") == "208,136,48" and rgb("rotten") == "132,156,99" and rgb("corrupted") == "128,128,0" and rgb("toughened") == "157,169,75" and rgb("fire") == "160,82,45" and rgb("parasite") == "255,160,122" and rgb("purple_stimm") == "255,242,0", rgb("garden"))
+  check("modifier colours: Final Toll uses the enraged red", rgb("toll") == "255,54,36")
+  check("modifier colours: every modifier of the catalog has a colour", (function() for _, m in ipairs(Groups.MODIFIERS) do if not Colors.modifier_rgb(m.id) then return false end end return true end)())
+  tags_settings = { encroaching_garden = { 255, 1, 2, 3 }, enraged = "old string value", rotten_armor = { 255, 9 } }
+  Colors.clear_cache()
+  check("modifier colours: with the mod its colour option wins", rgb("garden") == "1,2,3")
+  check("modifier colours: a broken value (string / short table) falls back to its default", rgb("enraged") == "255,54,36" and rgb("rotten") == "132,156,99")
+  check("modifier colours: unknown modifier -> no colour", Colors.modifier_rgb("nope") == nil and Colors.modifier_rgb(nil) == nil)
+  settings.colour_enemies = false; Colors.clear_cache()
+  check("modifier colours: switched off with 'Colour enemy names'", Colors.modifier_rgb("garden") == nil)
+  settings.colour_enemies = nil
+  check("modifier colours: argb form for UI text colours", (function() Colors.clear_cache(); local a = Colors.modifier_argb("garden"); return a[1] == 255 and a[2] == 1 and a[3] == 2 and a[4] == 3 end)())
+  -- the summary paints enemy and modifier names separately, and the visible text never changes
+  Colors.init({ kind = Groups.kind, option = function(id) return settings[id] end, havoc_setting = function() return nil end, spidey_setting = function() return nil end, named = function() return nil end })
+  local painter = { part = function(part) return Colors.rgb(part.breed) end, mod = function(id) return Colors.modifier_rgb(id) end, markup = Colors.markup }
+  local parts = Groups.parse("3 crushers[garden+enraged]@2, 5 hounds, 2 scab rager[rotten], 1 plague ogryn|chaos spawn")
+  local mismatches = {}
+  for max = 4, 140 do
+    local plain = Groups.summary(parts, max)
+    local painted = Groups.summary(parts, max, painter)
+    local visible = painted:gsub("{#[^}]*}", "")
+    if visible ~= plain then mismatches[#mismatches + 1] = max .. ": [" .. visible .. "] vs [" .. plain .. "]"; if #mismatches > 2 then break end end
+  end
+  check("modifier colours: painted summary (enemy + modifier segments) has exactly the plain visible text at every length", #mismatches == 0, table.concat(mismatches, " | "))
+  local text = Groups.summary(parts, 200, painter)
+  check("modifier colours: modifier names carry their own colour tags", text:find("{#color(138,43,226)}Purple{#reset()}", 1, true) ~= nil and text:find("{#color(255,54,36)}Enraged{#reset()}", 1, true) ~= nil and text:find("{#color(132,156,99)}Rotten Armor{#reset()}", 1, true) ~= nil, text)
+  check("modifier colours: the enemy part keeps the enemy's colour around them", text:find("{#color(240,240,240)}3 Crusher [{#reset()}", 1, true) ~= nil and text:find("{#color(240,240,240)}]", 1, true) ~= nil)
+  local head, mods, tail = Groups.describe_part_pieces(parts[1])
+  check("modifier colours: describe_part is unchanged by the refactor", head == "3 Crusher" and #mods == 2 and mods[1].id == "garden" and tail == " (+2 per repeat)" and Groups.describe_part(parts[1], true) == "3 Crusher [Purple, Enraged] (+2 per repeat)" and Groups.describe_part(parts[2]) == "5 Hound")
+end
 -- /rw_test by name ------------------------------------------------------------------
 do
   local get = function(id) return settings[id] end
@@ -989,6 +1165,45 @@ do
   -- a text with an unknown key still imports (the key is only the exporter's)
   local fk = Presets.decode_wave(Presets.seal("RWW1|future_wave~F~1~10~60~3~10~60~3 hounds~0~0"), Events, Groups)
   check("wave share: the exporter's key does not matter (unknown keys are fine)", fk and fk.key == "future_wave")
+end
+-- enemy name colours without Spidey Sense: the palette asked for ------------------------------------------------------
+do
+  local Colors = load("catalog/colors")
+  Colors.init({ kind = Groups.kind, option = function(id) return settings[id] end, spidey_setting = function() return nil end, named = function() return nil end })
+  local function rgb(b) return Colors.rgb(b) end
+  local function lum(b) local c = rgb(b); return 0.3 * c[1] + 0.59 * c[2] + 0.11 * c[3] end
+  local function same(a, b) local x, y = rgb(a), rgb(b); return x[1] == y[1] and x[2] == y[2] and x[3] == y[3] end
+  local all = true
+  for _, breed in ipairs(Groups.breed_list()) do local c = rgb(breed); if not (c and c[1] and c[2] and c[3]) then all = false end end
+  check("palette: every enemy of the catalog has a colour", all)
+  for _, b in ipairs({ "chaos_newly_infected", "renegade_melee", "cultist_melee", "renegade_rifleman", "chaos_mutated_poxwalker" }) do
+    check("palette: fodder (" .. b .. ") shares the poxwalker's weak grey", same(b, "chaos_poxwalker"))
+  end
+  check("palette: crusher bright grey > mauler grey > fodder weak grey", lum("chaos_ogryn_executor") > lum("renegade_executor") and lum("renegade_executor") > lum("chaos_poxwalker") and math.abs(rgb("chaos_ogryn_executor")[1] - rgb("chaos_ogryn_executor")[3]) < 10)
+  check("palette: shocktroopers/shotgunners weak yellow (r,g high, b low)", same("renegade_shocktrooper", "cultist_shocktrooper") and rgb("renegade_shocktrooper")[1] > 180 and rgb("renegade_shocktrooper")[3] < 140)
+  check("palette: hounds bright yellow, brighter than the shotgunners", same("chaos_hound", "chaos_armored_hound") and rgb("chaos_hound")[3] < 60 and lum("chaos_hound") > lum("renegade_shocktrooper"))
+  check("palette: mutant bright green", rgb("cultist_mutant")[2] > 220 and rgb("cultist_mutant")[1] < 120 and rgb("cultist_mutant")[3] < 140)
+  check("palette: tox bomber toxic green (lime), different from the mutant", rgb("cultist_grenadier")[2] > 220 and rgb("cultist_grenadier")[1] > 120 and not same("cultist_grenadier", "cultist_mutant"))
+  check("palette: daemonhost purple", rgb("chaos_daemonhost")[1] > 150 and rgb("chaos_daemonhost")[3] > 200 and rgb("chaos_daemonhost")[2] < 100)
+  check("palette: captains dull green (the colour of their health bar)", same("renegade_captain", "cultist_captain") and rgb("renegade_captain")[2] > rgb("renegade_captain")[1] and rgb("renegade_captain")[2] > rgb("renegade_captain")[3])
+  check("palette: twins use the colour of the shield bar of the boss health bar (218,186,126)", same("renegade_twin_captain", "renegade_twin_captain_two") and table.concat(rgb("renegade_twin_captain"), ",") == "218,186,126")
+  check("palette: vanguards weak blackish, bulwark blackish (darker), both darker than the fodder", same("renegade_vanguard", "cultist_vanguard") and lum("chaos_ogryn_bulwark") < lum("renegade_vanguard") and lum("renegade_vanguard") < lum("chaos_poxwalker"))
+  check("palette: flamers strong orange", same("renegade_flamer", "cultist_flamer") and rgb("renegade_flamer")[1] > 240 and rgb("renegade_flamer")[2] > 90 and rgb("renegade_flamer")[2] < 170 and rgb("renegade_flamer")[3] < 60)
+  check("palette: poxburster pinkish", rgb("chaos_poxwalker_bomber")[1] > 230 and rgb("chaos_poxwalker_bomber")[3] > 150 and rgb("chaos_poxwalker_bomber")[2] < 180)
+  check("palette: trapper neutral red (duller than the boss red)", rgb("renegade_netgunner")[1] > 180 and rgb("renegade_netgunner")[2] < 100 and lum("renegade_netgunner") < lum("chaos_spawn") + 60 and not same("renegade_netgunner", "chaos_spawn"))
+  for _, b in ipairs({ "chaos_beast_of_nurgle", "chaos_plague_ogryn", "chaos_spawn", "chaos_ogryn_houndmaster" }) do
+    check("palette: boss " .. b .. " strong red", same(b, "chaos_spawn") and rgb(b)[1] > 240 and rgb(b)[2] < 80 and rgb(b)[3] < 80)
+  end
+  check("palette: all gunners strong white", same("renegade_gunner", "cultist_gunner") and same("renegade_gunner", "chaos_ogryn_gunner") and table.concat(rgb("renegade_gunner"), ",") == "255,255,255")
+  check("palette: bomber orangeish, not the flamer's orange", rgb("renegade_grenadier")[1] > 240 and rgb("renegade_grenadier")[2] > 140 and not same("renegade_grenadier", "renegade_flamer"))
+  check("palette: Spidey Sense off in the options gives the palette even when it knows the enemy", (function()
+    Colors.init({ kind = Groups.kind, option = function(id) if id == "colour_spidey" then return false end end, spidey_setting = function() return "red" end, named = function() return { 1, 2, 3 } end })
+    return table.concat(Colors.rgb("chaos_ogryn_executor"), ",") == "240,240,240"
+  end)())
+  check("palette: Spidey Sense on and knowing the enemy wins, otherwise the palette", (function()
+    Colors.init({ kind = Groups.kind, option = function() end, spidey_setting = function() return "red" end, named = function() return { 1, 2, 3 } end })
+    return table.concat(Colors.rgb("chaos_ogryn_executor"), ",") == "1,2,3" and table.concat(Colors.rgb("chaos_twin_nobody") or {}, ",") ~= "1,2,3" and table.concat(Colors.rgb("renegade_twin_captain"), ",") == "218,186,126"
+  end)())
 end
 -- twin captains: the shield starts down (toughness template start_depleted) and must be raised via optional_init_toughness
 do

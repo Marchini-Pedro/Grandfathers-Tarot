@@ -58,8 +58,17 @@ local scenegraph_definition = {
 	-- NOT under Back (x 125-305): Back is drawn before this button, so a click on Back that switches to the
 	-- list would land on a Presets button at the same spot in the same frame and open the presets page.
 	btn_presets = node(325, 800, 300, 44, 2),
-	btn_settings = node(645, 800, 340, 44, 2), -- list screen: timing, voting and display settings
-	btn_wimport = node(1005, 800, 300, 44, 2), -- list screen: import a shared wave into the first free custom slot
+	-- corner buttons, top right (the title text ends at x 1280): "More options" (list screen only) and the
+	-- help icon whose tooltip replaces the long gray texts that used to fill the bottom of the screen
+	btn_settings = node(1480, 36, 270, 44, 2),
+	btn_help = node(1766, 36, 50, 44, 2),
+	help_panel = node(880, 90, 935, 300, 70),
+	help_text = node(900, 100, 895, 280, 71),
+	btn_wimport = node(645, 800, 300, 44, 2), -- list screen: import a shared wave into the first free custom slot
+	btn_default = node(965, 800, 320, 44, 2), -- list screen: restore every wave to the defaults
+	-- list screen: the time between waves (the options menu has the same two settings)
+	stepper_tmin = node(125, 858, 700, 48, 2),
+	stepper_tmax = node(870, 858, 700, 48, 2),
 	-- detail screen: export this wave / import over it. Top right of the panel, beside the title line (the
 	-- steppers need every pixel of the three rows below)
 	btn_share = node(1500, 754, 300, 42, 2),
@@ -193,6 +202,18 @@ local widget_definitions = {
 
 	bottom_title = plain_text("bottom_title", "bottom_title", 24, colors.gold, 900, 34),
 	hint_text = plain_text("hint_text", "hint_text", 20, colors.muted, 1660, 120, "left", "top"),
+
+	-- tooltip shown while the pointer is on the "?" corner button
+	help_panel = UIWidget.create_definition({
+		{ pass_type = "rect", style = { color = { 245, 15, 23, 19 } } },
+		{
+			style_id = "frame",
+			pass_type = "texture",
+			value = "content/ui/materials/frames/frame_tile_2px",
+			style = { scale_to_material = true, color = Components.clone_color(colors.gold), offset = { 0, 0, 1 } },
+		},
+	}, "help_panel"),
+	help_text = plain_text("help_text", "help_text", 20, colors.text, 895, 280, "left", "top"),
 
 	-- input popup: fill, gold frame, title and hint (input and buttons are dynamic)
 	rw_popup_panel = UIWidget.create_definition({

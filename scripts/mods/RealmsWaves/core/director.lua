@@ -37,6 +37,8 @@ local last_fired = {}
 local my_vote, my_vote_ballot = nil, nil
 local peer_waves = {} -- host: peer id -> that player's enabled waves (pool-ready), see Director.on_waves
 local timers = {} -- host: wave key -> { every, remaining, wave } for waves with a fixed timer
+local paused = false -- /rw_pause: every clock is frozen
+local stopped = false -- /rw_stop: the director does nothing until /rw_start
 local timer_check = 0
 
 local view = { phase = "off", mode = "random", remaining = 0, ballot_id = 0, chosen = "", cands = {}, version = 0, my_vote = nil }
@@ -335,7 +337,7 @@ local function snapshot()
 		k[i] = { k = cand.key, n = cand.name, p = cand.pct, v = cand.votes }
 	end
 
-	return { p = state.phase, m = state.mode, r = round1(state.remaining), b = state.ballot_id, c = state.chosen, k = k, e = state.empty and 1 or 0 }
+	return { p = state.phase, m = state.mode, r = round1(state.remaining), b = state.ballot_id, c = state.chosen, k = k, e = state.empty and 1 or 0, z = paused and 1 or 0 }
 end
 
 local function broadcast()
@@ -386,8 +388,12 @@ local function update_timed_waves(dt)
 			if not timer then
 				timers[wave.key] = { every = wave.every, remaining = wave.every, wave = wave }
 			else
-				-- a changed period never leaves the clock waiting longer than the new period
-				timer.remaining = math.min(timer.remaining, wave.every)
+				-- a changed period never leaves the clock waiting longer than the new period (only when it CHANGED:
+				-- a delay pushed on by anti-snowballing may legitimately exceed the period)
+				if timer.every ~= wave.every then
+					timer.remaining = math.min(timer.remaining, wave.every)
+				end
+
 				timer.every = wave.every
 				timer.wave = wave
 			end
@@ -412,6 +418,10 @@ local function update_timed_waves(dt)
 end
 
 local function host_update(dt)
+	if stopped then
+		return
+	end
+
 	if not started then
 		try_start()
 	end
@@ -426,11 +436,17 @@ local function host_update(dt)
 		return
 	end
 
-	update_timed_waves(dt)
+	-- paused: every clock stands still (the countdown, the vote window, the fixed timers); the state is
+	-- still re-sent once a second so late joiners and the HUD keep the frozen time
+	if not paused then
+		update_timed_waves(dt)
 
-	state.remaining = state.remaining - dt
+		state.remaining = state.remaining - dt
+	end
 
-	if state.phase == "incoming" then
+	if paused then
+		-- nothing to resolve
+	elseif state.phase == "incoming" then
 		if state.remaining <= 0 then
 			start_cycle(false)
 		end
@@ -500,6 +516,7 @@ end
 -- ------------------------------------------------------------------ lifecycle
 
 Director.reset = function ()
+	paused, stopped = false, false
 	peer_waves = {}
 	timers, timer_check = {}, 0
 	host_state, client_state = nil, nil
@@ -559,6 +576,7 @@ Director.force_start = function ()
 	in_mission = live_mission()
 	started = in_mission
 	start_signal = in_mission
+	stopped, paused = false, false
 
 	if started then
 		start_cycle(true)
@@ -568,9 +586,116 @@ Director.force_start = function ()
 end
 
 Director.skip = function ()
-	if host_state and host_state.phase ~= "incoming" then
+	if host_state and host_state.phase ~= "incoming" and not stopped then
 		host_state.remaining = 0
+		paused = false
 	end
+end
+
+-- ------------------------------------------------------- /rw_stop, /rw_pause, /rw_next, anti-snowballing
+
+-- Host. Stops the mod: no countdown, no vote, no fixed timers, queued wave units are dropped (units that are
+-- already on the map stay). Clients see the panel disappear. /rw_start (or Director.force_start) starts again.
+Director.stop = function ()
+	if not Director.is_host() then
+		return false, "only the host can stop the waves"
+	end
+
+	stopped, paused = true, false
+	timers, timer_check = {}, 0
+	Execute.reset()
+	Votes.close()
+
+	if host_state then
+		host_state.phase, host_state.cands, host_state.empty = "off", {}, false
+		mark_changed()
+
+		if Protocol.is_available() then
+			Protocol.send_state(snapshot(), "others")
+		end
+	end
+
+	host_state = nil
+
+	return true
+end
+
+Director.is_stopped = function ()
+	return stopped
+end
+
+Director.is_paused = function ()
+	return paused
+end
+
+-- Host. Freezes (or with `on` false / a second call releases) every clock: the countdown to the next wave,
+-- the vote window and the fixed timers. Returns the new state.
+Director.pause = function (on)
+	if not Director.is_host() then
+		return nil, "only the host can pause the waves"
+	end
+
+	if stopped then
+		return nil, "the waves are stopped (use /rw_start first)"
+	end
+
+	if on == nil then
+		on = not paused
+	end
+
+	paused = on == true
+	mark_changed()
+
+	return paused
+end
+
+-- Host. Throws the current wave (and its vote) away WITHOUT spawning it and starts a fresh cycle: a new draw,
+-- a new ballot and a full new timer. Also leaves the pause.
+Director.next_wave = function ()
+	if not Director.is_host() then
+		return false, "only the host can change the wave"
+	end
+
+	if stopped then
+		return false, "the waves are stopped (use /rw_start first)"
+	end
+
+	if not started then
+		return false, "no cycle is running yet (mission not started)"
+	end
+
+	paused = false
+	start_cycle(false)
+
+	return true
+end
+
+-- Anti-snowballing (host, options "anti_snowball" + "anti_snowball_delay"): whenever a player dies the
+-- running wave timers are pushed back by the configured number of seconds, so a team that just lost someone
+-- gets a breather instead of the next wave. Delays the countdown to the next wave and every fixed timer.
+Director.on_player_died = function ()
+	if not Director.is_host() or stopped or mod:get("anti_snowball") ~= true or not host_state then
+		return false
+	end
+
+	local delay = math.max(0, number_setting("anti_snowball_delay", 30))
+
+	if delay <= 0 then
+		return false
+	end
+
+	if host_state.phase ~= "incoming" then
+		host_state.remaining = host_state.remaining + delay
+	end
+
+	for _, timer in pairs(timers) do
+		timer.remaining = timer.remaining + delay
+	end
+
+	mark_changed()
+	mod:echo("%s", mod:localize("msg_anti_snowball", math.floor(delay)))
+
+	return true
 end
 
 -- -------------------------------------------------------------- network events
@@ -628,6 +753,7 @@ Director.on_state = function (sender, s)
 		chosen = tostring(s.c or ""),
 		cands = cands,
 		empty = s.e == 1,
+		paused = s.z == 1,
 	}
 
 	client_received_at = now()
@@ -713,7 +839,8 @@ Director.view = function ()
 		remaining = source and source.remaining or 0
 	else
 		source = client_state
-		remaining = source and math.max(0, source.remaining - (now() - client_received_at)) or 0
+		-- a paused host keeps sending the frozen time: do not count down locally
+		remaining = source and (source.paused and source.remaining or math.max(0, source.remaining - (now() - client_received_at))) or 0
 	end
 
 	if not source or client_disabled or not in_mission then
@@ -730,6 +857,7 @@ Director.view = function ()
 	view.chosen = source.chosen
 	view.cands = source.cands
 	view.empty = source.empty
+	view.paused = Director.is_host() and paused or source.paused == true
 	view.version = version
 	view.my_vote = my_vote_ballot == source.ballot_id and my_vote or nil
 
@@ -814,8 +942,8 @@ Director.status = function ()
 	local exec = Execute.status()
 
 	return string.format(
-		"phase=%s mode=%s remaining=%.0fs cands=%d host=%s started=%s in_mission=%s disabled=%s | tracked=%d queued=%d jobs=%d stage=%s err=%s | lua heap %.0f MB (guard %d, paused %s) | timed waves: %d | everyone's waves: %s, %d from %d players",
-		state.phase, tostring(state.mode), state.remaining or 0, #(state.cands or {}), tostring(Director.is_host()), tostring(started), tostring(in_mission), tostring(client_disabled),
+		"phase=%s mode=%s remaining=%.0fs paused=%s stopped=%s cands=%d host=%s started=%s in_mission=%s disabled=%s | tracked=%d queued=%d jobs=%d stage=%s err=%s | lua heap %.0f MB (guard %d, paused %s) | timed waves: %d | everyone's waves: %s, %d from %d players",
+		state.phase, tostring(state.mode), state.remaining or 0, tostring(paused), tostring(stopped), #(state.cands or {}), tostring(Director.is_host()), tostring(started), tostring(in_mission), tostring(client_disabled),
 		exec.tracked, exec.queued, exec.jobs, tostring(exec.stage), tostring(exec.last_error),
 		exec.heap_mb or 0, exec.heap_guard_mb or 0, tostring(exec.heap_paused),
 		Director.timed_wave_count(), mod:get("pool_all_players") == true and "on" or "off", Director.peer_wave_count()

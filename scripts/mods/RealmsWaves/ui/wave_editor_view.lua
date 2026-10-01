@@ -21,7 +21,9 @@ local ROW_HEIGHT = definitions.ROW_HEIGHT
 local ROW_NODE_PREFIX = definitions.ROW_NODE_PREFIX
 
 local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same" }
-local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer" }
+local LIST_STEPPERS = { "stepper_tmin", "stepper_tmax" } -- list screen: time between waves
+local DETAIL_STEPPERS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer" }
+local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "stepper_tmin", "stepper_tmax" }
 local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
 local BUTTONS = {
 	{ name = "btn_back", width = 180, cb = "cb_back" },
@@ -36,6 +38,8 @@ local BUTTONS = {
 	{ name = "btn_presets", width = 300, cb = "cb_presets" },
 	{ name = "btn_settings", width = 340, cb = "cb_settings" },
 	{ name = "btn_wimport", width = 300, cb = "cb_wave_import" },
+	{ name = "btn_default", width = 320, cb = "cb_defaults" },
+	{ name = "btn_help", width = 50, cb = "cb_help" },
 	{ name = "btn_share", width = 280, cb = "cb_wave_share" },
 	{ name = "btn_pload", width = 250, cb = "cb_preset_load" },
 	{ name = "btn_psave", width = 400, cb = "cb_preset_save" },
@@ -106,6 +110,9 @@ RealmsWavesView.on_enter = function (self)
 	self._offset = 0
 	self._key = nil
 	self._confirm = nil
+	self._help_pinned = false
+	self._widgets_by_name.help_panel.visible = false
+	self._widgets_by_name.help_text.visible = false
 
 	-- the Spidey Sense colours (or this mod's colour options) may have changed since last time
 	if mod.rw.colors then
@@ -143,7 +150,20 @@ RealmsWavesView.update = function (self, dt, t, input_service)
 
 	if self._confirm and self._t > self._confirm.expires then
 		self._confirm = nil
-		self:_refresh_rows()
+		self:_apply_screen(true)
+	end
+
+	-- the help tooltip shows while the pointer is on the "?" corner button (or after clicking it)
+	local widgets = self._widgets_by_name
+	local help = widgets.btn_help
+
+	if help and widgets.help_panel then
+		local show = self._popup == nil and help.visible == true and (help.content.hotspot.is_hover == true or self._help_pinned == true)
+
+		if widgets.help_panel.visible ~= show then
+			widgets.help_panel.visible = show
+			widgets.help_text.visible = show
+		end
 	end
 
 	if self._screen == "picker" and not self._popup then
@@ -267,11 +287,14 @@ RealmsWavesView._create_editor_widgets = function (self)
 		{ name = "stepper_dmin", width = 540, step = 5, cb = "dmin" },
 		{ name = "stepper_dmax", width = 540, step = 5, cb = "dmax" },
 		{ name = "stepper_timer", width = 580, step = 1, cb = "timer" },
+		-- list screen: the time between waves (long labels, so a wider label column)
+		{ name = "stepper_tmin", width = 700, step = 1, cb = "tmin", label_width = 330 },
+		{ name = "stepper_tmax", width = 700, step = 1, cb = "tmax", label_width = 330 },
 	}
 
 	for i = 1, #extra_steppers do
 		local entry = extra_steppers[i]
-		local widget = self:_create_dynamic_widget(entry.name, blueprints.setting_stepper(entry.name, entry.width))
+		local widget = self:_create_dynamic_widget(entry.name, blueprints.setting_stepper(entry.name, entry.width, entry.label_width))
 
 		widget.content.hotspot_minus.pressed_callback = callback(self, "cb_" .. entry.cb .. "_step", -entry.step)
 		widget.content.hotspot_plus.pressed_callback = callback(self, "cb_" .. entry.cb .. "_step", entry.step)
@@ -300,12 +323,17 @@ end
 RealmsWavesView._reload = function (self)
 	local rw = mod.rw
 	local keys = rw.events.keys()
-	local waves, total = {}, 0
+	local waves, total, deleted = {}, 0, 0
 
 	for i = 1, #keys do
 		local wave = rw.events.get(keys[i], get_setting, rw.groups)
 
-		waves[i] = wave
+		-- deleted standard waves are hidden (Restore defaults brings them back)
+		if wave.deleted then
+			deleted = deleted + 1
+		else
+			waves[#waves + 1] = wave
+		end
 
 		if wave.key == self._key then
 			self._wave = wave
@@ -318,6 +346,7 @@ RealmsWavesView._reload = function (self)
 
 	self._waves = waves
 	self._total_pct = total
+	self._deleted_count = deleted
 end
 
 RealmsWavesView._share_of = function (self, wave)
@@ -412,19 +441,27 @@ RealmsWavesView._painter = function (self)
 		return nil
 	end
 
-	return function (text, part)
-		return colors.markup(text, colors.rgb(part.breed))
-	end
+	-- painter table for Groups.summary: the enemy part in the enemy's colour, each modifier name in its
+	-- Improved Havoc Tags colour
+	return {
+		part = function (part)
+			return colors.rgb(part.breed)
+		end,
+		mod = function (id)
+			return colors.modifier_rgb(id)
+		end,
+		markup = colors.markup,
+	}
 end
 
 -- What the right-hand button of a wave row does: "delete" (custom wave with enemies), "create" (empty
 -- custom slot), "reset" (changed standard wave), or nil (nothing to do: unchanged standard wave).
 RealmsWavesView._row_action = function (self, wave)
-	if wave.is_custom then
-		return (wave.parts and #wave.parts > 0) and "delete" or "create"
+	if wave.parts and #wave.parts > 0 then
+		return "delete"
 	end
 
-	return wave.modified and "reset" or nil
+	return wave.is_custom and "create" or nil
 end
 
 -- ------------------------------------------------------------------- presets model
@@ -530,6 +567,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 
 	if not keep_offset then
 		self._offset = 0
+		self._help_pinned = false
 	end
 
 	if screen == "picker" then
@@ -549,8 +587,18 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		widgets.description_text.content.description_text = mod:localize("view_desc_list")
 		header.col_1, header.col_2, header.col_3 = mod:localize("col_on"), mod:localize("col_wave"), mod:localize("col_composition")
 		header.col_4, header.col_5 = mod:localize("col_chance"), mod:localize("col_share")
-		widgets.bottom_title.content.bottom_title = mod:localize("bottom_list_title")
-		widgets.hint_text.content.hint_text = mod:localize("hint_list")
+		widgets.bottom_title.content.bottom_title = (self._deleted_count or 0) > 0 and mod:localize("bottom_list_deleted", self._deleted_count) or mod:localize("bottom_list_title")
+
+		-- the time between waves (the same two settings as in the options menu)
+		local random_on = setting_flag("interval_random", true)
+		local tmin, tmax = widgets.stepper_tmin.content, widgets.stepper_tmax.content
+
+		tmin.label = mod:localize(random_on and "set_interval_min" or "set_interval_fixed")
+		tmin.stepper_value = tostring(math.floor(tonumber(mod:get("interval_min")) or 150))
+		tmin.extra = mod:localize("extra_seconds")
+		tmax.label = mod:localize("set_interval_max")
+		tmax.stepper_value = tostring(math.floor(tonumber(mod:get("interval_max")) or 300))
+		tmax.extra = mod:localize(random_on and "extra_seconds" or "extra_not_random")
 	elseif screen == "detail" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_detail", self._wave.name)
 		header.col_1, header.col_2, header.col_3 = "", mod:localize("col_enemy"), mod:localize("col_modifier")
@@ -616,7 +664,15 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	local preset_view = screen == "preset_view"
 	local preset_slot = preset_view and self._preset_slots[self._preset_index]
 
-	widgets.hint_text.visible = screen == "list" or screen == "mods" or screen == "presets" or screen == "settings"
+	-- the long gray texts live in the help tooltip (the "?" corner button), not on the screen
+	local help_keys = { list = "hint_list", mods = "hint_mods", presets = "hint_presets", settings = "hint_settings", detail = "help_detail", picker = "help_picker", preset_view = "help_preset_view" }
+
+	widgets.hint_text.visible = false
+	widgets.help_text.content.help_text = mod:localize(help_keys[screen] or "hint_list")
+	widgets.btn_help.visible = true
+	widgets.btn_help.content.hotspot_text = "?"
+	widgets.btn_default.visible = screen == "list"
+	widgets.btn_default.content.hotspot_text = mod:localize(self._confirm and self._confirm.key == "__defaults" and "btn_sure" or "btn_default")
 	widgets.btn_presets.visible = screen == "list"
 	widgets.btn_settings.visible = screen == "list"
 	widgets.btn_settings.content.hotspot_text = mod:localize("btn_settings")
@@ -650,8 +706,12 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.btn_add.visible = detail
 	widgets.btn_enabled.visible = detail
 	widgets.btn_reset.visible = detail
-	for i = 1, #STEPPER_WIDGETS do
-		widgets[STEPPER_WIDGETS[i]].visible = detail
+	for i = 1, #DETAIL_STEPPERS do
+		widgets[DETAIL_STEPPERS[i]].visible = detail
+	end
+
+	for i = 1, #LIST_STEPPERS do
+		widgets[LIST_STEPPERS[i]].visible = screen == "list"
 	end
 
 	widgets.btn_back.content.hotspot_text = mod:localize("btn_back")
@@ -761,9 +821,23 @@ RealmsWavesView._refresh_rows = function (self)
 					end
 				elseif screen == "detail" then
 					local mods_text = rw.groups.describe_mods(item)
+					local mods_shown = mods_text
 
 					content.row_name = rw.groups.describe_part(item)
-					content.info = #mods_text > 40 and (mods_text:sub(1, 37) .. "...") or mods_text
+					if #mods_text > 40 then
+						mods_shown = mods_text:sub(1, 37) .. "..."
+					elseif colors and #mods_text > 0 then
+						local _, modifiers = rw.groups.describe_part_pieces(item)
+						local parts_out = {}
+
+						for i = 1, #modifiers do
+							parts_out[i] = colors.markup(modifiers[i].name, colors.modifier_rgb(modifiers[i].id))
+						end
+
+						mods_shown = table.concat(parts_out, ", ")
+					end
+
+					content.info = mods_shown
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, true, false, true, true
 					content.show_rep = true
 					content.stepper_value = tostring(item.count)
@@ -822,6 +896,7 @@ RealmsWavesView._refresh_rows = function (self)
 						end
 					end
 
+					name_color = colors and colors.modifier_argb(item.id) or name_color
 					content.row_name = item.name
 					content.info = item.requires_havoc and (item.description .. " " .. mod:localize("note_havoc_only")) or item.description
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = true, false, false, false, false
@@ -1073,7 +1148,13 @@ RealmsWavesView._wave_row_action = function (self, wave)
 
 	if self._confirm and self._confirm.key == wave.key and (self._t or 0) <= self._confirm.expires then
 		self._confirm = nil
-		mod.rw.events.reset(set_setting, wave.key)
+
+		if wave.is_custom then
+			mod.rw.events.reset(set_setting, wave.key) -- an emptied slot
+		else
+			set_setting("del_" .. wave.key, true) -- a standard wave: hidden until the defaults are restored
+		end
+
 		self:_reload()
 		self:_apply_screen(true)
 
@@ -1641,7 +1722,8 @@ RealmsWavesView.cb_preset_load = guarded(function (self)
 	local rw = mod.rw
 	local slot = self:_current_preset_slot()
 
-	if not slot.preset then
+	-- a damaged slot cannot be loaded; an EMPTY slot is a blank preset: loading it gives the default waves
+	if not slot.preset and slot.problem then
 		self:_refresh_preset(mod:localize("preset_nothing_to_load"))
 
 		return
@@ -1652,10 +1734,11 @@ RealmsWavesView.cb_preset_load = guarded(function (self)
 	backup.name = mod:localize("preset_undo_name")
 	rw.presets.write(set_setting, rw.presets.UNDO_ID, backup)
 
-	local written = rw.presets.apply(slot.preset, set_setting, rw.events, rw.groups)
+	local blank = slot.preset == nil
+	local written = rw.presets.apply(slot.preset or { waves = {} }, set_setting, rw.events, rw.groups)
 
 	self:_reload()
-	self:_refresh_preset(mod:localize("preset_loaded", slot.name, written))
+	self:_refresh_preset(blank and mod:localize("preset_loaded_blank", slot.index) or mod:localize("preset_loaded", slot.name, written))
 end)
 
 RealmsWavesView.cb_preset_undo = guarded(function (self)
@@ -1848,6 +1931,91 @@ RealmsWavesView.cb_wave_import = guarded(function (self)
 	})
 end)
 
+-- help tooltip ("?" corner button): hover shows it, a click pins it open (for a pointer that cannot hover)
+RealmsWavesView.cb_help = function (self)
+	self._help_pinned = not self._help_pinned
+end
+
+-- Restore defaults (list screen): every wave back to the built-in setup, deleted waves included. Needs a second
+-- click; the replaced setup is kept for "Undo last load" on the Presets screen.
+RealmsWavesView.cb_defaults = guarded(function (self)
+	local rw = mod.rw
+
+	if self._confirm and self._confirm.key == "__defaults" and (self._t or 0) <= self._confirm.expires then
+		self._confirm = nil
+
+		local backup = rw.presets.capture(get_setting, rw.events, rw.groups)
+
+		backup.name = mod:localize("preset_undo_name")
+		rw.presets.write(set_setting, rw.presets.UNDO_ID, backup)
+		rw.presets.apply({ waves = {} }, set_setting, rw.events, rw.groups)
+		self:_reload()
+		self:_apply_screen()
+		mod:echo("%s", mod:localize("msg_defaults_restored"))
+
+		return
+	end
+
+	self._confirm = { key = "__defaults", expires = (self._t or 0) + 4 }
+	self:_apply_screen(true)
+end)
+
+-- time between waves (list screen): 5 s steps below a minute, 15 s up to 5 minutes, then a minute
+local function next_time(value, delta)
+	local step
+
+	if delta > 0 then
+		step = value < 60 and 5 or (value < 300 and 15 or 60)
+	else
+		step = value <= 60 and 5 or (value <= 300 and 15 or 60)
+	end
+
+	return math.clamp(value + delta * step, 5, 1800)
+end
+
+RealmsWavesView._set_time = function (self, id, value)
+	value = math.clamp(math.floor(value + 0.5), 5, 1800)
+	set_setting(id, value)
+
+	-- the maximum never ends up below the minimum
+	local low = tonumber(mod:get("interval_min")) or 150
+	local high = tonumber(mod:get("interval_max")) or 300
+
+	if id == "interval_min" and value > high then
+		set_setting("interval_max", value)
+	elseif id == "interval_max" and value < low then
+		set_setting("interval_min", value)
+	end
+
+	self:_apply_screen(true)
+end
+
+RealmsWavesView.cb_tmin_step = guarded(function (self, delta)
+	self:_set_time("interval_min", next_time(tonumber(mod:get("interval_min")) or 150, delta))
+end)
+
+RealmsWavesView.cb_tmax_step = guarded(function (self, delta)
+	self:_set_time("interval_max", next_time(tonumber(mod:get("interval_max")) or 300, delta))
+end)
+
+local function time_popup(self, id, label_key, default)
+	Popup.open(self, {
+		label = mod:localize(label_key),
+		value = tostring(math.floor(tonumber(mod:get(id)) or default)),
+		numeric = true, min = 5, max = 1800, integer = true,
+		set = function (value)
+			self:_set_time(id, value)
+		end,
+	})
+end
+
+RealmsWavesView.cb_tmin_input = guarded(function (self)
+	time_popup(self, "interval_min", "set_interval_min", 150)
+end)
+
+RealmsWavesView.cb_tmax_input = guarded(function (self)
+	time_popup(self, "interval_max", "set_interval_max", 300)
+end)
 -- popup ------------------------------------------------------------------------
 
 RealmsWavesView.cb_popup_confirm = function (self)

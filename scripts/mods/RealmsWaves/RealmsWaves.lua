@@ -37,6 +37,12 @@ mod.on_all_mods_loaded = function ()
 
 			return spidey and spidey:get(id) or nil
 		end,
+		-- Improved Havoc Tags' colour options (nil when that mod is not installed: its defaults are used)
+		havoc_setting = function (id)
+			local tags = get_mod("ImprovedHavocTags")
+
+			return tags and tags:get(id) or nil
+		end,
 		named = function (name)
 			local make = Color and Color[name]
 
@@ -99,6 +105,9 @@ mod.on_all_mods_loaded = function ()
 
 	-- Same "first objective started" signal RealmsEvent uses to begin its rolls.
 	Managers.event:register(mod, "event_mission_objective_start", "_on_mission_objective_start")
+
+	-- fired by PlayerDeath.die (utilities/player_death.lua:45) on the host: used by the anti-snowball option
+	Managers.event:register(mod, "event_player_died", "_on_player_died")
 
 	-- Wave editor view (structure copied from RealmsEvent's editor registration).
 	local UISoundEvents = require("scripts/settings/ui/ui_sound_events")
@@ -172,6 +181,12 @@ mod._on_mission_objective_start = function ()
 	end
 end
 
+mod._on_player_died = function ()
+	if RW.director and not RW.dead then
+		pcall(RW.director.on_player_died)
+	end
+end
+
 mod.on_game_state_changed = function (status, state_name)
 	if state_name ~= "GameplayStateRun" or not RW.director then
 		return
@@ -232,8 +247,34 @@ mod:command("rw_status", "RealmsWaves: print director state and spawn counters",
 	end
 end)
 
-mod:command("rw_start", "RealmsWaves: (host) start the wave cycle now, e.g. after a hot reload", function ()
+mod:command("rw_start", "RealmsWaves: (host) start the wave cycle now (also after /rw_stop), e.g. after a hot reload", function ()
 	mod:echo("RealmsWaves: %s", RW.director.force_start() and "cycle started" or "not started (host in a mission only)")
+end)
+
+mod:command("rw_stop", "RealmsWaves: (host) stop the mod: no countdown, vote or timed waves until /rw_start (units already spawned stay)", function ()
+	local ok, why = RW.director.stop()
+
+	mod:echo("RealmsWaves: %s", ok and "stopped. Use /rw_start to start again" or tostring(why))
+end)
+
+mod:command("rw_pause", "RealmsWaves: (host) freeze / release every wave timer: /rw_pause [on|off]", function (arg)
+	local on
+
+	if arg == "on" then
+		on = true
+	elseif arg == "off" then
+		on = false
+	end
+
+	local state, why = RW.director.pause(on)
+
+	mod:echo("RealmsWaves: %s", state == nil and tostring(why) or (state and "paused: all wave timers are frozen" or "released: the timers run again"))
+end)
+
+mod:command("rw_next", "RealmsWaves: (host) drop the current wave WITHOUT spawning it and start a new one (new draw, full timer)", function ()
+	local ok, why = RW.director.next_wave()
+
+	mod:echo("RealmsWaves: %s", ok and "new wave drawn" or tostring(why))
 end)
 
 mod:command("rw_skip", "RealmsWaves: (host) skip the countdown and resolve the current wave now", function ()

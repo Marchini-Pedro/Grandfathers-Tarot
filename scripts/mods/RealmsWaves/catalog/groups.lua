@@ -637,10 +637,10 @@ Groups.describe_mods = function (part)
 	return table.concat(names, ", ")
 end
 
--- Short human text for a part: "8 Poxwalker" / "1 random of Plague Ogryn / Chaos Spawn".
--- With `with_mods` the modifiers follow in brackets: "3 Crusher [Enraged]".
-Groups.describe_part = function (part, with_mods)
-	local text
+-- The three pieces of a part's text: head "8 Poxwalker" (or "1 random of A / B"), the modifiers as a list of
+-- { id, name } and the repeat note " (+2 per repeat)" / " (same amount on every repeat)" ("" for none).
+Groups.describe_part_pieces = function (part)
+	local head
 
 	if part.one_of then
 		local names = {}
@@ -649,24 +649,46 @@ Groups.describe_part = function (part, with_mods)
 			names[i] = Groups.display_name(part.one_of[i])
 		end
 
-		text = string.format("%d random of %s", part.count, table.concat(names, " / "))
+		head = string.format("%d random of %s", part.count, table.concat(names, " / "))
 	else
-		text = string.format("%d %s", part.count, Groups.display_name(part.breed))
+		head = string.format("%d %s", part.count, Groups.display_name(part.breed))
 	end
 
-	if with_mods and part.mods and #part.mods > 0 then
+	local modifiers = {}
+
+	for i = 1, #(part.mods or {}) do
+		local modifier = modifier_by_id[part.mods[i]]
+
+		modifiers[i] = { id = part.mods[i], name = modifier and modifier.name or tostring(part.mods[i]) }
+	end
+
+	local tail = ""
+
+	if part.rep_same then
+		tail = " (same amount on every repeat)"
+	elseif (part.rep or 0) > 0 then
+		tail = string.format(" (+%d per repeat)", part.rep)
+	end
+
+	return head, modifiers, tail
+end
+
+-- Short human text for a part: "8 Poxwalker" / "1 random of Plague Ogryn / Chaos Spawn".
+-- With `with_mods` the modifiers follow in brackets: "3 Crusher [Enraged]".
+Groups.describe_part = function (part, with_mods)
+	local head, modifiers, tail = Groups.describe_part_pieces(part)
+	local text = head
+
+	if with_mods and #modifiers > 0 then
 		text = text .. " [" .. Groups.describe_mods(part) .. "]"
 	end
 
-	if with_mods and part.rep_same then
-		text = text .. " (same amount on every repeat)"
-	elseif with_mods and (part.rep or 0) > 0 then
-		text = text .. string.format(" (+%d per repeat)", part.rep)
+	if with_mods then
+		text = text .. tail
 	end
 
 	return text
 end
-
 -- units a group adds on one repeat tick, before the type multiplier
 Groups.repeat_amount = function (part)
 	if part.rep_same then
@@ -712,6 +734,64 @@ Groups.summary = function (parts, max_chars, paint)
 
 	if not paint then
 		return cut and (text:sub(1, max_chars - 3) .. "...") or text
+	end
+
+	-- A painter TABLE { part = function (part) -> rgb|nil, mod = function (id) -> rgb|nil, markup = function (text, rgb) }
+	-- colours the enemy part and each modifier name separately; a plain function paints a whole piece.
+	if type(paint) == "table" then
+		local painter = paint
+		local whole = function (piece_text, part)
+			return painter.markup(piece_text, painter.part(part))
+		end
+
+		-- a piece that fits is painted in segments (enemy colour, modifier colours); a cut piece in one colour
+		local function segmented(part)
+			local head, modifiers, tail = Groups.describe_part_pieces(part)
+			local base = painter.part(part)
+
+			if #modifiers == 0 then
+				return painter.markup(head .. tail, base)
+			end
+
+			local out = { painter.markup(head .. " [", base) }
+
+			for i = 1, #modifiers do
+				out[#out + 1] = painter.markup(modifiers[i].name, painter.mod(modifiers[i].id) or base)
+
+				if i < #modifiers then
+					out[#out + 1] = painter.markup(", ", base)
+				end
+			end
+
+			out[#out + 1] = painter.markup("]" .. tail, base)
+
+			return table.concat(out)
+		end
+
+		local result = {}
+		local room = cut and (max_chars - 3) or math.huge
+
+		for i = 1, #pieces do
+			local piece = pieces[i]
+			local separator = i > 1 and ", " or ""
+
+			if #separator + #piece > room then
+				local left = room - #separator
+
+				if left > 0 then
+					result[#result + 1] = separator .. whole(piece:sub(1, left), parts[i])
+				elseif #separator > 0 and room > 0 then
+					result[#result + 1] = separator:sub(1, room)
+				end
+
+				break
+			end
+
+			result[#result + 1] = separator .. segmented(parts[i])
+			room = room - #separator - #piece
+		end
+
+		return table.concat(result) .. (cut and "..." or "")
 	end
 
 	local out = {}

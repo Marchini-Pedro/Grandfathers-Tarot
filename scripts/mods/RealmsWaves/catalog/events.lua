@@ -153,6 +153,8 @@ Events.DEFAULT_REPEAT_FOR = 60 -- seconds the repeats keep coming
 --   rf_<key>        number              keep repeating for N seconds
 --   dmin_<key>      number              minimum spawn distance in metres for this wave (0 = use the options)
 --   dmax_<key>      number              maximum spawn distance in metres for this wave (0 = use the options)
+--   del_<key>       boolean             a STANDARD wave the player deleted: hidden in the editor, never drawn or timed.
+--                                       "Restore defaults" (Events.reset on every key) brings it back.
 --   ev_<key>        number              FIXED TIMER: seconds between automatic spawns of this wave (0 = off). A wave with a
 --                                       timer ignores its chance weight and cooldown and never takes part in the draw:
 --                                       it runs on its own clock, independent of the other waves.
@@ -220,6 +222,13 @@ Events.get = function (key, get_setting, Groups)
 	end
 
 	wave.enabled = enabled == true
+
+	-- only standard waves can be deleted (a custom wave is deleted by emptying its slot, Events.reset)
+	wave.deleted = std ~= nil and get_setting("del_" .. key) == true
+
+	if wave.deleted then
+		wave.enabled = false
+	end
 	wave.pct = tonumber(get_setting("pct_" .. key)) or (std and std.default_pct) or Events.DEFAULT_CUSTOM_PCT
 	wave.cooldown = tonumber(get_setting("cd_" .. key)) or (std and std.cooldown) or Events.DEFAULT_CUSTOM_COOLDOWN
 	wave.spread = tonumber(get_setting("sp_" .. key)) or Events.DEFAULT_SPREAD
@@ -258,7 +267,11 @@ Events.find = function (query, get_setting, Groups)
 	local waves = {}
 
 	for _, key in ipairs(Events.keys()) do
-		waves[#waves + 1] = Events.get(key, get_setting, Groups)
+		local candidate = Events.get(key, get_setting, Groups)
+
+		if not candidate.deleted then
+			waves[#waves + 1] = candidate
+		end
 	end
 
 	for i = 1, #waves do
@@ -341,6 +354,7 @@ Events.reset = function (set_setting, key)
 	set_setting("dmin_" .. key, 0)
 	set_setting("dmax_" .. key, 0)
 	set_setting("ev_" .. key, 0)
+	set_setting("del_" .. key, false)
 end
 
 -- The definition handed to the spawner (Execute.start_wave) for a resolved wave.

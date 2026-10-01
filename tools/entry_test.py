@@ -42,7 +42,8 @@ get_mod = function(name)
   if name == "Realms" then return nil end
   return mod
 end
-Managers = { event = { register = function() end } }
+local registered_events = {}
+Managers = { event = { register = function(self, m, name, method) registered_events[name] = method end } }
 
 local results = {}
 local function check(name, cond, detail) results[#results+1] = (cond and "PASS " or "FAIL ") .. name .. (detail and (" -- " .. tostring(detail)) or "") end
@@ -62,6 +63,20 @@ RW.text_input_active = true
 check("keybinds: while a popup text box is open -> DMF's check is skipped (typing 'i' opens nothing)", (function() dmf_calls = {}; local r = hook(original); return r == nil and #dmf_calls == 0 end)())
 RW.text_input_active = false
 check("keybinds: popup closed -> keybinds work again", (function() dmf_calls = {}; hook(original); return #dmf_calls == 1 end)())
+
+-- player deaths feed the anti-snowball option; the new console commands exist
+check("entry: the player-death event is registered for anti-snowballing", registered_events.event_player_died == "_on_player_died" and type(mod._on_player_died) == "function")
+local forwarded = 0
+local real_on_died = RW.director.on_player_died
+RW.director.on_player_died = function() forwarded = forwarded + 1 end
+mod._on_player_died()
+check("entry: a death is forwarded to the director", forwarded == 1)
+RW.director.on_player_died = real_on_died
+check("entry: rw_stop, rw_pause and rw_next are registered", type(commands.rw_stop) == "function" and type(commands.rw_pause) == "function" and type(commands.rw_next) == "function")
+local echoed = {}
+mod.echo = function(self, fmt, ...) echoed[#echoed + 1] = string.format(fmt, ...) end
+commands.rw_stop(); commands.rw_pause("on"); commands.rw_next()
+check("entry: the commands answer in chat (a client or a stopped host gets a reason, never an error)", #echoed == 3 and echoed[1]:find("RealmsWaves") ~= nil, table.concat(echoed, " | "))
 
 RW.text_input_active = true
 mod.on_unload()

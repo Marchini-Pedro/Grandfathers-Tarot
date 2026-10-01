@@ -44,17 +44,17 @@ blueprints.row = function (node_id)
 
 	Components.stepper_passes(passes, {
 		minus_offset = { 1210, 3, 2 },
-		value_offset = { 1262, 3, 2 },
-		value_size = { 70, 40 },
-		plus_offset = { 1340, 3, 2 },
+		value_offset = { 1256, 3, 2 },
+		value_size = { 60, 40 },
+		plus_offset = { 1318, 3, 2 },
 	}, "show_stepper")
 
 	-- units added on every repeat tick (detail screen only); the count stepper above is the initial spawn
 	Components.stepper_passes(passes, {
 		minus_offset = { 905, 3, 2 },
-		value_offset = { 957, 3, 2 },
-		value_size = { 70, 40 },
-		plus_offset = { 1035, 3, 2 },
+		value_offset = { 951, 3, 2 },
+		value_size = { 60, 40 },
+		plus_offset = { 1013, 3, 2 },
 	}, "show_rep", { minus = "hotspot_rep_minus", value = "hotspot_rep_value", plus = "hotspot_rep_plus", text = "rep_value" })
 
 	-- "Same": every repeat spawns the same number as the initial spawn (the stepper is ignored)
@@ -91,19 +91,22 @@ blueprints.button = function (node_id, width)
 end
 
 -- Label + minus + value + plus + trailing text (content.label / stepper_value / extra).
-blueprints.setting_stepper = function (node_id, width)
+-- `label_width` (default 200) makes room for a long label; everything else moves right with it.
+blueprints.setting_stepper = function (node_id, width, label_width)
 	local passes = {}
+	local x0 = label_width or 200
 
 	width = width or 800
 
-	Components.text_pass(passes, "label", "label", { 0, 0, 2 }, { 200, 48 }, 22, colors.text)
+	Components.text_pass(passes, "label", "label", { 0, 0, 2 }, { x0, 48 }, 22, colors.text)
 	Components.stepper_passes(passes, {
-		minus_offset = { 205, 4, 2 },
-		value_offset = { 261, 4, 2 },
-		value_size = { 90, 40 },
-		plus_offset = { 363, 4, 2 },
+		-- the value sits close to the - and + buttons (44 px wide each, 2 px gaps)
+		minus_offset = { x0 + 5, 4, 2 },
+		value_offset = { x0 + 51, 4, 2 },
+		value_size = { 64, 40 },
+		plus_offset = { x0 + 117, 4, 2 },
 	})
-	Components.text_pass(passes, "extra", "extra", { 430, 0, 2 }, { width - 440, 48 }, 20, colors.muted)
+	Components.text_pass(passes, "extra", "extra", { x0 + 178, 0, 2 }, { width - x0 - 188, 48 }, 20, colors.muted)
 
 	return UIWidget.create_definition(passes, node_id, { label = "", stepper_value = "", extra = "" }, { width, 48 })
 end

@@ -141,6 +141,7 @@ HudElementRealmsWavesPanel._refresh = function (self)
 		and sig.my_vote == view.my_vote
 		and sig.votes_total == votes_total
 		and sig.is_sample == is_sample
+		and sig.paused == (view.paused == true)
 	then
 		return
 	end
@@ -148,6 +149,7 @@ HudElementRealmsWavesPanel._refresh = function (self)
 	sig = sig or {}
 	sig.phase, sig.mode, sig.seconds, sig.version = view.phase, view.mode, seconds, view.version
 	sig.my_vote, sig.votes_total, sig.is_sample = view.my_vote, votes_total, is_sample
+	sig.paused = view.paused == true
 	self._sig = sig
 	self._visible = true
 
@@ -183,6 +185,10 @@ HudElementRealmsWavesPanel._refresh = function (self)
 		set_line(widget, 0, mod:localize("hud_wave_in_vote", time, hint_text(#cands)), COLOUR_HEADER)
 	else
 		set_line(widget, 0, mod:localize("hud_wave_in", time), COLOUR_HEADER)
+	end
+
+	if view.paused then
+		widget.content.line_0 = widget.content.line_0 .. " " .. mod:localize("hud_paused")
 	end
 
 	for i = 1, math.min(#cands, Definitions.LINES - 2) do
