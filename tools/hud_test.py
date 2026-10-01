@@ -200,6 +200,20 @@ Spread.layout(layout, { card("a", "The Watching Moon", "murmur", 3, {}, "") , ca
 check("layout: five cards are 132 wide and the card grows with a three-line name", layout.cw == 132 and layout.total_w == 692 and layout.x0 == 4 and layout.lines == 3 and layout.ch == 97, layout.ch)
 Spread.layout(layout, { card("a", "The Fool", "swarm", 1, {}, "") })
 check("layout: one card is 176 wide and centred", layout.cw == 176 and layout.x0 == 262)
+local d9, p9, n9 = Spread.dots_fit(176, 6)
+check("dots: a wide card shows six dots at full size (9 px, 13 apart)", d9 == 9 and p9 == 13 and n9 == 6)
+local d152, p152, n152 = Spread.dots_fit(152, 5)
+check("dots: five dots on a four-card card get smaller and closer, but all fit", d152 < 9 and n152 == 5 and d152 + 4 * p152 <= 152 - 12 - (Spread.DIAMONDS_END + Spread.DOTS_GAP) + 1e-9, d152 .. "/" .. p152)
+local d132, p132, n132 = Spread.dots_fit(132, 6)
+check("dots: six on a five-card card do not fit: the first few are shown", n132 >= 3 and n132 < 6 and d132 <= 7, n132)
+local gap_ok = true
+for _, cw in ipairs({ 132, 152, 176 }) do
+  for count = 0, 6 do
+    local d, p, n = Spread.dots_fit(cw, count)
+    if n > 0 and (cw - Spread.PAD_X) - (d + (n - 1) * p) < Spread.DIAMONDS_END + Spread.DOTS_GAP - 1e-9 then gap_ok = false end
+  end
+end
+check("dots: they are never closer than 12 units to the threat diamonds, whatever the card and the count", gap_ok)
 check("time text: always rounded up", Spread.time_text(65) == "1:05" and Spread.time_text(64.1) == "1:05" and Spread.time_text(0) == "0:00" and Spread.time_text(-3) == "0:00")
 
 -- the roulette lands on the winner for every hand size and winner, and never goes backwards by more than a lap
@@ -241,11 +255,20 @@ check("timeline: then gone", tline({ drawn = true, phase = "waiting", drawn_age 
 
 -- eye
 local eye = Spread.new_shape(Spread.EYE_TRIS, Spread.EYE_CIRCS)
-local pupil, lashes = Spread.eye(28, 0, eye)
-check("eye: shut = a thin sliver with three lashes and no inside or pupil", eye.tri[1].on and eye.tri[2].on and not eye.tri[3].on and not eye.circ[1].on and eye.tri[5].on and eye.tri[6].on and eye.tri[7].on and lashes == 1 and pupil == 0)
-pupil, lashes = Spread.eye(28, 1, eye)
-check("eye: open = an outline (lens and inside) with a pupil and no lashes", eye.tri[1].on and eye.tri[3].on and eye.tri[4].on and eye.circ[1].on and not eye.tri[5].on and lashes == 0 and pupil == 1)
-Spread.eye(28, 0.3, eye); local h_shut = eye.tri[1].y1
+local lens_a, lid_a, pupil_a = Spread.eye(28, 0, eye)
+local ribbon_on, lashes_on = true, true
+for i = 5, 16 do if not eye.tri[i].on then ribbon_on = false end end
+for i = 17, 19 do if not eye.tri[i].on then lashes_on = false end end
+check("eye: shut = the smile of a lid (a ribbon of 6 segments) with three lashes, no lens, no inside, no pupil", ribbon_on and lashes_on and not eye.tri[1].on and not eye.tri[3].on and not eye.circ[1].on and lens_a == 0 and lid_a == 1 and pupil_a == 0)
+local lid_low = true
+for i = 5, 16 do local t = eye.tri[i]; if t.y1 < 28 * 0.3 or t.y2 < 28 * 0.3 or t.y3 < 28 * 0.3 then lid_low = false end end
+local mid_y = (eye.tri[9].y1 + eye.tri[9].y2 + eye.tri[9].y3) / 3
+check("eye: the lid is a smile (its middle lower than its ends), centred on the box", lid_low and mid_y > (eye.tri[5].y1 + eye.tri[5].y2 + eye.tri[5].y3) / 3 and mid_y > 14 - 3.5 and mid_y < 14 + 4, mid_y)
+lens_a, lid_a, pupil_a = Spread.eye(28, 1, eye)
+check("eye: open = an outline (lens and inside) with a pupil and no lid", eye.tri[1].on and eye.tri[3].on and eye.tri[4].on and eye.circ[1].on and not eye.tri[5].on and not eye.tri[17].on and lens_a == 1 and lid_a == 0 and pupil_a == 1)
+Spread.eye(28, 0.3, eye); local h_shut = eye.tri[1].y2
+local half_a, half_c = Spread.eye(28, 0.5, eye)
+check("eye: half open shows both drawings, half as strong", near(half_a, 0.5) and near(half_c, 0.5) and eye.tri[1].on and eye.tri[5].on)
 Spread.eye(28, 1, eye)
 check("eye: the lens grows as it opens", eye.tri[1].y2 < h_shut and eye.tri[2].y3 > 14)
 local fits = true
@@ -259,6 +282,9 @@ for _, size in ipairs({ 10, 28, 80 }) do
   end
 end
 check("eye: stays inside its box at every size (10-80) and opening", fits)
+local mini = Spread.new_shape(4, 4)
+Spread.eye(28, 0, mini)
+check("eye: a smaller shape table (the suit mark's) is survived even with the shut eye", true)
 
 -- suit icons
 local icon = Spread.new_shape(Spread.ICON_TRIS, Spread.ICON_CIRCS)
@@ -290,17 +316,15 @@ check("icons: the cluster is four dots", icon.circ[1].on and icon.circ[2].on and
 -- rot
 local fx = Spread.new_rot()
 Spread.rot_fx(fx, 0, 0.5, 152, 76, 1)
-check("rot: nothing grows at the start (no blotch, no drip)", not fx.blotch[1].circle and not fx.blotch[1].rect and not fx.drips[1].on and near(fx.shrink, 1) and near(fx.fade, 1) and near(fx.wash, 0))
+check("rot: nothing grows at the start (no blotch, no drip)", not fx.blotch[1].on and not fx.drips[1].on and near(fx.fade, 1) and near(fx.wash, 0))
 Spread.rot_fx(fx, 1, 1, 152, 76, 1)
 local inside = true
 for i = 1, 5 do
   local b = fx.blotch[i]
-  if b.rect and (b.x0 < 0 or b.y0 < 0 or b.x1 > 152 or b.y1 > 76 * fx.shrink + 1e-6 or b.x1 <= b.x0 or b.y1 <= b.y0) then inside = false end
-  if b.circle and (b.cx - b.r < -1e-6 or b.cx + b.r > 152 + 1e-6 or b.cy - b.r < -1e-6 or b.cy + b.r > 76 * fx.shrink + 1e-6) then inside = false end
-  if not (b.circle or b.rect) then inside = false end
+  if not b.on or b.cx - b.r < -1e-6 or b.cx + b.r > 152 + 1e-6 or b.cy - b.r < -1e-6 or b.cy + b.r > 76 + 1e-6 then inside = false end
 end
-check("rot: at full rot every blotch is on the card and never spills over its edge (circle that fits, else a clipped square)", inside)
-check("rot: strongest rot sags the card by 30.8 percent, fades it, browns it", near(fx.shrink, 1 - 0.22 * 1.4) and fx.fade < 0.02 and near(fx.bright, 0.6) and near(fx.wash, 0.55))
+check("rot: at full rot every blotch is a circle that grows until it touches the card's edge and never spills over it", inside)
+check("rot: strongest rot fades the card out, darkens it (40 percent) and browns it (60 percent wash), it no longer sags", fx.fade < 0.02 and near(fx.bright, 0.6) and near(fx.wash, 0.6) and fx.shrink == nil)
 local flies = 0
 for i = 1, Spread.MAX_FLIES do if fx.flies[i].on then flies = flies + 1 end end
 check("rot: 9 flies at full strength, 3 at none", flies == 9)
@@ -308,9 +332,13 @@ Spread.rot_fx(fx, 0.5, 0, 152, 76, 1)
 flies = 0
 for i = 1, Spread.MAX_FLIES do if fx.flies[i].on then flies = flies + 1 end end
 check("rot: ...3 flies at the weakest", flies == 3)
-Spread.rot_fx(fx, 0.5, 0, 152, 76, 1); local blot_weak = fx.blotch[3].circle and fx.blotch[3].r or 0
-Spread.rot_fx(fx, 0.5, 1, 152, 76, 1); local blot_strong = (fx.blotch[3].circle and fx.blotch[3].r) or 99
+Spread.rot_fx(fx, 0.5, 0, 152, 76, 1); local blot_weak = fx.blotch[3].r
+Spread.rot_fx(fx, 0.5, 1, 152, 76, 1); local blot_strong = fx.blotch[3].r
 check("rot: a stronger rot grows bigger blotches", blot_strong > blot_weak, blot_weak .. " vs " .. blot_strong)
+local rings = Spread.BLOTCH_RINGS
+local soft = #rings >= 3 and rings[1][1] == 1 and rings[#rings][1] < 0.5
+for i = 2, #rings do if rings[i][1] >= rings[i - 1][1] then soft = false end end
+check("rot: a blotch is rings, the outermost the faintest and the biggest (a soft edge without a gradient)", soft and rings[1][2] < rings[#rings][2])
 local finite_all = true
 for _, time in ipairs({ 0, 0.3, 1, 7.7 }) do
   Spread.rot_fx(fx, 0.5, 0.5, 132, 97, time)
@@ -328,7 +356,8 @@ check("definitions: widgets legacy, header, fx, banner, card_1..5", names.legacy
 local nodes = 0
 for name, node in pairs(Definitions.scenegraph_definition) do if name ~= "screen" then nodes = nodes + 1 end end
 check("definitions: exactly ONE movable node (custom_hud lists every non-root node)", nodes == 1 and Definitions.scenegraph_definition.panel ~= nil)
-check("definitions: the node is top-centre and 700 wide", Definitions.scenegraph_definition.panel.horizontal_alignment == "center" and Definitions.scenegraph_definition.panel.size[1] == 700)
+local panel = Definitions.scenegraph_definition.panel
+check("definitions: the node is on a top-left basis (what custom_hud pins), 700 wide, and starts in the middle of 1920", panel.horizontal_alignment == "left" and panel.vertical_alignment == "top" and panel.size[1] == 700 and panel.position[1] + 350 == 960)
 local all_widgets_on_panel = true
 for name, def in pairs(Definitions.widget_definitions) do if def.scenegraph_id ~= "panel" then all_widgets_on_panel = false end end
 check("definitions: every widget is drawn in that node", all_widgets_on_panel)
@@ -343,7 +372,7 @@ for _, def in pairs(Definitions.widget_definitions) do for _, st in pairs(def.st
 check("definitions: only fonts that exist in the game", fonts_ok)
 local passes = 0
 for name, def in pairs(Definitions.widget_definitions) do if name:find("^card_") then passes = #def.passes end end
-check("definitions: a card has about 50 passes (all hidden but the ones it uses)", passes >= 40 and passes <= 60, passes)
+check("definitions: a card has about 60 passes (all hidden but the ones it uses)", passes >= 50 and passes <= 80, passes)
 
 -- =====================================================================================================================
 -- the element: a whole hand, step by step
@@ -381,14 +410,27 @@ check("hand: every card shows its suit mark", (function()
   end
   return true
 end)())
-check("hand: the eye is shut on every card and faint (16 percent)", (function()
+check("hand: the eye is shut on every card (the lid and its lashes, no lens, no pupil) and faint (16 percent)", (function()
   for i = 1, 4 do
     local st = c(i).style
-    if not st.eye_t1.visible or st.eye_t1.color[1] ~= 41 or st.eye_t3.visible or st.eye_c1.visible or not st.eye_t5.visible then return false end
+    if st.eye_t1.visible or not st.eye_t5.visible or st.eye_t5.color[1] ~= 41 or not st.eye_t17.visible or st.eye_c1.visible then return false end
   end
   return true
 end)())
+check("hand: the label says the card is revealed in (not 'next card')", header.content.label == "hud_card_in" and header.content.time == "0:10")
+check("hand: diamonds and dots have a faint copy under them (anti-aliasing), the empty diamonds an outline", c(1).style.th_h1.visible and c(1).style.th_h1.color[1] == 70 and c(1).style.th_h5.color[1] == 55 and c(1).style.dh_1.visible and c(1).style.dh_1.color[1] == 70 and not c(1).style.dh_3.visible)
+check("hand: the empty diamonds are drawn as a thick outline (the inside is 3.6 smaller than the diamond)", c(1).style.th_i4.size[1] == Spread.THREAT_SIDE - 3.6 and c(1).style.th_o4.size[1] == Spread.THREAT_SIDE)
 check("hand: the fuse is nearly full and bile green", header.style.fuse_fill.visible and header.style.fuse_fill.size[1] > 0.9 * 632 and header.style.fuse_fill.color[2] == 183 and header.style.fuse_track.size[1] == 632)
+check("hand: dots keep their distance from the diamonds (12 units)", (function()
+  for i = 1, 4 do
+    local st = c(i).style
+    local first_dot = nil
+    for j = 1, 6 do if st["dot_" .. j].visible then first_dot = first_dot or st["dot_" .. j].offset[1] end end
+    local card_x = st.bg.offset[1]
+    if first_dot and first_dot - card_x < Spread.DIAMONDS_END + Spread.DOTS_GAP - 1e-6 then return false end
+  end
+  return true
+end)())
 check("hand: nothing is highlighted, no banner", c(1).offset[2] == 0 and c(3).offset[2] == 0 and not el._widgets_by_name.banner.visible)
 audit_ok("hand", el)
 
@@ -409,7 +451,7 @@ for step = 0, 90 do
   if current_view.remaining < 0 then current_view.remaining = 0 end
   frame(el)
   local hi = 0
-  for i = 1, 4 do if c(i).style.glow_1.visible then hi = i end end
+  for i = 1, 4 do if c(i).style.glow.visible then hi = i end end
   seen[#seen + 1] = hi
   win_hi = hi
 end
@@ -430,11 +472,11 @@ current_view.drawn_age = 0.3
 for _ = 1, 30 do frame(el) end
 check("reveal: the winner rises (6 px), the others fall away to the rim of invisible", c(3).offset[2] < -4 and c(1).alpha_multiplier < 0.7 and c(1).offset[2] > 3, c(1).alpha_multiplier)
 check("reveal: the winner is larger (the card layer grows 6 percent)", c(3).style.bg.size[1] > 152.5 and c(3).style.bg.size[1] < 162)
-check("reveal: the winner's eye is opening (inside and pupil appear)", c(3).style.eye_t3.visible or c(3).style.eye_t1.color[1] > 41)
+check("reveal: the winner's eye is opening (the lens appears)", c(3).style.eye_t1.visible)
 current_view.drawn_age = 0.5
 frame(el)
-check("reveal: the eye is open and brighter (50 percent) with a pupil, no lashes", c(3).style.eye_t3.visible and c(3).style.eye_c1.visible and not c(3).style.eye_t5.visible and c(3).style.eye_t1.color[1] == 128 and c(1).style.eye_t1.color[1] == 41)
-check("reveal: the time and fuse are fading out", header.alpha_multiplier < 0.01)
+check("reveal: the eye is open and brighter (50 percent) with a pupil, no lid or lashes; the other cards' eyes stay shut", c(3).style.eye_t3.visible and c(3).style.eye_c1.visible and not c(3).style.eye_t5.visible and c(3).style.eye_t1.color[1] == 128 and c(1).style.eye_t5.color[1] == 41 and not c(1).style.eye_t1.visible)
+check("reveal: the time and fuse are gone while the card is shown", not header.visible)
 audit_ok("reveal", el)
 
 -- the rot
@@ -443,11 +485,12 @@ frame(el)
 local fxw = el._widgets_by_name.fx
 check("rot: the effects are shown, the banner is gone", fxw.visible and not banner.visible and fxw.style.wash.visible)
 check("rot: the winner browns, the others are gone", c(3).color_intensity_multiplier < 1 and c(1).alpha_multiplier == 0)
-check("rot: the card sags from its top edge", c(3).style.bg.size[2] < 76 * 1.06)
+check("rot: the card layer keeps its shape (no sag, only the 6 percent of the pop)", near(c(3).style.bg.size[2], 76 * 1.06, 0.01))
 check("rot: the winner's cooldown sets its rot (120 s: strength 0.46, 2.0 s)", near(el._T.k, 0.4627, 0.001) and near(el._T.rot, 1.2 + 1.8 * 0.4627, 0.01), el._T.rot)
 local circles_or_rects = 0
-for i = 1, 5 do if fxw.style["blot_c" .. i].visible or fxw.style["blot_r" .. i].visible then circles_or_rects = circles_or_rects + 1 end end
-check("rot: blotches have started to grow", circles_or_rects >= 1, circles_or_rects)
+for i = 1, 5 do if fxw.style["blot_" .. i .. "_1"].visible and fxw.style["blot_" .. i .. "_4"].visible then circles_or_rects = circles_or_rects + 1 end end
+check("rot: soft blotches (four rings each) have started to grow", circles_or_rects >= 1, circles_or_rects)
+check("rot: no square blotches any more (the old clipped rectangles)", fxw.style.blot_r1 == nil)
 audit_ok("rot", el)
 current_view.drawn_age = 1.6 + el._T.rot - 0.01
 frame(el)
@@ -455,7 +498,7 @@ check("rot: at the end the whole card has rotted away", c(3).alpha_multiplier < 
 audit_ok("rot end", el)
 current_view.drawn_age = 1.6 + el._T.rot + 0.7
 frame(el)
-check("gone: everything of the Spread is hidden again, the time shows", visible_cards(el) == 0 and not fxw.visible and not banner.visible and header.alpha_multiplier == 1 and header.style.time.visible)
+check("gone: everything of the Spread is hidden again, 'Next card in' shows", visible_cards(el) == 0 and not fxw.visible and not banner.visible and header.visible and header.style.time.visible and header.content.label == "hud_next_card")
 audit_ok("gone", el)
 
 -- a late joiner: the hand is already being eaten by rot
@@ -469,13 +512,13 @@ audit_ok("late join", late)
 current_view = view_of({ remaining = 9, hand_seq = 8 })
 frame(el)
 check("new hand: the cards are back, resting, with fresh text", visible_cards(el) == 4 and c(1).alpha_multiplier == 1 and c(1).offset[2] == 0 and c(3).color_intensity_multiplier == 1 and c(3).offset[2] == 0 and not fxw.visible)
-check("new hand: the eye is shut again on the old winner", c(3).style.eye_t1.color[1] == 41 and not c(3).style.eye_t3.visible)
+check("new hand: the eye is shut again on the old winner", not c(3).style.eye_t1.visible and c(3).style.eye_t5.color[1] == 41 and not c(3).style.eye_t3.visible)
 audit_ok("new hand", el)
 
 -- one card: no roulette, and the layout is centred
 current_view = view_of({ hand = { card("a", "The Fool", "swarm", 1, { "chaos_poxwalker" }, "There are always more.") }, win = 1, remaining = 0.4, hand_seq = 9 })
 frame(el)
-check("one card: 176 wide and centred; no highlight even in the last second", visible_cards(el) == 1 and c(1).style.bg.size[1] == 176 and c(1).style.bg.offset[1] == 262 and c(1).offset[2] == 0 and not c(1).style.glow_1.visible)
+check("one card: 176 wide and centred; no highlight even in the last second", visible_cards(el) == 1 and c(1).style.bg.size[1] == 176 and c(1).style.bg.offset[1] == 262 and c(1).offset[2] == 0 and not c(1).style.glow.visible)
 audit_ok("one card", el)
 
 -- five cards with long names
@@ -484,6 +527,11 @@ local five = { card("a", "The Watching Moon", "murmur", 3, { "renegade_sniper" }
 current_view = view_of({ hand = five, win = 5, remaining = 8, hand_seq = 10 })
 frame(el)
 check("five cards: 132 wide, the row fits the node, the card height grew for the three-line name", visible_cards(el) == 5 and c(1).style.bg.size[1] == 132 and c(1).style.bg.offset[1] == 4 and c(5).style.bg.offset[1] + 132 == 696 and c(1).style.bg.size[2] == 97)
+check("five cards: the six dots of a card on a 132 wide card are cut down to what fits", (function()
+  local n = 0
+  for j = 1, 6 do if c(2).style["dot_" .. j].visible then n = n + 1 end end
+  return n >= 1 and n <= 4
+end)())
 check("five cards: the plague mark is an eye (card 3), the murmur mark a moon (card 1)", c(3).style.icon_t1.visible and c(1).style.icon_c1.visible)
 audit_ok("five cards", el)
 current_view = view_of({ hand = five, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 2.2, win = 5, hand_seq = 10 })
@@ -541,7 +589,9 @@ current_view = view_of({ remaining = 2.5, hand_seq = 20 })
 frame(opts)
 check("options: roulette 3 s starts the roulette earlier", opts._timeline.stage == "roulette")
 local ec = opts._widgets_by_name.card_1.style
-check("options: a bigger eye is drawn (60 px lens)", ec.eye_t1.triangle_corners[3][1] - ec.eye_t1.triangle_corners[1][1] > 40)
+local lo, hi = 1e9, -1e9
+for i = 5, 16 do for k = 1, 3 do local x = ec["eye_t" .. i].triangle_corners[k][1]; if x < lo then lo = x end; if x > hi then hi = x end end end
+check("options: a bigger eye is drawn (a 60 px eye: the shut lid is about 50 wide)", hi - lo > 40, hi - lo)
 check("options: rot times come from the options (120 s of a 30 min longest cooldown, 0.5-8 s: strength 0.34, 3.04 s)", near(opts._T.rot, 0.5 + 7.5 * 0.3386, 0.02), opts._T.rot)
 settings.tarot_eye_size = nil; settings.tarot_roulette = nil; settings.tarot_winner = nil; settings.tarot_rot_short = nil; settings.tarot_rot_long = nil; settings.tarot_longest = nil
 

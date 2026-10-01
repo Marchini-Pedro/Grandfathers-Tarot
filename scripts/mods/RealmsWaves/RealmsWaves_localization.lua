@@ -80,6 +80,7 @@ return {
 	hud_vote_now = { en = "VOTE NOW: %s left. %s" },
 	hud_incoming = { en = "WAVE INCOMING: %s" },
 	hud_paused = { en = "(PAUSED)" },
+	hud_card_in = { en = "Card revealed in" },
 	hud_next_card = { en = "Next card in" },
 	hud_card_drawn = { en = "The card is drawn" },
 	hud_empty_tarot = { en = "No card is in the draw (open the wave editor)" },

@@ -1,8 +1,8 @@
 -- Definitions for the wave HUD: ONE scenegraph node ("panel", the box the custom_hud mod lets the player drag around;
 -- it lists every non-root node, so there must be only one) and several widgets drawn inside it:
 --   legacy    the old text panel, still used by the Random countdown and Votes modes
---   header    "Next card in m:ss" and the fuse
---   card_1..5 one card of the Spread (shapes only: rectangles, circles, triangles, rotated squares, text)
+--   header    "Card revealed in m:ss" / "Next card in m:ss" and the fuse
+--   card_1..5 one card of the Spread (shapes only: rectangles, circles, triangles, rotated squares, a glow texture, text)
 --   fx        what rots the picked card: a wash, blotches, flies, drips
 --   banner    "THE CARD IS DRAWN", the card's name, its whisper and modifiers
 -- Every pass starts hidden; hud_element_waves.lua writes geometry, colours and visibility into the widget styles when
@@ -37,9 +37,11 @@ local scenegraph_definition = {
 	panel = {
 		parent = "screen",
 		vertical_alignment = "top",
-		horizontal_alignment = "center",
+		-- top-left basis: that is what the custom_hud mod pins nodes on, so its edit box sits exactly on the HUD. The x
+		-- puts the 700 wide node in the middle of the 1920 wide screen.
+		horizontal_alignment = "left",
 		size = { definitions.PANEL_WIDTH, definitions.PANEL_HEIGHT },
-		position = { 0, 36, 50 },
+		position = { 610, 36, 50 },
 	},
 }
 
@@ -125,17 +127,21 @@ rect(header_passes, "fuse_track", zh)
 rect(header_passes, "fuse_fill", zh + 1)
 
 -- ------------------------------------------------------------------------------------------------ cards
-definitions.CARD_GLOWS = 3
 definitions.THREAT_MAX = 5
-definitions.DOTS_MAX = Spread.MAX_CARDS + 1 -- 6, the most dots a card shows
+definitions.DOTS_MAX = 6 -- the most dots a card shows (catalog/cards.lua MAX_DOTS)
+definitions.GLOW_MATERIAL = "content/ui/materials/frames/frame_glow_01" -- a soft glowing frame, used by stock HUD elements
 
 local function card_passes()
 	local passes = {}
 	local z = definitions.Z.card
 
-	for j = 1, definitions.CARD_GLOWS do
-		rect(passes, "glow_" .. j, z)
-	end
+	-- the glow of a highlighted or chosen card: a stock frame texture, tinted with the suit colour
+	passes[#passes + 1] = {
+		pass_type = "texture",
+		style_id = "glow",
+		value = definitions.GLOW_MATERIAL,
+		style = { scale_to_material = true, offset = { 0, 0, z }, size = { 1, 1 }, color = color(), visible = false },
+	}
 
 	rect(passes, "bg", z + 4)
 	rect(passes, "accent", z + 5)
@@ -160,12 +166,22 @@ local function card_passes()
 		circle(passes, "icon_c" .. i, z + 10)
 	end
 
+	-- every diamond and dot has a faint, slightly larger copy under it: the UI draws shapes without anti-aliasing and
+	-- the copy softens the jagged edge
+	for i = 1, definitions.THREAT_MAX do
+		diamond(passes, "th_h" .. i, z + 13, Spread.THREAT_SIDE + 1.4)
+	end
+
 	for i = 1, definitions.THREAT_MAX do
 		diamond(passes, "th_o" .. i, z + 14, Spread.THREAT_SIDE)
 	end
 
 	for i = 1, definitions.THREAT_MAX do
-		diamond(passes, "th_i" .. i, z + 15, Spread.THREAT_SIDE - 2)
+		diamond(passes, "th_i" .. i, z + 15, Spread.THREAT_SIDE - 3.6)
+	end
+
+	for i = 1, definitions.DOTS_MAX do
+		circle(passes, "dh_" .. i, z + 15)
 	end
 
 	for i = 1, definitions.DOTS_MAX do
@@ -183,9 +199,10 @@ local zf = definitions.Z.fx
 
 rect(fx_passes, "wash", zf)
 
-for i = 1, 5 do
-	circle(fx_passes, "blot_c" .. i, zf + 1)
-	rect(fx_passes, "blot_r" .. i, zf + 1)
+for i = 1, Spread.BLOTCHES do
+	for ring = 1, #Spread.BLOTCH_RINGS do
+		circle(fx_passes, "blot_" .. i .. "_" .. ring, zf + 1)
+	end
 end
 
 for i = 1, Spread.DRIPS do

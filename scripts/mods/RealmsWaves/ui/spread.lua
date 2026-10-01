@@ -111,6 +111,31 @@ Spread.layout = function (layout, hand)
 	return layout
 end
 
+-- Dots on a card (bottom right): as big and as far apart as the room beside the threat diamonds allows, never closer to
+-- the diamonds than DOTS_GAP. Returns the diameter, the distance between centres and how many of `count` fit (a narrow
+-- card with many enemy kinds shows the first few).
+Spread.DIAMONDS_END = Spread.ACCENT_WIDTH + Spread.PAD_X + Spread.THREAT_SIDE / 2 + 4 * Spread.THREAT_PITCH + Spread.THREAT_SIDE * 0.7071
+Spread.DOTS_GAP = 12
+
+local DOT_STEPS = { { 9, 13 }, { 8, 11 }, { 7, 9.5 }, { 6, 8.5 } }
+
+Spread.dots_fit = function (cw, count)
+	local room = (cw - Spread.PAD_X) - (Spread.DIAMONDS_END + Spread.DOTS_GAP)
+
+	count = max(0, min(count, 6))
+
+	for i = 1, #DOT_STEPS do
+		local diameter, pitch = DOT_STEPS[i][1], DOT_STEPS[i][2]
+
+		if count == 0 or diameter + (count - 1) * pitch <= room then
+			return diameter, pitch, count
+		end
+	end
+
+	local diameter, pitch = DOT_STEPS[#DOT_STEPS][1], DOT_STEPS[#DOT_STEPS][2]
+
+	return diameter, pitch, max(1, min(count, floor((room - diameter) / pitch) + 1))
+end
 -- "1:05" for 65 seconds (always rounded up, like the countdown of the old panel)
 Spread.time_text = function (seconds)
 	seconds = max(0, math.ceil(seconds))
@@ -208,14 +233,18 @@ local MAX_FLIES = 9
 local DRIPS = 3
 
 Spread.BLOTCH_COLORS = { { 43, 41, 16 }, { 74, 58, 22 }, { 43, 41, 16 }, { 90, 106, 31 }, { 59, 47, 18 } }
+-- A blotch is stacked circles: no radial gradient exists, so the soft edge is faked with rings, outermost first
+-- (radius as a fraction of the blotch, opacity of that ring 0..1; where they overlap the opacity adds up).
+Spread.BLOTCH_RINGS = { { 1.00, 0.22 }, { 0.80, 0.28 }, { 0.58, 0.34 }, { 0.36, 0.42 } }
 Spread.MAX_FLIES = MAX_FLIES
 Spread.DRIPS = DRIPS
+Spread.BLOTCHES = #BLOTCH
 
 Spread.new_rot = function ()
-	local fx = { blotch = {}, flies = {}, drips = {}, wash = 0, shrink = 1, fade = 1, bright = 1 }
+	local fx = { blotch = {}, flies = {}, drips = {}, wash = 0, fade = 1, bright = 1 }
 
 	for i = 1, #BLOTCH do
-		fx.blotch[i] = { circle = false, rect = false, cx = 0, cy = 0, r = 0, x0 = 0, y0 = 0, x1 = 0, y1 = 0 }
+		fx.blotch[i] = { on = false, cx = 0, cy = 0, r = 0 }
 	end
 
 	for i = 1, MAX_FLIES do
@@ -231,35 +260,23 @@ end
 
 -- The look of the rot at progress r (0..1) for a strength k (0..1, the longer the cooldown the stronger), on a card of
 -- cw x ch at a moment `time` (seconds, for the flies and drips). Geometry is relative to the card's top-left corner.
--- A blotch is a circle while it fits inside the card and a clipped square once it does not (the UI cannot clip shapes).
+-- A blotch grows until it touches the nearest edge of the card and no further (circles cannot be clipped by the UI).
 Spread.rot_fx = function (fx, r, k, cw, ch, time)
 	r, k = clamp(r, 0, 1), clamp(k, 0, 1)
 
 	local size = 14 + 52 * k
 
-	fx.shrink = 1 - r * 0.22 * (0.4 + k) -- the card sags from its top edge
-	fx.fade = 1 - max(0, r - 0.62) * 2.6
-	fx.fade = clamp(fx.fade, 0, 1)
+	fx.fade = clamp(1 - max(0, r - 0.62) * 2.6, 0, 1)
 	fx.bright = 1 - r * 0.4
-	fx.wash = r * 0.55 -- opacity of the brown wash over the whole card
-
-	local height = ch * fx.shrink
+	fx.wash = r * 0.6 -- opacity of the brown wash over the whole card
 
 	for i = 1, #BLOTCH do
 		local spec, blotch = BLOTCH[i], fx.blotch[i]
-		local radius = r * size * spec[3]
-		local cx, cy = spec[1] * cw, spec[2] * height
+		local cx, cy = spec[1] * cw, spec[2] * ch
+		local radius = min(r * size * spec[3], cx, cw - cx, cy, ch - cy)
 
-		blotch.circle, blotch.rect = false, false
-
-		if radius >= 0.75 then
-			if radius <= min(cx, cw - cx, cy, height - cy) then
-				blotch.circle, blotch.cx, blotch.cy, blotch.r = true, cx, cy, radius
-			else
-				blotch.rect = true
-				blotch.x0, blotch.y0, blotch.x1, blotch.y1 = max(0, cx - radius), max(0, cy - radius), min(cw, cx + radius), min(height, cy + radius)
-			end
-		end
+		blotch.on = radius >= 1.5
+		blotch.cx, blotch.cy, blotch.r = cx, cy, radius
 	end
 
 	local flies = 3 + floor(6 * k + 0.5)
@@ -286,14 +303,13 @@ Spread.rot_fx = function (fx, r, k, cw, ch, time)
 
 		drip.on = r > 0.02
 		drip.x = (0.18 + 0.30 * (i - 1)) * cw
-		drip.y = height + 34 * u
+		drip.y = ch + 34 * u
 		drip.h = drip_height
-		drip.alpha = (u < 0.2 and 0.9 * u / 0.2 or 0.9 * (1 - u) / 0.8) * 1
+		drip.alpha = u < 0.2 and 0.9 * u / 0.2 or 0.9 * (1 - u) / 0.8
 	end
 
 	return fx
 end
-
 -- ----------------------------------------------------------------------------------------------- shapes
 -- Suit icons and the eye are drawn from triangles and circles (the UI has no icon of them and no SVG). A shape is a set
 -- of slots in a box; a slot says whether it is used, which colour it takes (1 = the suit's accent, 2 = the card's own
@@ -336,15 +352,19 @@ end
 local function tri(shape, index, col, z, x1, y1, x2, y2, x3, y3)
 	local slot = shape.tri[index]
 
-	slot.on, slot.col, slot.z = true, col, z
-	slot.x1, slot.y1, slot.x2, slot.y2, slot.x3, slot.y3 = x1, y1, x2, y2, x3, y3
+	if slot then
+		slot.on, slot.col, slot.z = true, col, z
+		slot.x1, slot.y1, slot.x2, slot.y2, slot.x3, slot.y3 = x1, y1, x2, y2, x3, y3
+	end
 end
 
 local function circ(shape, index, col, z, cx, cy, radius)
 	local slot = shape.circ[index]
 
-	slot.on, slot.col, slot.z = true, col, z
-	slot.cx, slot.cy, slot.r = cx, cy, radius
+	if slot then
+		slot.on, slot.col, slot.z = true, col, z
+		slot.cx, slot.cy, slot.r = cx, cy, radius
+	end
 end
 
 -- a lens (a wide diamond) of half-width a and half-height b around (cx, cy) as two triangles
@@ -365,58 +385,107 @@ local function teardrop(shape, tri_index, circ_index, col, z, tx, ty, cx, cy, ra
 	circ(shape, circ_index, col, z, cx, cy, radius)
 end
 
--- The eye: a lens whose height is the opening (0 = shut, a thin sliver with three lashes; 1 = open, an outline with a
--- pupil). `size` is the width of the box (the eye is drawn in a size x size box, centred). Slots: tri 1-2 the lens,
--- 3-4 the inside (card colour, once it is open enough to have one), 5-7 the lashes; circ 1 the pupil. Returns the
--- opacity of the pupil and of the lashes (0..1).
+-- The shut lid, in the reference's 24 x 24 grid: a smile ("M2 11c3 4 7 6 10 6s7-2 10-6") as two cubic curves sampled at
+-- seven points, with the unit normals there, so the stroke can be drawn as a ribbon of the same width everywhere.
+local LID_X, LID_Y, LID_NX, LID_NY = {}, {}, {}, {}
+
+do
+	local function cubic(p0x, p0y, c1x, c1y, c2x, c2y, p1x, p1y, t)
+		local u = 1 - t
+		local a, b, c, d = u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t
+
+		return a * p0x + b * c1x + c * c2x + d * p1x, a * p0y + b * c1y + c * c2y + d * p1y
+	end
+
+	local n = 0
+
+	for _, t in ipairs({ 0, 1 / 3, 2 / 3, 1 }) do
+		n = n + 1
+		LID_X[n], LID_Y[n] = cubic(2, 11, 5, 15, 9, 17, 12, 17, t)
+	end
+
+	for _, t in ipairs({ 1 / 3, 2 / 3, 1 }) do
+		n = n + 1
+		LID_X[n], LID_Y[n] = cubic(12, 17, 15, 17, 19, 15, 22, 11, t)
+	end
+
+	for i = 1, n do
+		local a, b = max(1, i - 1), min(n, i + 1)
+		local tx, ty = LID_X[b] - LID_X[a], LID_Y[b] - LID_Y[a]
+		local length = sqrt(tx * tx + ty * ty)
+
+		LID_NX[i], LID_NY[i] = -ty / length, tx / length
+	end
+end
+
+local LASH_BASE = { 2, 4, 6 } -- the lid points the three lashes grow from
+local LASH_TIP_X = { 3.4, 12, 20.6 }
+local LASH_TIP_Y = { 17.8, 20.6, 17.8 }
+local LID_LIFT = 3.2 -- the shut eye is drawn this much higher (grid units) so its middle is the open eye's middle
+
+-- The eye in a size x size box. Open (0..1) fades one drawing into the other: shut = the smile of the lid with three
+-- lashes, open = a lens (a diamond, as high as it is open) with an inside and a pupil. Slots: tri 1-2 the lens, 3-4 its
+-- inside (card colour), 5-16 the lid (a ribbon of six segments), 17-19 the lashes; circ 1 the pupil. Returns the
+-- opacity (0..1) of the lens, of the lid and lashes, and of the pupil.
 Spread.eye = function (size, open, shape)
 	open = clamp(open, 0, 1)
 	clear(shape)
 
-	local a = size * 20 / 24 / 2
-	local b = max(size * 0.03, size * 14 / 24 / 2 * (0.12 + 0.88 * open))
+	local s = size / 24
 	local cx, cy = size / 2, size / 2
-
-	lens(shape, 1, 1, 1, cx, cy, a, b)
-
-	-- the inside is the same diamond pulled in by the stroke, so the line is as thick everywhere
-	local stroke = size * 1.6 / 24
-	local factor = 1 - stroke * sqrt(a * a + b * b) / (a * b)
-	local pupil_radius = size * 3 / 24
+	local closed = 1 - open
 	local pupil = 0
 
-	if factor > 0.06 then
-		lens(shape, 3, 2, 2, cx, cy, a * factor, b * factor)
+	if open > 0.02 then
+		local a = size * 20 / 24 / 2
+		local b = max(size * 0.03, size * 14 / 24 / 2 * (0.15 + 0.85 * open))
 
-		if b * factor > pupil_radius * 0.9 then
-			circ(shape, 1, 1, 3, cx, cy, pupil_radius)
+		lens(shape, 1, 1, 1, cx, cy, a, b)
 
-			pupil = open
+		-- the inside is the same diamond pulled in by the stroke, so the line is as thick everywhere
+		local stroke = size * 1.6 / 24
+		local factor = 1 - stroke * sqrt(a * a + b * b) / (a * b)
+		local pupil_radius = size * 3 / 24
+
+		if factor > 0.06 then
+			lens(shape, 3, 2, 2, cx, cy, a * factor, b * factor)
+
+			if b * factor > pupil_radius * 0.9 then
+				circ(shape, 1, 1, 3, cx, cy, pupil_radius)
+
+				pupil = open
+			end
 		end
 	end
 
-	local lashes = 0
+	if closed > 0.02 and #shape.tri >= 19 then
+		local half = max(0.55, size * 1.7 / 24 / 2)
+		local dy = -LID_LIFT * s
 
-	if open < 0.5 then
-		lashes = 1 - open * 2
+		for k = 1, 6 do
+			local x1, y1, x2, y2 = LID_X[k] * s, LID_Y[k] * s + dy, LID_X[k + 1] * s, LID_Y[k + 1] * s + dy
+			local l1x, l1y, r1x, r1y = x1 + LID_NX[k] * half, y1 + LID_NY[k] * half, x1 - LID_NX[k] * half, y1 - LID_NY[k] * half
+			local l2x, l2y, r2x, r2y = x2 + LID_NX[k + 1] * half, y2 + LID_NY[k + 1] * half, x2 - LID_NX[k + 1] * half, y2 - LID_NY[k + 1] * half
+
+			tri(shape, 3 + 2 * k, 1, 1, l1x, l1y, r1x, r1y, l2x, l2y)
+			tri(shape, 4 + 2 * k, 1, 1, r1x, r1y, r2x, r2y, l2x, l2y)
+		end
 
 		for i = 1, 3 do
-			local dx = (i - 2) * a * 0.55
-			local base_y = cy + b * (1 - math.abs(dx) / a)
-			local x = cx + dx
+			local base = LASH_BASE[i]
+			local bx, by = LID_X[base] * s, LID_Y[base] * s + dy
 
-			tri(shape, 4 + i, 1, 1, x - size * 0.035, base_y - 0.5, x + size * 0.035, base_y - 0.5, x + (i - 2) * size * 0.05, base_y + size * 0.17)
+			tri(shape, 16 + i, 1, 1, bx - half * 0.9, by, bx + half * 0.9, by, LASH_TIP_X[i] * s, LASH_TIP_Y[i] * s + dy)
 		end
 	end
 
-	return pupil, lashes
+	return open, closed, pupil
 end
 
 Spread.ICON_TRIS = 4
 Spread.ICON_CIRCS = 4
-Spread.EYE_TRIS = 7
+Spread.EYE_TRIS = 19
 Spread.EYE_CIRCS = 1
-
 -- The six suit marks in a `size` box, from the shape ids of catalog/cards.lua (eye, moon, flame, drop, cluster, star).
 -- Coordinates are the reference page's 24 x 24 grid scaled to the box.
 Spread.icon = function (id, size, shape)
