@@ -59,6 +59,8 @@ local scenegraph_definition = {
 	-- list would land on a Presets button at the same spot in the same frame and open the presets page.
 	btn_presets = node(325, 800, 300, 44, 2),
 	btn_settings = node(645, 800, 340, 44, 2), -- list screen: timing, voting and display settings
+	btn_wimport = node(1005, 800, 300, 44, 2), -- list screen: import a shared wave into the first free custom slot
+	btn_share = node(1450, 962, 280, 44, 2), -- detail screen: export this wave / import over it
 	btn_pload = node(325, 800, 250, 44, 2),
 	btn_psave = node(595, 800, 400, 44, 2),
 	btn_prename = node(1015, 800, 200, 44, 2),

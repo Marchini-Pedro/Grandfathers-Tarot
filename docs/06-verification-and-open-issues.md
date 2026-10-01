@@ -57,6 +57,7 @@
 | 53 | Timing and voting screen: toggle random off, set the minimum to 20, start a mission | Waves come every exactly ~20 s; with random on and 15/40 they vary between 15 and 40 s; 10 rows readable and not overlapping | not run |
 | 54 | Vote mode, turn off "Show chances in the vote" | The vote panel shows names and vote counts without the percent | not run |
 | 55 | Edit a wave: set Min distance 60 and Max distance 100, `/rw_test` it a few times in a big area | Units appear 60-100 m from the nearest player (hidden spots only; if none exist the wave waits as usual). "auto" waves still use the options. The three stepper rows fit above the bottom of the screen, nothing overlaps the input legend | not run |
+| 56 | Edit a custom wave, Share wave, paste the text to a friend (or into an empty custom slot of yours via Import wave) | The text is one line starting `RWW1|`; Import wave (wave list) puts the wave into the first free custom slot with name, enemies, modifiers, chances, distances intact; pasting a wave over the Share text replaces the open wave | not run |
 | 26 | Recipe text with `@`: `3 crushers[enraged]@2` in "Edit as text" | Accepted, shown as "(+2 per repeat)" in the list | not run |
 
 ## Known risks
@@ -120,3 +121,4 @@
 - 2026-09-30 (user screenshots, 1.6.2): options menu rows wrapped (long titles, units "enemies"/"percent"/"options"). Shortened and added length tests (titles <= 27, units <= 3 characters; limits estimated from the screenshots). Offline only; re-check the options page in game.
 - 2026-09-30 (user request, 1.7.0): enemy name colours (Spidey Sense sync), click-a-row hint, percent-in-vote toggle, Delete/Create/Reset instead of Edit, timing screen with a random/fixed wave timer. Spidey Sense's colour settings were read from its source (`mods\Spidey Sense\...\core\Colours.lua`, `Spidey Sense_data.lua`: setting ids `<type>_front_colour`, values `Color.list` names). Offline only (logic 0 failures, editor 219/219, entry 9/9); in game: matrix rows 51-54. Still to do from the same request: per-wave spawn distances, sharing single waves, all-players wave pool (host + clients), see the next entries.
 - 2026-09-30 (user request, 1.8.0): per-wave minimum/maximum spawn distance with the options as fallback. Offline: logic 0 failures (17 new), editor 230/230, entry 9/9. In game: matrix row 55.
+- 2026-09-30 (user request, 1.9.0): sharing individual waves (RWW1 text, Share wave / Import wave). Offline: logic 0 failures (15 new), editor 243/243. In game: matrix row 56.

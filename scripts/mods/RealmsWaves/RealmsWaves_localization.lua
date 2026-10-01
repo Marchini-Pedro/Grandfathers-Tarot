@@ -133,6 +133,19 @@ return {
 	set_colour_spidey = { en = "Use Spidey Sense colours" },
 	set_colour_spidey_info = { en = "Take an enemy's colour from your Spidey Sense settings when that mod is installed." },
 
+	-- Sharing one wave
+	btn_share = { en = "Share wave" },
+	btn_wimport = { en = "Import wave" },
+	popup_share_title = { en = "Share: %s" },
+	popup_share_hint_copied = { en = "Copied to your clipboard. To import a friend's wave OVER THIS wave, paste it here and press OK." },
+	popup_share_hint = { en = "Press Ctrl+A then Ctrl+C to copy. To import a friend's wave OVER THIS wave, paste it here and press OK." },
+	popup_wimport_title = { en = "Import a wave" },
+	popup_wimport_hint = { en = "Paste a friend's wave text (Ctrl+V), then OK. It goes into the first free custom slot (%s)." },
+	popup_wimport_hint_filled = { en = "Your clipboard holds a wave, filled in below. OK imports it into the first free custom slot (%s)." },
+	msg_wave_replaced = { en = "Replaced this wave with the imported one: %s" },
+	msg_wave_imported = { en = "Imported wave %s into %s." },
+	msg_no_free_slot = { en = "All custom slots are in use. Delete one first, or open a wave and use Share to import over it." },
+
 	-- Presets
 	btn_presets = { en = "Presets" },
 	btn_open = { en = "Open" },

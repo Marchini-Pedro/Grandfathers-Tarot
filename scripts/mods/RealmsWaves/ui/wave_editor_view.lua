@@ -35,6 +35,8 @@ local BUTTONS = {
 	-- presets (list screen -> presets screen -> one preset)
 	{ name = "btn_presets", width = 300, cb = "cb_presets" },
 	{ name = "btn_settings", width = 340, cb = "cb_settings" },
+	{ name = "btn_wimport", width = 300, cb = "cb_wave_import" },
+	{ name = "btn_share", width = 280, cb = "cb_wave_share" },
 	{ name = "btn_pload", width = 250, cb = "cb_preset_load" },
 	{ name = "btn_psave", width = 400, cb = "cb_preset_save" },
 	{ name = "btn_prename", width = 200, cb = "cb_preset_rename" },
@@ -608,6 +610,10 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.btn_presets.visible = screen == "list"
 	widgets.btn_settings.visible = screen == "list"
 	widgets.btn_settings.content.hotspot_text = mod:localize("btn_settings")
+	widgets.btn_wimport.visible = screen == "list"
+	widgets.btn_wimport.content.hotspot_text = mod:localize("btn_wimport")
+	widgets.btn_share.visible = detail
+	widgets.btn_share.content.hotspot_text = mod:localize("btn_share")
 	widgets.btn_back.visible = show_back
 
 	for i = 1, #PRESET_BUTTONS do
@@ -1699,6 +1705,95 @@ RealmsWavesView.cb_preset_clear = guarded(function (self)
 
 	rw.presets.clear(set_setting, rw.presets.slot_id(self._preset_index))
 	self:_refresh_preset(mod:localize("preset_cleared"))
+end)
+
+-- sharing one wave -------------------------------------------------------------
+-- Same text idea as the presets, for a single wave: "RWW1|...|check".
+
+-- Share (detail screen): shows this wave as text (and copies it). Pasting a friend's wave over the text and
+-- pressing OK replaces THIS wave with it.
+RealmsWavesView.cb_wave_share = guarded(function (self)
+	local rw = mod.rw
+	local key = self._key
+	local snapshot = rw.presets.capture_wave(get_setting, key, rw.events, rw.groups)
+
+	if not snapshot then
+		return
+	end
+
+	local text = rw.presets.encode_wave(snapshot)
+	local copied = clipboard_put(text)
+
+	Popup.open(self, {
+		label = mod:localize("popup_share_title", self._wave.name),
+		hint = mod:localize(copied and "popup_share_hint_copied" or "popup_share_hint"),
+		value = text,
+		max_length = #text + 4000,
+		validate = function (pasted)
+			local wave, err = rw.presets.decode_wave(pasted, rw.events, rw.groups)
+
+			return wave ~= nil, err
+		end,
+		set = function (pasted)
+			local wave = rw.presets.decode_wave(pasted, rw.events, rw.groups)
+
+			if wave then
+				rw.presets.apply_wave(wave, key, set_setting, rw.events, rw.groups)
+				self:_reload()
+				self._parts = copy_parts(self._wave.parts)
+				self:_apply_screen(true)
+				mod:echo("%s", mod:localize("msg_wave_replaced", self._wave.name))
+			end
+		end,
+	})
+end)
+
+-- Import wave (list screen): a friend's wave goes into the first free custom slot, which then opens.
+RealmsWavesView.cb_wave_import = guarded(function (self)
+	local rw = mod.rw
+	local free
+
+	for i = 1, #self._waves do
+		local wave = self._waves[i]
+
+		if wave.is_custom and not (wave.parts and #wave.parts > 0) then
+			free = wave
+
+			break
+		end
+	end
+
+	if not free then
+		mod:echo("%s", mod:localize("msg_no_free_slot"))
+
+		return
+	end
+
+	local clip = clipboard_get()
+	local prefilled = clip ~= nil and clip:match("^%s*" .. rw.presets.WAVE_PREFIX .. "|") ~= nil
+
+	Popup.open(self, {
+		label = mod:localize("popup_wimport_title"),
+		hint = mod:localize(prefilled and "popup_wimport_hint_filled" or "popup_wimport_hint", free.name),
+		value = prefilled and clip or "",
+		max_length = 30000,
+		always_commit = true,
+		validate = function (text)
+			local wave, err = rw.presets.decode_wave(text, rw.events, rw.groups)
+
+			return wave ~= nil, err
+		end,
+		set = function (text)
+			local wave = rw.presets.decode_wave(text, rw.events, rw.groups)
+
+			if wave then
+				rw.presets.apply_wave(wave, free.key, set_setting, rw.events, rw.groups)
+				self:_reload()
+				mod:echo("%s", mod:localize("msg_wave_imported", wave.name ~= "" and wave.name or free.name, free.name))
+				self:_open_detail(free.key)
+			end
+		end,
+	})
 end)
 
 -- popup ------------------------------------------------------------------------

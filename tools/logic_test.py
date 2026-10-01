@@ -733,6 +733,50 @@ do
   check("distance: out-of-range distances are clamped (0-200)", clamped and clamped.waves[1].dmin == 200 and clamped.waves[1].dmax == 0)
   check("distance: a non-numeric distance is refused", Presets.decode(Presets.seal("RW1|x|1|custom_1~A~1~10~60~3~10~60~3 hounds~far~5"), Events, Groups) == nil)
 end
+-- sharing ONE wave (RWW1 text) ---------------------------------------------------------------------------------
+do
+  local Presets = load("catalog/presets")
+  local store = {}
+  local function g(id) return store[id] end
+  local function s(id, v) store[id] = v end
+  Events.set_def(s, "custom_6", "Odd | Name ~ 50%", Groups.parse("3 crushers[purple+enraged]@2, 1 plague ogryn|chaos spawn"), Groups)
+  store.on_custom_6 = true; store.pct_custom_6 = 21; store.cd_custom_6 = 99; store.sp_custom_6 = 14; store.re_custom_6 = 8; store.rf_custom_6 = 44; store.dmin_custom_6 = 30; store.dmax_custom_6 = 110
+  local snap = Presets.capture_wave(g, "custom_6", Events, Groups)
+  check("wave share: capture_wave reads one wave", snap and snap.key == "custom_6" and snap.pct == 21 and snap.dmin == 30 and snap.dmax == 110)
+  local text = Presets.encode_wave(snap)
+  check("wave share: text is one line starting with RWW1|", text:sub(1, 5) == "RWW1|" and not text:find("[\r\n\t]") and select(2, text:gsub("|", "")) == 2, text:sub(1, 40))
+  local wave, err = Presets.decode_wave(text, Events, Groups)
+  check("wave share: round trip keeps name (with | ~ %), values and recipe", wave and wave.name == "Odd | Name ~ 50%" and wave.pct == 21 and wave.cd == 99 and wave.sp == 14 and wave.re == 8 and wave.rf == 44 and wave.dmin == 30 and wave.dmax == 110 and wave.enabled == true and wave.recipe == snap.recipe, tostring(err))
+  -- applying it onto ANOTHER key replaces that wave completely
+  local target = {}
+  local function tg(id) return target[id] end
+  local function ts(id, v) target[id] = v end
+  Events.set_def(ts, "custom_2", "Old", Groups.parse("9 hounds"), Groups); target.pct_custom_2 = 5; target.dmin_custom_2 = 77
+  Presets.apply_wave(wave, "custom_2", ts, Events, Groups)
+  local now = Presets.capture_wave(tg, "custom_2", Events, Groups)
+  check("wave share: apply_wave onto another key replaces every setting of that wave", now.name == wave.name and now.recipe == wave.recipe and now.pct == 21 and now.dmin == 30 and now.dmax == 110 and now.key == "custom_2")
+  check("wave share: the source wave is untouched by applying elsewhere", Presets.capture_wave(g, "custom_6", Events, Groups).name == "Odd | Name ~ 50%")
+  -- a standard wave can be overwritten too, and a standard wave shared keeps its built-in name when unchanged
+  local std = Presets.capture_wave(function() return nil end, "wave_small", Events, Groups)
+  local std_text = Presets.encode_wave(std)
+  local std_back = Presets.decode_wave(std_text, Events, Groups)
+  Presets.apply_wave(std_back, "wave_large", ts, Events, Groups)
+  check("wave share: a standard wave applied onto another standard wave", Presets.capture_wave(tg, "wave_large", Events, Groups).name == "Small Wave")
+  local function bad(t) local w, e = Presets.decode_wave(t, Events, Groups); return w == nil and type(e) == "string" and e end
+  check("wave share: empty text refused", bad("  ") ~= false)
+  check("wave share: a whole preset is refused with a pointer to the Presets screen", (bad(Presets.encode({ name = "x", waves = {} })) or ""):find("Presets screen") ~= nil)
+  check("wave share: wrong prefix refused", (bad("hello") or ""):find("RWW1") ~= nil)
+  check("wave share: altered/cut text refused", (bad(text:sub(1, #text - 5)) or ""):find("incomplete or was changed") ~= nil and (bad(text:sub(1, 20) .. " " .. text:sub(21)) or ""):find("incomplete or was changed") ~= nil)
+  check("wave share: unknown enemy in the recipe refused with the parser's message", (bad(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~unicorns~0~0")) or ""):find("unicorns") ~= nil)
+  check("wave share: damaged wave refused", bad(Presets.seal("RWW1|custom_1~A~1~10")) ~= false and bad(Presets.seal("RWW1|a|b")) ~= false)
+  local w2 = Presets.decode_wave(Presets.seal("RWW1|custom_1~~1~99999~-5~500~0~99999~3 hounds~9999~-1"), Events, Groups)
+  check("wave share: numbers clamped to the editor's limits, empty name allowed", w2 and w2.pct == 1000 and w2.cd == 0 and w2.sp == 100 and w2.re == 1 and w2.rf == 3600 and w2.dmin == 200 and w2.dmax == 0 and w2.name == "")
+  local old = Presets.decode_wave(Presets.seal("RWW1|custom_1~Old~1~10~60~3~10~60~3 hounds"), Events, Groups)
+  check("wave share: 9-field wave text (no distances) imports with distances 0", old and old.dmin == 0 and old.dmax == 0)
+  -- a text with an unknown key still imports (the key is only the exporter's)
+  local fk = Presets.decode_wave(Presets.seal("RWW1|future_wave~F~1~10~60~3~10~60~3 hounds~0~0"), Events, Groups)
+  check("wave share: the exporter's key does not matter (unknown keys are fine)", fk and fk.key == "future_wave")
+end
 -- twin captains: the shield starts down (toughness template start_depleted) and must be raised via optional_init_toughness
 do
   package.preload["scripts/settings/breed/breeds"] = function()

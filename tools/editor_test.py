@@ -751,6 +751,74 @@ do
   click("btn_back")
   check("distance: steppers hidden again on the list", not W.stepper_dmin.visible and not W.stepper_dmax.visible and view._screen == "list")
 end
+-- sharing one wave ------------------------------------------------------------------------------------------------
+do
+  local P = mod.rw.presets
+  local PPw = dofile(BASE .. "/ui/wave_editor_components.lua")
+  local W = view._widgets_by_name
+  local inp = { get = function() return nil end, is_null_service = function() return false end }
+  local clip_text
+  Clipboard = { get = function() return clip_text end, put = function(t) clip_text = t; return true end }
+  local function type_into(text) view._widgets_by_name.rw_popup_input.content.input_text = text; view:update(0.01, 0, inp) end
+
+  check("share: Share only in the detail screen, Import wave only on the list", W.btn_wimport.visible and not W.btn_share.visible)
+  -- a custom wave to share
+  settings["wave_def_custom_4"] = "Pack Attack\t4 hounds, 2 scab rager[enraged]"; settings["on_custom_4"] = true
+  settings["pct_custom_4"] = 33; settings["dmin_custom_4"] = 40; settings["dmax_custom_4"] = 90
+  view:_reload(); view._offset = 0; view:_refresh_rows()
+  view._offset = 3; view:_refresh_rows()
+  click_row(1, "hotspot_name") -- 4th wave of the 3-offset list is... find it by key instead
+  if view._key ~= "custom_4" then
+    click("btn_back"); view._offset = 0; view:_open_detail("custom_4")
+  end
+  check("share: custom_4 detail open", view._screen == "detail" and view._key == "custom_4" and W.btn_share.visible, tostring(view._key))
+  click("btn_share")
+  local shared = view._widgets_by_name.rw_popup_input.content.input_text
+  check("share: the popup shows the wave text and copies it", view._popup ~= nil and shared:sub(1, 5) == "RWW1|" and clip_text == shared and view._popup.spec.hint == "popup_share_hint_copied")
+  local decoded = P.decode_wave(shared, mod.rw.events, mod.rw.groups)
+  check("share: the text decodes to this wave", decoded and decoded.name == "Pack Attack" and decoded.pct == 33 and decoded.dmin == 40 and decoded.dmax == 90 and decoded.recipe:find("hound") ~= nil)
+  PPw.Popup.cancel(view)
+
+  -- import over this wave: paste a different wave over the text
+  local other = P.encode_wave({ key = "custom_9", name = "Friend Wave", recipe = "6 mutants", enabled = true, pct = 12, cd = 75, sp = 6, re = 10, rf = 60, dmin = 0, dmax = 70 })
+  click("btn_share")
+  type_into(other)
+  PPw.Popup.commit(view)
+  check("share: pasting a friend's wave over the text replaces this wave", view._popup == nil and view._wave.name == "Friend Wave" and settings["pct_custom_4"] == 12 and settings["dmax_custom_4"] == 70 and settings["dmin_custom_4"] == 0 and #view._parts == 1 and view._parts[1].breed == "cultist_mutant" and view._parts[1].count == 6, tostring(view._wave.name))
+  click("btn_share"); type_into("RW1|a preset|0|0000"); PPw.Popup.commit(view)
+  check("share: a whole preset pasted here is refused with a pointer to the Presets screen", view._popup ~= nil and tostring(view._popup.error):find("Presets screen") ~= nil, tostring(view._popup and view._popup.error))
+  PPw.Popup.cancel(view)
+  click("btn_share"); type_into(other:sub(1, 30) .. "x" .. other:sub(31)); PPw.Popup.commit(view)
+  check("share: an altered wave text is refused and changes nothing", view._popup ~= nil and view._popup.error ~= nil and view._wave.name == "Friend Wave")
+  PPw.Popup.cancel(view)
+  click("btn_share"); PPw.Popup.commit(view)
+  check("share: OK on the unchanged text just closes", view._popup == nil and view._wave.name == "Friend Wave")
+
+  -- import from the list into the first free custom slot
+  click("btn_back")
+  for i = 1, 20 do settings["wave_def_custom_" .. i] = nil end
+  settings["wave_def_custom_1"] = "Taken\t2 hounds"; settings["wave_def_custom_2"] = "Taken\t2 hounds"
+  view:_reload(); view._offset = 0; view:_refresh_rows()
+  clip_text = P.encode_wave({ key = "custom_5", name = "From Clipboard", recipe = "3 crushers[purple]", enabled = true, pct = 20, cd = 60, sp = 3, re = 10, rf = 60, dmin = 25, dmax = 0 })
+  click("btn_wimport")
+  check("share: Import wave prefills a wave from the clipboard and names the target slot", view._popup ~= nil and view._popup.spec.hint == "popup_wimport_hint_filled:Custom 3" and view._widgets_by_name.rw_popup_input.content.input_text == clip_text, tostring(view._popup and view._popup.spec.hint))
+  PPw.Popup.commit(view)
+  check("share: OK imports into the first free custom slot and opens it", view._screen == "detail" and view._key == "custom_3" and view._wave.name == "From Clipboard" and settings["on_custom_3"] == true and settings["dmin_custom_3"] == 25 and #view._parts == 1, tostring(view._key))
+  check("share: the other slots were not touched", settings["wave_def_custom_1"] == "Taken\t2 hounds" and settings["wave_def_custom_4"] == nil or settings["wave_def_custom_4"] == "")
+  click("btn_back")
+  click("btn_wimport")
+  type_into("RWW1|garbage"); PPw.Popup.commit(view)
+  check("share: a bad paste keeps the import box open with the reason", view._popup ~= nil and view._popup.error ~= nil)
+  PPw.Popup.cancel(view)
+  -- no free slot
+  for i = 1, 20 do settings["wave_def_custom_" .. i] = "Full " .. i .. "\t1 hound" end
+  view:_reload(); view:_refresh_rows(); echoes = {}
+  click("btn_wimport")
+  check("share: no free custom slot -> a message and no popup", view._popup == nil and echoes[#echoes] == "msg_no_free_slot", tostring(echoes[#echoes]))
+  for i = 1, 20 do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil; settings["pct_custom_" .. i] = nil; settings["dmin_custom_" .. i] = nil; settings["dmax_custom_" .. i] = nil; settings["cd_custom_" .. i] = nil; settings["sp_custom_" .. i] = nil; settings["re_custom_" .. i] = nil; settings["rf_custom_" .. i] = nil end
+  settings["wave_def_custom_1"] = "Custom 1\t3 hounds"; settings["on_custom_1"] = true
+  view:_reload(); view._offset = 0; view:_apply_screen()
+end
 -- presets ----------------------------------------------------------------------------------------------------
 do
   local PP = dofile(BASE .. "/ui/wave_editor_components.lua")
@@ -783,8 +851,8 @@ do
 
     -- widgets shown together on one screen must not overlap and must stay inside the bottom panel
     local screens = {
-      list = { "btn_presets", "btn_settings", "btn_back" },
-      detail = { "btn_back", "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax" },
+      list = { "btn_presets", "btn_settings", "btn_wimport", "btn_back" },
+      detail = { "btn_back", "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "btn_share" },
       picker = { "btn_back", "btn_search", "btn_stay" },
       preset_view = { "btn_back", "btn_pload", "btn_psave", "btn_prename", "btn_pexport", "btn_pimport", "btn_pundo", "btn_pclear" },
     }

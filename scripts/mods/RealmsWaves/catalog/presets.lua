@@ -22,6 +22,7 @@ local Presets = {}
 Presets.COUNT = 5
 Presets.MAX_NAME = 24
 Presets.PREFIX = "RW1"
+Presets.WAVE_PREFIX = "RWW1" -- one wave on its own
 Presets.UNDO_ID = "preset_undo"
 
 -- inclusive ranges, the same as the editor's steppers/popups
@@ -161,6 +162,31 @@ Presets.capture = function (get_setting, Events, Groups)
 	return { waves = waves }
 end
 
+-- Writes one stored wave onto `key` (the wave goes back to its defaults first, so nothing of the old
+-- settings survives). The key does not have to be the wave's own key: that is how a wave shared by a
+-- friend lands in whichever slot you chose.
+Presets.apply_wave = function (wave, key, set_setting, Events, Groups)
+	Events.reset(set_setting, key)
+
+	local default = default_snapshot(key, Events, Groups)
+	local name = wave.name ~= "" and wave.name or (default and default.name) or key
+
+	if default and (name ~= default.name or wave.recipe ~= default.recipe) then
+		local parts = wave.recipe ~= "" and Groups.parse(wave.recipe) or nil
+
+		Events.set_def(set_setting, key, name, parts or {}, Groups)
+	end
+
+	set_setting("on_" .. key, wave.enabled == true)
+	set_setting("pct_" .. key, wave.pct)
+	set_setting("cd_" .. key, wave.cd)
+	set_setting("sp_" .. key, wave.sp)
+	set_setting("re_" .. key, wave.re)
+	set_setting("rf_" .. key, wave.rf)
+	set_setting("dmin_" .. key, wave.dmin or 0)
+	set_setting("dmax_" .. key, wave.dmax or 0)
+end
+
 -- Writes a preset over the current setup: every wave goes back to its default first.
 -- Returns the number of waves that were written from the preset.
 Presets.apply = function (preset, set_setting, Events, Groups)
@@ -173,54 +199,128 @@ Presets.apply = function (preset, set_setting, Events, Groups)
 	local written = 0
 
 	for _, key in ipairs(Events.keys()) do
-		Events.reset(set_setting, key)
-
-		local wave = stored[key]
-
-		if wave then
-			local default = default_snapshot(key, Events, Groups)
-
-			if default and (wave.name ~= default.name or wave.recipe ~= default.recipe) then
-				local parts = wave.recipe ~= "" and Groups.parse(wave.recipe) or nil
-
-				Events.set_def(set_setting, key, wave.name, parts or {}, Groups)
-			end
-
-			set_setting("on_" .. key, wave.enabled == true)
-			set_setting("pct_" .. key, wave.pct)
-			set_setting("cd_" .. key, wave.cd)
-			set_setting("sp_" .. key, wave.sp)
-			set_setting("re_" .. key, wave.re)
-			set_setting("rf_" .. key, wave.rf)
-			set_setting("dmin_" .. key, wave.dmin or 0)
-			set_setting("dmax_" .. key, wave.dmax or 0)
+		if stored[key] then
+			Presets.apply_wave(stored[key], key, set_setting, Events, Groups)
 
 			written = written + 1
+		else
+			Events.reset(set_setting, key)
 		end
 	end
 
 	return written
 end
 
+-- The current state of ONE wave (for sharing it on its own).
+Presets.capture_wave = function (get_setting, key, Events, Groups)
+	local current = Events.get(key, get_setting, Groups)
+
+	return current and snapshot(key, current, Groups) or nil
+end
+
 -- ------------------------------------------------------------------- text format
+
+local function wave_text(wave)
+	return table.concat({
+		wave.key,
+		escape(wave.name),
+		wave.enabled and "1" or "0",
+		tostring(wave.pct),
+		tostring(wave.cd),
+		tostring(wave.sp),
+		tostring(wave.re),
+		tostring(wave.rf),
+		escape(wave.recipe),
+		tostring(wave.dmin or 0),
+		tostring(wave.dmax or 0),
+	}, "~")
+end
+
+-- One wave from its "key~name~..." text. Returns the wave, or nil and a message. The recipe is parsed here
+-- so a wave that cannot be built is refused.
+local function parse_wave(text, Groups)
+	local parts = split(text, "~")
+
+	if #parts ~= 9 and #parts ~= 11 then
+		return nil, "a wave in the text is damaged"
+	end
+
+	local recipe = unescape(parts[9])
+	local name = trim(unescape(parts[2]):gsub("[%c]", " "))
+	local label = name ~= "" and name or parts[1]
+
+	if recipe ~= "" then
+		local parsed, err = Groups.parse(recipe)
+
+		if not parsed then
+			return nil, string.format("wave %s: %s", label, tostring(err))
+		end
+	end
+
+	-- 9 fields = exported before the per-wave distances existed: both 0 (use the options)
+	parts[10], parts[11] = parts[10] or "0", parts[11] or "0"
+
+	local numbers = {}
+
+	-- fields 4-8 are chance, cooldown, spread, repeat every, repeat for; 10-11 the distances (9 is the recipe)
+	for _, field in ipairs({ { "pct", 4 }, { "cd", 5 }, { "sp", 6 }, { "re", 7 }, { "rf", 8 }, { "dmin", 10 }, { "dmax", 11 } }) do
+		local id = field[1]
+		local value = tonumber(parts[field[2]])
+
+		if not value then
+			return nil, string.format("wave %s has a bad %s value", label, id)
+		end
+
+		numbers[id] = clamp(whole(value), RANGES[id])
+	end
+
+	return {
+		key = parts[1],
+		name = name,
+		recipe = recipe,
+		enabled = parts[3] == "1",
+		pct = numbers.pct,
+		cd = numbers.cd,
+		sp = numbers.sp,
+		re = numbers.re,
+		rf = numbers.rf,
+		dmin = numbers.dmin,
+		dmax = numbers.dmax,
+	}
+end
+
+-- Splits a sealed text into its fields after checking the prefix and the check field.
+-- Returns the fields without the check field, or nil and a message.
+local function open_text(text, prefix, what)
+	text = trim(text)
+
+	if text == "" then
+		return nil, "nothing to import (paste the text a friend exported)"
+	end
+
+	local fields = split(text, "|")
+
+	if fields[1] ~= prefix then
+		return nil, string.format("this is not a RealmsWaves %s (it should start with %s|)", what, prefix)
+	end
+
+	local last_bar = text:match("^.*()|")
+	local check = last_bar and text:sub(last_bar + 1)
+
+	if not last_bar or #fields < 3 or check ~= checksum(text:sub(1, last_bar - 1)) then
+		return nil, string.format("the %s text is incomplete or was changed (copy it again in full, without adding spaces or line breaks)", what)
+	end
+
+	fields[#fields] = nil
+
+	return fields
+end
 
 Presets.encode = function (preset)
 	local fields = { Presets.PREFIX, escape(Presets.clean_name(preset.name, "Preset")), tostring(#(preset.waves or {})) }
 
 	for _, wave in ipairs(preset.waves or {}) do
-		fields[#fields + 1] = table.concat({
-			wave.key,
-			escape(wave.name),
-			wave.enabled and "1" or "0",
-			tostring(wave.pct),
-			tostring(wave.cd),
-			tostring(wave.sp),
-			tostring(wave.re),
-			tostring(wave.rf),
-			escape(wave.recipe),
-			tostring(wave.dmin or 0),
-			tostring(wave.dmax or 0),
-		}, "~")
+		fields[#fields + 1] = wave_text(wave)
 	end
 
 	return Presets.seal(table.concat(fields, "|"))
@@ -230,30 +330,15 @@ end
 -- parsed so a bad import is refused as a whole and never leaves half a setup behind.
 -- `skipped` counts waves with a key this version does not know (dropped, not an error).
 Presets.decode = function (text, Events, Groups)
-	text = trim(text)
+	local fields, problem = open_text(text, Presets.PREFIX, "preset")
 
-	if text == "" then
-		return nil, "nothing to import (paste the text a friend exported)"
+	if not fields then
+		return nil, problem
 	end
-
-	local fields = split(text, "|")
-
-	if fields[1] ~= Presets.PREFIX then
-		return nil, "this is not a RealmsWaves preset (it should start with " .. Presets.PREFIX .. "|)"
-	end
-
-	local last_bar = text:match("^.*()|")
-	local check = last_bar and text:sub(last_bar + 1)
-
-	if not last_bar or #fields < 4 or check ~= checksum(text:sub(1, last_bar - 1)) then
-		return nil, "the preset text is incomplete or was changed (copy it again in full, without adding spaces or line breaks)"
-	end
-
-	fields[#fields] = nil
 
 	local expected = tonumber(fields[3])
 
-	if not expected or expected < 0 or expected % 1 ~= 0 or #fields - 3 ~= expected then
+	if #fields < 3 or not expected or expected < 0 or expected % 1 ~= 0 or #fields - 3 ~= expected then
 		return nil, "the preset text is damaged (wave count does not match)"
 	end
 
@@ -261,65 +346,48 @@ Presets.decode = function (text, Events, Groups)
 	local seen = {}
 
 	for i = 4, #fields do
-		local parts = split(fields[i], "~")
+		local wave, err = parse_wave(fields[i], Groups)
 
-		if #parts ~= 9 and #parts ~= 11 then
-			return nil, string.format("wave %d of the preset text is damaged", i - 3)
+		if not wave then
+			return nil, err
 		end
 
-		local key = parts[1]
-		local default = default_snapshot(key, Events, Groups)
+		local default = default_snapshot(wave.key, Events, Groups)
 
 		if not default then
 			preset.skipped = preset.skipped + 1
-		elseif not seen[key] then
-			seen[key] = true
-
-			local recipe = unescape(parts[9])
-			local name = trim(unescape(parts[2]):gsub("[%c]", " "))
-
-			if recipe ~= "" then
-				local parsed, err = Groups.parse(recipe)
-
-				if not parsed then
-					return nil, string.format("wave %s: %s", name ~= "" and name or key, tostring(err))
-				end
-			end
-
-			local numbers = {}
-
-			-- 9 fields = exported before the per-wave distances existed: both 0 (use the options)
-			parts[10], parts[11] = parts[10] or "0", parts[11] or "0"
-
-			-- fields 4-8 are chance, cooldown, spread, repeat every, repeat for; 10-11 the distances (9 is the recipe)
-			for _, field in ipairs({ { "pct", 4 }, { "cd", 5 }, { "sp", 6 }, { "re", 7 }, { "rf", 8 }, { "dmin", 10 }, { "dmax", 11 } }) do
-				local id = field[1]
-				local value = tonumber(parts[field[2]])
-
-				if not value then
-					return nil, string.format("wave %s has a bad %s value", name ~= "" and name or key, id)
-				end
-
-				numbers[id] = clamp(whole(value), RANGES[id])
-			end
-
-			preset.waves[#preset.waves + 1] = {
-				key = key,
-				name = name ~= "" and name or default.name,
-				recipe = recipe,
-				enabled = parts[3] == "1",
-				pct = numbers.pct,
-				cd = numbers.cd,
-				sp = numbers.sp,
-				re = numbers.re,
-				rf = numbers.rf,
-				dmin = numbers.dmin,
-				dmax = numbers.dmax,
-			}
+		elseif not seen[wave.key] then
+			seen[wave.key] = true
+			wave.name = wave.name ~= "" and wave.name or default.name
+			preset.waves[#preset.waves + 1] = wave
 		end
 	end
 
 	return preset
+end
+
+-- ONE wave as a sealed text: RWW1|<wave>|<check> (the same wave format as inside a preset).
+Presets.encode_wave = function (wave)
+	return Presets.seal(Presets.WAVE_PREFIX .. "|" .. wave_text(wave))
+end
+
+-- Returns the wave (its `key` is the exporter's; the caller decides where it goes) or nil and a message.
+Presets.decode_wave = function (text, Events, Groups)
+	if trim(text):sub(1, #Presets.PREFIX + 1) == Presets.PREFIX .. "|" then
+		return nil, "this is a whole preset, not a single wave: import it on the Presets screen"
+	end
+
+	local fields, problem = open_text(text, Presets.WAVE_PREFIX, "wave")
+
+	if not fields then
+		return nil, problem
+	end
+
+	if #fields ~= 2 then
+		return nil, "the wave text is damaged"
+	end
+
+	return parse_wave(fields[2], Groups)
 end
 
 -- ---------------------------------------------------------------------- slots
