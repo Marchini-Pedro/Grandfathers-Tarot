@@ -106,10 +106,22 @@ return {
 	vote_cast = { en = "Voted %d: %s" },
 
 	-- Wave editor
-	view_title = { en = "Realms Waves: Wave Editor" },
+	view_title = { en = "The Grandfather's Tarot" },
 	view_desc_list = {
-		en = "Every wave that can be drawn. Tick to enable, change the chance weight, or click a wave to rename it and change its enemies. Only the host's settings are used in a session.",
+		en = "Every card that can be drawn. Click a card to put it in or out of the draw; Edit opens it. Only the host's settings are used in a session.",
 	},
+	deck_count = { en = "%d in the draw" },
+	deck_caption = { en = "Chance of being dealt into a hand" },
+	tile_in = { en = "In the draw" },
+	tile_off = { en = "Out of the draw" },
+	tile_cooling = { en = "Back in" },
+	tile_edit = { en = "Edit" },
+	tile_rare = { en = "rare" },
+	tile_repeats = { en = "and it repeats" },
+	tile_more = { en = "+%d more" },
+	tile_no_enemies = { en = "No enemies yet" },
+	tile_blank_title = { en = "Name it" },
+	tile_blank_hint = { en = "Pick a suit and add enemies. The threat is worked out for you." },
 	view_desc_detail = { en = "Editing: %s" },
 	view_desc_picker = { en = "Pick an enemy to add to: %s" },
 	col_on = { en = "On" },
@@ -120,10 +132,10 @@ return {
 	col_enemy = { en = "Enemy" },
 	col_count = { en = "Weight" },
 	col_id = { en = "Breed id" },
-	bottom_list_title = { en = "Custom slots are empty until you add enemies to them" },
+	bottom_list_title = { en = "The two numbers are the time between cards. The blank card makes a card of your own." },
 	bottom_detail_title = { en = "%s: %d enemies in total" },
 	hint_list = {
-		en = "Click a wave's row to edit it (rename it, change its enemies, chance, cooldown and more). The share column is each wave's chance as a part of all enabled waves, so the shares always add up to 100 percent. Set a weight to 0 or untick a wave to remove it from the draw. Press Create on an empty Custom slot (or click it) to build your own wave. Delete removes any wave, the default ones too (they stay hidden until you press Restore defaults, which also resets every other change). The two numbers at the bottom are the time between waves; More options (top right) has the rest of the timing, voting and display settings.",
+		en = "Click a card to put it in or out of the draw (a card out of the draw is dimmed). Edit in the corner of a card opens it: name, enemies, weight, cooldown and more. The ten pips are the card's weight; the strip above shows how likely each card is to be dealt into a hand. The blank card makes a card of your own. Spreads (top right) saves and loads whole setups. Delete (inside a card) removes any card, the default ones too: they stay hidden until you press Restore defaults, which also resets every other change. The two numbers at the bottom are the time between cards; More options has the rest of the timing and display settings.",
 	},
 	view_desc_mods = { en = "Modifiers for: %s" },
 	col_modifier = { en = "Modifier" },
@@ -180,7 +192,7 @@ return {
 
 	-- Sharing one wave
 	btn_share = { en = "Share wave" },
-	btn_wimport = { en = "Import wave" },
+	btn_wimport = { en = "Import card" },
 	popup_share_title = { en = "Share: %s" },
 	popup_share_hint_copied = { en = "Copied to your clipboard. To import a friend's wave OVER THIS wave, paste it here and press OK." },
 	popup_share_hint = { en = "Press Ctrl+A then Ctrl+C to copy. To import a friend's wave OVER THIS wave, paste it here and press OK." },
@@ -192,7 +204,7 @@ return {
 	msg_no_free_slot = { en = "All custom slots are in use. Delete one first, or open a wave and use Share to import over it." },
 
 	-- Presets
-	btn_presets = { en = "Presets" },
+	btn_presets = { en = "Spreads" },
 	btn_open = { en = "Open" },
 	btn_pload = { en = "Load this setup" },
 	btn_psave = { en = "Save current waves here" },

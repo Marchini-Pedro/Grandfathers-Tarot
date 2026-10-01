@@ -14,7 +14,7 @@ MODROOT = os.path.abspath(os.path.join(HERE, "..")).replace("\\", "/")
 lua = LuaRuntime(unpack_returned_tuples=True)
 
 harness = r'''
-local MODROOT = ...
+local MODROOT, DUMP = ...
 local BASE = MODROOT .. "/scripts/mods/RealmsWaves"
 
 -- ---- engine stubs ---------------------------------------------------------
@@ -110,6 +110,7 @@ mod.rw = {
   groups = dofile(BASE .. "/catalog/groups.lua"),
   presets = dofile(BASE .. "/catalog/presets.lua"),
   colors = dofile(BASE .. "/catalog/colors.lua"),
+  cards = dofile(BASE .. "/catalog/cards.lua"),
 }
 
 local results = {}
@@ -137,14 +138,78 @@ local function row(i) return view._widgets_by_name["rw_row_" .. i] end
 local function click(widget_name, hotspot) view._widgets_by_name[widget_name].content[hotspot or "hotspot"].pressed_callback() end
 local function click_row(i, hotspot) row(i).content[hotspot].pressed_callback() end
 
--- list screen
-check("list: 32 waves (12 standard + 20 custom)", #view._waves == 32, #view._waves)
-check("list: first row is The Fool (the old Small Wave)", row(1).content.row_name == "The Fool" and row(1).visible, row(1).content.row_name)
-check("list: composition summary", row(1).content.info:find("8 Poxwalker") ~= nil, row(1).content.info)
-check("list: row flags (every wave with enemies has a Delete button)", row(1).content.show_check and row(1).content.show_stepper and row(1).content.show_share and row(1).content.show_action and row(1).content.hotspot_action_text == "btn_delete")
-check("list: share shown", row(1).content.share == "10.6%", row(1).content.share)
-check("list: 10 rows visible", row(10).visible and view._offset == 0)
-check("list: buttons hidden", not view._widgets_by_name.btn_back.visible and not view._widgets_by_name.stepper_chance.visible)
+-- the Deck: the home screen is a grid of card tiles
+local D = view._widgets_by_name
+local function tile(i) return view._widgets_by_name["rw_tile_" .. i] end
+local function click_tile(i, hotspot) tile(i).content[hotspot or "hotspot_top"].pressed_callback() end
+local function open_card(i) click_tile(i, "hotspot_edit") end
+local function blank_tile() return view._widgets_by_name.rw_tile_blank end
+local function plain(text) return (text:gsub("{#[^}]*}", "")) end
+
+check("deck: the model still has 32 waves (12 standard + 20 custom slots)", #view._waves == 32, #view._waves)
+check("deck: 12 cards and the blank tile (the empty custom slots are not cards)", #view._deck == 13 and view._deck[13].blank == true and view._deck_free ~= nil and view._deck_free.key == "custom_1", #view._deck)
+check("deck: page one shows 12 tiles, the blank tile in slot 13, no more", tile(1).visible and tile(12).visible and not tile(13).visible and not tile(14).visible and blank_tile().visible)
+check("deck: the old table is gone (rows, header and panel hidden)", not row(1).visible and not D.list_header.visible and not D.list_panel.visible)
+check("deck: tiles sit in a grid of 7 columns (228 wide, 14 apart) from (120, 206)", view._sg.rw_tile_1[1] == 120 and view._sg.rw_tile_1[2] == 206 and view._sg.rw_tile_2[1] == 120 + 242 and view._sg.rw_tile_8[1] == 120 and view._sg.rw_tile_8[2] == 206 + 262 + 14 and view._sg.rw_tile_blank[1] == 120 + 242 * 5 and view._sg.rw_tile_blank[2] == 206 + 276)
+check("deck: the grid and the scroll buttons stay on the screen and above the bottom panel", view._sg.rw_tile_7[1] + 228 <= 1815 and view._sg.rw_tile_8[2] + 262 <= 750 and view._sg.scroll_up[1] == 1826 and view._sg.scroll_up[2] == 206)
+check("deck: first tile is The Fool, a swarm card, 8 Poxwalker on its first line", tile(1).content.name == "The Fool" and tile(1).content.suit_label == "SWARM" and plain(tile(1).content.comp):find("^8 Poxwalker") ~= nil, plain(tile(1).content.comp))
+check("deck: the whisper of the suit stands under the composition, in quotes", tile(1).content.whisper == "\"Too many to count.\"")
+check("deck: the swarm mark (four dots) is drawn, no triangles", tile(1).style.icon_c1.visible and tile(1).style.icon_c4.visible and not tile(1).style.icon_t1.visible)
+check("deck: ten weight pips, five filled for a weight of 5 (accent, opaque), five empty (frame, faint)", tile(1).style.pip_5.color[1] == 255 and tile(1).style.pip_6.color[1] == 130 and tile(1).style.pip_10.visible)
+check("deck: the state line says the card is in the draw, with a glow and its Edit corner", tile(1).content.state_left == "tile_in" and tile(1).content.state_clock == "" and tile(1).style.glow.visible and tile(1).content.edit_label == "tile_edit" and tile(1).alpha_multiplier == 1)
+check("deck: threat diamonds and one dot per enemy colour", tile(1).style.th_o1.visible and tile(1).style.th_o5.visible and tile(1).style.dot_1.visible)
+check("deck: header 'N in the draw', caption, and the strip has a segment per card in the draw", D.deck_count.content.deck_count == "deck_count:12" and D.deck_caption.content.deck_caption == "deck_caption" and #view._strip_segments == 12 and D.rw_strip.style.seg_12.visible and not D.rw_strip.style.seg_13.visible)
+check("deck: the strip is as wide as its track (segments and gaps add up to 1710)", (function() local s = view._strip_segments; local last = s[#s]; return math.abs(last.x + last.w - 1710) < 1e-6 end)())
+check("deck: buttons: Spreads (top right) and Import card / Restore defaults at the bottom, no Back, the time steppers", D.btn_presets.visible and D.btn_presets.content.hotspot_text == "btn_presets" and D.btn_wimport.visible and D.btn_default.visible and not D.btn_back.visible and D.stepper_tmin.visible and D.stepper_tmax.visible)
+check("deck: nothing of the detail screen shows", not D.btn_rename.visible and not D.btn_delete.visible and not D.stepper_chance.visible)
+
+-- the Deck's arithmetic (ui/deck.lua) ---------------------------------------------------------------------------------------
+do
+  local DM = dofile(BASE .. "/ui/deck.lua")
+  local x1, y1 = DM.tile_pos(1)
+  local x7, y7 = DM.tile_pos(7)
+  local x8, y8 = DM.tile_pos(8)
+  local x14, y14 = DM.tile_pos(14)
+  check("deck math: 7 columns, 2 rows, 14 tiles a page; tiles 228 x 262, 14 apart", DM.COLS == 7 and DM.ROWS == 2 and DM.CAPACITY == 14 and DM.TILE_W == 228 and DM.TILE_H == 262 and DM.GAP == 14)
+  check("deck math: tile positions (row by row)", x1 == 120 and y1 == 206 and x7 == 120 + 6 * 242 and y7 == 206 and x8 == 120 and y8 == 206 + 276 and x14 == 120 + 6 * 242 and y14 == 206 + 276)
+  check("deck math: the grid is centred in the 1710 wide panel at x 105 and ends above the bottom panel (y 750)", x7 + 228 == 1800 and (105 + 1710) - (x7 + 228) == 120 - 105 and y14 + 262 <= 750)
+  check("deck math: the last page starts on a row: max offsets", DM.max_offset(0) == 0 and DM.max_offset(12) == 0 and DM.max_offset(14) == 0 and DM.max_offset(15) == 7 and DM.max_offset(21) == 7 and DM.max_offset(22) == 14 and DM.max_offset(33) == 21)
+  check("deck math: offsets are clamped and rounded down to a whole row", DM.clamp_offset(5, 30) == 0 and DM.clamp_offset(9, 30) == 7 and DM.clamp_offset(100, 23) == 14 and DM.clamp_offset(-4, 23) == 0 and DM.clamp_offset(7, 10) == 0)
+  check("deck math: weight pips: rounded, 0 to 10", DM.pips(0) == 0 and DM.pips(4.4) == 4 and DM.pips(4.5) == 5 and DM.pips(10) == 10 and DM.pips(50) == 10 and DM.pips(nil) == 0 and DM.pips(-3) == 0 and DM.pips("7") == 7)
+  check("deck math: states: off, in the draw, resting (an off card never rests)", DM.state({ enabled = false }, 0) == "off" and DM.state({ enabled = true }, 0) == "in" and DM.state({ enabled = true }, 5) == "cooling" and DM.state({ enabled = false }, 50) == "off" and DM.state({ enabled = true }) == "in")
+  check("deck math: clock text rounds up to whole seconds", DM.clock_text(75) == "1:15" and DM.clock_text(0) == "0:00" and DM.clock_text(59.2) == "1:00" and DM.clock_text(-5) == "0:00" and DM.clock_text(600) == "10:00")
+
+  local out = {}
+  local n = DM.strip_segments({ { weight = 1, key = "a" }, { weight = 1, key = "b" }, { weight = 1, key = "c" }, { weight = 1, key = "d" } }, 1000, out)
+  check("strip: equal weights give equal segments, 2 apart, ending exactly at the width", n == 4 and math.abs(out[1].w - 248.5) < 1e-9 and math.abs(out[2].x - 250.5) < 1e-9 and math.abs(out[4].x + out[4].w - 1000) < 1e-9 and out[3].key == "c")
+  n = DM.strip_segments({ { weight = 1, key = "a" }, { weight = 3, key = "b" } }, 1000, out)
+  check("strip: a weight three times higher is a segment three times wider (trailing entries are dropped)", n == 2 and #out == 2 and math.abs(out[2].w / out[1].w - 3) < 1e-9 and math.abs(out[2].x + out[2].w - 1000) < 1e-9)
+  n = DM.strip_segments({ { weight = 1000, key = "big" }, { weight = 1, key = "tiny" }, { weight = 0, key = "zero" } }, 1000, out)
+  check("strip: a very light card still gets 3 units, and the total still fits", n == 3 and out[2].w == 3 and out[3].w == 3 and math.abs(out[3].x + out[3].w - 1000) < 1e-9 and out[1].w > 900, out[1].w .. "/" .. out[2].w)
+  check("strip: no card in the draw = no segments", DM.strip_segments({}, 1000, out) == 0 and #out == 0)
+
+  local fake_groups = {
+    display_name = function(b) return ({ chaos_poxwalker = "Poxwalker", renegade_rifleman = "Rifleman", chaos_hound = "Hound", chaos_spawn = "Chaos Spawn", chaos_beast_of_nurgle = "Beast of Nurgle" })[b] or b end,
+    has_repeat = function(parts) for _, p in ipairs(parts) do if p.rep or p.rep_same then return true end end return false end,
+  }
+  local function tag(text, rgb) return rgb and ("<" .. text .. ">") or text end
+  local lines = DM.comp_lines({ { breed = "chaos_poxwalker", count = 8 }, { breed = "renegade_rifleman", count = 2 } }, fake_groups, function() return { 1, 2, 3 } end, tag, { 9, 9, 9 }, "and it repeats", function(n) return "+" .. n .. " more" end)
+  check("comp lines: one per group, count and enemy name", #lines == 2 and lines[1] == "<8> <Poxwalker>" and lines[2] == "<2> <Rifleman>", table.concat(lines, "|"))
+  lines = DM.comp_lines({ { breed = "chaos_poxwalker", count = 8 } }, fake_groups, nil, nil, nil)
+  check("comp lines: plain text without colours", lines[1] == "8 Poxwalker")
+  local many = {}
+  for i = 1, 6 do many[i] = { breed = "chaos_hound", count = i } end
+  lines = DM.comp_lines(many, fake_groups, nil, nil, nil, nil, function(n) return "+" .. n .. " more" end)
+  check("comp lines: more than four groups: three lines and '+3 more'", #lines == 4 and lines[4] == "+3 more" and lines[1] == "1 Hound", table.concat(lines, "|"))
+  lines = DM.comp_lines({ { breed = "chaos_hound", count = 5, rep = 2 } }, fake_groups, nil, nil, nil, "and it repeats")
+  check("comp lines: a group that repeats adds the note when there is room", #lines == 2 and lines[2] == "and it repeats")
+  lines = DM.comp_lines({ { one_of = { "chaos_hound", "chaos_spawn" }, count = 1 } }, fake_groups, function() return { 1, 2, 3 } end, tag, { 9, 9, 9 })
+  check("comp lines: a random group reads '1 of A / B' (the count is the number of picks; the names are not coloured)", lines[1] == "<1> of Hound / Chaos Spawn", lines[1])
+  lines = DM.comp_lines({ { one_of = { "chaos_spawn", "chaos_beast_of_nurgle" }, count = 1 } }, fake_groups, nil, nil, nil)
+  check("comp lines: a long random group is cut like any long line", #lines[1] <= DM.COMP_CHARS and lines[1]:sub(-3) == "...", lines[1])
+  lines = DM.comp_lines({ { breed = "this_is_a_very_long_enemy_name_indeed", count = 12 } }, fake_groups, nil, nil, nil)
+  check("comp lines: a long name is cut so a line fits the tile", #lines[1] <= DM.COMP_CHARS and lines[1]:sub(-3) == "...", lines[1])
+end
 
 -- Engine semantics of visibility_function (scripts/managers/ui/ui_widget.lua:411-446): it receives
 -- content[content_id] for passes with a content_id (hotspots), the widget content otherwise, and
@@ -165,20 +230,21 @@ end
 local function pass_by_style(w, style_id)
   for _, p in ipairs(w.def.passes) do if p.style_id == style_id then return p end end
 end
-local r1 = row(1)
-view._waves[1].modified = true; view:_refresh_rows() -- a changed standard wave shows its Reset button
-check("engine rule: list row hotspots run (hover/click work)", hotspot_runs(r1, "hotspot_name") and hotspot_runs(r1, "hotspot_check") and hotspot_runs(r1, "hotspot_minus") and hotspot_runs(r1, "hotspot_value") and hotspot_runs(r1, "hotspot_plus") and hotspot_runs(r1, "hotspot_action"))
-check("engine rule: hidden hotspot (Mods) does not run on the list", not hotspot_runs(r1, "hotspot_mods"))
-r1.content.hotspot_action.is_hover = true
-check("engine rule: action button hover layers show while hovered", pass_visible(r1, pass_by_style(r1, "hotspot_action_highlight")) and pass_visible(r1, pass_by_style(r1, "hotspot_action_frame")))
-r1.content.hotspot_action.is_hover = false
-check("engine rule: no hover layer when not hovered", not pass_visible(r1, pass_by_style(r1, "hotspot_action_highlight")))
-view._waves[1].modified = nil; view:_refresh_rows()
-local bg = pass_by_style(r1, "row_background")
-r1.content.hotspot_name.is_hover = true; bg.change_function(r1.content, r1.style.row_background)
-local hover_col = r1.style.row_background.color[2]
-r1.content.hotspot_name.is_hover = false; bg.change_function(r1.content, r1.style.row_background)
-check("row background highlights on hover", hover_col ~= r1.style.row_background.color[2], hover_col .. " vs " .. r1.style.row_background.color[2])
+local bg = pass_by_style(tile(1), "bg")
+tile(1).content.hotspot_top.is_hover = true; bg.change_function(tile(1).content, tile(1).style.bg)
+local hover_col = tile(1).style.bg.color[2]
+tile(1).content.hotspot_top.is_hover = false; bg.change_function(tile(1).content, tile(1).style.bg)
+check("a tile takes the suit's lighter colour while the pointer is on it (swarm: card #1b1d17, selected #262a1f)", hover_col == 0x26 and tile(1).style.bg.color[2] == 0x1b, hover_col .. " vs " .. tile(1).style.bg.color[2])
+check("engine rule: the three hotspots of a tile run (hover and click work)", hotspot_runs(tile(1), "hotspot_top") and hotspot_runs(tile(1), "hotspot_state") and hotspot_runs(tile(1), "hotspot_edit") and hotspot_runs(blank_tile(), "hotspot"))
+check("a tile's hotspots do not overlap (a click would reach two of them)", (function()
+  local boxes = {}
+  for _, p in ipairs(tile(1).def.passes) do if p.pass_type == "hotspot" then boxes[#boxes + 1] = { p.style.offset[1], p.style.offset[2], p.style.size[1], p.style.size[2] } end end
+  for i = 1, #boxes do for j = i + 1, #boxes do
+    local a, b = boxes[i], boxes[j]
+    if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4] then return false end
+  end end
+  return #boxes == 3
+end)())
 -- every widget: every visibility/change function runs without error under engine semantics
 local bad = {}
 for name, w in pairs(view._widgets_by_name) do
@@ -196,30 +262,66 @@ for name, w in pairs(view._widgets_by_name) do
 end
 check("engine rule: no visibility/change function errors in any widget", #bad == 0, table.concat(bad, " | "))
 
--- scrolling
-click("rw_scroll_down"); check("scroll down moves offset", view._offset == 1)
-click("rw_scroll_up"); check("scroll up returns", view._offset == 0)
-view._offset = 25; view:_refresh_rows()
-check("last page shows custom slots", row(1).content.row_name:find("Custom") ~= nil and row(1).content.info == "row_empty_slot", row(1).content.row_name)
-view._offset = 0; view:_refresh_rows()
+-- scrolling: a page is two rows of seven cards; 12 cards need none
+check("deck: nothing to scroll with 12 cards: both scroll buttons are disabled", view._offset == 0 and view:_max_offset() == 0 and D.rw_scroll_up.content.hotspot.disabled == true and D.rw_scroll_down.content.hotspot.disabled == true)
+for i = 1, 10 do settings["wave_def_custom_" .. i] = "Card " .. i .. "\t3 hounds" end
+view:_reload(); view:_apply_screen()
+check("deck: with ten custom cards there are 22 cards and the blank tile: three rows, two scroll steps", #view._deck == 23 and view:_max_offset() == 14 and D.rw_scroll_down.content.hotspot.disabled == false and D.rw_scroll_up.content.hotspot.disabled == true, view:_max_offset())
+click("rw_scroll_down")
+check("deck: scrolling moves one row of seven cards", view._offset == 7 and tile(1).content.name == view._deck[8].name, view._offset)
+click("rw_scroll_down"); click("rw_scroll_down")
+check("deck: ...down to the last page and no further; the blank tile is on it", view._offset == 14 and tile(1).content.name == view._deck[15].name and tile(8).visible and not tile(9).visible and blank_tile().visible and D.rw_scroll_down.content.hotspot.disabled == true, tostring(view._offset))
+click("rw_scroll_up"); click("rw_scroll_up"); click("rw_scroll_up")
+check("deck: ...and back up to the first page", view._offset == 0 and D.rw_scroll_up.content.hotspot.disabled == true)
+local wheel = { get = function(self, name) if name == "scroll_axis" then return { 0, -1 } end return nil end, is_null_service = function() return false end }
+view:update(0.01, 0, wheel)
+check("deck: the mouse wheel scrolls a row of seven too", view._offset == 7, view._offset)
+view._offset = 0
+for i = 1, 10 do settings["wave_def_custom_" .. i] = nil end
+view:_reload(); view:_apply_screen()
 
--- checkbox toggles enabled, stepper changes chance
-click_row(2, "hotspot_check")
-check("toggle enabled off", settings["on_wave_medium"] == false and row(2).content.checkbox_selected == false)
-click_row(2, "hotspot_check")
-check("toggle enabled on", settings["on_wave_medium"] == true and row(2).content.checkbox_selected == true)
-click_row(1, "hotspot_plus")
-check("chance +1", settings["pct_wave_small"] == 6 and row(1).content.stepper_value == "6", settings["pct_wave_small"])
-click_row(1, "hotspot_minus"); click_row(1, "hotspot_minus")
-check("chance -2", settings["pct_wave_small"] == 4)
+-- a tile toggles its card in and out of the draw
+click_tile(2)
+check("toggle: clicking a tile puts the card out of the draw: dimmed, no glow, 11 in the draw", settings["on_wave_medium"] == false and tile(2).content.state_left == "tile_off" and tile(2).alpha_multiplier == 0.55 and not tile(2).style.glow.visible and D.deck_count.content.deck_count == "deck_count:11" and #view._strip_segments == 11)
+click_tile(2, "hotspot_state")
+check("toggle: the left of the state line does the same: back in the draw", settings["on_wave_medium"] == true and tile(2).content.state_left == "tile_in" and tile(2).alpha_multiplier == 1 and D.deck_count.content.deck_count == "deck_count:12" and #view._strip_segments == 12)
+-- hovering a tile shows its name over the strip and raises its segment; the Edit corner lights up
+tile(3).content.hotspot_top.is_hover = true
+view:update(0.01, 0, input_stub_deck or { get = function() return nil end, is_null_service = function() return false end })
+check("hover: the caption names the tile under the pointer (no percentage anywhere) and its strip segment is raised", D.deck_hover.content.deck_hover == tile(3).content.name and view._deck_hover == "wave_large" and D.rw_strip.style.seg_3.offset[2] < 0 and D.rw_strip.style.seg_1.offset[2] == 0)
+tile(3).content.hotspot_top.is_hover = false; tile(3).content.hotspot_edit.is_hover = true
+view:update(0.01, 0, { get = function() return nil end, is_null_service = function() return false end })
+check("hover: the Edit corner has its own highlight", tile(3).style.edit_bg.visible and view._deck_hover == "wave_large")
+tile(3).content.hotspot_edit.is_hover = false
+view:update(0.01, 0, { get = function() return nil end, is_null_service = function() return false end })
+check("hover: and everything goes back when the pointer leaves", D.deck_hover.content.deck_hover == "" and not tile(3).style.edit_bg.visible and D.rw_strip.style.seg_3.offset[2] == 0)
+-- a resting card, a rare card
+mod.rw.director = { cooldown_remaining = function(key, length) return key == "wave_large" and 75 or 0 end }
+view:_reload(); view:_apply_screen()
+check("cooldown: a card that is resting shows 'Back in' and its clock on its tile", tile(3).content.state_left == "tile_cooling" and tile(3).content.state_clock == "1:15" and tile(3).content.card_state == "cooling", tostring(tile(3).content.state_clock))
+check("cooldown: a resting card is still in the draw (it counts in 'N in the draw')", D.deck_count.content.deck_count == "deck_count:12")
+mod.rw.director = nil
+settings.pct_boss_ambush = 2
+view:_reload(); view:_apply_screen()
+check("rare: a card with weight 2 or less has the pus-yellow outline and says rare", tile(5).content.suit_label:find("TILE_RARE", 1, true) ~= nil and tile(5).style.border_t.color[2] == 227 and tile(5).style.border_t.color[3] == 207 and tile(5).style.glow.color[1] == 110)
+settings.pct_boss_ambush = nil
+view:_reload(); view:_apply_screen()
 
--- open detail (click the row)
-click_row(1, "hotspot_name")
+-- the blank tile makes a card in the first free custom slot
+blank_tile().content.hotspot.pressed_callback()
+check("blank tile: opens the first free custom slot (empty), its card screen", view._screen == "detail" and view._key == "custom_1" and #view._parts == 0 and view._wave.is_custom)
+click("btn_back")
+check("blank tile: Back returns to the Deck", view._screen == "list" and blank_tile().visible)
+
+-- open a card with the Edit corner
+settings["pct_wave_small"] = 4
+open_card(1)
 check("detail: screen and title", view._screen == "detail" and view._widgets_by_name.description_text.content.description_text == "view_desc_detail:The Fool")
 check("detail: composition rows", row(1).content.row_name == "8 Poxwalker" and row(4).content.row_name == "2 Rifleman" and not row(5).visible, row(1).content.row_name)
 check("detail: row flags", not row(1).content.show_check and row(1).content.show_stepper and not row(1).content.show_share and row(1).content.show_action)
-check("detail: buttons visible", view._widgets_by_name.btn_rename.visible and view._widgets_by_name.btn_add.visible and view._widgets_by_name.stepper_cooldown.visible)
+check("detail: buttons visible", view._widgets_by_name.btn_rename.visible and view._widgets_by_name.btn_add.visible and view._widgets_by_name.stepper_cooldown.visible and view._widgets_by_name.btn_delete.visible)
 check("detail: steppers show values", view._widgets_by_name.stepper_chance.content.stepper_value == "4" and view._widgets_by_name.stepper_cooldown.content.stepper_value == "120")
+check("detail: the Deck's widgets are hidden", not tile(1).visible and not blank_tile().visible and not D.rw_strip.visible and not D.deck_count.visible and D.list_panel.visible and D.list_header.visible and view._sg.scroll_up[1] == 1771)
 
 -- count stepper writes an override
 click_row(1, "hotspot_plus")
@@ -548,8 +650,8 @@ end
 click("btn_reset")
 check("reset restores spread/repeat defaults", settings["sp_wave_small"] == 3 and settings["re_wave_small"] == 10 and settings["rf_wave_small"] == 60)
 click("btn_back")
-check("list screen: repeat column header cleared, steppers hidden", view._widgets_by_name.list_header.content.col_6 == "" and not S.stepper_spread.visible and not row(1).content.show_rep)
-click_row(1, "hotspot_name")
+check("list screen: repeat column header cleared, steppers hidden", view._widgets_by_name.list_header.content.col_6 == "" and not S.stepper_spread.visible and not row(1).visible)
+open_card(1)
 
 -- rename via popup
 click("btn_rename")
@@ -606,8 +708,7 @@ view:_on_back_pressed()
 check("back key on list closes view", Managers.ui.closed == "realms_waves_editor")
 
 -- custom slot workflow
-view._offset = 12; view:_refresh_rows()
-click_row(1, "hotspot_action")
+blank_tile().content.hotspot.pressed_callback()
 check("custom slot detail (empty)", view._screen == "detail" and #view._parts == 0 and view._wave.is_custom and view._widgets_by_name.btn_reset.content.hotspot_text == "btn_reset_clear")
 click("btn_add"); view._offset = 0
 click_row(3, "hotspot_action")
@@ -616,7 +717,7 @@ click_row(1, "hotspot_plus")
 click("btn_enabled")
 check("custom: enabled and in pool", settings["on_custom_1"] == true and #mod.rw.events.build_pool(function(id) return settings[id] end, mod.rw.groups) == 13)
 
--- row actions (Delete / Create / Reset), colours, settings screen ------------------------------------------------
+-- the Deck's colours, Delete (in the card's own screen), Restore defaults ---------------------------------------------------
 do
   local C = mod.rw.colors
   local spidey = { crusher_front_colour = "turquoise" }
@@ -625,13 +726,12 @@ do
   local input_stub3 = { get = function() return nil end, is_null_service = function() return false end }
 
   click("btn_back")
-  check("list: a standard wave shows Delete too", row(1).content.show_action and row(1).content.hotspot_action_text == "btn_delete")
+  check("deck: back on the Deck, the custom card with enemies has its tile (after the standard cards)", view._screen == "list" and view._deck[13].key == "custom_1" and tile(13).visible and tile(13).content.name == "Custom 1" and blank_tile().visible)
 
-  -- colours
-  local plain = view._widgets_by_name.rw_row_1.content.info:gsub("{#[^}]*}", "")
-  check("colours: list summary carries colour tags, visible text unchanged", row(1).content.info:find("{#color(", 1, true) ~= nil and plain == mod.rw.groups.summary(view._waves[1].parts, 95), plain)
+  -- colours on the tiles
+  check("colours: the composition on a tile carries colour tags, the visible text is the plain lines", tile(1).content.comp:find("{#color(", 1, true) ~= nil and plain(tile(1).content.comp):find("^8 Poxwalker\n") ~= nil, plain(tile(1).content.comp))
   settings.colour_enemies = false; view:_refresh_rows()
-  check("colours: switched off -> plain text", row(1).content.info:find("{#", 1, true) == nil)
+  check("colours: switched off -> plain text", tile(1).content.comp:find("{#", 1, true) == nil)
   settings.colour_enemies = nil; view:_refresh_rows()
   check("colours: kind palette (poxwalker is normal, hound is special, spawn is boss)", table.concat(C.rgb("chaos_poxwalker"), ",") == "135,135,135" and table.concat(C.rgb("chaos_hound"), ",") == "255,235,40" and table.concat(C.rgb("chaos_spawn"), ",") == "255,50,50")
   check("colours: Spidey Sense colour wins for the enemies it knows (crusher)", table.concat(C.rgb("chaos_ogryn_executor"), ",") == "64,224,208")
@@ -642,7 +742,7 @@ do
   check("colours: unknown Spidey Sense colour name falls back to the palette", table.concat(C.rgb("chaos_ogryn_executor"), ",") == "240,240,240")
   spidey.crusher_front_colour = "turquoise"; C.clear_cache()
 
-  click_row(1, "hotspot_name")
+  open_card(1)
   check("colours: detail rows colour the enemy name", table.concat({ table.unpack(row(1).style.row_name.text_color, 2, 4) }, ",") == "135,135,135", table.concat(row(1).style.row_name.text_color, ","))
   click("btn_back"); click("btn_add")
   local crusher_row
@@ -655,45 +755,43 @@ do
   view._offset = 0
   click("btn_back"); click("btn_back")
 
-  -- Delete / Create / Reset
-  view._offset = 12; view:_refresh_rows()
-  check("actions: custom slot with enemies shows Delete, empty slots show Create", row(1).content.hotspot_action_text == "btn_delete" and row(2).content.hotspot_action_text == "btn_create" and row(1).content.show_action, row(1).content.hotspot_action_text .. "/" .. row(2).content.hotspot_action_text)
-  click_row(1, "hotspot_action")
-  check("actions: first click on Delete only asks 'Sure?'", row(1).content.hotspot_action_text == "btn_sure" and view._screen == "list")
-  check("actions: the custom wave is still there", #view._waves[13].parts == 1 and settings["on_custom_1"] == true)
-  click_row(1, "hotspot_action")
-  check("actions: second click deletes it (slot emptied, wave off)", (view._waves[13].parts == nil or #view._waves[13].parts == 0) and settings["on_custom_1"] == false and row(1).content.hotspot_action_text == "btn_create")
+  -- Delete: the card's own screen has the button, the first click asks, the second one does it
+  view:_open_detail("custom_1")
+  check("delete: the card's screen has a Delete button", view._widgets_by_name.btn_delete.visible and view._widgets_by_name.btn_delete.content.hotspot_text == "btn_delete")
+  click("btn_delete")
+  check("delete: the first click only asks 'Sure?'", view._widgets_by_name.btn_delete.content.hotspot_text == "btn_sure" and view._screen == "detail" and settings["on_custom_1"] == true and #view._waves[13].parts == 1)
+  click("btn_delete")
+  check("delete: the second click empties the custom card and returns to the Deck", view._screen == "list" and settings["on_custom_1"] == false and (view._waves[13].parts == nil or #view._waves[13].parts == 0) and view._deck[13].blank == true and not tile(13).visible)
   -- the confirmation runs out
-  settings["wave_def_custom_3"] = "Temp\t3 hounds"; view:_reload(); view:_refresh_rows()
-  click_row(3, "hotspot_action")
-  check("actions: pending confirmation shown", row(3).content.hotspot_action_text == "btn_sure")
+  settings["wave_def_custom_3"] = "Temp\t3 hounds"; view:_reload(); view:_open_detail("custom_3")
+  click("btn_delete")
+  check("delete: pending confirmation shown", view._widgets_by_name.btn_delete.content.hotspot_text == "btn_sure")
   view:update(0.01, 100, input_stub3)
-  check("actions: the confirmation expires after a few seconds", row(3).content.hotspot_action_text == "btn_delete" and view._confirm == nil)
-  view._confirm = nil; settings["wave_def_custom_3"] = ""; view._offset = 0; view:_reload(); view:_refresh_rows()
+  check("delete: the confirmation expires after a few seconds", view._widgets_by_name.btn_delete.content.hotspot_text == "btn_delete" and view._confirm == nil)
+  click("btn_back"); settings["wave_def_custom_3"] = ""; view._offset = 0; view:_reload(); view:_apply_screen()
 
-  -- any wave can be deleted, the default ones too; Restore defaults brings everything back
-  local first_name = row(1).content.row_name
+  -- any card can be deleted, the default ones too; Restore defaults brings everything back
   settings["pct_wave_small"] = 33
-  settings["wave_def_wave_small"] = "My Small\t4 hounds"; view:_reload(); view:_refresh_rows()
-  check("actions: a changed standard wave shows Delete", row(1).content.show_action and row(1).content.hotspot_action_text == "btn_delete")
-  click_row(1, "hotspot_action")
-  check("actions: deleting a standard wave also asks 'Sure?' first", row(1).content.hotspot_action_text == "btn_sure" and settings["del_wave_small"] ~= true)
-  click_row(1, "hotspot_action")
-  check("actions: second click hides the standard wave (it is deleted)", settings["del_wave_small"] == true and row(1).content.row_name ~= "My Small" and #view._waves == 31 and view._deleted_count == 1, tostring(row(1).content.row_name) .. " " .. #view._waves)
-  check("actions: the list says how many default waves are deleted", view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_deleted:1")
+  settings["wave_def_wave_small"] = "My Small\t4 hounds"; view:_reload(); view:_apply_screen()
+  check("delete: a changed standard card shows its new name on its tile", tile(1).content.name == "My Small")
+  view:_open_detail("wave_small"); click("btn_delete")
+  check("delete: deleting a standard card asks 'Sure?' first too", view._widgets_by_name.btn_delete.content.hotspot_text == "btn_sure" and settings["del_wave_small"] ~= true)
+  click("btn_delete")
+  check("delete: the second click hides the standard card (it is deleted)", settings["del_wave_small"] == true and tile(1).content.name ~= "My Small" and #view._waves == 31 and view._deleted_count == 1 and view._screen == "list", tostring(tile(1).content.name) .. " " .. #view._waves)
+  check("delete: the Deck says how many default cards are deleted", view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_deleted:1")
   local pool_has = false; for _, e in ipairs(mod.rw.events.build_pool(function(id) return settings[id] end, mod.rw.groups)) do if e.key == "wave_small" then pool_has = true end end
-  check("actions: a deleted wave is not drawn and not found by /rw_test", not pool_has and select(1, mod.rw.events.find("my_small", function(id) return settings[id] end, mod.rw.groups)) == nil)
+  check("delete: a deleted card is not drawn and not found by /rw_test", not pool_has and select(1, mod.rw.events.find("my_small", function(id) return settings[id] end, mod.rw.groups)) == nil)
   -- Restore defaults
-  settings["pct_boss_ambush"] = 99; view:_reload(); view:_refresh_rows()
-  check("actions: Restore defaults button on the list", view._widgets_by_name.btn_default.visible and view._widgets_by_name.btn_default.content.hotspot_text == "btn_default")
+  settings["pct_boss_ambush"] = 99; view:_reload(); view:_apply_screen()
+  check("delete: Restore defaults button on the Deck", view._widgets_by_name.btn_default.visible and view._widgets_by_name.btn_default.content.hotspot_text == "btn_default")
   click("btn_default")
-  check("actions: first click only asks 'Sure?'", view._widgets_by_name.btn_default.content.hotspot_text == "btn_sure" and settings["del_wave_small"] == true)
+  check("delete: first click only asks 'Sure?'", view._widgets_by_name.btn_default.content.hotspot_text == "btn_sure" and settings["del_wave_small"] == true)
   click("btn_default")
-  check("actions: second click restores every wave to the defaults (deleted ones too, custom ones emptied)", settings["del_wave_small"] == false and settings["wave_def_wave_small"] == "" and settings["pct_wave_small"] == 5 and settings["pct_boss_ambush"] ~= 99 and #view._waves == 32 and row(1).content.row_name == "The Fool" and view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_title", tostring(#view._waves))
-  check("actions: the replaced setup is kept for Undo last load", settings.preset_undo ~= nil and settings.preset_undo ~= "")
+  check("delete: second click restores every card to the defaults (deleted ones too, custom ones emptied)", settings["del_wave_small"] == false and settings["wave_def_wave_small"] == "" and settings["pct_wave_small"] == 5 and settings["pct_boss_ambush"] ~= 99 and #view._waves == 32 and tile(1).content.name == "The Fool" and view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_title", tostring(#view._waves))
+  check("delete: the replaced setup is kept for Undo last load", settings.preset_undo ~= nil and settings.preset_undo ~= "")
   settings.preset_undo = nil
   click("btn_default"); view:update(0.01, 500, input_stub3)
-  check("actions: an unconfirmed Restore defaults expires", view._widgets_by_name.btn_default.content.hotspot_text == "btn_default" and view._confirm == nil)
+  check("delete: an unconfirmed Restore defaults expires", view._widgets_by_name.btn_default.content.hotspot_text == "btn_default" and view._confirm == nil)
   settings["wave_def_custom_1"] = "Custom 1\t3 hounds"; settings["on_custom_1"] = true; view:_reload(); view:_apply_screen(true)
 
   -- time between waves on the list screen
@@ -735,7 +833,7 @@ do
   W2.btn_help.content.hotspot.is_hover = true; view:update(0.01, 0, input_stub3)
   check("help: every screen has its own help text", W2.help_text.content.help_text == "hint_settings")
   W2.btn_help.content.hotspot.is_hover = false; click("btn_back")
-  click_row(1, "hotspot_name")
+  open_card(1)
   W2.btn_help.content.hotspot.is_hover = true; view:update(0.01, 0, input_stub3)
   check("help: the wave screen explains the fixed timer, distances and sharing", W2.help_text.content.help_text == "help_detail")
   W2.btn_help.content.hotspot.is_hover = false; view:update(0.01, 0, input_stub3); click("btn_back")
@@ -803,7 +901,7 @@ end
 do
   local input_stub4 = { get = function() return nil end, is_null_service = function() return false end }
   local W = view._widgets_by_name
-  click_row(1, "hotspot_name")
+  open_card(1)
   check("distance: both steppers shown in the detail screen, auto by default", W.stepper_dmin.visible and W.stepper_dmax.visible and W.stepper_dmin.content.stepper_value == "val_auto" and W.stepper_dmin.content.extra == "extra_dist_auto:22" and W.stepper_dmax.content.extra == "extra_dist_auto:65", W.stepper_dmin.content.extra .. "/" .. W.stepper_dmax.content.extra)
   click("stepper_dmin", "hotspot_plus")
   check("distance: + sets 5 m and the label says it is this wave's own value", settings.dmin_wave_small == 5 and W.stepper_dmin.content.stepper_value == "5" and W.stepper_dmin.content.extra == "extra_dist_own")
@@ -828,7 +926,7 @@ do
   local W = view._widgets_by_name
   local inp = { get = function() return nil end, is_null_service = function() return false end }
   local PPt = dofile(BASE .. "/ui/wave_editor_components.lua")
-  click_row(1, "hotspot_name")
+  open_card(1)
   check("timer: stepper in the detail screen, off by default", W.stepper_timer.visible and W.stepper_timer.content.stepper_value == "val_off" and W.stepper_timer.content.extra == "extra_timer_off" and W.stepper_timer.content.label == "lbl_timer")
   check("timer: chance row says nothing special while the timer is off", W.stepper_chance.content.extra:find("extra_share") ~= nil)
   click("stepper_timer", "hotspot_plus")
@@ -854,14 +952,9 @@ do
   settings.ev_wave_small = 90; view:_reload(); view:_apply_screen(true)
   check("timer: with a timer the chance row says the wave is not drawn and the cooldown says it is ignored", W.stepper_chance.content.extra == "extra_timer_wave" and W.stepper_cooldown.content.extra == "extra_timer_ignored")
   click("btn_back")
-  check("timer: the wave list shows 'every 90 s' instead of a share", row(1).content.share == "share_timer:90", tostring(row(1).content.share))
-  check("timer: the timed wave leaves the shares of the others (they total 100 without it)", view._waves[1].timer == 90 and view._total_pct > 0 and row(2).content.share ~= "-")
-  local sum = 0
-  for i = 2, 10 do local sh = tonumber((row(i).content.share or ""):match("^([%d%.]+)")); if sh then sum = sum + sh end end
-  for i = 11, #view._waves do local it = view._waves[i]; local share = view:_share_of(it); if share then sum = sum + share end end
-  check("timer: the visible shares still add up to 100", math.abs(sum - 100) < 0.5, sum)
-  click_row(1, "hotspot_name"); click("btn_reset"); click("btn_back")
-  check("timer: Reset to default clears the timer", settings.ev_wave_small == 0 and row(1).content.share ~= "share_timer:90")
+  check("timer: a card on a fixed timer leaves the draw (12 of the 13 cards with enemies stay), has no strip segment, its tile is still there", D.deck_count.content.deck_count == "deck_count:12" and #view._strip_segments == 12 and tile(1).visible and view._waves[1].timer == 90, D.deck_count.content.deck_count)
+  open_card(1); click("btn_reset"); click("btn_back")
+  check("timer: Reset to default clears the timer and the card is back in the draw", settings.ev_wave_small == 0 and D.deck_count.content.deck_count == "deck_count:13")
 end
 -- cooldown column, random groups, colours that survive the cut -------------------------------------------------------
 do
@@ -870,22 +963,10 @@ do
   local inp = { get = function() return nil end, is_null_service = function() return false end }
   local PPc = dofile(BASE .. "/ui/wave_editor_components.lua")
   view._offset = 0; view:_reload(); view:_apply_screen()
-  check("cooldown: the wave list has a Cooldown column header and a stepper per row", W.list_header.content.col_8 == "col_cooldown" and row(1).content.show_cd == true and row(1).content.cd_value == tostring(math.floor(view._waves[1].cooldown)), tostring(row(1).content.cd_value))
-  check("cooldown: the composition text is narrower on the list (470 px) to make room, full width elsewhere", row(1).style.info.size[1] == 470)
-  local before = math.floor(view._waves[1].cooldown)
-  click_row(1, "hotspot_cd_plus")
-  check("cooldown: + adds 5 s and writes cd_<key>", settings["cd_wave_small"] == before + 5 and row(1).content.cd_value == tostring(before + 5), tostring(settings["cd_wave_small"]))
-  click_row(1, "hotspot_cd_minus"); click_row(1, "hotspot_cd_minus")
-  check("cooldown: - subtracts 5 s", settings["cd_wave_small"] == before - 5)
-  settings["cd_wave_small"] = 2; view:_reload(); view:_apply_screen(true)
-  click_row(1, "hotspot_cd_minus")
-  check("cooldown: never below 0", settings["cd_wave_small"] == 0 and row(1).content.cd_value == "0")
-  click_row(1, "hotspot_cd_value")
-  check("cooldown: clicking the number opens a popup (0 to 3600)", view._popup ~= nil and view._popup.spec.min == 0 and view._popup.spec.max == 3600)
-  view._widgets_by_name.rw_popup_input.content.input_text = "90"; view:update(0.01, 0, inp); PPc.Popup.commit(view)
-  check("cooldown: the popup writes it", settings["cd_wave_small"] == 90 and row(1).content.cd_value == "90")
-  check("cooldown: the cooldown hotspots work like the others (engine rule) and are hidden on other screens", (function() click_row(2, "hotspot_name"); local ok = row(1).content.show_cd == false and row(1).style.info.size[1] == 640; click("btn_back"); return ok end)())
-  check("cooldown: the cooldown stepper of the wave edit screen and the column are the same setting", (function() click_row(1, "hotspot_name"); local ok = W.stepper_cooldown.content.stepper_value == "90"; click("btn_back"); return ok end)())
+  settings["cd_wave_small"] = 90; view:_reload(); view:_apply_screen(true)
+  open_card(1)
+  check("cooldown: the card's own screen shows its cooldown (the old column of the list is gone)", W.stepper_cooldown.content.stepper_value == "90")
+  click("btn_back")
   settings["cd_wave_small"] = nil; view:_reload(); view:_apply_screen(true)
 
   -- random group, the easy way
@@ -926,8 +1007,7 @@ do
   local info = row(1).content.info
   check("cut: modifier names in the Mods column keep their colours when the list is cut at 40 characters", (info:gsub("{#[^}]*}", "")) == "Purple, Enraged, Pus-Hardened Skin, R..." and info:find("{#color(138,43,226)}Purple", 1, true) ~= nil and info:find("{#color(255,54,36)}Enraged", 1, true) ~= nil and info:find("{#color(157,169,75)}Pus-Hardened Skin", 1, true) ~= nil and info:find("{#color(132,156,99)}R{#reset()}", 1, true) ~= nil, info)
   click("btn_back")
-  view._offset = 12; view:_refresh_rows()
-  check("cut: and in the wave list's composition text", row(1).content.info:find("{#color(138,43,226)}Purple", 1, true) ~= nil and row(1).content.info:find("{#color(255,54,36)}Red", 1, true) == nil or row(1).content.info:find("{#color(255,54,36)}Enraged", 1, true) ~= nil, row(1).content.info)
+  check("cut: the tile of the card shows its modifiers as one line", tile(13).content.mods:find("Purple", 1, true) ~= nil and tile(13).content.mods:find("Enraged", 1, true) ~= nil, tostring(tile(13).content.mods))
   view._offset = 0
   view:_open_detail("custom_1"); view._parts = {}; for _, p in ipairs(mod.rw.groups.parse("3 hounds")) do view._parts[#view._parts + 1] = p end; view:_save(); click("btn_back")
 end
@@ -958,8 +1038,9 @@ do
   local function hit(a, b) local ax, ay, aw, ah = rect(a); local bx, by, bw, bh = rect(b); return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah end
   check("corner: 'More options' and '?' sit top right, clear of the title, the description and each other", not hit("btn_settings", "title_text") and not hit("btn_settings", "description_text") and not hit("btn_help", "title_text") and not hit("btn_help", "description_text") and not hit("btn_settings", "btn_help") and sg.btn_help.position[1] + sg.btn_help.size[1] <= 1920)
   check("corner: the help tooltip lies inside the screen and below the corner buttons", sg.help_panel.position[2] > sg.btn_help.position[2] + sg.btn_help.size[2] and sg.help_panel.position[1] + sg.help_panel.size[1] <= 1920 and sg.help_panel.position[2] + sg.help_panel.size[2] <= 1080)
-  check("corner: the Back button does not overlap the Restore defaults / Import / Presets buttons (no click-through)", not hit("btn_back", "btn_default") and not hit("btn_back", "btn_wimport") and not hit("btn_back", "btn_presets"))
-  check("list: the bottom row (Presets, Import wave, Restore defaults) does not overlap", not hit("btn_presets", "btn_wimport") and not hit("btn_wimport", "btn_default") and not hit("btn_presets", "btn_default"))
+  check("corner: the Back button does not overlap the Restore defaults / Import / Spreads buttons (no click-through)", not hit("btn_back", "btn_default") and not hit("btn_back", "btn_wimport") and not hit("btn_back", "btn_presets"))
+  check("deck: the bottom row (Import card, Restore defaults) does not overlap, nor do the header's Spreads, More options, help, count and title", not hit("btn_wimport", "btn_default") and not hit("btn_presets", "btn_settings") and not hit("btn_presets", "btn_help") and not hit("btn_presets", "deck_count") and not hit("deck_count", "title_text") and not hit("btn_settings", "deck_count") and not hit("btn_presets", "title_text"))
+  check("deck: the strip and its captions do not overlap the tiles or the header", not hit("deck_strip", "deck_caption") and not hit("deck_caption", "rw_tile_1") and not hit("deck_strip", "rw_tile_1") and not hit("deck_hover", "rw_tile_1") and not hit("deck_caption", "deck_hover") and not hit("deck_strip", "btn_presets") and not hit("deck_strip", "description_text"))
 end
 -- sharing one wave ------------------------------------------------------------------------------------------------
 do
@@ -976,11 +1057,7 @@ do
   settings["wave_def_custom_4"] = "Pack Attack\t4 hounds, 2 scab rager[enraged]"; settings["on_custom_4"] = true
   settings["pct_custom_4"] = 33; settings["dmin_custom_4"] = 40; settings["dmax_custom_4"] = 90
   view:_reload(); view._offset = 0; view:_refresh_rows()
-  view._offset = 3; view:_refresh_rows()
-  click_row(1, "hotspot_name") -- 4th wave of the 3-offset list is... find it by key instead
-  if view._key ~= "custom_4" then
-    click("btn_back"); view._offset = 0; view:_open_detail("custom_4")
-  end
+  view:_open_detail("custom_4")
   check("share: custom_4 detail open", view._screen == "detail" and view._key == "custom_4" and W.btn_share.visible, tostring(view._key))
   click("btn_share")
   local shared = view._widgets_by_name.rw_popup_input.content.input_text
@@ -1061,8 +1138,8 @@ do
 
     -- widgets shown together on one screen must not overlap and must stay inside the bottom panel
     local screens = {
-      list = { "btn_presets", "btn_wimport", "btn_default", "btn_back", "stepper_tmin", "stepper_tmax" },
-      detail = { "btn_back", "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "btn_share" },
+      list = { "btn_wimport", "btn_default", "btn_back", "stepper_tmin", "stepper_tmax" },
+      detail = { "btn_back", "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "btn_delete", "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "btn_share" },
       picker = { "btn_back", "btn_search", "btn_stay", "btn_random", "btn_random_done" },
       preset_view = { "btn_back", "btn_pload", "btn_psave", "btn_prename", "btn_pexport", "btn_pimport", "btn_pundo", "btn_pclear" },
     }
@@ -1189,9 +1266,55 @@ local errors = {}
 for _, e in ipairs(echoes) do if e:find("^ERROR") then errors[#errors+1] = e end end
 check("no errors logged by guarded callbacks", #errors == 0, table.concat(errors, " | "))
 
+-- DECK_DUMP=<file>: write the tiles of the Deck as JSON (tools/deck_preview.py draws them)
+if DUMP and DUMP ~= "" then
+  local function esc(s) return (tostring(s):gsub("[%c\"\\]", function(c) if c == "\n" then return "\\n" elseif c == "\"" then return "\\\"" elseif c == "\\" then return "\\\\" else return "" end end)) end
+  local function ser(v)
+    if type(v) == "table" then
+      local parts = {}
+      if #v > 0 or next(v) == nil then
+        for i = 1, #v do parts[#parts + 1] = ser(v[i]) end
+        return "[" .. table.concat(parts, ",") .. "]"
+      end
+      for k, x in pairs(v) do if type(x) ~= "function" and k ~= "parent" then parts[#parts + 1] = "\"" .. esc(k) .. "\":" .. ser(x) end end
+      return "{" .. table.concat(parts, ",") .. "}"
+    elseif type(v) == "string" then return "\"" .. esc(v) .. "\""
+    elseif type(v) == "number" then return string.format("%.4f", v)
+    elseif type(v) == "boolean" then return tostring(v) end
+    return "null"
+  end
+  for i = 1, 20 do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil end
+  settings.on_wave_medium = false; settings.pct_boss_ambush = 2
+  settings.wave_def_custom_1 = "The Pale Choir\t24 mauler, 3 crusher[enraged], 2 hound, 1 plague ogryn, 4 sniper"; settings.on_custom_1 = true; settings.su_custom_1 = "murmur"; settings.wh_custom_1 = "They were never quiet."; settings.pct_custom_1 = 8
+  settings.wave_def_custom_2 = "Nurgle's Rage\t8 mutants, 3 hounds"; settings.on_custom_2 = true; settings.su_custom_2 = "rage"; settings.th_custom_2 = 4
+  mod.rw.director = { cooldown_remaining = function(key) return key == "wave_large" and 75 or 0 end }
+  view._screen = "list"; view._offset = 0; view:_reload(); view:_apply_screen()
+  local tiles = {}
+  local function dump_widget(w, x, y)
+    local passes = {}
+    for _, p in ipairs(w.def.passes) do
+      local st = w.style[p.style_id]
+      if st and st.visible ~= false then
+        passes[#passes + 1] = { type = p.pass_type, id = p.style_id, style = st, text = p.value_id and w.content[p.value_id] or nil }
+      end
+    end
+    return { x = x, y = y, alpha = w.alpha_multiplier or 1, passes = passes }
+  end
+  for i = 1, 14 do
+    local w = view._widgets_by_name["rw_tile_" .. i]
+    if w and w.visible then tiles[#tiles + 1] = dump_widget(w, view._sg["rw_tile_" .. i][1], view._sg["rw_tile_" .. i][2]) end
+  end
+  local b = view._widgets_by_name.rw_tile_blank
+  if b.visible then tiles[#tiles + 1] = dump_widget(b, view._sg.rw_tile_blank[1], view._sg.rw_tile_blank[2]) end
+  local strip = dump_widget(view._widgets_by_name.rw_strip, 105, 158)
+  local f = io.open(DUMP, "w")
+  f:write(ser({ tiles = tiles, strip = strip, count = view._widgets_by_name.deck_count.content.deck_count, caption = view._widgets_by_name.deck_caption.content.deck_caption }))
+  f:close()
+end
+
 return table.concat(results, "\n")
 '''
-out = lua.execute(harness, MODROOT)
+out = lua.execute(harness, MODROOT, os.environ.get("DECK_DUMP", ""))
 print(out)
 fails = [l for l in out.split("\n") if l.startswith("FAIL")]
 print("\nPASS:", len([l for l in out.split("\n") if l.startswith("PASS")]), "FAIL:", len(fails))

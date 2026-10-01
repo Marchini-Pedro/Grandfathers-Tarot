@@ -33,7 +33,12 @@ local scenegraph_definition = {
 		size = { 1920, 1080 },
 		position = { 0, 0, 80 },
 	},
-	title_text = node(80, 38, 1200, 50, 2),
+	title_text = node(80, 38, 800, 50, 2),
+	-- the Deck (home screen): "N in the draw", the weight strip and its captions, the card tiles
+	deck_count = node(890, 40, 270, 44, 2),
+	deck_strip = node(105, 158, 1710, 14, 1),
+	deck_caption = node(105, 178, 800, 22, 2),
+	deck_hover = node(1015, 178, 800, 22, 2),
 	description_text = node(80, 95, 1700, 40, 2),
 	list_panel = node(105, 160, 1710, 580, 0),
 	list_header = node(105, 168, 1710, 28, 1),
@@ -59,7 +64,7 @@ local scenegraph_definition = {
 	-- presets: list screen button (where Back sits on the other screens), and one preset's actions in two rows
 	-- NOT under Back (x 125-305): Back is drawn before this button, so a click on Back that switches to the
 	-- list would land on a Presets button at the same spot in the same frame and open the presets page.
-	btn_presets = node(325, 800, 300, 44, 2),
+	btn_presets = node(1170, 36, 290, 44, 2), -- header of the Deck ("Spreads"); the Back button is not on that screen
 	-- corner buttons, top right (the title text ends at x 1280): "More options" (list screen only) and the
 	-- help icon whose tooltip replaces the long gray texts that used to fill the bottom of the screen
 	btn_settings = node(1480, 36, 270, 44, 2),
@@ -79,6 +84,7 @@ local scenegraph_definition = {
 	btn_prename = node(1015, 800, 200, 44, 2),
 	btn_pexport = node(1235, 800, 220, 44, 2),
 	btn_pimport = node(1475, 800, 220, 44, 2),
+	btn_delete = node(1660, 800, 155, 44, 2), -- detail screen: delete the card (second click: Sure?)
 	btn_pundo = node(125, 858, 380, 44, 2),
 	btn_pclear = node(525, 858, 260, 44, 2),
 	stepper_chance = node(125, 858, 860, 48, 2),
@@ -101,6 +107,17 @@ local scenegraph_definition = {
 for i = 1, definitions.LIST_CAPACITY do
 	scenegraph_definition[definitions.ROW_NODE_PREFIX .. i] = node(105, definitions.LIST_TOP + (i - 1) * definitions.ROW_HEIGHT, 1710, 46, 1)
 end
+
+-- the Deck: 14 card tiles (7 columns, 2 rows; the view moves them) and the blank tile that makes a new card
+definitions.TILE_CAPACITY = 14
+definitions.TILE_NODE_PREFIX = "rw_tile_"
+definitions.TILE_BLANK_NODE = "rw_tile_blank"
+
+for i = 1, definitions.TILE_CAPACITY do
+	scenegraph_definition[definitions.TILE_NODE_PREFIX .. i] = node(120, 206, 228, 262, 3)
+end
+
+scenegraph_definition[definitions.TILE_BLANK_NODE] = node(120, 206, 228, 262, 3)
 
 local function header_pass(id, x, w, align)
 	return {
@@ -168,9 +185,19 @@ local widget_definitions = {
 			style_id = "title_text",
 			pass_type = "text",
 			value = "",
-			style = table.clone(UIFontSettings.header_1),
+			style = (function ()
+				local style = table.clone(UIFontSettings.header_1)
+
+				style.text_color = Components.clone_color(colors.title)
+
+				return style
+			end)(),
 		},
 	}, "title_text"),
+
+	deck_count = plain_text("deck_count", "deck_count", 20, colors.muted, 270, 44, "right"),
+	deck_caption = plain_text("deck_caption", "deck_caption", 15, colors.muted, 800, 22, "left"),
+	deck_hover = plain_text("deck_hover", "deck_hover", 15, colors.text, 800, 22, "right"),
 
 	description_text = UIWidget.create_definition({
 		{
@@ -194,7 +221,6 @@ local widget_definitions = {
 		header_pass("col_5", 1390, 120, "right"),
 		header_pass("col_6", 890, 210, "center"),
 		header_pass("col_7", 1110, 100, "center"),
-		header_pass("col_8", 1030, 152, "center"), -- wave list: cooldown
 	}, "list_header"),
 
 	list_range = plain_text("list_range", "list_range", 18, colors.muted, 340, 28, "right"),

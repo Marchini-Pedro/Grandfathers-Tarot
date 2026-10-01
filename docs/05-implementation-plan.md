@@ -52,6 +52,9 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 2. Draw director (hand, winner, cooldown exclusion, sync, legacy modes kept): `core/director.lua`, protocol 2 / 2.0.0, options `mode` (default tarot), `tarot_cards`, `tarot_seconds`
 - [x] 3. The Spread HUD: `ui/spread.lua`, widgets, element, the `The Spread (your screen)` options, `tools/hud_test.py` (offline only; the shapes are unseen)
 - [ ] 4. The Deck screen, cooldown looks, custom card builder
+  - [x] 4a. The Deck: tiles, strip, toggle, Edit, blank tile, paging, Delete in the card's screen, palette (`ui/deck.lua`, `ui/wave_editor_deck.lua`, offline only)
+  - [ ] 4b. Cooldown looks on the tiles (rot and renewal, the murmur returns, the vial fills, ready ping option)
+  - [ ] 4c. Card builder screen: suit with suggestion, threat auto/override with "Threat N by the numbers", whisper, look
 - [ ] 5. Mod options
 - [ ] 6. Optional: per-group health and size multipliers
 
@@ -84,6 +87,8 @@ mods\RealmsWaves\
     spawn\budget_bypass.lua              tracked-unit set + hooks that hide them from director counters
     ui\hud_element_waves.lua (+ _definitions)   synced HUD: the old text panel (legacy modes) and, in 2.0.0, The Spread
     ui\spread.lua                        2.0.0: the arithmetic of the Spread (layout, timeline, roulette, eye, icons, rot), pure Lua
+    ui\deck.lua                          2.0.0: the arithmetic of the Deck (grid, paging, pips, strip, state, composition lines), pure Lua
+    ui\wave_editor_deck.lua              2.0.0: the Deck screen's methods (tiles, strip, hover, toggle, edit, new card)
 ```
 `RealmsWaves` was appended to `mods\mod_load_order.txt` (last line). The originals (TwitchVersus, RealmsEvent) were NOT disabled: the user should disable them while using RealmsWaves.
 

@@ -13,16 +13,19 @@ local UISoundEvents = require("scripts/settings/ui/ui_sound_events")
 local Components = {}
 
 -- Darktide colour format { alpha, r, g, b }
+-- The Plague Tarot palette (catalog/cards.lua, the reference page): ground #0a0c07, panel #12160c, bone #e6dfc3, muted
+-- #98936f, bile #b7c23a (what used to be gold: titles, values, the check mark), line #3a4421
 Components.colors = {
-	text = { 255, 222, 229, 214 },
-	muted = { 255, 151, 167, 152 },
-	gold = { 255, 221, 194, 122 },
-	normal = { 225, 25, 35, 27 },
-	hover = { 250, 49, 62, 42 },
-	selected = { 245, 51, 70, 44 },
-	disabled = { 150, 40, 44, 40 },
-	panel = { 220, 15, 23, 19 },
-	frame = { 160, 151, 167, 152 },
+	text = { 255, 230, 223, 195 },
+	muted = { 255, 152, 147, 111 },
+	gold = { 255, 183, 194, 58 },
+	title = { 255, 183, 194, 58 },
+	normal = { 235, 24, 30, 16 },
+	hover = { 250, 42, 52, 26 },
+	selected = { 245, 51, 64, 33 },
+	disabled = { 150, 28, 32, 22 },
+	panel = { 225, 18, 22, 12 },
+	frame = { 200, 76, 88, 45 },
 }
 
 local function clone_color(color)

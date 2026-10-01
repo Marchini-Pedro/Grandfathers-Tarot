@@ -4,7 +4,8 @@
 -- Everything is written straight to DMF settings (see catalog/events.lua), so
 -- changes take effect on the host's next draw; nothing needs saving.
 --
--- Screens (self._screen): "list" -> "detail" (one wave) -> "picker" (add an enemy).
+-- Screens (self._screen): "list" (the Deck: the cards as tiles, ui/wave_editor_deck.lua) -> "detail" (one card) ->
+-- "picker" (add an enemy).
 -- Structure and vanilla widget usage follow RealmsEvent's editor view.
 local mod = get_mod("RealmsWaves")
 
@@ -14,13 +15,18 @@ local Components = mod:io_dofile(BASE .. "/ui/wave_editor_components")
 local definitions = mod:io_dofile(BASE .. "/ui/wave_editor_definitions")
 local blueprints = mod:io_dofile(BASE .. "/ui/wave_editor_blueprints")
 
+local DeckView = mod:io_dofile(BASE .. "/ui/wave_editor_deck")
+
 local Popup = Components.Popup
+local Deck = blueprints.Deck
 local LIST_CAPACITY = definitions.LIST_CAPACITY
+local TILE_PREFIX = definitions.TILE_NODE_PREFIX
+local BLANK_NAME = definitions.TILE_BLANK_NODE
 local LIST_TOP = definitions.LIST_TOP
 local ROW_HEIGHT = definitions.ROW_HEIGHT
 local ROW_NODE_PREFIX = definitions.ROW_NODE_PREFIX
 
-local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same", "hotspot_cd_minus", "hotspot_cd_value", "hotspot_cd_plus" }
+local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same" }
 local LIST_STEPPERS = { "stepper_tmin", "stepper_tmax" } -- list screen: time between waves
 local DETAIL_STEPPERS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer" }
 local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "stepper_tmin", "stepper_tmax" }
@@ -36,8 +42,9 @@ local BUTTONS = {
 	{ name = "btn_add", width = 230, cb = "cb_add" },
 	{ name = "btn_enabled", width = 260, cb = "cb_toggle_enabled" },
 	{ name = "btn_reset", width = 300, cb = "cb_reset" },
+	{ name = "btn_delete", width = 155, cb = "cb_delete" },
 	-- presets (list screen -> presets screen -> one preset)
-	{ name = "btn_presets", width = 300, cb = "cb_presets" },
+	{ name = "btn_presets", width = 290, cb = "cb_presets" },
 	{ name = "btn_settings", width = 340, cb = "cb_settings" },
 	{ name = "btn_wimport", width = 300, cb = "cb_wave_import" },
 	{ name = "btn_default", width = 320, cb = "cb_defaults" },
@@ -174,13 +181,18 @@ RealmsWavesView.update = function (self, dt, t, input_service)
 		self:_auto_search()
 	end
 
+	if self._screen == "list" and self._deck then
+		self:_update_deck(dt, t)
+	end
+
 	if (self._popup == nil or self._popup.spec.allow_rows) and input_service:get("scroll_axis") then
 		local scroll = input_service:get("scroll_axis")
 		local amount = scroll and scroll[2] or 0
-		local max_offset = math.max(0, #self:_source() - LIST_CAPACITY)
+		local max_offset = self:_max_offset()
 
 		if amount ~= 0 and max_offset > 0 then
-			self._offset = math.clamp(self._offset + (amount > 0 and -2 or 2), 0, max_offset)
+			-- two rows of the list per notch, one row (seven cards) of the Deck
+			self._offset = self:_clamp_offset(self._offset + (amount > 0 and -1 or 1) * (self._screen == "list" and Deck.COLS or 2))
 			self:_refresh_rows()
 			self:_set_interaction_enabled()
 		end
@@ -261,11 +273,26 @@ RealmsWavesView._create_editor_widgets = function (self)
 		content.hotspot_rep_minus.pressed_callback = callback(self, "cb_row_rep_step", i, -1)
 		content.hotspot_rep_plus.pressed_callback = callback(self, "cb_row_rep_step", i, 1)
 		content.hotspot_rep_value.pressed_callback = callback(self, "cb_row_rep_input", i)
-		content.hotspot_cd_minus.pressed_callback = callback(self, "cb_row_cd_step", i, -1)
-		content.hotspot_cd_plus.pressed_callback = callback(self, "cb_row_cd_step", i, 1)
-		content.hotspot_cd_value.pressed_callback = callback(self, "cb_row_cd_input", i)
 		content.hotspot_same.pressed_callback = callback(self, "cb_row_same", i)
 	end
+
+	-- the Deck: card tiles, the blank tile that makes a new card, and the strip of the draw
+	for i = 1, Deck.CAPACITY do
+		local name = TILE_PREFIX .. i
+		local widget = self:_create_dynamic_widget(name, blueprints.tile(name))
+		local content = widget.content
+
+		content.hotspot_top.pressed_callback = callback(self, "cb_tile_toggle", i)
+		content.hotspot_state.pressed_callback = callback(self, "cb_tile_toggle", i)
+		content.hotspot_edit.pressed_callback = callback(self, "cb_tile_edit", i)
+		widget.visible = false
+	end
+
+	local blank = self:_create_dynamic_widget(BLANK_NAME, blueprints.blank_tile(BLANK_NAME))
+
+	blank.content.hotspot.pressed_callback = callback(self, "cb_tile_new")
+	blank.visible = false
+	self:_create_dynamic_widget("rw_strip", blueprints.strip("deck_strip")).visible = false
 
 	for i = 1, #BUTTONS do
 		local entry = BUTTONS[i]
@@ -354,6 +381,26 @@ RealmsWavesView._reload = function (self)
 	self._waves = waves
 	self._total_pct = total
 	self._deleted_count = deleted
+	self:_build_deck()
+end
+
+-- how many items a page holds, where a page can start, and how far a scroll step goes (the Deck pages by rows of cards)
+RealmsWavesView._max_offset = function (self)
+	local count = #self:_source()
+
+	if self._screen == "list" then
+		return Deck.max_offset(count)
+	end
+
+	return math.max(0, count - LIST_CAPACITY)
+end
+
+RealmsWavesView._clamp_offset = function (self, offset)
+	if self._screen == "list" then
+		return Deck.clamp_offset(offset, #self:_source())
+	end
+
+	return math.clamp(offset, 0, math.max(0, #self:_source() - LIST_CAPACITY))
 end
 
 RealmsWavesView._share_of = function (self, wave)
@@ -379,7 +426,7 @@ RealmsWavesView._source = function (self)
 		return self._settings_rows
 	end
 
-	return self._waves
+	return self._deck or self._waves
 end
 
 -- ------------------------------------------------------------ settings rows (timing, voting, display)
@@ -462,16 +509,6 @@ RealmsWavesView._painter = function (self)
 		end,
 		markup = colors.markup,
 	}
-end
-
--- What the right-hand button of a wave row does: "delete" (custom wave with enemies), "create" (empty
--- custom slot), "reset" (changed standard wave), or nil (nothing to do: unchanged standard wave).
-RealmsWavesView._row_action = function (self, wave)
-	if wave.parts and #wave.parts > 0 then
-		return "delete"
-	end
-
-	return wave.is_custom and "create" or nil
 end
 
 -- ------------------------------------------------------------------- presets model
@@ -584,7 +621,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		self._breeds = rw.groups.search(self._filter or "")
 	end
 
-	self._offset = math.clamp(self._offset, 0, math.max(0, #self:_source() - LIST_CAPACITY))
+	self._offset = self:_clamp_offset(self._offset)
 
 	widgets.title_text.content.title_text = mod:localize("view_title")
 
@@ -592,13 +629,9 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 
 	header.col_6 = ""
 	header.col_7 = ""
-	header.col_8 = ""
 
 	if screen == "list" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_list")
-		header.col_1, header.col_2, header.col_3 = mod:localize("col_on"), mod:localize("col_wave"), mod:localize("col_composition")
-		header.col_4, header.col_5 = mod:localize("col_chance"), mod:localize("col_share")
-		header.col_8 = mod:localize("col_cooldown")
 		widgets.bottom_title.content.bottom_title = (self._deleted_count or 0) > 0 and mod:localize("bottom_list_deleted", self._deleted_count) or mod:localize("bottom_list_title")
 
 		-- the time between waves (the same two settings as in the options menu)
@@ -693,6 +726,14 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.help_text.content.help_text = mod:localize(help_keys[screen] or "hint_list")
 	widgets.btn_help.visible = true
 	widgets.btn_help.content.hotspot_text = "?"
+
+	-- the Deck has no table: its panel, header and range text are hidden and the scroll buttons sit beside the grid
+	local deck_screen = screen == "list"
+
+	widgets.list_panel.visible = not deck_screen
+	widgets.list_header.visible = not deck_screen
+	self:_set_scenegraph_position("scroll_up", deck_screen and 1826 or 1771, deck_screen and Deck.Y0 or 168, 2)
+	self:_set_scenegraph_position("scroll_down", deck_screen and 1826 or 1771, deck_screen and Deck.Y0 + 2 * Deck.TILE_H + Deck.GAP - 36 or 696, 2)
 	widgets.btn_default.visible = screen == "list"
 	widgets.btn_default.content.hotspot_text = mod:localize(self._confirm and self._confirm.key == "__defaults" and "btn_sure" or "btn_default")
 	widgets.btn_presets.visible = screen == "list"
@@ -714,6 +755,8 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	end
 
 	widgets.btn_presets.content.hotspot_text = mod:localize("btn_presets")
+	widgets.btn_delete.visible = detail
+	widgets.btn_delete.content.hotspot_text = mod:localize(self._confirm and self._wave and self._confirm.key == self._wave.key and "btn_sure" or "btn_delete")
 	widgets.btn_pload.content.hotspot_text = mod:localize("btn_pload")
 	widgets.btn_psave.content.hotspot_text = mod:localize("btn_psave")
 	widgets.btn_prename.content.hotspot_text = mod:localize("btn_rename")
@@ -813,6 +856,27 @@ RealmsWavesView._refresh_rows = function (self)
 	local screen = self._screen
 	local source = self:_source()
 
+	if screen == "list" then
+		-- the Deck: no rows, no range text; the tiles are painted instead
+		for i = 1, LIST_CAPACITY do
+			local widget = self._widgets_by_name[ROW_NODE_PREFIX .. i]
+
+			if widget then
+				widget.visible = false
+			end
+		end
+
+		if self._widgets_by_name.list_range then
+			self._widgets_by_name.list_range.content.list_range = ""
+		end
+
+		self:_refresh_deck()
+
+		return
+	end
+
+	self:_hide_deck()
+
 	for i = 1, LIST_CAPACITY do
 		local widget = self._widgets_by_name[ROW_NODE_PREFIX .. i]
 		local item = source[self._offset + i]
@@ -826,35 +890,9 @@ RealmsWavesView._refresh_rows = function (self)
 				local content = widget.content
 				local name_color = Components.colors.text
 
-				-- per-screen defaults: no cooldown column, full width for the info text (the wave list narrows it)
-				content.show_cd = false
 				widget.style.info.size[1] = 640
 
-				if screen == "list" then
-					local share = self:_share_of(item)
-					local has_parts = item.parts and #item.parts > 0
-
-					local action = self:_row_action(item)
-					local pending = self._confirm and self._confirm.key == item.key
-
-					content.row_name = item.name
-					content.info = has_parts and rw.groups.summary(item.parts, 95, self:_painter()) or mod:localize("row_empty_slot")
-					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = true, true, true, action ~= nil, false
-					content.show_rep = false
-					content.checkbox_selected = item.enabled and has_parts == true
-					content.stepper_value = tostring(math.floor(item.pct))
-					content.share = item.timer > 0 and mod:localize("share_timer", math.floor(item.timer)) or share and string.format("%.1f%%", share) or "-"
-					content.hotspot_action_text = action and mod:localize(pending and "btn_sure" or ("btn_" .. action)) or ""
-
-					-- the cooldown column sits between the composition and the chance weight
-					content.show_cd = true
-					content.cd_value = tostring(math.floor(item.cooldown))
-					widget.style.info.size[1] = 470
-
-					if not (item.enabled and has_parts) then
-						name_color = Components.colors.muted
-					end
-				elseif screen == "detail" then
+				if screen == "detail" then
 					local mods_text = rw.groups.describe_mods(item)
 					local mods_shown = mods_text
 
@@ -1009,7 +1047,23 @@ RealmsWavesView._set_interaction_enabled = function (self)
 		end
 	end
 
-	local max_offset = math.max(0, #self:_source() - LIST_CAPACITY)
+	for i = 1, Deck.CAPACITY do
+		local widget = widgets[TILE_PREFIX .. i]
+
+		if widget then
+			for j = 1, #self.TILE_HOTSPOTS do
+				widget.content[self.TILE_HOTSPOTS[j]].disabled = not (rows_enabled and widget.visible)
+			end
+		end
+	end
+
+	local blank = widgets[BLANK_NAME]
+
+	if blank then
+		blank.content.hotspot.disabled = not (rows_enabled and blank.visible)
+	end
+
+	local max_offset = self:_max_offset()
 	local up, down = widgets.rw_scroll_up, widgets.rw_scroll_down
 
 	if up then
@@ -1037,8 +1091,20 @@ local function guarded(fn)
 	end
 end
 
+DeckView.install(RealmsWavesView, {
+	Deck = Deck,
+	Spread = blueprints.Spread,
+	TILE = blueprints.TILE,
+	TILE_IDS = blueprints.TILE_IDS,
+	STRIP_IDS = blueprints.STRIP_IDS,
+	TILE_PREFIX = TILE_PREFIX,
+	BLANK_NAME = BLANK_NAME,
+	guarded = guarded,
+	set_setting = set_setting,
+})
+
 RealmsWavesView.cb_scroll = guarded(function (self, direction)
-	self._offset = math.clamp(self._offset + direction, 0, math.max(0, #self:_source() - LIST_CAPACITY))
+	self._offset = self:_clamp_offset(self._offset + direction * (self._screen == "list" and Deck.COLS or 1))
 	self:_refresh_rows()
 	self:_set_interaction_enabled()
 end)
@@ -1115,13 +1181,6 @@ RealmsWavesView.cb_row_check = guarded(function (self, row)
 		return
 	end
 
-	local wave = self._screen == "list" and self:_item_at(row)
-
-	if wave then
-		set_setting("on_" .. wave.key, not wave.enabled)
-		self:_reload()
-		self:_apply_screen(true)
-	end
 end)
 
 -- Toggles one modifier on the enemy group being edited (self._part_index).
@@ -1167,9 +1226,7 @@ RealmsWavesView.cb_row_name = guarded(function (self, row)
 		return
 	end
 
-	if self._screen == "list" then
-		self:_open_detail(item.key)
-	elseif self._screen == "presets" then
+	if self._screen == "presets" then
 		self:_open_preset(item.index)
 	elseif self._screen == "picker" then
 		self:_add_breed(item)
@@ -1195,16 +1252,12 @@ RealmsWavesView._open_setting_popup = function (self, item)
 	})
 end
 
--- Right-hand button of a wave row: Delete (custom wave with enemies), Create (empty custom slot) or
--- Reset (changed standard wave). Delete and Reset ask for a second click ("Sure?") for a few seconds.
-RealmsWavesView._wave_row_action = function (self, wave)
-	local action = self:_row_action(wave)
+-- Delete (button of the card's own screen): a custom card is emptied, a standard card is hidden until the defaults are
+-- restored. The first click asks "Sure?" for a few seconds, the second one does it.
+RealmsWavesView.cb_delete = guarded(function (self)
+	local wave = self._wave
 
-	if action == "create" then
-		self:_open_detail(wave.key)
-
-		return
-	elseif not action then
+	if self._screen ~= "detail" or not wave then
 		return
 	end
 
@@ -1212,20 +1265,22 @@ RealmsWavesView._wave_row_action = function (self, wave)
 		self._confirm = nil
 
 		if wave.is_custom then
-			mod.rw.events.reset(set_setting, wave.key) -- an emptied slot
+			mod.rw.events.reset(set_setting, wave.key)
 		else
-			set_setting("del_" .. wave.key, true) -- a standard wave: hidden until the defaults are restored
+			set_setting("del_" .. wave.key, true)
 		end
 
+		self._screen = "list"
+		self._key = nil
 		self:_reload()
-		self:_apply_screen(true)
+		self:_apply_screen()
 
 		return
 	end
 
 	self._confirm = { key = wave.key, expires = (self._t or 0) + 4 }
-	self:_refresh_rows()
-end
+	self:_apply_screen(true)
+end)
 
 RealmsWavesView.cb_row_action = guarded(function (self, row)
 	local item = self:_item_at(row)
@@ -1234,9 +1289,7 @@ RealmsWavesView.cb_row_action = guarded(function (self, row)
 		return
 	end
 
-	if self._screen == "list" then
-		self:_wave_row_action(item)
-	elseif self._screen == "presets" then
+	if self._screen == "presets" then
 		self:_open_preset(item.index)
 	elseif self._screen == "detail" then
 		self:_remove_part(self._offset + row)
@@ -1256,10 +1309,6 @@ RealmsWavesView._step_row = function (self, row, delta)
 		if item.kind == "number" then
 			self:_set_number_setting(item, item.number + delta * item.step)
 		end
-	elseif self._screen == "list" then
-		set_setting("pct_" .. item.key, math.clamp(math.floor(item.pct) + delta, 0, 1000))
-		self:_reload()
-		self:_apply_screen(true)
 	elseif self._screen == "detail" then
 		-- a group that only repeats may have 0 initial units; otherwise at least 1
 		item.count = math.clamp(item.count + delta, (item.rep or 0) > 0 and 0 or 1, mod.rw.groups.MAX_BREED_COUNT)
@@ -1341,37 +1390,6 @@ RealmsWavesView.cb_row_rep_input = guarded(function (self, row)
 	})
 end)
 
--- cooldown column of the wave list: seconds before a wave can be drawn again (5 s steps, 0 to 3600)
-RealmsWavesView.cb_row_cd_step = guarded(function (self, row, delta)
-	local wave = self._screen == "list" and self:_item_at(row)
-
-	if not wave then
-		return
-	end
-
-	set_setting("cd_" .. wave.key, math.clamp(math.floor(wave.cooldown) + delta * 5, 0, 3600))
-	self:_reload()
-	self:_apply_screen(true)
-end)
-
-RealmsWavesView.cb_row_cd_input = guarded(function (self, row)
-	local wave = self._screen == "list" and self:_item_at(row)
-
-	if not wave then
-		return
-	end
-
-	Popup.open(self, {
-		label = mod:localize("popup_cooldown_title", wave.name),
-		value = tostring(math.floor(wave.cooldown)),
-		numeric = true, min = 0, max = 3600, integer = true,
-		set = function (value)
-			set_setting("cd_" .. wave.key, value)
-			self:_reload()
-			self:_apply_screen(true)
-		end,
-	})
-end)
 RealmsWavesView.cb_row_minus = guarded(function (self, row)
 	self:_step_row(row, -1)
 end)
@@ -1391,17 +1409,6 @@ RealmsWavesView.cb_row_value = guarded(function (self, row)
 		if item.kind == "number" then
 			self:_open_setting_popup(item)
 		end
-	elseif self._screen == "list" then
-		Popup.open(self, {
-			label = mod:localize("popup_chance_title", item.name),
-			value = tostring(math.floor(item.pct)),
-			numeric = true, min = 0, max = 1000, integer = true,
-			set = function (value)
-				set_setting("pct_" .. item.key, value)
-				self:_reload()
-				self:_apply_screen(true)
-			end,
-		})
 	elseif self._screen == "detail" then
 		Popup.open(self, {
 			label = mod:localize("popup_count_title", mod.rw.groups.describe_part(item)),
