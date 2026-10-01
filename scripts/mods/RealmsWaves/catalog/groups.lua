@@ -200,7 +200,10 @@ end
 --   health   the unit's maximum health (a spawn parameter of the game, so every player sees the right bar)
 --   size     the size of the model (`Unit.set_local_scale`, also sent to the other players that have this mod)
 --   speed    run speed (a movement modifier of the navigation: how fast it walks, trots or runs after you)
---   melee    melee attack speed (how soon the next swing comes: the game's own `melee_attack_speed` stat)
+--   gap      time between attacks, in percent of the normal time (50 = half the wait, 200 = twice): it writes the game's own
+--            `melee_attack_speed` stat as 100 / value, which ends a melee attack early (see spawn/tuning.lua). It used to
+--            be called "melee attack speed" with the number the other way round (200 = twice as fast); recipes written
+--            with the old names (`melee=200`) are read as the new setting (`gap=50`, the `legacy` field below)
 --   fire     gunner fire rate (the time between two shots: the game's own `ranged_attack_speed` stat)
 --   burst    shots per burst (the game's `minion_num_shots_modifier`, a fraction rounds up to one more shot)
 --   explosion / dot  the share of explosion damage / of burning, toxin and bleeding damage the unit takes (50 = half,
@@ -211,7 +214,7 @@ Groups.TUNE = {
 	{ id = "health", name = "Health", min = 10, max = 1000, step = 10, aliases = { "health", "hp", "life" } },
 	{ id = "size", name = "Size", min = 25, max = 300, step = 5, aliases = { "size", "scale" } },
 	{ id = "speed", name = "Run speed", min = 25, max = 300, step = 5, aliases = { "speed", "run", "run speed", "runspeed", "move speed", "movement" } },
-	{ id = "melee", name = "Melee attack speed", min = 25, max = 400, step = 5, aliases = { "melee", "melee speed", "melee attack speed", "melee attack", "attack speed" } },
+	{ id = "gap", name = "Time between attacks", min = 25, max = 400, step = 5, aliases = { "gap", "time between attacks", "attack gap", "attack time", "attack delay", "attack interval" }, legacy = { "melee", "melee speed", "melee attack speed", "melee attack", "attack speed" } },
 	{ id = "fire", name = "Gunner fire rate", min = 25, max = 400, step = 5, aliases = { "fire", "fire rate", "firerate", "gunner fire rate", "ranged", "ranged speed", "ranged attack speed" } },
 	{ id = "burst", name = "Shots per burst", min = 25, max = 500, step = 25, aliases = { "burst", "shots", "shots per burst", "burst size" } },
 	{ id = "mass", name = "Hit mass", min = 10, max = 1000, step = 10, aliases = { "mass", "hit mass", "hitmass" } },
@@ -221,6 +224,7 @@ Groups.TUNE = {
 
 local tune_by_id = {}
 local tune_alias = {}
+local tune_legacy = {} -- old names whose number was a SPEED while the setting that replaced them is a time
 local tune_ids = {}
 
 for index, def in ipairs(Groups.TUNE) do
@@ -230,6 +234,11 @@ for index, def in ipairs(Groups.TUNE) do
 
 	for _, alias in ipairs(def.aliases) do
 		tune_alias[normalize_word(alias)] = def.id
+	end
+
+	for _, alias in ipairs(def.legacy or {}) do
+		tune_alias[normalize_word(alias)] = def.id
+		tune_legacy[normalize_word(alias)] = true
 	end
 end
 
@@ -334,7 +343,14 @@ local function parse_tune(inner)
 			return nil, string.format("%q is not a custom mod I know. Valid ones: %s", (name:gsub("%s+$", "")), Groups.TUNE_IDS)
 		end
 
-		local value = Groups.clamp_tune(id, number)
+		local amount = tonumber(number)
+
+		if tune_legacy[normalize_word(name)] then
+			-- an old name: its number was a speed, the setting is a time now (200 percent as fast = half the time)
+			amount = amount > 0 and 10000 / amount or tune_by_id[id].max
+		end
+
+		local value = Groups.clamp_tune(id, amount)
 
 		tune[id] = value ~= 100 and value or nil
 		pos = stop + 1

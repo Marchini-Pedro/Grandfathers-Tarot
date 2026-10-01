@@ -1,5 +1,5 @@
--- Custom mods of an enemy group (catalog/groups.lua, Groups.TUNE): health, size, run speed, melee attack speed, gunner
--- fire rate, shots per burst and hit mass, in percent of the normal value. Host only, applied to a unit right after it
+-- Custom mods of an enemy group (catalog/groups.lua, Groups.TUNE): health, size, run speed, time between attacks, gunner
+-- fire rate, shots per burst, hit mass, explosion and damage-over-time taken, in percent of the normal value. Host only, applied to a unit right after it
 -- spawned; nothing here adds a breed or a buff template (see docs/03, "Enemy variants without new breeds"): every
 -- one is a value the game itself already reads.
 --
@@ -7,9 +7,14 @@
 --   speed   `navigation_extension:add_movement_modifier(m)`: the game's own way to slow or hasten a minion (it multiplies
 --           whatever maximum speed the current action asks for, and is synced to the other players by the game)
 --   mass    `health_extension:set_hit_mass(...)`: what the Enraged buff does to its unit (also synced by the game)
---   melee, fire, burst
+--   gap, fire, burst
 --           the unit's `stat_buffs` (`melee_attack_speed`, `ranged_attack_speed`, `minion_num_shots_modifier`), which the
---           attack actions read when an attack starts. The buff system rewrites a stat when a buff that touches it
+--           attack actions read when an attack starts. `gap` is the TIME between attacks: the game's stat is a speed, so
+--           the factor written is 100 / value (gap 50 writes 2, gap 200 writes 0.5). What the game does with
+--           `melee_attack_speed` is only to cut the END of a melee attack short (it ends at duration / speed, never
+--           before the last hit plus 0.27 s); it does not speed the animation, and for a chained sweep attack (Plague
+--           Ogryn, Chaos Spawn) it measured the first hit instead of the last, so a high value dropped the rest of the
+--           chain. `fix_attack_end` below repairs that for our units. The buff system rewrites a stat when a buff that touches it
 --           changes (a bleed or a brittleness debuff from a player, the Enraged modifier), so the written value is
 --           checked a few times a second and put back on top (`reassert`).
 --   size    `Unit.set_local_scale(unit, 1, ...)`, what the game's own Rampaging buff does. The game only runs it on every
@@ -30,14 +35,17 @@ local MAX_PENDING = 600
 
 -- custom mod -> the stats of the unit it writes (explosion and dot take their share of the damage: 50 = half damage)
 Tuning.STAT_KEYS = {
-	melee = { "melee_attack_speed" },
+	gap = { "melee_attack_speed" },
 	fire = { "ranged_attack_speed" },
 	burst = { "minion_num_shots_modifier" },
 	explosion = { "damage_taken_from_explosions" },
 	dot = { "damage_taken_from_burning", "damage_taken_from_toxin", "damage_taken_from_bleeding" },
 }
 
-local STAT_IDS = { "melee", "fire", "burst", "explosion", "dot" }
+local STAT_IDS = { "gap", "fire", "burst", "explosion", "dot" }
+-- custom mods that are a TIME while the stat they write is a speed: the factor is 100 / value
+local INVERSE = { gap = true }
+local ATTACK_END_OFFSET = 0.26666666666666666 -- the game's ATTACK_SPEED_THRESHOLD_FRAME_OFFSET (bt_melee_attack_action.lua:118)
 -- stats where the written value is a share of the damage taken (the game adds `value - 1` to the damage modifiers)
 local DAMAGE_STAT = { explosion = true, dot = true }
 
@@ -86,6 +94,27 @@ local function percent_of(value)
 
 	return value / 100
 end
+
+-- the factor a custom mod writes into its stat (nil = nothing to write)
+local function factor_for(id, value)
+	value = tonumber(value)
+
+	if value == nil or value ~= value or value == 100 then
+		return nil
+	end
+
+	if INVERSE[id] then
+		if value <= 0 then
+			return nil
+		end
+
+		return 100 / value
+	end
+
+	return value / 100
+end
+
+Tuning.factor_for = factor_for
 
 -- ------------------------------------------------------------------------------------------------- size
 local function set_scale(unit, pct)
@@ -164,7 +193,7 @@ Tuning.apply = function (unit, tune, breed_name)
 
 	for i = 1, #STAT_IDS do
 		local id = STAT_IDS[i]
-		local factor = tune[id] ~= nil and tonumber(tune[id]) ~= 100 and tonumber(tune[id]) / 100 or nil
+		local factor = factor_for(id, tune[id])
 
 		if factor then
 			local ok, err = pcall(function ()
@@ -242,12 +271,66 @@ end
 -- would read the plain value. So the factor is put back right after each recompute, by a hook (once per game start).
 local installed = false
 
+-- The record of a tuned unit (nil for every other unit).
+local function record_of(unit)
+	local buffs = unit ~= nil and ScriptUnit.has_extension(unit, "buff_system") or nil
+
+	return buffs and tuned_by_extension[buffs] or nil
+end
+
+-- Called after every melee attack has started (BtMeleeAttackAction._start_attack_anim). The game ends such an attack at
+-- max(duration / melee_attack_speed, T + 0.27 s) where T is the end of the FIRST hit of a chained sweep (see the header):
+-- with a high speed a chain stops after one hit. For a unit with a custom time between attacks T is made the end of the
+-- LAST hit, and an attack is only ever lengthened by this, never shortened.
+Tuning.fix_attack_end = function (self, unit, breed, target_unit, t, spawn_component, scratchpad, action_data)
+	if Tuning.dead or type(scratchpad) ~= "table" or not scratchpad.melee_attack_speed then
+		return
+	end
+
+	local ok, err = pcall(function ()
+		local record = record_of(unit)
+
+		if not record or not record.mult.melee_attack_speed then
+			return
+		end
+
+		local list = scratchpad.attack_sweep_timings
+
+		if scratchpad.attack_type ~= "sweep" or type(list) ~= "table" then
+			return
+		end
+
+		local last = list[#list]
+		local stop = type(last) == "table" and last[2] or list[2]
+		local durations = action_data and action_data.attack_anim_durations
+		local base = durations and durations[scratchpad.attack_event]
+
+		if type(stop) ~= "number" or type(base) ~= "number" or type(t) ~= "number" then
+			return
+		end
+
+		local wanted = t + math.max(base / scratchpad.melee_attack_speed, stop + ATTACK_END_OFFSET)
+
+		if type(scratchpad.attack_duration) == "number" and wanted > scratchpad.attack_duration then
+			scratchpad.attack_duration = wanted
+		end
+	end)
+
+	if not ok then
+		warn_once(string.format("the end of a melee attack could not be corrected: %s", tostring(err)))
+	end
+end
+
 Tuning.install = function ()
 	if installed or not mod.hook_safe then
 		return
 	end
 
 	installed = true
+
+	mod:hook_safe("BtMeleeAttackAction", "_start_attack_anim", function (...)
+		Tuning.fix_attack_end(...)
+	end)
 
 	mod:hook_safe("BuffExtensionBase", "_update_stat_buffs_and_keywords", function (self)
 		if Tuning.dead then
