@@ -46,6 +46,11 @@ local stubs = {
     { pass_type = "hotspot", content_id = "hotspot", style = {} }, { style_id = "limit_text", style = {} },
     { style_id = "focused", style = {} }, { style_id = "display_text", style = {} } } },
   ["scripts/settings/ui/ui_sound_events"] = { default_mouse_hover = "h", default_click = "c" },
+  -- the game's text measuring: a fake that gives 24 per line of `renderer.per_line` letters (17 by default), or fails
+  ["scripts/utilities/ui/text"] = { text_height = function(renderer, text, style, size, max_extents)
+    if renderer.fail then error("no gui") end
+    return 24 * math.max(1, math.ceil(#text / (renderer.per_line or 17)))
+  end },
   ["scripts/ui/pass_templates/button_pass_templates"] = { default_button = { { pass_type = "hotspot", content_id = "hotspot", style = {} } } },
   ["scripts/ui/view_elements/view_element_input_legend/view_element_input_legend"] = {},
 }
@@ -150,14 +155,16 @@ check("deck: the model still has 32 waves (12 standard + 20 custom slots)", #vie
 check("deck: 12 cards and the blank tile (the empty custom slots are not cards)", #view._deck == 13 and view._deck[13].blank == true and view._deck_free ~= nil and view._deck_free.key == "custom_1", #view._deck)
 check("deck: page one shows 12 tiles, the blank tile in slot 13, no more", tile(1).visible and tile(12).visible and not tile(13).visible and not tile(14).visible and blank_tile().visible)
 check("deck: the old table is gone (rows, header and panel hidden)", not row(1).visible and not D.list_header.visible and not D.list_panel.visible)
-check("deck: tiles sit in a grid of 7 columns (228 wide, 14 apart) from (120, 206)", view._sg.rw_tile_1[1] == 120 and view._sg.rw_tile_1[2] == 206 and view._sg.rw_tile_2[1] == 120 + 242 and view._sg.rw_tile_8[1] == 120 and view._sg.rw_tile_8[2] == 206 + 262 + 14 and view._sg.rw_tile_blank[1] == 120 + 242 * 5 and view._sg.rw_tile_blank[2] == 206 + 276)
-check("deck: the grid and the scroll buttons stay on the screen and above the bottom panel", view._sg.rw_tile_7[1] + 228 <= 1815 and view._sg.rw_tile_8[2] + 262 <= 750 and view._sg.scroll_up[1] == 1826 and view._sg.scroll_up[2] == 206)
+check("deck: tiles sit in a grid of 7 columns (228 wide, 12 apart) from (126, 190)", view._sg.rw_tile_1[1] == 126 and view._sg.rw_tile_1[2] == 190 and view._sg.rw_tile_2[1] == 126 + 240 and view._sg.rw_tile_8[1] == 126 and view._sg.rw_tile_8[2] == 190 + 270 + 12 and view._sg.rw_tile_blank[1] == 126 + 240 * 5 and view._sg.rw_tile_blank[2] == 190 + 282)
+check("deck: the grid and the scroll buttons stay on the screen and above the bottom panel", view._sg.rw_tile_7[1] + 228 <= 1815 and view._sg.rw_tile_8[2] + 270 <= 750 and view._sg.scroll_up[1] == 1826 and view._sg.scroll_up[2] == 190)
 check("deck: first tile is The Fool, a swarm card, 8 Poxwalker on its first line", tile(1).content.name == "The Fool" and tile(1).content.suit_label == "SWARM" and plain(tile(1).content.comp):find("^8 Poxwalker") ~= nil, plain(tile(1).content.comp))
 check("deck: the whisper of the suit stands under the composition, in quotes", tile(1).content.whisper == "\"Too many to count.\"")
 check("deck: the swarm mark (four dots) is drawn, no triangles", tile(1).style.icon_c1.visible and tile(1).style.icon_c4.visible and not tile(1).style.icon_t1.visible)
-check("deck: ten weight pips, five filled for a weight of 5 (accent, opaque), five empty (frame, faint)", tile(1).style.pip_5.color[1] == 255 and tile(1).style.pip_6.color[1] == 130 and tile(1).style.pip_10.visible)
+check("deck: ten chance pips: the heaviest card (The Fool, weight 5 of 2 to 5) has all ten (accent, opaque), the lightest (Strength) one, the rest faint (frame)", tile(1).style.pip_10.color[1] == 255 and tile(12).style.pip_1.color[1] == 255 and tile(12).style.pip_2.color[1] == 130 and tile(12).style.pip_10.visible)
 check("deck: the state line says the card is in the draw, with a glow and its Edit corner", tile(1).content.state_left == "tile_in" and tile(1).content.state_clock == "" and tile(1).style.glow.visible and tile(1).content.edit_label == "tile_edit" and tile(1).alpha_multiplier == 1)
-check("deck: threat diamonds and one dot per enemy colour", tile(1).style.th_o1.visible and tile(1).style.th_o5.visible and tile(1).style.dot_1.visible)
+check("deck: threat diamonds (filled to the level, the rest the same diamonds dimmed, never an outline) and one dot per enemy colour", tile(1).style.th_o1.visible and tile(1).style.th_o1.color[1] == 255 and tile(1).style.th_o5.visible and tile(1).style.th_o5.color[1] == 64 and tile(1).style.th_i1 == nil and tile(1).style.dot_1.visible)
+check("deck: every shape has a larger faint copy under it (anti-aliasing): the suit mark, the diamonds, the dots", tile(1).style.icon_ch1.visible and tile(1).style.icon_ch1.size[1] > tile(1).style.icon_c1.size[1] and tile(1).style.icon_ch1.color[1] == 77 and tile(1).style.icon_ch1.offset[3] < tile(1).style.icon_c1.offset[3] and tile(1).style.th_h1.visible and tile(1).style.th_h1.size[1] > tile(1).style.th_o1.size[1] and tile(1).style.dot_h1.visible and tile(1).style.dot_h1.size[1] > tile(1).style.dot_1.size[1] and not tile(1).style.dot_h6.visible)
+check("deck: the suit mark is 26 units (it was 22) and sits in the top right corner", view._tile_shape ~= nil and tile(1).style.icon_c1.size[1] > 2 * 2.4 * 26 / 24 - 0.01 and tile(1).style.icon_c1.size[1] < 2 * 2.4 * 26 / 24 + 0.01)
 check("deck: header 'N in the draw', caption, and the strip has a segment per card in the draw", D.deck_count.content.deck_count == "deck_count:12" and D.deck_caption.content.deck_caption == "deck_caption" and #view._strip_segments == 12 and D.rw_strip.style.seg_12.visible and not D.rw_strip.style.seg_13.visible)
 check("deck: the strip is as wide as its track (segments and gaps add up to 1710)", (function() local s = view._strip_segments; local last = s[#s]; return math.abs(last.x + last.w - 1710) < 1e-6 end)())
 check("deck: buttons: Spreads (top right) and Import card / Restore defaults at the bottom, no Back, the time steppers", D.btn_presets.visible and D.btn_presets.content.hotspot_text == "btn_presets" and D.btn_wimport.visible and D.btn_default.visible and not D.btn_back.visible and D.stepper_tmin.visible and D.stepper_tmax.visible)
@@ -170,12 +177,13 @@ do
   local x7, y7 = DM.tile_pos(7)
   local x8, y8 = DM.tile_pos(8)
   local x14, y14 = DM.tile_pos(14)
-  check("deck math: 7 columns, 2 rows, 14 tiles a page; tiles 228 x 262, 14 apart", DM.COLS == 7 and DM.ROWS == 2 and DM.CAPACITY == 14 and DM.TILE_W == 228 and DM.TILE_H == 262 and DM.GAP == 14)
-  check("deck math: tile positions (row by row)", x1 == 120 and y1 == 206 and x7 == 120 + 6 * 242 and y7 == 206 and x8 == 120 and y8 == 206 + 276 and x14 == 120 + 6 * 242 and y14 == 206 + 276)
-  check("deck math: the grid is centred in the 1710 wide panel at x 105 and ends above the bottom panel (y 750)", x7 + 228 == 1800 and (105 + 1710) - (x7 + 228) == 120 - 105 and y14 + 262 <= 750)
+  check("deck math: 7 columns, 2 rows, 14 tiles a page; tiles 228 x 270, 12 apart", DM.COLS == 7 and DM.ROWS == 2 and DM.CAPACITY == 14 and DM.TILE_W == 228 and DM.TILE_H == 270 and DM.GAP == 12)
+  check("deck math: tile positions (row by row)", x1 == 126 and y1 == 190 and x7 == 126 + 6 * 240 and y7 == 190 and x8 == 126 and y8 == 190 + 282 and x14 == 126 + 6 * 240 and y14 == 190 + 282)
+  check("deck math: the grid is centred in the 1710 wide panel at x 105 and ends above the bottom panel (y 750)", x7 + 228 == 1794 and (105 + 1710) - (x7 + 228) == 126 - 105 and y14 + 270 <= 750)
+  check("deck math: the strip and its captions sit above the first row (strip y 144, tiles from 190)", DM.STRIP_Y == 144 and DM.STRIP_Y + DM.STRIP_H + 4 + 22 <= DM.Y0)
   check("deck math: the last page starts on a row: max offsets", DM.max_offset(0) == 0 and DM.max_offset(12) == 0 and DM.max_offset(14) == 0 and DM.max_offset(15) == 7 and DM.max_offset(21) == 7 and DM.max_offset(22) == 14 and DM.max_offset(33) == 21)
   check("deck math: offsets are clamped and rounded down to a whole row", DM.clamp_offset(5, 30) == 0 and DM.clamp_offset(9, 30) == 7 and DM.clamp_offset(100, 23) == 14 and DM.clamp_offset(-4, 23) == 0 and DM.clamp_offset(7, 10) == 0)
-  check("deck math: weight pips: rounded, 0 to 10", DM.pips(0) == 0 and DM.pips(4.4) == 4 and DM.pips(4.5) == 5 and DM.pips(10) == 10 and DM.pips(50) == 10 and DM.pips(nil) == 0 and DM.pips(-3) == 0 and DM.pips("7") == 7)
+  check("deck math: chance pips: a level rounded, 0 to 10", DM.pips(0) == 0 and DM.pips(4.4) == 4 and DM.pips(4.5) == 5 and DM.pips(10) == 10 and DM.pips(50) == 10 and DM.pips(nil) == 0 and DM.pips(-3) == 0 and DM.pips("7") == 7)
   check("deck math: states: off, in the draw, resting (an off card never rests)", DM.state({ enabled = false }, 0) == "off" and DM.state({ enabled = true }, 0) == "in" and DM.state({ enabled = true }, 5) == "cooling" and DM.state({ enabled = false }, 50) == "off" and DM.state({ enabled = true }) == "in")
   check("deck math: clock text rounds up to whole seconds", DM.clock_text(75) == "1:15" and DM.clock_text(0) == "0:00" and DM.clock_text(59.2) == "1:00" and DM.clock_text(-5) == "0:00" and DM.clock_text(600) == "10:00")
 
@@ -201,6 +209,17 @@ do
   for i = 1, 6 do many[i] = { breed = "chaos_hound", count = i } end
   lines = DM.comp_lines(many, fake_groups, nil, nil, nil, nil, function(n) return "+" .. n .. " more" end)
   check("comp lines: more than four groups: three lines and '+3 more'", #lines == 4 and lines[4] == "+3 more" and lines[1] == "1 Hound", table.concat(lines, "|"))
+  local l1, l2, l3 = DM.layout(1), DM.layout(2), DM.layout(3)
+  check("deck math: layout: a one line name leaves room for five lines of enemies, two lines four, three lines two; the divider follows the name", l1.divider_y == 64 and l1.comp_y == 71 and l1.comp_lines == 5 and l1.comp_h == 85 and l2.divider_y == 88 and l2.comp_y == 95 and l2.comp_lines == 4 and l2.comp_h == 68 and l3.divider_y == 112 and l3.comp_lines == 2 and DM.layout(0).comp_lines == 5 and DM.layout(9).comp_lines == 2 and DM.layout(nil).comp_lines == 5)
+  check("deck math: layout: the composition never runs into the modifier line (it ends at 164) and the divider is clear of the name", l1.comp_y + l1.comp_h <= DM.COMP_BOTTOM and l2.comp_y + l2.comp_h <= DM.COMP_BOTTOM and l3.comp_y + l3.comp_h <= DM.COMP_BOTTOM and l1.divider_y >= DM.NAME_Y + DM.NAME_LINE and l2.divider_y >= DM.NAME_Y + 2 * DM.NAME_LINE)
+  local more5 = {}
+  for i = 1, 6 do more5[i] = { breed = "chaos_hound", count = i } end
+  lines = DM.comp_lines(more5, fake_groups, nil, nil, nil, nil, function(n) return "+" .. n .. " more" end, 5)
+  check("comp lines: with room for five lines six groups show four and '+2 more'", #lines == 5 and lines[5] == "+2 more" and lines[4] == "4 Hound", table.concat(lines, "|"))
+  lines = DM.comp_lines({ more5[1], more5[2], more5[3], more5[4], more5[5] }, fake_groups, nil, nil, nil, nil, function(n) return "+" .. n .. " more" end, 5)
+  check("comp lines: exactly five groups fit five lines (no '+N more')", #lines == 5 and lines[5] == "5 Hound", table.concat(lines, "|"))
+  lines = DM.comp_lines(more5, fake_groups, nil, nil, nil, nil, function(n) return "+" .. n .. " more" end, 2)
+  check("comp lines: with room for two lines (a three line name) one group and '+5 more'", #lines == 2 and lines[1] == "1 Hound" and lines[2] == "+5 more", table.concat(lines, "|"))
   lines = DM.comp_lines({ { breed = "chaos_hound", count = 5, rep = 2 } }, fake_groups, nil, nil, nil, "and it repeats")
   check("comp lines: a group that repeats adds the note when there is room", #lines == 2 and lines[2] == "and it repeats")
   lines = DM.comp_lines({ { one_of = { "chaos_hound", "chaos_spawn" }, count = 1 } }, fake_groups, function() return { 1, 2, 3 } end, tag, { 9, 9, 9 })
@@ -235,7 +254,7 @@ tile(1).content.hotspot_top.is_hover = true; bg.change_function(tile(1).content,
 local hover_col = tile(1).style.bg.color[2]
 tile(1).content.hotspot_top.is_hover = false; bg.change_function(tile(1).content, tile(1).style.bg)
 check("a tile takes the suit's lighter colour while the pointer is on it (swarm: card #1b1d17, selected #262a1f)", hover_col == 0x26 and tile(1).style.bg.color[2] == 0x1b, hover_col .. " vs " .. tile(1).style.bg.color[2])
-check("engine rule: the three hotspots of a tile run (hover and click work)", hotspot_runs(tile(1), "hotspot_top") and hotspot_runs(tile(1), "hotspot_state") and hotspot_runs(tile(1), "hotspot_edit") and hotspot_runs(blank_tile(), "hotspot"))
+check("engine rule: the hotspots of a tile run (hover and click work): the face, the state line, the Edit pill and the ten pips", hotspot_runs(tile(1), "hotspot_top") and hotspot_runs(tile(1), "hotspot_state") and hotspot_runs(tile(1), "hotspot_edit") and hotspot_runs(tile(1), "hotspot_pip1") and hotspot_runs(tile(1), "hotspot_pip10") and hotspot_runs(blank_tile(), "hotspot"))
 check("a tile's hotspots do not overlap (a click would reach two of them)", (function()
   local boxes = {}
   for _, p in ipairs(tile(1).def.passes) do if p.pass_type == "hotspot" then boxes[#boxes + 1] = { p.style.offset[1], p.style.offset[2], p.style.size[1], p.style.size[2] } end end
@@ -243,7 +262,32 @@ check("a tile's hotspots do not overlap (a click would reach two of them)", (fun
     local a, b = boxes[i], boxes[j]
     if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4] then return false end
   end end
-  return #boxes == 3
+  return #boxes == 13
+end)())
+check("the ten pip hotspots are side by side from the left edge of the tile to the right one (no dead strip) and only the pips are quiet when the pointer comes over them", (function()
+  local boxes, quiet = {}, 0
+  for _, p in ipairs(tile(1).def.passes) do
+    if p.pass_type == "hotspot" and p.content_id:find("^hotspot_pip") then
+      boxes[#boxes + 1] = { p.style.offset[1], p.style.size[1], p.style.offset[2], p.style.size[2] }
+      if p.content.on_hover_sound == nil and p.content.on_pressed_sound ~= nil then quiet = quiet + 1 end
+    elseif p.pass_type == "hotspot" and p.content.on_hover_sound == nil then
+      return false
+    end
+  end
+  table.sort(boxes, function(a, b) return a[1] < b[1] end)
+  if #boxes ~= 10 or quiet ~= 10 or boxes[1][1] ~= 0 then return false end
+  for i = 1, 9 do if math.abs(boxes[i][1] + boxes[i][2] - boxes[i + 1][1]) > 1e-9 then return false end end
+  return math.abs(boxes[10][1] + boxes[10][2] - 228) < 1e-9 and boxes[1][3] == 235 and boxes[1][4] == 14
+end)())
+check("every hotspot lies inside the tile; the face stops where the pips start (235) and the pips stop where the state line starts (249)", (function()
+  for _, p in ipairs(tile(1).def.passes) do
+    if p.pass_type == "hotspot" then
+      local x, y, w, h = p.style.offset[1], p.style.offset[2], p.style.size[1], p.style.size[2]
+      if x < 0 or y < 0 or x + w > 228 + 1e-9 or y + h > 270 + 1e-9 then return false end
+    end
+  end
+  local top, state = pass_by_style(tile(1), "hotspot_top").style, pass_by_style(tile(1), "hotspot_state").style
+  return top.offset[2] + top.size[2] == 235 and state.offset[2] == 249
 end)())
 -- every widget: every visibility/change function runs without error under engine semantics
 local bad = {}
@@ -306,6 +350,174 @@ view:_reload(); view:_apply_screen()
 check("rare: a card with weight 2 or less has the pus-yellow outline and says rare", tile(5).content.suit_label:find("TILE_RARE", 1, true) ~= nil and tile(5).style.border_t.color[2] == 227 and tile(5).style.border_t.color[3] == 207 and tile(5).style.glow.color[1] == 110)
 settings.pct_boss_ambush = nil
 view:_reload(); view:_apply_screen()
+
+-- the chance pips: relative to the cards in the draw, clickable -------------------------------------------------------------
+do
+  local inp = { get = function() return nil end, is_null_service = function() return false end }
+  local function upd() view:update(0.01, 0, inp) end
+  local function reload() view:_reload(); view:_apply_screen() end
+  local function filled(w) local n = 0; for k = 1, 10 do if w.style["pip_" .. k].color[1] == 255 then n = n + 1 end end return n end
+  local keys = { "wave_small", "wave_medium", "wave_large", "wave_huge", "boss_ambush", "bomber_frenzy", "hound_frenzy", "grenade_legion", "sniper_elite", "elite_squad", "special_pack", "ogryn_brutes" }
+
+  check("pips: the range of the draw is its lightest and its heaviest weight (2 and 5 with the default weights)", view._deck_range.lo == 2 and view._deck_range.hi == 5, tostring(view._deck_range.lo) .. "-" .. tostring(view._deck_range.hi))
+  check("pips: relative: weight 5 = all ten pips, weight 2 (the lightest) one pip, weight 4 seven, weight 3 four", filled(tile(1)) == 10 and filled(tile(12)) == 1 and filled(tile(3)) == 7 and filled(tile(4)) == 4, filled(tile(1)) .. "/" .. filled(tile(12)) .. "/" .. filled(tile(3)) .. "/" .. filled(tile(4)))
+  check("rare: relative too: only the lightest card (Strength) says rare and has the pus-yellow outline", tile(12).content.suit_label:find("TILE_RARE", 1, true) ~= nil and tile(1).content.suit_label:find("TILE_RARE", 1, true) == nil and tile(4).content.suit_label:find("TILE_RARE", 1, true) == nil)
+
+  -- when every card weighs the same all are the likeliest: ten pips, nobody rare
+  for _, k in ipairs(keys) do settings["pct_" .. k] = 7 end
+  reload()
+  local all_ten, none_rare = true, true
+  for i = 1, 12 do
+    if filled(tile(i)) ~= 10 then all_ten = false end
+    if tile(i).content.suit_label:find("TILE_RARE", 1, true) then none_rare = false end
+  end
+  check("pips: cards that all weigh the same all have ten pips and none is rare (a weight of 1 or 2 is not 'rare' by itself any more)", all_ten and none_rare)
+  for _, k in ipairs(keys) do settings["pct_" .. k] = nil end
+  settings.pct_wave_small = 1; settings.pct_wave_medium = 1
+  for _, k in ipairs({ "wave_large", "wave_huge", "boss_ambush", "bomber_frenzy", "hound_frenzy", "grenade_legion", "sniper_elite", "elite_squad", "special_pack", "ogryn_brutes" }) do settings["pct_" .. k] = 1 end
+  reload()
+  check("pips: ...also when they all weigh 1", filled(tile(5)) == 10 and tile(5).content.suit_label:find("TILE_RARE", 1, true) == nil)
+  for _, k in ipairs(keys) do settings["pct_" .. k] = nil end
+  reload()
+
+  -- hovering a pip: it lights up to the pip, the caption says which level
+  tile(3).content.hotspot_pip4.is_hover = true; upd()
+  check("pips: hovering pip 4 lights pips 1 to 4 and names the level over the strip", filled(tile(3)) == 4 and D.deck_hover.content.deck_hover == "tile_pip_hover:The Procession,4" and tile(3).content.fx.hover_level == 4 and view._deck_hover == "wave_large", D.deck_hover.content.deck_hover)
+  check("pips: the whole tile takes the lighter colour while the pointer is on a pip", (function()
+    local bgp = pass_by_style(tile(3), "bg")
+    bgp.change_function(tile(3).content, tile(3).style.bg)
+    return tile(3).style.bg.color[2] == tile(3).content.bg_hi[1]
+  end)())
+  tile(3).content.hotspot_pip4.is_hover = false; tile(3).content.hotspot_pip10.is_hover = true; upd()
+  check("pips: pips past the card's own seven that a click would add are lighter than the ones it has", filled(tile(3)) == 10 and tile(3).style.pip_8.color[2] ~= tile(3).style.pip_7.color[2] and tile(3).style.pip_10.color[2] == tile(3).style.pip_8.color[2])
+  tile(3).content.hotspot_pip10.is_hover = false; upd()
+  check("pips: leaving them brings back the card's own pips and the name over the strip goes away", filled(tile(3)) == 7 and tile(3).content.fx.hover_level == nil and D.deck_hover.content.deck_hover == "" and tile(3).style.pip_8.color[1] == 130)
+  tile(3).content.hotspot_pip6.is_hover = true; upd(); tile(3).content.hotspot_pip6.is_hover = false; tile(3).content.hotspot_top.is_hover = true; upd()
+  check("pips: moving from a pip to the face keeps the card's name in the caption, pips back to normal", D.deck_hover.content.deck_hover == tile(3).content.name and filled(tile(3)) == 7)
+  tile(3).content.hotspot_top.is_hover = false; upd()
+
+  -- clicking a pip sets the card's weight: the level shows among the other cards (weights 2..5)
+  tile(3).content.hotspot_pip10.pressed_callback()
+  check("pips: a click on pip 10 gives the card the weight of the heaviest other card (5) and it shows all ten", settings.pct_wave_large == 5 and filled(tile(3)) == 10, tostring(settings.pct_wave_large))
+  tile(3).content.hotspot_pip1.pressed_callback()
+  check("pips: pip 1 gives it the weight of the lightest other card (2) and it shows one pip", settings.pct_wave_large == 2 and filled(tile(3)) == 1, tostring(settings.pct_wave_large))
+  tile(3).content.hotspot_pip7.pressed_callback()
+  check("pips: pip 7 gives it weight 4, which shows seven pips", settings.pct_wave_large == 4 and filled(tile(3)) == 7, tostring(settings.pct_wave_large))
+  check("pips: the strip follows (the card's segment is about 4/47 of the strip)", (function() for _, s in ipairs(view._strip_segments) do if s.key == "wave_large" then return math.abs(s.w / 1710 - 4 / 47) < 0.01 end end return false end)())
+  check("pips: ...and the caption of the draw still counts every card (12 in the draw)", D.deck_count.content.deck_count == "deck_count:12")
+
+  -- a card out of the draw can have its chance set too, and stays out
+  settings.on_wave_huge = false; reload()
+  tile(4).content.hotspot_pip10.pressed_callback()
+  check("pips: a click on a card that is out of the draw sets its weight but leaves it out", settings.pct_wave_huge == 5 and settings.on_wave_huge == false and tile(4).content.card_state == "off")
+  settings.on_wave_huge = nil; settings.pct_wave_huge = nil; settings.pct_wave_large = nil; reload()
+
+  -- a card alone in the draw: the pip is the weight itself (1 to 10)
+  for _, k in ipairs(keys) do if k ~= "wave_small" then settings["on_" .. k] = false end end
+  reload()
+  tile(1).content.hotspot_pip3.pressed_callback()
+  check("pips: a lone card has nothing to compare with, the pip is the weight (pip 3 = weight 3)", settings.pct_wave_small == 3, tostring(settings.pct_wave_small))
+  check("pips: ...and it shows all ten (it is the only one, so the likeliest)", filled(tile(1)) == 10)
+  for _, k in ipairs(keys) do settings["on_" .. k] = nil end
+  settings.pct_wave_small = nil; reload()
+
+  -- a right click anywhere on the tile opens the card; the pips and the pill repeat their action on a fast second click, the toggles do not
+  for _, hs in ipairs({ "hotspot_top", "hotspot_state", "hotspot_edit", "hotspot_pip1", "hotspot_pip5", "hotspot_pip10" }) do
+    if view._screen ~= "list" then click("btn_back") end
+    tile(2).content[hs].right_pressed_callback()
+    check("right click: " .. hs .. " opens the card (The Pilgrims) in edit mode", view._screen == "detail" and view._key == "wave_medium", tostring(view._screen) .. tostring(view._key))
+    click("btn_back")
+  end
+  check("right click: back on the Deck", view._screen == "list")
+  check("double click: the pips and the Edit pill repeat their action, the toggles do not (two toggles in a row would cancel out)", tile(2).content.hotspot_pip4.double_click_callback ~= nil and tile(2).content.hotspot_edit.double_click_callback ~= nil and tile(2).content.hotspot_top.double_click_callback == nil and tile(2).content.hotspot_state.double_click_callback == nil)
+  tile(2).content.hotspot_pip4.double_click_callback()
+  check("double click: the second click on a pip sets the chance too", settings.pct_wave_medium ~= nil and filled(tile(2)) >= 1)
+  settings.pct_wave_medium = nil; reload()
+end
+
+-- the number of lines of a name is measured by the game when there is a renderer ---------------------------------------------
+do
+  local function reload() view:_reload(); view:_apply_screen() end
+  check("name lines: without a renderer the number of lines is estimated from the letters (The Fool: 1 line, divider 64)", view._ui_renderer == nil and tile(1).style.divider.offset[2] == 64)
+  view._ui_renderer = { per_line = 8 }
+  reload()
+  check("name lines: with a renderer the game's measuring decides: The Fool (8 letters) one line, The Pilgrims (12) two lines, a long name three at most", tile(1).style.divider.offset[2] == 64 and tile(2).style.divider.offset[2] == 88 and tile(2).style.comp.size[2] == 68 and tile(5).style.divider.offset[2] == 88, tostring(tile(2).style.divider.offset[2]))
+  settings.wave_def_custom_1 = "A Name That Is Very Long Indeed\t3 hounds"; settings.on_custom_1 = true
+  reload()
+  check("name lines: three lines at most, the composition keeps two lines of room", tile(13).style.divider.offset[2] == 112 and tile(13).style.comp.size[2] == 34, tostring(tile(13).style.divider.offset[2]))
+  view._ui_renderer = { fail = true }
+  reload()
+  check("name lines: when measuring fails the estimate is used (The Fool 1 line, the 31 letter name 2 lines)", tile(1).style.divider.offset[2] == 64 and tile(13).style.divider.offset[2] == 88, tostring(tile(13).style.divider.offset[2]))
+  view._ui_renderer = nil
+  settings.wave_def_custom_1 = nil; settings.on_custom_1 = nil
+  reload()
+end
+
+-- the Edit pill, the layout under the name, the colours of the modifiers, the new suits --------------------------------------------
+do
+  local inp = { get = function() return nil end, is_null_service = function() return false end }
+  local function upd() view:update(0.01, 0, inp) end
+  local function reload() view:_reload(); view:_apply_screen() end
+  local function lines_of(text) local n = 1; for _ in text:gmatch("\n") do n = n + 1 end return n end
+  -- the colours read the mod's options like the game does (a later block of this file initialises them the same way)
+  mod.rw.colors.init({ kind = mod.rw.groups.kind, option = function(id) return settings[id] end })
+
+  local pill = pass_by_style(tile(1), "hotspot_edit").style
+  local edit_bg = tile(1).style.edit_bg
+  check("edit pill: the highlight is exactly the pill (46 x 16) and the same box as the click area, in the bottom right corner", edit_bg.size[1] == 46 and edit_bg.size[2] == 16 and edit_bg.offset[1] == pill.offset[1] and edit_bg.offset[2] == pill.offset[2] and pill.size[1] == 46 and pill.size[2] == 16 and pill.offset[1] + 46 == 214 and pill.offset[2] + 16 <= 270)
+  check("edit pill: the label is centred in the pill", tile(1).style.edit_label.text_horizontal_alignment == "center" and tile(1).style.edit_label.size[1] == 46 and tile(1).style.edit_label.offset[1] == 168)
+  check("edit pill: no highlight at rest", not edit_bg.visible)
+  local rest = tile(1).style.edit_label.text_color[2]
+  tile(1).content.hotspot_edit.is_hover = true; upd()
+  check("edit pill: it lights up (and the label gets brighter) while the pointer is on it", edit_bg.visible and tile(1).style.edit_label.text_color[2] ~= rest)
+  tile(1).content.hotspot_edit.is_hover = false; upd()
+  check("edit pill: ...and goes out again", not edit_bg.visible and tile(1).style.edit_label.text_color[2] == rest)
+  check("state line: the left text and the clock end before the pill starts", tile(1).style.state_left.offset[1] + tile(1).style.state_left.size[1] <= 168 and tile(1).style.state_clock.offset[1] + tile(1).style.state_clock.size[1] <= 168)
+
+  -- under the name: the divider and the composition follow it
+  check("layout: a one line name (The Fool): the divider is at 64, the composition from 71 with room for five lines", tile(1).style.divider.offset[2] == 64 and tile(1).style.comp.offset[2] == 71 and tile(1).style.comp.size[2] == 85, tostring(tile(1).style.divider.offset[2]))
+  settings.wave_def_custom_1 = "The Endless Plague Ritual\t8 poxwalker"; settings.on_custom_1 = true; reload()
+  check("layout: a two line name pushes them down: divider 88, composition from 95 with room for four lines", tile(13).content.name == "The Endless Plague Ritual" and tile(13).style.divider.offset[2] == 88 and tile(13).style.comp.offset[2] == 95 and tile(13).style.comp.size[2] == 68, tostring(tile(13).style.divider.offset[2]))
+  settings.wave_def_custom_1 = "Five\t1 hound, 2 poxwalker, 3 mauler, 4 crusher, 5 sniper"; reload()
+  check("layout: five groups on a one line name all fit (five lines, no '+N more')", lines_of(tile(13).content.comp) == 5 and not tile(13).content.comp:find("tile_more", 1, true), tile(13).content.comp)
+  settings.wave_def_custom_1 = "Six\t1 hound, 2 poxwalker, 3 mauler, 4 crusher, 5 sniper, 6 rifleman"; reload()
+  check("layout: six groups show four and '+2 more' on five lines", lines_of(tile(13).content.comp) == 5 and tile(13).content.comp:find("tile_more:2", 1, true) ~= nil, tile(13).content.comp)
+  settings.wave_def_custom_1 = "The Endless Plague Ritual\t1 hound, 2 poxwalker, 3 mauler, 4 crusher, 5 sniper"; reload()
+  check("layout: five groups on a two line name show three and '+2 more' on four lines", lines_of(tile(13).content.comp) == 4 and tile(13).content.comp:find("tile_more:2", 1, true) ~= nil, tile(13).content.comp)
+  check("layout: the composition ends above the modifier line and the whisper (comp_y + room <= 164 < whisper 184)", tile(13).style.comp.offset[2] + tile(13).style.comp.size[2] <= 164 and tile(13).style.mods.offset[2] >= 164 and tile(13).style.whisper.offset[2] >= tile(13).style.mods.offset[2] + 16)
+
+  -- the modifiers are coloured like Improved Havoc Tags does it
+  settings.wave_def_custom_1 = "Rage\t2 mauler[garden+enraged]"; reload()
+  check("modifiers: each name has the Improved Havoc Tags colour (garden blue-violet, enraged red), the separator stays plain", tile(13).content.mods:find("{#color(138,43,226)}", 1, true) ~= nil and tile(13).content.mods:find("{#color(255,54,36)}", 1, true) ~= nil and plain(tile(13).content.mods):find(" \194\183 ", 1, true) ~= nil, tile(13).content.mods)
+  check("modifiers: ...and the line itself is the plain text of the names", plain(tile(13).content.mods) == "Purple \194\183 Enraged" or plain(tile(13).content.mods):find("Enraged", 1, true) ~= nil, plain(tile(13).content.mods))
+  local havoc = mod.rw.colors
+  settings.on_custom_1 = false; reload()
+  check("modifiers: a card out of the draw is drained of colour, the modifier colours too", tile(13).content.mods:find("{#color(255,54,36)}", 1, true) == nil and tile(13).content.mods:find("{#color(", 1, true) ~= nil, tile(13).content.mods)
+  settings.on_custom_1 = true; settings.colour_enemies = false; mod.rw.colors.clear_cache(); reload()
+  check("modifiers: with the enemy colours switched off the names are plain text in rust", tile(13).content.mods:find("{#", 1, true) == nil and tile(13).content.mods ~= "" and tile(13).style.mods.visible, tile(13).content.mods)
+  settings.colour_enemies = nil; mod.rw.colors.clear_cache()
+  settings.wave_def_custom_1 = "Plain\t2 mauler"; reload()
+  check("modifiers: a card without any has no line", not tile(13).style.mods.visible and tile(13).content.mods == "")
+
+  -- the Daemonhost's card is purple
+  settings.wave_def_custom_1 = "The Host\t1 daemonhost"; reload()
+  check("warp: a custom card with a Daemonhost is a Warp card without anyone choosing: its label, the eye in a triangle (4 triangles, a pupil cut in the card's colour)", tile(13).content.suit_label == "WARP" and tile(13).style.icon_t1.visible and tile(13).style.icon_t4.visible and tile(13).style.icon_c1.visible and tile(13).style.icon_th4.visible, tile(13).content.suit_label)
+  check("warp: the card is purple (the suit's colours)", tile(13).style.suit_label.text_color[2] == 0xb1 and tile(13).style.suit_label.text_color[3] == 0x84 and tile(13).style.suit_label.text_color[4] == 0xe0)
+  settings.su_custom_1 = "snare"; reload()
+  check("warp: choosing another suit wins over the default", tile(13).content.suit_label == "SNARE" and tile(13).style.icon_c4.visible)
+  settings.su_custom_1 = nil
+  -- all twelve suits draw a mark
+  local all_marks = true
+  local Cards = mod.rw.cards
+  for _, suit in ipairs(Cards.SUIT_ORDER) do
+    settings.su_custom_1 = suit; reload()
+    local any = false
+    for k = 1, 4 do if tile(13).style["icon_t" .. k].visible or tile(13).style["icon_c" .. k].visible then any = true end end
+    if not any or tile(13).content.suit_label ~= string.upper(Cards.SUITS[suit].name) then all_marks = false end
+  end
+  check("suits: all twelve suits paint a mark and their name on a tile", all_marks)
+  settings.su_custom_1 = nil; settings.wave_def_custom_1 = nil; settings.on_custom_1 = nil; reload()
+end
 
 -- cooldown looks on the tiles: rot and renewal, the murmur returns, the vial fills, the ready ping -------------------------
 do
@@ -386,8 +598,8 @@ do
   reload()
   local rain = nil
   for i = 1, 14 do if tile(i).visible and tile(i).content.card_key == "grenade_legion" then rain = tile(i) end end
-  check("vial: Rain of Rot has the vial look by default, half-way the liquid is half the tile high, in pus yellow, with a top line", rain ~= nil and rain.style.vial.visible and math.abs(rain.style.vial.size[2] - 131) < 1 and math.abs(rain.style.vial.offset[2] - 131) < 1 and same(rain.style.vial.color, Cards.BASE.pus) and rain.style.vial_line.visible and math.abs(rain.style.vial_line.offset[2] - 131) < 1)
-  check("vial: three bubbles rise inside the liquid", rain.style.bubble_1.visible and rain.style.bubble_2.visible and rain.style.bubble_3.visible and rain.style.bubble_1.offset[2] > 131 - 12 and rain.style.bubble_1.offset[2] < 262)
+  check("vial: Rain of Rot has the vial look by default, half-way the liquid is half the tile high, in pus yellow, with a top line", rain ~= nil and rain.style.vial.visible and math.abs(rain.style.vial.size[2] - 135) < 1 and math.abs(rain.style.vial.offset[2] - 135) < 1 and same(rain.style.vial.color, Cards.BASE.pus) and rain.style.vial_line.visible and math.abs(rain.style.vial_line.offset[2] - 135) < 1)
+  check("vial: three bubbles rise inside the liquid", rain.style.bubble_1.visible and rain.style.bubble_2.visible and rain.style.bubble_3.visible and rain.style.bubble_1.offset[2] > 135 - 12 and rain.style.bubble_1.offset[2] < 270)
   local y1 = rain.style.bubble_1.offset[2]
   step(0.5, 1.5)
   check("vial: the bubbles move with time", rain.style.bubble_1.offset[2] ~= y1)
@@ -426,11 +638,11 @@ do
   view:_open_detail("boss_ambush")
   check("face: a card's own screen has the Card face button", W.btn_face.visible and W.btn_face.content.hotspot_text == "btn_face" and not W.face_numbers.visible and not W.rw_tile_preview.visible)
   click("btn_face")
-  check("face: the screen has ten rows (six suits, threat, whisper, cooldown look, cooldown), Back, the numbers text and the preview tile", view._screen == "face" and #view._face_rows == 10 and row(10).visible and W.btn_back.visible and W.face_numbers.visible and W.rw_tile_preview.visible and not W.btn_face.visible and W.description_text.content.description_text == "view_desc_face:The Devil")
+  check("face: the screen has sixteen rows (threat, whisper, cooldown look, cooldown, then twelve suits; ten show), Back, the numbers text and the preview tile", view._screen == "face" and #view._face_rows == 16 and row(10).visible and W.btn_back.visible and W.face_numbers.visible and W.rw_tile_preview.visible and not W.btn_face.visible and W.description_text.content.description_text == "view_desc_face:The Devil")
   check("face: nothing of the Deck or of the card's own screen shows", not tile(1).visible and not W.btn_rename.visible and not W.btn_delete.visible and not W.stepper_chance.visible and not W.rw_strip.visible)
-  check("face: suit rows are named in the suit's own colour and ticked for the card's suit (Fateful)", row(1).content.row_name == "Plague" and rgb_of_name(1) == "183,194,58" and row(6).content.row_name == "Fateful" and rgb_of_name(6) == "230,223,195" and row(6).content.checkbox_selected and not row(1).content.checkbox_selected and row(1).content.show_check and not row(1).content.show_stepper and not row(1).content.show_action)
-  check("face: a boss makes Fateful the suggested suit, said on its row", row(6).content.info:find("face_suggested", 1, true) ~= nil and row(1).content.info:find("face_suggested", 1, true) == nil and row(1).content.info:find("suit_desc_plague", 1, true) ~= nil, row(6).content.info)
-  check("face: the preview is this card's tile as the Deck draws it, not clickable", W.rw_tile_preview.content.name == "The Devil" and W.rw_tile_preview.content.suit_label:find("FATEFUL", 1, true) ~= nil and W.rw_tile_preview.content.hotspot_top.disabled == true and W.rw_tile_preview.content.hotspot_edit.disabled == true and view._definitions.scenegraph_definition.rw_tile_preview.position[1] == 1560 and view._definitions.scenegraph_definition.rw_tile_preview.position[2] == 758)
+  check("face: suit rows are named in the suit's own colour and ticked for the card's suit (Fateful)", row(5).content.row_name == "Plague" and rgb_of_name(5) == "183,194,58" and row(10).content.row_name == "Fateful" and rgb_of_name(10) == "230,223,195" and row(10).content.checkbox_selected and not row(5).content.checkbox_selected and row(5).content.show_check and not row(5).content.show_stepper and not row(5).content.show_action)
+  check("face: a boss makes Fateful the suggested suit, said on its row", row(10).content.info:find("face_suggested", 1, true) ~= nil and row(5).content.info:find("face_suggested", 1, true) == nil and row(5).content.info:find("suit_desc_plague", 1, true) ~= nil, row(10).content.info)
+  check("face: the preview is this card's tile as the Deck draws it, not clickable", W.rw_tile_preview.content.name == "The Devil" and W.rw_tile_preview.content.suit_label:find("FATEFUL", 1, true) ~= nil and W.rw_tile_preview.content.hotspot_top.disabled == true and W.rw_tile_preview.content.hotspot_edit.disabled == true and view._definitions.scenegraph_definition.rw_tile_preview.position[1] == 1560 and view._definitions.scenegraph_definition.rw_tile_preview.position[2] == 756)
   check("face: the preview lies inside the bottom panel and clear of the numbers text and the buttons", (function()
     local sg = view._definitions.scenegraph_definition
     local p, n, b = sg.rw_tile_preview, sg.face_numbers, sg.btn_back
@@ -440,70 +652,70 @@ do
   check("face: the numbers: a boss alone (1 enemy gives 1, a boss +2) is threat 3", W.face_numbers.content.face_numbers:find("^face_numbers:3,1,1") ~= nil and W.face_numbers.content.face_numbers:find("face_boss", 1, true) ~= nil and W.face_numbers.content.face_numbers:find("face_elites", 1, true) == nil, W.face_numbers.content.face_numbers)
 
   -- choose a suit: click the name or the check box
-  click_row(3, "hotspot_name")
-  check("suit: clicking Rage writes su_<key>, ticks it, and the preview follows", settings.su_boss_ambush == "rage" and row(3).content.checkbox_selected and not row(6).content.checkbox_selected and W.rw_tile_preview.content.suit_label:find("RAGE", 1, true) ~= nil)
+  click_row(7, "hotspot_name")
+  check("suit: clicking Rage writes su_<key>, ticks it, and the preview follows", settings.su_boss_ambush == "rage" and row(7).content.checkbox_selected and not row(10).content.checkbox_selected and W.rw_tile_preview.content.suit_label:find("RAGE", 1, true) ~= nil)
   check("suit: the numbers now point at the suggested suit (Fateful) the card no longer has", W.face_numbers.content.face_numbers:find("face_suggest:Fateful", 1, true) ~= nil, W.face_numbers.content.face_numbers)
-  click_row(6, "hotspot_check")
-  check("suit: the check box does the same; back on the suggestion there is nothing more to suggest", settings.su_boss_ambush == "fateful" and row(6).content.checkbox_selected and W.face_numbers.content.face_numbers:find("face_suggest", 1, true) == nil)
+  click_row(10, "hotspot_check")
+  check("suit: the check box does the same; back on the suggestion there is nothing more to suggest", settings.su_boss_ambush == "fateful" and row(10).content.checkbox_selected and W.face_numbers.content.face_numbers:find("face_suggest", 1, true) == nil)
 
   -- threat: automatic, or 1 to 5 by hand
-  check("threat: the row shows 'auto' and says it is worked out", row(7).content.show_stepper and row(7).content.stepper_value == "val_auto" and row(7).content.info == "face_threat_auto" and row(7).content.row_name == "face_threat")
-  click_row(7, "hotspot_plus")
-  check("threat: + sets 1 by hand (th_<key>) and the row and the preview follow", settings.th_boss_ambush == 1 and row(7).content.stepper_value == "1" and row(7).content.info == "face_threat_own" and W.rw_tile_preview.style.th_o1.visible and W.rw_tile_preview.style.th_i2.visible and not W.rw_tile_preview.style.th_i1.visible)
+  check("threat: the row shows 'auto' and says it is worked out", row(1).content.show_stepper and row(1).content.stepper_value == "val_auto" and row(1).content.info == "face_threat_auto" and row(1).content.row_name == "face_threat")
+  click_row(1, "hotspot_plus")
+  check("threat: + sets 1 by hand (th_<key>) and the row and the preview follow", settings.th_boss_ambush == 1 and row(1).content.stepper_value == "1" and row(1).content.info == "face_threat_own" and W.rw_tile_preview.style.th_o1.color[1] == 255 and W.rw_tile_preview.style.th_o2.color[1] == 64 and W.rw_tile_preview.style.th_o2.visible)
   check("threat: the numbers say it is set by hand", W.face_numbers.content.face_numbers:find("face_override:1", 1, true) ~= nil)
-  for _ = 1, 8 do click_row(7, "hotspot_plus") end
-  check("threat: never above 5", settings.th_boss_ambush == 5 and row(7).content.stepper_value == "5" and not W.rw_tile_preview.style.th_i5.visible)
-  click_row(7, "hotspot_minus"); click_row(7, "hotspot_minus")
+  for _ = 1, 8 do click_row(1, "hotspot_plus") end
+  check("threat: never above 5", settings.th_boss_ambush == 5 and row(1).content.stepper_value == "5" and W.rw_tile_preview.style.th_o5.color[1] == 255)
+  click_row(1, "hotspot_minus"); click_row(1, "hotspot_minus")
   check("threat: - steps down", settings.th_boss_ambush == 3)
-  for _ = 1, 5 do click_row(7, "hotspot_minus") end
-  check("threat: down to 0 = auto again, never below", settings.th_boss_ambush == 0 and row(7).content.stepper_value == "val_auto" and row(7).content.info == "face_threat_auto")
-  click_row(7, "hotspot_value")
+  for _ = 1, 5 do click_row(1, "hotspot_minus") end
+  check("threat: down to 0 = auto again, never below", settings.th_boss_ambush == 0 and row(1).content.stepper_value == "val_auto" and row(1).content.info == "face_threat_auto")
+  click_row(1, "hotspot_value")
   check("threat: clicking the value opens a number box (0 to 5)", view._popup ~= nil and view._popup.spec.min == 0 and view._popup.spec.max == 5 and view._popup.spec.integer == true)
   type_in("9"); PPf.Popup.commit(view)
   check("threat: 9 is refused", view._popup ~= nil and view._popup.error ~= nil)
   type_in("4"); PPf.Popup.commit(view)
-  check("threat: 4 is accepted", view._popup == nil and settings.th_boss_ambush == 4 and row(7).content.stepper_value == "4")
+  check("threat: 4 is accepted", view._popup == nil and settings.th_boss_ambush == 4 and row(1).content.stepper_value == "4")
   settings.th_boss_ambush = 0; view:_reload(); view:_apply_screen(true)
 
   -- whisper: a short line, empty = the suit's own
-  check("whisper: the row has a Change button and shows the card's line in quotes", row(8).content.show_action and row(8).content.hotspot_action_text == "btn_change" and row(8).content.row_name == "face_whisper" and row(8).content.info:sub(1, 1) == "\"", row(8).content.info)
-  click_row(8, "hotspot_action")
+  check("whisper: the row has a Change button and shows the card's line in quotes", row(2).content.show_action and row(2).content.hotspot_action_text == "btn_change" and row(2).content.row_name == "face_whisper" and row(2).content.info:sub(1, 1) == "\"", row(2).content.info)
+  click_row(2, "hotspot_action")
   check("whisper: the Change button opens a text box limited to 40 characters", view._popup ~= nil and view._popup.spec.max_length == 40 and view._popup.spec.label == "popup_whisper_title:The Devil")
   type_in("  Speak,   friend  "); PPf.Popup.commit(view)
-  check("whisper: the text is cleaned (spaces) and stored as wh_<key>; row and preview show it", settings.wh_boss_ambush == "Speak, friend" and row(8).content.info == "\"Speak, friend\"" and W.rw_tile_preview.content.whisper == "\"Speak, friend\"", tostring(settings.wh_boss_ambush))
-  click_row(8, "hotspot_name")
+  check("whisper: the text is cleaned (spaces) and stored as wh_<key>; row and preview show it", settings.wh_boss_ambush == "Speak, friend" and row(2).content.info == "\"Speak, friend\"" and W.rw_tile_preview.content.whisper == "\"Speak, friend\"", tostring(settings.wh_boss_ambush))
+  click_row(2, "hotspot_name")
   type_in("This line is far too long to fit on the card, so it is cut"); PPf.Popup.commit(view)
   check("whisper: a long line is cut at 40 characters (clicking the row name works too)", #settings.wh_boss_ambush <= 40 and #settings.wh_boss_ambush >= 30, tostring(settings.wh_boss_ambush))
-  click_row(8, "hotspot_action"); type_in(""); PPf.Popup.commit(view)
-  check("whisper: empty goes back to the card's built-in line (The Devil has one)", settings.wh_boss_ambush == "" and row(8).content.info == "\"Something big is listening.\"", row(8).content.info)
+  click_row(2, "hotspot_action"); type_in(""); PPf.Popup.commit(view)
+  check("whisper: empty goes back to the card's built-in line (The Devil has one)", settings.wh_boss_ambush == "" and row(2).content.info == "\"Something big is listening.\"", row(2).content.info)
   click("btn_back"); view:_open_detail("wave_medium"); click("btn_face")
-  check("whisper: a card with no line of its own (The Pilgrims) shows the suit's own line, marked as such", row(8).content.info == "face_whisper_suit:" .. Cards.SUITS.swarm.whisper and W.rw_tile_preview.content.whisper == "\"" .. Cards.SUITS.swarm.whisper .. "\"", row(8).content.info)
+  check("whisper: a card with no line of its own (The Pilgrims) shows the suit's own line, marked as such", row(2).content.info == "face_whisper_suit:" .. Cards.SUITS.swarm.whisper and W.rw_tile_preview.content.whisper == "\"" .. Cards.SUITS.swarm.whisper .. "\"", row(2).content.info)
   click("btn_back"); view:_open_detail("boss_ambush"); click("btn_face")
 
   -- cooldown look: automatic -> rot -> whisper -> vial -> automatic
-  check("look: automatic by default, and it says what the suit gives (rot for Fateful)", row(9).content.info == "face_look_auto:look_rot" and row(9).content.show_action and row(9).content.hotspot_action_text == "btn_change")
-  click_row(9, "hotspot_action"); local a = settings.cl_boss_ambush
-  click_row(9, "hotspot_action"); local b = settings.cl_boss_ambush
-  click_row(9, "hotspot_action"); local c = settings.cl_boss_ambush
-  check("look: the button steps through rot, whisper and vial", a == "rot" and b == "whisper" and c == "vial" and row(9).content.info == "look_vial", a .. "/" .. b .. "/" .. c)
-  click_row(9, "hotspot_action")
-  check("look: and back to automatic", settings.cl_boss_ambush == "" and row(9).content.info == "face_look_auto:look_rot")
-  click_row(2, "hotspot_check")
-  check("look: ...Murmur card: automatic says the murmur returns", row(9).content.info == "face_look_auto:look_whisper", row(9).content.info)
+  check("look: automatic by default, and it says what the suit gives (rot for Fateful)", row(3).content.info == "face_look_auto:look_rot" and row(3).content.show_action and row(3).content.hotspot_action_text == "btn_change")
+  click_row(3, "hotspot_action"); local a = settings.cl_boss_ambush
+  click_row(3, "hotspot_action"); local b = settings.cl_boss_ambush
+  click_row(3, "hotspot_action"); local c = settings.cl_boss_ambush
+  check("look: the button steps through rot, whisper and vial", a == "rot" and b == "whisper" and c == "vial" and row(3).content.info == "look_vial", a .. "/" .. b .. "/" .. c)
+  click_row(3, "hotspot_action")
+  check("look: and back to automatic", settings.cl_boss_ambush == "" and row(3).content.info == "face_look_auto:look_rot")
+  click_row(6, "hotspot_check")
+  check("look: ...Murmur card: automatic says the murmur returns", row(3).content.info == "face_look_auto:look_whisper", row(3).content.info)
   settings.su_boss_ambush = "fateful"; view:_reload(); view:_apply_screen(true)
 
   -- cooldown: 30 s steps, 30 s up to the longest cooldown option
-  check("cooldown: the row shows the card's cooldown (240 s) and where the limits come from", row(10).content.show_stepper and row(10).content.stepper_value == "240" and row(10).content.info == "face_cooldown_info:10", row(10).content.info)
-  click_row(10, "hotspot_plus")
-  check("cooldown: + adds 30 s and writes cd_<key>", settings.cd_boss_ambush == 270 and row(10).content.stepper_value == "270")
-  for _ = 1, 30 do click_row(10, "hotspot_minus") end
-  check("cooldown: never below 30 s", settings.cd_boss_ambush == 30 and row(10).content.stepper_value == "30")
-  for _ = 1, 40 do click_row(10, "hotspot_plus") end
+  check("cooldown: the row shows the card's cooldown (240 s) and where the limits come from", row(4).content.show_stepper and row(4).content.stepper_value == "240" and row(4).content.info == "face_cooldown_info:10", row(4).content.info)
+  click_row(4, "hotspot_plus")
+  check("cooldown: + adds 30 s and writes cd_<key>", settings.cd_boss_ambush == 270 and row(4).content.stepper_value == "270")
+  for _ = 1, 30 do click_row(4, "hotspot_minus") end
+  check("cooldown: never below 30 s", settings.cd_boss_ambush == 30 and row(4).content.stepper_value == "30")
+  for _ = 1, 40 do click_row(4, "hotspot_plus") end
   check("cooldown: never above the longest cooldown option (10 minutes by default)", settings.cd_boss_ambush == 600)
   settings.tarot_longest = 4
-  click_row(10, "hotspot_minus"); click_row(10, "hotspot_plus"); click_row(10, "hotspot_plus")
-  check("cooldown: the limit follows the option (4 minutes)", settings.cd_boss_ambush == 240 and row(10).content.info == "face_cooldown_info:4", tostring(settings.cd_boss_ambush))
-  click_row(10, "hotspot_value")
+  click_row(4, "hotspot_minus"); click_row(4, "hotspot_plus"); click_row(4, "hotspot_plus")
+  check("cooldown: the limit follows the option (4 minutes)", settings.cd_boss_ambush == 240 and row(4).content.info == "face_cooldown_info:4", tostring(settings.cd_boss_ambush))
+  click_row(4, "hotspot_value")
   check("cooldown: clicking the value opens a number box (30 to the longest)", view._popup ~= nil and view._popup.spec.min == 30 and view._popup.spec.max == 240)
   type_in("1000"); PPf.Popup.commit(view)
   check("cooldown: more than the longest is refused", view._popup ~= nil and view._popup.error ~= nil)
@@ -511,7 +723,7 @@ do
   check("cooldown: 90 is accepted (it is the same setting as the Cooldown stepper of the card's screen)", view._popup == nil and settings.cd_boss_ambush == 90)
   settings.tarot_longest = nil
   settings.cd_boss_ambush = 100; view:_reload(); view:_apply_screen(true)
-  click_row(10, "hotspot_plus")
+  click_row(4, "hotspot_plus")
   check("cooldown: an old value that is not a multiple of 30 (100 s) is rounded to the grid first (90 + 30)", settings.cd_boss_ambush == 120, tostring(settings.cd_boss_ambush))
   settings.cd_boss_ambush = nil
 
@@ -526,6 +738,29 @@ do
   view:_reload(); view:_apply_screen()
   check("face: the Deck shows the new face (Rage) on the card's tile", tile(5).content.suit_label:find("RAGE", 1, true) ~= nil and view._screen == "list")
   settings.su_boss_ambush = nil; settings.wh_boss_ambush = nil; settings.cl_boss_ambush = nil; settings.th_boss_ambush = nil
+  view:_reload(); view:_apply_screen()
+
+  -- the six new suits are on the second page of the face screen
+  view:_open_detail("boss_ambush"); click("btn_face")
+  check("face: the four settings come first so they are never out of sight; the first page ends at Fateful", row(1).content.row_name == "face_threat" and row(4).content.row_name == "face_cooldown" and row(5).content.row_name == "Plague" and row(10).content.row_name == "Fateful" and view:_max_offset() == 6, tostring(view:_max_offset()))
+  view._offset = 6; view:_refresh_rows(); view:_set_interaction_enabled()
+  check("face: scrolled to the end the page shows Volley, Snare, Brute, Fester, Dusk and Warp in their own colours", row(5).content.row_name == "Volley" and row(6).content.row_name == "Snare" and row(7).content.row_name == "Brute" and row(8).content.row_name == "Fester" and row(9).content.row_name == "Dusk" and row(10).content.row_name == "Warp" and rgb_of_name(10) == "177,132,224" and rgb_of_name(5) == "127,178,194" and row(10).content.show_check and row(10).visible)
+  check("face: each new suit says what it is for", row(5).content.info:find("suit_desc_volley", 1, true) ~= nil and row(10).content.info:find("suit_desc_warp", 1, true) ~= nil)
+  click_row(10, "hotspot_name")
+  check("suit: clicking Warp writes su_<key> and the preview shows it with its mark", settings.su_boss_ambush == "warp" and row(10).content.checkbox_selected and W.rw_tile_preview.content.suit_label:find("WARP", 1, true) ~= nil and W.rw_tile_preview.style.icon_t1.visible)
+  click_row(6, "hotspot_check")
+  check("suit: and Snare by its check box", settings.su_boss_ambush == "snare" and W.rw_tile_preview.content.suit_label:find("SNARE", 1, true) ~= nil)
+  settings.su_boss_ambush = nil; view._offset = 0; view:_reload(); view:_apply_screen()
+
+  -- a Daemonhost: Warp is the default suit, and the numbers suggest it once another suit is chosen
+  settings.wave_def_custom_1 = "The Host\t1 daemonhost"; settings.on_custom_1 = true
+  view:_reload(); view:_apply_screen()
+  view:_open_detail("custom_1"); click("btn_face")
+  view._offset = 6; view:_refresh_rows(); view:_set_interaction_enabled()
+  check("face: a card with a Daemonhost starts as a Warp card (its row is ticked, nothing to suggest)", row(10).content.row_name == "Warp" and row(10).content.checkbox_selected and W.face_numbers.content.face_numbers:find("face_suggest", 1, true) == nil and W.rw_tile_preview.content.suit_label == "WARP", tostring(W.rw_tile_preview.content.suit_label))
+  click_row(6, "hotspot_name")
+  check("face: choosing another suit: the numbers suggest Warp and the Warp row says it is suggested", settings.su_custom_1 == "snare" and W.face_numbers.content.face_numbers:find("face_suggest:Warp", 1, true) ~= nil and row(10).content.info:find("face_suggested", 1, true) ~= nil, W.face_numbers.content.face_numbers)
+  settings.wave_def_custom_1 = nil; settings.on_custom_1 = nil; settings.su_custom_1 = nil; view._offset = 0
   view:_reload(); view:_apply_screen()
 end
 
@@ -1509,7 +1744,10 @@ if DUMP and DUMP ~= "" then
   for i = 1, 20 do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil end
   settings.on_wave_medium = false; settings.pct_boss_ambush = 2
   settings.wave_def_custom_1 = "The Pale Choir\t24 mauler, 3 crusher[enraged], 2 hound, 1 plague ogryn, 4 sniper"; settings.on_custom_1 = true; settings.su_custom_1 = "murmur"; settings.wh_custom_1 = "They were never quiet."; settings.pct_custom_1 = 8
-  settings.wave_def_custom_2 = "Nurgle's Rage\t8 mutants, 3 hounds"; settings.on_custom_2 = true; settings.su_custom_2 = "rage"; settings.th_custom_2 = 4
+  settings.wave_def_custom_2 = "The Host\t1 daemonhost, 6 poxwalker"; settings.on_custom_2 = true; settings.th_custom_2 = 4 -- warp by default
+  -- the new suits and a two line name, so the preview shows them all
+  settings.su_wave_huge = "volley"; settings.su_bomber_frenzy = "snare"; settings.su_hound_frenzy = "brute"; settings.su_special_pack = "fester"; settings.su_sniper_elite = "dusk"
+  settings.wave_def_special_pack = "The Magician Of Endless Plague\t"; settings.pct_wave_huge = 4; settings.pct_wave_small = 5
   settings.on_wave_medium = true; settings.cl_wave_medium = "whisper"
   local resting = { wave_large = 75, wave_medium = 90, grenade_legion = 100, hound_frenzy = 20 }
   mod.rw.director = { cooldown_remaining = function(key) return resting[key] or 0 end }
@@ -1521,6 +1759,8 @@ if DUMP and DUMP ~= "" then
       local st = w.style[p.style_id]
       if st and st.visible ~= false then
         passes[#passes + 1] = { type = p.pass_type, id = p.style_id, style = st, text = p.value_id and w.content[p.value_id] or nil }
+      elseif p.pass_type == "hotspot" and st then
+        passes[#passes + 1] = { type = "hotspot", id = p.style_id, style = { offset = st.offset, size = st.size } }
       end
     end
     return { x = x, y = y, alpha = w.alpha_multiplier or 1, passes = passes }
@@ -1531,9 +1771,9 @@ if DUMP and DUMP ~= "" then
   end
   local b = view._widgets_by_name.rw_tile_blank
   if b.visible then tiles[#tiles + 1] = dump_widget(b, view._sg.rw_tile_blank[1], view._sg.rw_tile_blank[2]) end
-  local strip = dump_widget(view._widgets_by_name.rw_strip, 105, 158)
+  local strip = dump_widget(view._widgets_by_name.rw_strip, 105, 144)
   local f = io.open(DUMP, "w")
-  f:write(ser({ tiles = tiles, strip = strip, count = view._widgets_by_name.deck_count.content.deck_count, caption = view._widgets_by_name.deck_caption.content.deck_caption }))
+  f:write(ser({ tiles = tiles, strip = strip, count = view._widgets_by_name.deck_count.content.deck_count, caption = view._widgets_by_name.deck_caption.content.deck_caption, hover = view._widgets_by_name.deck_hover.content.deck_hover }))
   f:close()
 end
 

@@ -130,11 +130,11 @@ blueprints.popup_cancel = UIWidget.create_definition(ButtonPassTemplates.default
 blueprints.popup_input = Components.popup_input_definition()
 
 -- ------------------------------------------------------------------------------------ the Deck: card tiles
--- A card tile (228 x 262) is made of rectangles, circles, triangles, rotated squares and text, exactly like the Spread
+-- A card tile (228 x 270) is made of rectangles, circles, triangles, rotated squares and text, exactly like the Spread
 -- HUD (ui/spread.lua draws the suit mark). Every shape starts hidden: the view writes geometry, colours and visibility
--- into the widget styles (wave_editor_view.lua, _paint_tile). The three hotspots do not overlap (a click would reach
--- both): the whole face above the state line toggles the card in or out of the draw, the state line's left part does
--- the same, its right part ("Edit") opens the card.
+-- into the widget styles (wave_editor_deck.lua, _paint_tile). The hotspots never overlap (a click would reach both): the
+-- face above the pips toggles the card in or out of the draw, each of the ten pips sets the chance, the left of the state
+-- line toggles too and the Edit pill opens the card; a right click on any of them opens the card as well.
 local Spread = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/spread")
 local Deck = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/deck")
 
@@ -146,24 +146,27 @@ local DISPLAY_FONT = "itc_novarese_bold"
 blueprints.TILE = {
 	-- boxes (x, y, w, h) inside the tile
 	suit_label = { 14, 12, 150, 20 },
-	icon = { 192, 10, 22, 22 },
-	name = { 14, 36, 200, 52 },
-	divider = { 14, 90, 200, 1 },
-	comp = { 14, 96, 200, 68 },
-	mods = { 14, 164, 200, 16 },
-	whisper = { 14, 182, 200, 32 },
-	row_y = 224, -- centre of the bottom row (threat diamonds left, dots right)
+	icon = { 188, 8, 26, 26 },
+	name = { 14, Deck.NAME_Y, 200, 3 * Deck.NAME_LINE },
+	-- the divider and the composition sit under the name, wherever Deck.layout puts them (these are the one-line values)
+	divider = { 14, 64, 200, 1 },
+	comp = { 14, 71, 200, 85 },
+	mods = { 14, 166, 200, 16 },
+	whisper = { 14, 184, 200, 32 },
+	row_y = 226, -- centre of the bottom row (threat diamonds left, dots right)
 	diamonds_x = 14 + 4, -- centre of the first diamond
 	dots_right = 214,
-	pips_y = 236,
+	pips_y = 238,
 	pips_x = 14,
 	pip = { 16, 7, 4 }, -- width, height, gap
-	state_left = { 14, 246, 130, 14 },
-	state_clock = { 130, 246, 84, 14 },
-	hot_top = { 0, 0, TILE_W, 244 },
-	hot_state = { 0, 244, 150, 18 },
-	hot_edit = { 150, 244, TILE_W - 150, 18 },
-	edit_label = { 150, 246, TILE_W - 150 - 14, 14 },
+	pip_hit_y = 235,
+	pip_hit_h = 14,
+	state_left = { 14, 250, 100, 16 },
+	state_clock = { 100, 250, 62, 16 },
+	edit = { 168, 250, 46, 16 }, -- the pill: lit while the pointer is on it, and exactly its click area
+	hot_top = { 0, 0, TILE_W, 235 },
+	hot_state = { 0, 249, 166, 21 },
+	hot_edit = { 168, 250, 46, 16 },
 }
 
 local function shape_color()
@@ -219,27 +222,41 @@ blueprints.TILE_IDS = {
 	border = { "border_t", "border_b", "border_l", "border_r" },
 	ping = { "ping_t", "ping_b", "ping_l", "ping_r" },
 	bubble = { "bubble_1", "bubble_2", "bubble_3" },
-	icon_t = {}, icon_c = {}, th_o = {}, th_i = {}, dot = {}, pip = {},
+	icon_t = {}, icon_c = {}, icon_th = {}, icon_ch = {}, th_o = {}, th_h = {}, dot = {}, dot_h = {}, pip = {}, hotspot_pip = {},
 }
 
 for i = 1, Spread.ICON_TRIS do
 	blueprints.TILE_IDS.icon_t[i] = "icon_t" .. i
+	blueprints.TILE_IDS.icon_th[i] = "icon_th" .. i
 end
 
 for i = 1, Spread.ICON_CIRCS do
 	blueprints.TILE_IDS.icon_c[i] = "icon_c" .. i
+	blueprints.TILE_IDS.icon_ch[i] = "icon_ch" .. i
 end
 
 for i = 1, 5 do
-	blueprints.TILE_IDS.th_o[i], blueprints.TILE_IDS.th_i[i] = "th_o" .. i, "th_i" .. i
+	blueprints.TILE_IDS.th_o[i], blueprints.TILE_IDS.th_h[i] = "th_o" .. i, "th_h" .. i
 end
 
 for i = 1, 6 do
-	blueprints.TILE_IDS.dot[i] = "dot_" .. i
+	blueprints.TILE_IDS.dot[i], blueprints.TILE_IDS.dot_h[i] = "dot_" .. i, "dot_h" .. i
 end
 
 for i = 1, Deck.PIPS do
 	blueprints.TILE_IDS.pip[i] = "pip_" .. i
+	blueprints.TILE_IDS.hotspot_pip[i] = "hotspot_pip" .. i
+end
+
+-- The click area of pip i: its width plus half the gap on each side; the first and the last reach the edge of the tile, so
+-- there is no dead strip beside the pips.
+blueprints.pip_hit = function (i)
+	local T = blueprints.TILE
+	local pitch = T.pip[1] + T.pip[3]
+	local left = i == 1 and 0 or T.pips_x + (i - 1) * pitch - T.pip[3] / 2
+	local right = i == Deck.PIPS and TILE_W or T.pips_x + i * pitch - T.pip[3] / 2
+
+	return left, T.pip_hit_y, right - left, T.pip_hit_h
 end
 
 blueprints.tile = function (node_id)
@@ -260,6 +277,17 @@ blueprints.tile = function (node_id)
 		-- the face takes the suit's lighter colour while the pointer is on the tile
 		change_function = function (content, style)
 			local hover = content.hotspot_top.is_hover or content.hotspot_state.is_hover or content.hotspot_edit.is_hover
+
+			if not hover then
+				for i = 1, Deck.PIPS do
+					if content[blueprints.TILE_IDS.hotspot_pip[i]].is_hover then
+						hover = true
+
+						break
+					end
+				end
+			end
+
 			local rgb = hover and content.bg_hi or content.bg_rgb
 
 			style.color[1], style.color[2], style.color[3], style.color[4] = 255, rgb[1], rgb[2], rgb[3]
@@ -279,6 +307,16 @@ blueprints.tile = function (node_id)
 	rect_pass(passes, "border_l", 0, 0, 1, TILE_H, 2)
 	rect_pass(passes, "border_r", TILE_W - 1, 0, 1, TILE_H, 2)
 
+	-- the suit mark: every triangle and circle has a faint, slightly larger copy under it (the UI draws shapes without
+	-- anti-aliasing, the copy softens the stair-stepped edge, see Spread.FEATHER)
+	for i = 1, Spread.ICON_TRIS do
+		triangle_pass(passes, blueprints.TILE_IDS.icon_th[i], 4)
+	end
+
+	for i = 1, Spread.ICON_CIRCS do
+		circle_pass(passes, blueprints.TILE_IDS.icon_ch[i], 4)
+	end
+
 	for i = 1, Spread.ICON_TRIS do
 		triangle_pass(passes, blueprints.TILE_IDS.icon_t[i], 4)
 	end
@@ -294,12 +332,18 @@ blueprints.tile = function (node_id)
 	tile_text(passes, "mods", T.mods, "proxima_nova_bold", 12, "left", "center", 4)
 	tile_text(passes, "whisper", T.whisper, "proxima_nova_bold", 13, "left", "top", 4)
 
+	-- threat: filled diamonds up to the level, the rest the same diamonds dimmed (never an outline: two rotated squares
+	-- make an uneven one with gaps); the faint copy under each is its anti-aliasing
+	for i = 1, 5 do
+		diamond_pass(passes, blueprints.TILE_IDS.th_h[i], 3.8, 9.4)
+	end
+
 	for i = 1, 5 do
 		diamond_pass(passes, blueprints.TILE_IDS.th_o[i], 4, 8)
 	end
 
-	for i = 1, 5 do
-		diamond_pass(passes, blueprints.TILE_IDS.th_i[i], 5, 4.4)
+	for i = 1, 6 do
+		circle_pass(passes, blueprints.TILE_IDS.dot_h[i], 3.8)
 	end
 
 	for i = 1, 6 do
@@ -310,11 +354,11 @@ blueprints.tile = function (node_id)
 		rect_pass(passes, blueprints.TILE_IDS.pip[i], T.pips_x + (i - 1) * (T.pip[1] + T.pip[3]), T.pips_y, T.pip[1], T.pip[2], 4)
 	end
 
-	-- the state line: what the card is doing, the cooldown clock, and the Edit button
+	-- the state line: what the card is doing, the cooldown clock, and the Edit pill
 	tile_text(passes, "state_left", T.state_left, "proxima_nova_bold", 12, "left", "center", 4)
 	tile_text(passes, "state_clock", T.state_clock, "proxima_nova_bold", 12, "right", "center", 4)
-	rect_pass(passes, "edit_bg", T.hot_edit[1], T.hot_edit[2], T.hot_edit[3], T.hot_edit[4], 3)
-	tile_text(passes, "edit_label", T.edit_label, "proxima_nova_bold", 12, "right", "center", 5)
+	rect_pass(passes, "edit_bg", T.edit[1], T.edit[2], T.edit[3], T.edit[4], 3)
+	tile_text(passes, "edit_label", T.edit, "proxima_nova_bold", 12, "center", "center", 5)
 
 	-- the ready ping: a ring that leaves the card and fades, when its cooldown ends
 	rect_pass(passes, "ping_t", 0, 0, TILE_W, 2, 7)
@@ -325,6 +369,12 @@ blueprints.tile = function (node_id)
 	Components.hotspot_pass(passes, "hotspot_top", { T.hot_top[1], T.hot_top[2], 6 }, { T.hot_top[3], T.hot_top[4] })
 	Components.hotspot_pass(passes, "hotspot_state", { T.hot_state[1], T.hot_state[2], 6 }, { T.hot_state[3], T.hot_state[4] })
 	Components.hotspot_pass(passes, "hotspot_edit", { T.hot_edit[1], T.hot_edit[2], 6 }, { T.hot_edit[3], T.hot_edit[4] })
+
+	for i = 1, Deck.PIPS do
+		local x, y, w, h = blueprints.pip_hit(i)
+
+		Components.hotspot_pass(passes, blueprints.TILE_IDS.hotspot_pip[i], { x, y, 6 }, { w, h }, nil, true)
+	end
 
 	return UIWidget.create_definition(passes, node_id, {
 		bg_rgb = { 30, 36, 19 },

@@ -54,6 +54,7 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 4. The Deck screen, cooldown looks, custom card builder
   - [x] 4a. The Deck: tiles, strip, toggle, Edit, blank tile, paging, Delete in the card's screen, palette (`ui/deck.lua`, `ui/wave_editor_deck.lua`, offline only)
   - [x] 4b. Cooldown looks on the tiles (rot and renewal, the murmur returns, the vial fills, ready ping option `tarot_ping`; offline only)
+  - [x] 4d. Deck polish after the user's first look (2.0.0): relative chance pips and rarity, clickable pips, right click to edit, the Edit pill, anti-aliasing copies, dimmed filled diamonds, coloured modifiers, tighter tile layout, six new suits incl. the purple Warp for the Daemonhost (offline only)
   - [x] 4c. Card builder screen ("Card face"): suit with suggestion, threat auto/override with "Threat N by the numbers", whisper, look, cooldown, live preview (`ui/wave_editor_face.lua`; offline only)
 - [x] 5. Mod options (the last one, `tarot_default_cooldown`, in 2.0.0 step 5; all others were added with their steps)
 - [ ] 6. Optional: per-group health and size multipliers (deliberately not started: the brief asks for a one-crusher test in the game first; needs the user to try `optional_health_modifier` and a unit scale on one crusher, and to confirm the size reaches other players)

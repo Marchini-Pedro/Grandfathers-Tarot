@@ -284,9 +284,25 @@ RealmsWavesView._create_editor_widgets = function (self)
 		local widget = self:_create_dynamic_widget(name, blueprints.tile(name))
 		local content = widget.content
 
-		content.hotspot_top.pressed_callback = callback(self, "cb_tile_toggle", i)
-		content.hotspot_state.pressed_callback = callback(self, "cb_tile_toggle", i)
-		content.hotspot_edit.pressed_callback = callback(self, "cb_tile_edit", i)
+		-- left click: the face and the left of the state line toggle the card, a pip sets the chance, the Edit pill opens the
+		-- card. A right click anywhere on the tile opens it too. A second left click inside the double-click time only calls
+		-- double_click_callback: the pips and the pill repeat their action (a fast second click is not lost), the toggles do
+		-- not (two toggles in a row would cancel out).
+		local toggle = callback(self, "cb_tile_toggle", i)
+		local edit = callback(self, "cb_tile_edit", i)
+
+		content.hotspot_top.pressed_callback, content.hotspot_top.right_pressed_callback = toggle, edit
+		content.hotspot_state.pressed_callback, content.hotspot_state.right_pressed_callback = toggle, edit
+		content.hotspot_edit.pressed_callback, content.hotspot_edit.right_pressed_callback = edit, edit
+		content.hotspot_edit.double_click_callback = edit
+
+		for k = 1, Deck.PIPS do
+			local hotspot = content[blueprints.TILE_IDS.hotspot_pip[k]]
+			local set = callback(self, "cb_tile_pip", i, k)
+
+			hotspot.pressed_callback, hotspot.double_click_callback, hotspot.right_pressed_callback = set, set, edit
+		end
+
 		widget.visible = false
 	end
 

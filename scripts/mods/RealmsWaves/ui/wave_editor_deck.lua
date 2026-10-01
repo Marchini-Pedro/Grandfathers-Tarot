@@ -1,10 +1,13 @@
 -- The Deck: the home screen of the wave editor (screen "list"). Every card is a tile (blueprints.tile) in a grid of 7
 -- columns and 2 rows, with a strip above that shows how likely each card is to be dealt into a hand. Clicking a tile
--- puts the card in or out of the draw, its Edit corner opens it, the blank tile at the end makes a new card.
+-- puts the card in or out of the draw, clicking one of its ten pips sets its chance (relative to the other cards of the
+-- draw), its Edit pill or a right click opens it, the blank tile at the end makes a new card.
 -- The arithmetic and the texts are in ui/deck.lua; the shapes (suit marks) are drawn like the Spread HUD draws them
 -- (ui/spread.lua). Installed on the view with `install` (see wave_editor_view.lua); nothing here is drawn per frame
 -- except the hover.
 local mod = get_mod("RealmsWaves")
+
+local Text = require("scripts/utilities/ui/text")
 
 local DeckView = {}
 
@@ -54,28 +57,8 @@ local function utf8_cut(text, n)
 	return text:sub(1, cut)
 end
 
-local function place_tri(style, slot, ox, oy, z)
-	style.visible = slot.on
-
-	if slot.on then
-		local offset, corners = style.offset, style.triangle_corners
-
-		offset[1], offset[2], offset[3] = ox, oy, z + slot.z
-		corners[1][1], corners[1][2], corners[2][1], corners[2][2], corners[3][1], corners[3][2] = slot.x1, slot.y1, slot.x2, slot.y2, slot.x3, slot.y3
-	end
-end
-
-local function place_circ(style, slot, ox, oy, z)
-	style.visible = slot.on
-
-	if slot.on then
-		local offset, size = style.offset, style.size
-		local diameter = slot.r * 2
-
-		offset[1], offset[2], offset[3] = ox + slot.cx - slot.r, oy + slot.cy - slot.r, z + slot.z
-		size[1], size[2] = diameter, diameter
-	end
-end
+-- the name's font in the tile, and its average glyph width (of the font size): how many lines a name takes, see Spread.wrap_lines
+local NAME_FONT, NAME_GLYPH = 20, 0.6
 
 DeckView.install = function (View, h)
 	local Deck, Spread, T, IDS = h.Deck, h.Spread, h.TILE, h.TILE_IDS
@@ -83,7 +66,92 @@ DeckView.install = function (View, h)
 	local TILE_PREFIX = h.TILE_PREFIX
 	local TILE_HOTSPOTS = { "hotspot_top", "hotspot_state", "hotspot_edit" }
 
+	for i = 1, Deck.PIPS do
+		TILE_HOTSPOTS[#TILE_HOTSPOTS + 1] = IDS.hotspot_pip[i]
+	end
+
 	View.TILE_HOTSPOTS = TILE_HOTSPOTS
+
+	local function place_tri(style, slot, ox, oy, z)
+		style.visible = slot.on
+
+		if slot.on then
+			local offset, corners = style.offset, style.triangle_corners
+
+			offset[1], offset[2], offset[3] = ox, oy, z + slot.z
+			corners[1][1], corners[1][2], corners[2][1], corners[2][2], corners[3][1], corners[3][2] = slot.x1, slot.y1, slot.x2, slot.y2, slot.x3, slot.y3
+		end
+	end
+
+	local function place_circ(style, slot, ox, oy, z)
+		style.visible = slot.on
+
+		if slot.on then
+			local offset, size = style.offset, style.size
+			local diameter = slot.r * 2
+
+			offset[1], offset[2], offset[3] = ox + slot.cx - slot.r, oy + slot.cy - slot.r, z + slot.z
+			size[1], size[2] = diameter, diameter
+		end
+	end
+
+	-- the feather under a shape (see Spread.FEATHER): the same shape, a little larger, half a layer lower
+	local function place_tri_halo(style, slot, ox, oy, z)
+		style.visible = slot.on
+
+		if slot.on then
+			local offset = style.offset
+
+			offset[1], offset[2], offset[3] = ox, oy, z + slot.z - 0.5
+			Spread.write_corners(style.triangle_corners, slot, Spread.FEATHER)
+		end
+	end
+
+	local function place_circ_halo(style, slot, ox, oy, z)
+		style.visible = slot.on
+
+		if slot.on then
+			local offset, size = style.offset, style.size
+			local r = slot.r + Spread.FEATHER
+
+			offset[1], offset[2], offset[3] = ox + slot.cx - r, oy + slot.cy - r, z + slot.z - 0.5
+			size[1], size[2] = r * 2, r * 2
+		end
+	end
+
+	local FEATHER = Spread.alpha(Spread.FEATHER_ALPHA)
+
+	-- How many lines a card's name takes in its box (1 to 3). The game measures it when the editor has a renderer (it knows
+	-- the font; the divider, the composition and the room for enemies follow from it), else (offline tests, a failed
+	-- measurement) it is estimated from the letters, which is a little careful: a name that turns out shorter than guessed
+	-- only leaves a gap, a longer one would run into the divider.
+	View._name_lines = function (self, name, style)
+		local renderer = self._ui_renderer
+
+		if renderer then
+			local ok, lines = pcall(function ()
+				local size = { T.name[3], 1000 }
+				local one = Text.text_height(renderer, "Ag", style, size, true)
+
+				if not one or one <= 0 then
+					return nil
+				end
+
+				return math.floor(Text.text_height(renderer, name, style, size, true) / one + 0.5)
+			end)
+
+			if ok and lines then
+				return math.max(1, math.min(3, lines))
+			end
+		end
+
+		return Spread.wrap_lines(name, T.name[3], NAME_FONT, NAME_GLYPH)
+	end
+
+	-- A card is in the draw when it is enabled, has enemies, a weight and no fixed timer (the same rule the director uses).
+	local function in_draw(wave)
+		return wave.enabled and wave.parts and #wave.parts > 0 and (wave.pct or 0) > 0 and not ((wave.timer or 0) > 0)
+	end
 
 	-- --------------------------------------------------------------------------------------------- model
 	-- The cards of the deck: every standard card and every custom card that has enemies, in the order of the wave list,
@@ -108,11 +176,27 @@ DeckView.install = function (View, h)
 		end
 
 		self._deck = deck
+
+		-- the lightest and the heaviest weight of the draw: the chance pips and "rare" are relative to them
+		local lo, hi = self:_draw_range(nil)
+
+		self._deck_range = { lo = lo, hi = hi }
 	end
 
-	-- A card is in the draw when it is enabled, has enemies, a weight and no fixed timer (the same rule the director uses).
-	local function in_draw(wave)
-		return wave.enabled and wave.parts and #wave.parts > 0 and (wave.pct or 0) > 0 and not ((wave.timer or 0) > 0)
+	-- The lightest and the heaviest weight among the cards in the draw, leaving out the card `except` (a key, or nil).
+	View._draw_range = function (self, except)
+		local lo, hi
+
+		for i = 1, #self._deck do
+			local wave = self._deck[i]
+
+			if not wave.blank and wave.key ~= except and in_draw(wave) then
+				lo = lo and math.min(lo, wave.pct) or wave.pct
+				hi = hi and math.max(hi, wave.pct) or wave.pct
+			end
+		end
+
+		return lo, hi
 	end
 
 	View._deck_in_draw = function (self)
@@ -174,7 +258,7 @@ DeckView.install = function (View, h)
 		end
 	end
 
-	-- One card on its tile: the face (suit colours, name, composition, whisper, threat, dots), the weight pips and the
+	-- One card on its tile: the face (suit colours, name, composition, whisper, threat, dots), the chance pips and the
 	-- state line. A card out of the draw is dimmed and drained of colour.
 	View._paint_tile = function (self, widget, wave)
 		local rw = mod.rw
@@ -182,7 +266,7 @@ DeckView.install = function (View, h)
 		local style, content = widget.style, widget.content
 		local card = Cards.describe(wave, groups, function (breed)
 			return colors and colors.rgb(breed) or Cards.BASE.muted
-		end)
+		end, self._deck_range)
 		local suit = Cards.suit(card.suit)
 		local remaining = cooldown_left(wave.key, card.cooldown)
 		local state = Deck.state(card, remaining)
@@ -195,10 +279,11 @@ DeckView.install = function (View, h)
 		local bg, accent, ink = tone(suit.card), tone(suit.accent), tone(suit.text)
 		local border = card.rare and tone(Cards.BASE.pus) or tone(mix(suit.frame, suit.accent, 0.45))
 
-		-- what the per-frame cooldown looks need to know (see _apply_look); a new record on every paint
+		-- what the per-frame cooldown looks and the pips need to know (see _apply_look, _paint_pips); a new record on every paint
 		local fx = {
 			key = wave.key, wave = wave, cooldown = card.cooldown, look = card.look, state = state, suit = suit, rare = card.rare,
-			accent = accent, ink = ink, bg = bg, whisper = card.whisper, p = -1, clock = -1, filled = Deck.pips(card.weight),
+			accent = accent, ink = ink, bg = bg, whisper = card.whisper, p = -1, clock = -1, level = Deck.pips(card.level),
+			pip_new = mix(accent, ink, 0.5), empty = tone(suit.frame), muted = tone(Cards.BASE.muted), edit_hover = false,
 			tri_col = {}, circ_col = {},
 		}
 
@@ -217,25 +302,31 @@ DeckView.install = function (View, h)
 		style.glow.visible = state ~= "off"
 		paint(style.glow, card.rare and 110 or 70, card.rare and Cards.BASE.pus or accent)
 
-		-- the suit mark (22 units) in the top right corner, the suit's name and rarity at the left
+		-- the suit mark (26 units) in the top right corner, each shape on a feather; the suit's name and rarity at the left
 		local shape = self._tile_shape
 		local origin_x, origin_y = T.icon[1], T.icon[2]
 
 		Spread.icon(suit.icon, T.icon[3], shape)
 
 		for i = 1, Spread.ICON_TRIS do
-			local s = style[IDS.icon_t[i]]
+			local s, halo = style[IDS.icon_t[i]], style[IDS.icon_th[i]]
+			local rgb = shape.tri[i].col == 2 and bg or accent
 
 			place_tri(s, shape.tri[i], origin_x, origin_y, 4)
-			paint(s, 255, shape.tri[i].col == 2 and bg or accent)
+			place_tri_halo(halo, shape.tri[i], origin_x, origin_y, 4)
+			paint(s, 255, rgb)
+			paint(halo, FEATHER, rgb)
 			fx.tri_col[i] = shape.tri[i].col
 		end
 
 		for i = 1, Spread.ICON_CIRCS do
-			local s = style[IDS.icon_c[i]]
+			local s, halo = style[IDS.icon_c[i]], style[IDS.icon_ch[i]]
+			local rgb = shape.circ[i].col == 2 and bg or accent
 
 			place_circ(s, shape.circ[i], origin_x, origin_y, 4)
-			paint(s, 255, shape.circ[i].col == 2 and bg or accent)
+			place_circ_halo(halo, shape.circ[i], origin_x, origin_y, 4)
+			paint(s, 255, rgb)
+			paint(halo, FEATHER, rgb)
 			fx.circ_col[i] = shape.circ[i].col
 		end
 
@@ -247,7 +338,11 @@ DeckView.install = function (View, h)
 		style.name.visible = true
 		paint(style.name, 255, ink)
 
+		-- the divider and the composition follow the name: a one line name leaves room for five lines of enemies, a two line name for four
+		local layout = Deck.layout(self:_name_lines(card.name, style.name))
+
 		style.divider.visible = true
+		style.divider.offset[2] = layout.divider_y
 		paint(style.divider, 255, tone(suit.frame))
 
 		local has_parts = wave.parts and #wave.parts > 0
@@ -257,13 +352,26 @@ DeckView.install = function (View, h)
 			return colour_on and colors.rgb(breed) or nil
 		end, colour_on and colors.markup or nil, Cards.BASE.text, mod:localize("tile_repeats"), function (n)
 			return mod:localize("tile_more", n)
-		end) or { mod:localize("tile_no_enemies") }
+		end, layout.comp_lines) or { mod:localize("tile_no_enemies") }
 
 		content.comp = table.concat(lines, "\n")
 		style.comp.visible = true
+		style.comp.offset[2], style.comp.size[2] = layout.comp_y, layout.comp_h
 		paint(style.comp, 255, tone(Cards.BASE.muted))
 
-		content.mods = card.modifiers
+		-- the modifiers, each in its Improved Havoc Tags colour (the mod's own setting when it is installed, else its default
+		-- colour) while the enemy colours are on; rust otherwise
+		content.mods = card.modifiers ~= "" and Cards.modifier_line(wave.parts, groups, colour_on and function (name, id)
+			local rgb = colors.modifier_rgb(id)
+
+			if not rgb then
+				return name
+			end
+
+			local drained = tone(rgb) -- whole numbers: the colour tag is written with %d
+
+			return colors.markup(name, { math.floor(drained[1] + 0.5), math.floor(drained[2] + 0.5), math.floor(drained[3] + 0.5) })
+		end or nil) or ""
 		style.mods.visible = card.modifiers ~= ""
 		paint(style.mods, 255, tone(Cards.BASE.rust))
 
@@ -271,63 +379,57 @@ DeckView.install = function (View, h)
 		style.whisper.visible = true
 		paint(style.whisper, 255, tone(card.suit == "murmur" and Cards.BASE.whisper or Cards.BASE.muted))
 
-		-- threat: filled diamonds up to the level (its colour), the rest an outline
+		-- threat: filled diamonds up to the level (its colour), the rest the same diamonds dimmed; each on a faint feather
 		local threat_rgb = Cards.THREAT_COLORS[card.threat]
 
 		for i = 1, 5 do
 			local cx = T.diamonds_x + (i - 1) * Spread.THREAT_PITCH
-			local outer, inner = style[IDS.th_o[i]], style[IDS.th_i[i]]
+			local outer, halo = style[IDS.th_o[i]], style[IDS.th_h[i]]
 			local filled = i <= card.threat
+			local rgb = tone(filled and threat_rgb or Cards.BASE.muted)
 
-			outer.visible, inner.visible = true, not filled
+			outer.visible, halo.visible = true, true
 			outer.offset[1], outer.offset[2] = cx - 4, T.row_y - 4
-			inner.offset[1], inner.offset[2] = cx - 2.2, T.row_y - 2.2
-			paint(outer, 255, tone(filled and threat_rgb or Cards.BASE.muted))
-			paint(inner, 255, bg)
+			halo.offset[1], halo.offset[2] = cx - 4.7, T.row_y - 4.7
+			paint(outer, filled and 255 or 64, rgb)
+			paint(halo, filled and 70 or 22, rgb)
 		end
 
-		-- one dot per enemy colour, right aligned
+		-- one dot per enemy colour, right aligned, each on a feather
 		local dots = card.dots
 		local count = math.min(#dots, 6)
 
 		for i = 1, 6 do
-			local dot = style[IDS.dot[i]]
+			local dot, halo = style[IDS.dot[i]], style[IDS.dot_h[i]]
 
-			dot.visible = i <= count
+			dot.visible, halo.visible = i <= count, i <= count
 
 			if i <= count then
-				dot.offset[1], dot.offset[2] = T.dots_right - 9 - (count - i) * 13, T.row_y - 4.5
+				local x, y = T.dots_right - 9 - (count - i) * 13, T.row_y - 4.5
+
+				dot.offset[1], dot.offset[2] = x, y
 				dot.size[1], dot.size[2] = 9, 9
+				halo.offset[1], halo.offset[2] = x - 0.6, y - 0.6
+				halo.size[1], halo.size[2] = 10.2, 10.2
 				paint(dot, 255, tone(dots[i]))
+				paint(halo, 70, tone(dots[i]))
 			end
 		end
 
-		-- ten weight pips: filled up to the weight (10 or more = all ten)
-		local filled = Deck.pips(card.weight)
+		-- the ten chance pips: filled up to the card's level among the cards of the draw
+		self:_paint_pips(widget, nil)
 
-		for i = 1, Deck.PIPS do
-			local pip = style[IDS.pip[i]]
-
-			pip.visible = true
-
-			if i <= filled then
-				paint(pip, 255, accent)
-			else
-				paint(pip, 130, tone(suit.frame))
-			end
-		end
-
-		-- the state line: what the card does, the clock while it rests, and the Edit corner
+		-- the state line: what the card does, the clock while it rests, and the Edit pill
 		content.state_left = mod:localize(state == "off" and "tile_off" or state == "cooling" and "tile_cooling" or "tile_in")
 		content.state_clock = state == "cooling" and Deck.clock_text(remaining) or ""
 		style.state_left.visible, style.state_clock.visible = true, true
-		paint(style.state_left, 255, state == "cooling" and ink or tone(Cards.BASE.muted))
+		paint(style.state_left, 255, state == "cooling" and ink or fx.muted)
 		paint(style.state_clock, 255, ink)
 
 		content.edit_label = mod:localize("tile_edit")
 		style.edit_label.visible = true
-		paint(style.edit_label, 255, tone(Cards.BASE.muted))
-		paint(style.edit_bg, 90, tone(suit.frame))
+		paint(style.edit_label, 255, fx.muted)
+		paint(style.edit_bg, 130, tone(suit.frame))
 		style.edit_bg.visible = false
 
 		-- the effects of a cooldown and of the ready ping start hidden; a resting card gets its look right away
@@ -344,6 +446,33 @@ DeckView.install = function (View, h)
 		if state == "cooling" then
 			fx.clock = math.ceil(remaining)
 			self:_apply_look(widget, fx, math.max(0, math.min(1, 1 - remaining / math.max(1, card.cooldown))), 0)
+		end
+	end
+
+	-- The ten chance pips of a tile. `hover` (1..10, or nil) is the pip under the pointer: the pips up to it light up, the
+	-- ones past it go dark, to show what a click would set; the new ones are lighter than the ones the card has now.
+	View._paint_pips = function (self, widget, hover)
+		local fx = widget.content.fx
+		local style = widget.style
+
+		if not fx then
+			return
+		end
+
+		fx.hover_level = hover
+
+		local shown = hover or fx.level
+
+		for i = 1, Deck.PIPS do
+			local pip = style[IDS.pip[i]]
+
+			pip.visible = true
+
+			if i <= shown then
+				paint(pip, 255, hover and i > fx.level and fx.pip_new or fx.accent)
+			else
+				paint(pip, 130, fx.empty)
+			end
 		end
 	end
 
@@ -370,12 +499,14 @@ DeckView.install = function (View, h)
 			for i = 1, Spread.ICON_TRIS do
 				if fx.tri_col[i] == 1 then
 					paint(style[IDS.icon_t[i]], 255, rgb)
+					paint(style[IDS.icon_th[i]], FEATHER, rgb)
 				end
 			end
 
 			for i = 1, Spread.ICON_CIRCS do
 				if fx.circ_col[i] == 1 then
 					paint(style[IDS.icon_c[i]], 255, rgb)
+					paint(style[IDS.icon_ch[i]], FEATHER, rgb)
 				end
 			end
 
@@ -389,8 +520,11 @@ DeckView.install = function (View, h)
 				end
 			end
 
-			for i = 1, math.min(fx.filled, Deck.PIPS) do
-				paint(style[IDS.pip[i]], 255, rgb)
+			-- the pips take the colour too, except while the pointer is on them (they show what a click would set)
+			if not fx.hover_level then
+				for i = 1, math.min(fx.level, Deck.PIPS) do
+					paint(style[IDS.pip[i]], 255, rgb)
+				end
 			end
 
 			paint(style.name, alpha, fx.ink)
@@ -499,7 +633,7 @@ DeckView.install = function (View, h)
 		widgets.deck_count.content.deck_count = mod:localize("deck_count", self:_deck_in_draw())
 		widgets.deck_caption.content.deck_caption = mod:localize("deck_caption")
 		widgets.deck_hover.content.deck_hover = ""
-		self._deck_hover = nil
+		self._deck_hover, self._deck_hover_pip = nil, nil
 
 		local blank_slot = nil
 
@@ -561,10 +695,11 @@ DeckView.install = function (View, h)
 		end
 	end
 
-	-- Per frame (only while the Deck is shown): which tile the pointer is on, for the strip and the caption.
+	-- Per frame (only while the Deck is shown): which tile (and which pip) the pointer is on, for the Edit pill, the pips,
+	-- the strip and the caption.
 	View._update_deck = function (self, dt, t)
 		local widgets = self._widgets_by_name
-		local hovered, hovered_widget = nil, nil
+		local hovered, hovered_widget, hovered_pip = nil, nil, nil
 
 		for i = 1, Deck.CAPACITY do
 			local widget = widgets[TILE_PREFIX .. i]
@@ -572,11 +707,30 @@ DeckView.install = function (View, h)
 			if widget and widget.visible then
 				local content = widget.content
 				local on_edit = content.hotspot_edit.is_hover == true
+				local pip = nil
 
-				widget.style.edit_bg.visible = on_edit
+				for k = 1, Deck.PIPS do
+					if content[IDS.hotspot_pip[k]].is_hover then
+						pip = k
 
-				if content.hotspot_top.is_hover or content.hotspot_state.is_hover or on_edit then
-					hovered, hovered_widget = content.card_key, widget
+						break
+					end
+				end
+
+				local fx = content.fx
+
+				if fx and fx.edit_hover ~= on_edit then
+					fx.edit_hover = on_edit
+					widget.style.edit_bg.visible = on_edit
+					paint(widget.style.edit_label, 255, on_edit and fx.ink or fx.muted)
+				end
+
+				if fx and fx.hover_level ~= pip then
+					self:_paint_pips(widget, pip)
+				end
+
+				if content.hotspot_top.is_hover or content.hotspot_state.is_hover or on_edit or pip then
+					hovered, hovered_widget, hovered_pip = content.card_key, widget, pip
 				end
 			end
 		end
@@ -621,16 +775,24 @@ DeckView.install = function (View, h)
 			end
 		end
 
-		if hovered ~= self._deck_hover then
-			self._deck_hover = hovered
+		if hovered ~= self._deck_hover or hovered_pip ~= self._deck_hover_pip then
+			local strip_changed = hovered ~= self._deck_hover
+
+			self._deck_hover, self._deck_hover_pip = hovered, hovered_pip
 
 			local caption = widgets.deck_hover
 
 			if caption then
-				caption.content.deck_hover = hovered_widget and hovered_widget.content.name or ""
+				if hovered_widget and hovered_pip then
+					caption.content.deck_hover = mod:localize("tile_pip_hover", hovered_widget.content.name, hovered_pip)
+				else
+					caption.content.deck_hover = hovered_widget and hovered_widget.content.name or ""
+				end
 			end
 
-			self:_paint_strip()
+			if strip_changed then
+				self:_paint_strip()
+			end
 		end
 	end
 
@@ -646,12 +808,26 @@ DeckView.install = function (View, h)
 		end
 	end)
 
-	-- the Edit corner of a tile: the card's own screen
+	-- the Edit pill of a tile, or a right click anywhere on it: the card's own screen
 	View.cb_tile_edit = guarded(function (self, slot)
 		local wave = self._deck[self._offset + slot]
 
 		if wave and not wave.blank then
 			self:_open_detail(wave.key)
+		end
+	end)
+
+	-- a click on pip `level` of a tile: the card's chance becomes that level among the other cards of the draw (the weight
+	-- that shows it, see Cards.weight_for_level)
+	View.cb_tile_pip = guarded(function (self, slot, level)
+		local wave = self._deck[self._offset + slot]
+
+		if wave and not wave.blank then
+			local lo, hi = self:_draw_range(wave.key)
+
+			set_setting("pct_" .. wave.key, mod.rw.cards.weight_for_level(level, lo, hi))
+			self:_reload()
+			self:_apply_screen(true)
 		end
 	end)
 

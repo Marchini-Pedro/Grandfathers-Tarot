@@ -82,13 +82,14 @@ function Components.text_pass(passes, style_id, value_id, offset, size, font_siz
 	}
 end
 
-function Components.hotspot_pass(passes, content_id, offset, size, flag)
+-- `quiet` = no sound when the pointer comes over it (the ten chance pips of a card: sliding along them would tick ten times)
+function Components.hotspot_pass(passes, content_id, offset, size, flag, quiet)
 	passes[#passes + 1] = {
 		pass_type = "hotspot",
 		content_id = content_id,
 		style_id = content_id,
 		content = {
-			on_hover_sound = UISoundEvents.default_mouse_hover,
+			on_hover_sound = not quiet and UISoundEvents.default_mouse_hover or nil,
 			on_pressed_sound = UISoundEvents.default_click,
 		},
 		style = {

@@ -153,8 +153,11 @@ Events.DEFAULT_SPREAD = 3 -- metres around the chosen spawn point
 Events.DEFAULT_REPEAT_EVERY = 10 -- seconds between repeat ticks
 Events.DEFAULT_REPEAT_FOR = 60 -- seconds the repeats keep coming
 
--- the six suits of the Tarot (visuals: catalog/cards.lua) and the cooldown looks
-Events.SUITS = { plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true }
+-- the suits of the Tarot (visuals: catalog/cards.lua) and the cooldown looks
+Events.SUITS = {
+	plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true,
+	volley = true, snare = true, brute = true, fester = true, dusk = true, warp = true,
+}
 Events.LOOKS = { rot = true, whisper = true, vial = true }
 
 -- Settings per wave (all plain values so DMF can persist them):
@@ -169,7 +172,8 @@ Events.LOOKS = { rot = true, whisper = true, vial = true }
 --   dmax_<key>      number              maximum spawn distance in metres for this wave (0 = use the options)
 --   del_<key>       boolean             a STANDARD wave the player deleted: hidden in the editor, never drawn or timed.
 --                                       "Restore defaults" (Events.reset on every key) brings it back.
---   su_<key>        string              suit of the card (plague, murmur, rage, blight, swarm, fateful; "" = the default)
+--   su_<key>        string              suit of the card (see Events.SUITS; "" = the default: the card's own, "warp" for a
+--                                       custom card that holds a Daemonhost, else plague)
 --   th_<key>        number              threat override 1-5 (0 = automatic, see Cards.threat_auto)
 --   wh_<key>        string              whisper text ("" = the line of the suit)
 --   cl_<key>        string              cooldown look (rot, whisper, vial; "" = automatic: whisper for Murmur cards, else rot)
@@ -177,6 +181,25 @@ Events.LOOKS = { rot = true, whisper = true, vial = true }
 --                                       timer ignores its chance weight and cooldown and never takes part in the draw:
 --                                       it runs on its own clock, independent of the other waves.
 local DEF_SEPARATOR = "\t"
+
+-- the Daemonhost's own card is purple (suit "warp"): a card that holds one gets it unless the player chose a suit
+local function has_daemonhost(parts)
+	for i = 1, #(parts or {}) do
+		local part = parts[i]
+
+		if part.breed == "chaos_daemonhost" then
+			return true
+		end
+
+		for j = 1, #(part.one_of or {}) do
+			if part.one_of[j] == "chaos_daemonhost" then
+				return true
+			end
+		end
+	end
+
+	return false
+end
 
 local function clean_name(name)
 	name = tostring(name or ""):gsub("[\t\r\n]", " ")
@@ -259,7 +282,7 @@ Events.get = function (key, get_setting, Groups)
 	local suit = get_setting("su_" .. key)
 
 	if type(suit) ~= "string" or suit == "" then
-		suit = std and std.suit or "plague"
+		suit = std and std.suit or has_daemonhost(wave.parts) and "warp" or "plague"
 	end
 
 	wave.suit = Events.SUITS[suit] and suit or "plague"

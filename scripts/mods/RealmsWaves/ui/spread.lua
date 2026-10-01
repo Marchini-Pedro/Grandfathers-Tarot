@@ -523,12 +523,80 @@ Spread.icon = function (id, size, shape)
 		circ(shape, 2, 1, 1, 16 * s, 9 * s, 2.4 * s)
 		circ(shape, 3, 1, 1, 11 * s, 16 * s, 2.4 * s)
 		circ(shape, 4, 1, 1, 18 * s, 17.5 * s, 1.7 * s)
+	elseif id == "crosshair" then
+		-- a ring with four ticks pointing in and a dot in the middle
+		circ(shape, 1, 1, 1, 12 * s, 12 * s, 9.5 * s)
+		circ(shape, 2, 2, 2, 12 * s, 12 * s, 7.3 * s)
+		tri(shape, 1, 1, 3, 10.8 * s, 2.5 * s, 13.2 * s, 2.5 * s, 12 * s, 9.2 * s)
+		tri(shape, 2, 1, 3, 10.8 * s, 21.5 * s, 13.2 * s, 21.5 * s, 12 * s, 14.8 * s)
+		tri(shape, 3, 1, 3, 2.5 * s, 10.8 * s, 2.5 * s, 13.2 * s, 9.2 * s, 12 * s)
+		tri(shape, 4, 1, 3, 21.5 * s, 10.8 * s, 21.5 * s, 13.2 * s, 14.8 * s, 12 * s)
+		circ(shape, 3, 1, 3, 12 * s, 12 * s, 1.5 * s)
+	elseif id == "links" then
+		-- two rings that overlap: both discs first, then both holes
+		circ(shape, 1, 1, 1, 8.6 * s, 12 * s, 6.6 * s)
+		circ(shape, 2, 1, 1, 15.4 * s, 12 * s, 6.6 * s)
+		circ(shape, 3, 2, 2, 8.6 * s, 12 * s, 4.4 * s)
+		circ(shape, 4, 2, 2, 15.4 * s, 12 * s, 4.4 * s)
+	elseif id == "plate" then
+		-- a plated square: a frame with a rivet
+		tri(shape, 1, 1, 1, 3.5 * s, 3.5 * s, 20.5 * s, 3.5 * s, 20.5 * s, 20.5 * s)
+		tri(shape, 2, 1, 1, 3.5 * s, 3.5 * s, 20.5 * s, 20.5 * s, 3.5 * s, 20.5 * s)
+		tri(shape, 3, 2, 2, 7.5 * s, 7.5 * s, 16.5 * s, 7.5 * s, 16.5 * s, 16.5 * s)
+		tri(shape, 4, 2, 2, 7.5 * s, 7.5 * s, 16.5 * s, 16.5 * s, 7.5 * s, 16.5 * s)
+		circ(shape, 1, 1, 3, 12 * s, 12 * s, 2.6 * s)
+	elseif id == "boil" then
+		-- a swollen boil: a ring with a core, and a bud on its shoulder
+		circ(shape, 1, 1, 1, 12 * s, 13 * s, 8.6 * s)
+		circ(shape, 4, 1, 1, 18.6 * s, 5.4 * s, 2.6 * s)
+		circ(shape, 2, 2, 2, 12 * s, 13 * s, 6 * s)
+		circ(shape, 3, 1, 3, 12 * s, 13 * s, 3.4 * s)
+	elseif id == "dusk" then
+		-- a setting sun: half a disc over a line (the lower half of the disc is covered with the card's colour)
+		circ(shape, 1, 1, 1, 12 * s, 14.5 * s, 8 * s)
+		tri(shape, 1, 2, 2, 3 * s, 14.5 * s, 21 * s, 14.5 * s, 21 * s, 24 * s)
+		tri(shape, 2, 2, 2, 3 * s, 14.5 * s, 21 * s, 24 * s, 3 * s, 24 * s)
+		tri(shape, 3, 1, 3, 2 * s, 17 * s, 22 * s, 17 * s, 22 * s, 18.4 * s)
+		tri(shape, 4, 1, 3, 2 * s, 17 * s, 22 * s, 18.4 * s, 2 * s, 18.4 * s)
+	elseif id == "warp" then
+		-- an eye in a triangle
+		tri(shape, 1, 1, 1, 12 * s, 2.2 * s, 22 * s, 20.5 * s, 2 * s, 20.5 * s)
+		tri(shape, 2, 2, 2, 12 * s, 8.2 * s, 18 * s, 18.2 * s, 6 * s, 18.2 * s)
+		tri(shape, 3, 1, 3, 8.8 * s, 14.2 * s, 12 * s, 11.8 * s, 15.2 * s, 14.2 * s)
+		tri(shape, 4, 1, 3, 8.8 * s, 14.2 * s, 15.2 * s, 14.2 * s, 12 * s, 16.6 * s)
+		circ(shape, 1, 2, 4, 12 * s, 14.2 * s, 1.1 * s)
 	else -- star: two thin diamonds crossing
 		tri(shape, 1, 1, 1, 12 * s, 2 * s, 15.4 * s, 12 * s, 8.6 * s, 12 * s)
 		tri(shape, 2, 1, 1, 8.6 * s, 12 * s, 15.4 * s, 12 * s, 12 * s, 22 * s)
 		tri(shape, 3, 1, 1, 2 * s, 12 * s, 12 * s, 8.6 * s, 12 * s, 15.4 * s)
 		tri(shape, 4, 1, 1, 22 * s, 12 * s, 12 * s, 8.6 * s, 12 * s, 15.4 * s)
 	end
+end
+
+-- ----------------------------------------------------------------------------------------------- the feather
+-- The UI draws triangles, circles and rotated squares without anti-aliasing, so their edges stair-step. Under every such
+-- shape goes a faint copy that is FEATHER units larger: the edge then has a soft step between the shape and the
+-- background, which the eye reads as a smooth edge. Callers draw the copy with FEATHER_ALPHA of the shape's opacity.
+Spread.FEATHER = 0.55
+Spread.FEATHER_ALPHA = 0.30
+
+-- The corners of a triangle slot, each pushed `grow` units away from the triangle's centre, written into `corners`
+-- ({ { x, y }, { x, y }, { x, y } }) without allocating.
+Spread.write_corners = function (corners, slot, grow)
+	local x1, y1, x2, y2, x3, y3 = slot.x1, slot.y1, slot.x2, slot.y2, slot.x3, slot.y3
+
+	if grow and grow > 0 then
+		local cx, cy = (x1 + x2 + x3) / 3, (y1 + y2 + y3) / 3
+		local d1 = max(1e-6, sqrt((x1 - cx) ^ 2 + (y1 - cy) ^ 2))
+		local d2 = max(1e-6, sqrt((x2 - cx) ^ 2 + (y2 - cy) ^ 2))
+		local d3 = max(1e-6, sqrt((x3 - cx) ^ 2 + (y3 - cy) ^ 2))
+
+		x1, y1 = x1 + (x1 - cx) / d1 * grow, y1 + (y1 - cy) / d1 * grow
+		x2, y2 = x2 + (x2 - cx) / d2 * grow, y2 + (y2 - cy) / d2 * grow
+		x3, y3 = x3 + (x3 - cx) / d3 * grow, y3 + (y3 - cy) / d3 * grow
+	end
+
+	corners[1][1], corners[1][2], corners[2][1], corners[2][2], corners[3][1], corners[3][2] = x1, y1, x2, y2, x3, y3
 end
 
 -- ------------------------------------------------------------------------------------------------- colours

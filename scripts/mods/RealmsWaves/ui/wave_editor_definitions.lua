@@ -36,9 +36,9 @@ local scenegraph_definition = {
 	title_text = node(80, 38, 800, 50, 2),
 	-- the Deck (home screen): "N in the draw", the weight strip and its captions, the card tiles
 	deck_count = node(890, 40, 270, 44, 2),
-	deck_strip = node(105, 158, 1710, 14, 1),
-	deck_caption = node(105, 178, 800, 22, 2),
-	deck_hover = node(1015, 178, 800, 22, 2),
+	deck_strip = node(105, 144, 1710, 14, 1),
+	deck_caption = node(105, 162, 800, 22, 2),
+	deck_hover = node(1015, 162, 800, 22, 2),
 	description_text = node(80, 95, 1700, 40, 2),
 	list_panel = node(105, 160, 1710, 580, 0),
 	list_header = node(105, 168, 1710, 28, 1),
@@ -72,7 +72,7 @@ local scenegraph_definition = {
 	btn_face = node(1480, 36, 270, 44, 2), -- a card's own screen: its face (suit, threat, whisper, look); same spot as More options, which is list-only
 	-- the card face screen: "Threat N by the numbers" under the rows, the live preview of the tile in the bottom right
 	face_numbers = node(125, 852, 1400, 120, 2),
-	rw_tile_preview = node(1560, 758, 228, 262, 3),
+	rw_tile_preview = node(1560, 756, 228, 270, 3),
 	help_panel = node(880, 90, 935, 300, 70),
 	help_text = node(900, 100, 895, 280, 71),
 	btn_wimport = node(645, 800, 300, 44, 2), -- list screen: import a shared wave into the first free custom slot
@@ -118,10 +118,10 @@ definitions.TILE_NODE_PREFIX = "rw_tile_"
 definitions.TILE_BLANK_NODE = "rw_tile_blank"
 
 for i = 1, definitions.TILE_CAPACITY do
-	scenegraph_definition[definitions.TILE_NODE_PREFIX .. i] = node(120, 206, 228, 262, 3)
+	scenegraph_definition[definitions.TILE_NODE_PREFIX .. i] = node(126, 190, 228, 270, 3)
 end
 
-scenegraph_definition[definitions.TILE_BLANK_NODE] = node(120, 206, 228, 262, 3)
+scenegraph_definition[definitions.TILE_BLANK_NODE] = node(126, 190, 228, 270, 3)
 
 local function header_pass(id, x, w, align)
 	return {

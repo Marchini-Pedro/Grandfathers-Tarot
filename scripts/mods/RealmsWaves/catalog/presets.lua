@@ -29,7 +29,10 @@ Presets.WAVE_PREFIX = "RWW1" -- one wave on its own
 Presets.UNDO_ID = "preset_undo"
 
 -- inclusive ranges, the same as the editor's steppers/popups
-local SUITS = { plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true }
+local SUITS = {
+	plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true,
+	volley = true, snare = true, brute = true, fester = true, dusk = true, warp = true,
+}
 local LOOKS = { rot = true, whisper = true, vial = true }
 local MAX_WHISPER = 40 -- same limit as Cards.MAX_WHISPER
 

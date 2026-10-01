@@ -957,6 +957,31 @@ do
   Director.update(5)
   check("client: a paused host's age does not run", math.abs(Director.view().drawn_age - 4) < 0.01, Director.view().drawn_age)  is_server = true
 
+  -- rarity is relative to the pool: the lightest cards are rare, the heaviest are not
+  settings.tarot_cards = 3; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100
+  only({ { "wave_small", 1, 0 }, { "wave_medium", 10, 0 }, { "wave_large", 10, 0 } })
+  v = start(); Director.update(95)
+  local flags = {}
+  for _, cd in ipairs(sent[#sent].state.h) do flags[cd.k] = cd.r end
+  check("rarity: in a hand dealt from weights 1, 10 and 10 only the lightest card is rare (synced r)", flags.wave_small == 1 and flags.wave_medium == 0 and flags.wave_large == 0, tostring(flags.wave_small) .. tostring(flags.wave_medium))
+  only({ { "wave_small", 18, 0 }, { "wave_medium", 18, 0 }, { "wave_large", 18, 0 } })
+  v = start(); Director.update(95)
+  local any_rare = false
+  for _, cd in ipairs(sent[#sent].state.h) do if cd.r == 1 then any_rare = true end end
+  check("rarity: when every card weighs the same none is rare (a weight of 1 would have been, before)", not any_rare)
+  only({ { "wave_small", 1, 0 }, { "wave_medium", 1, 0 }, { "wave_large", 1, 0 } })
+  v = start(); Director.update(95)
+  any_rare = false
+  for _, cd in ipairs(sent[#sent].state.h) do if cd.r == 1 then any_rare = true end end
+  check("rarity: ...also at weight 1 for all", not any_rare)
+  only({ { "wave_small", 50, 0 }, { "wave_medium", 40, 0 }, { "wave_large", 30, 0 }, { "wave_huge", 20, 0 }, { "boss_ambush", 1, 0 } })
+  settings.tarot_cards = 5
+  v = start(); Director.update(95)
+  local rare_keys = {}
+  for _, cd in ipairs(sent[#sent].state.h) do if cd.r == 1 then rare_keys[#rare_keys + 1] = cd.k end end
+  check("rarity: with weights 50 to 1 the very lightest card is rare, no matter the absolute numbers", #rare_keys == 1 and rare_keys[1] == "boss_ambush", table.concat(rare_keys, ","))
+  settings.tarot_cards = 3
+
   -- legacy modes still work next to the tarot
   settings.mode = "random"
   only({ { "wave_small", 5, 0 } })
@@ -1439,10 +1464,45 @@ do
   local Presets = PresetsMod
   local function rec(r) return Groups.parse(r) end
   -- the palette is the reference page's, exactly
-  check("tarot: six suits in order, every colour a 3-number rgb", #Cards.SUIT_ORDER == 6 and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
+  check("tarot: twelve suits in order (the six of the reference, then volley, snare, brute, fester, dusk, warp), every colour a 3-number rgb", #Cards.SUIT_ORDER == 12 and Cards.SUIT_ORDER[7] == "volley" and Cards.SUIT_ORDER[12] == "warp" and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
   check("tarot: plague suit values from the palette", table.concat(Cards.SUITS.plague.card, ",") == "30,36,19" and table.concat(Cards.SUITS.plague.accent, ",") == "183,194,58" and table.concat(Cards.SUITS.fateful.frame, ",") == "138,122,74" and table.concat(Cards.SUITS.murmur.frame, ",") == "85,96,58")
   check("tarot: threat colours 1..5", table.concat(Cards.THREAT_COLORS[1], ",") == "167,194,124" and table.concat(Cards.THREAT_COLORS[3], ",") == "227,207,74" and table.concat(Cards.THREAT_COLORS[5], ",") == "207,74,48")
   check("tarot: the suit ids of the catalog and of the card module are the same set", (function() for id in pairs(Events.SUITS) do if not Cards.SUITS[id] then return false end end for id in pairs(Cards.SUITS) do if not Events.SUITS[id] then return false end end return true end)())
+  check("suits: the new ones are known everywhere a suit is validated (Events.SUITS, presets) and every suit of the order is valid", (function()
+    for _, id in ipairs(Cards.SUIT_ORDER) do if not Events.SUITS[id] then return false end end
+    local n = 0
+    for _ in pairs(Events.SUITS) do n = n + 1 end
+    return n == #Cards.SUIT_ORDER
+  end)())
+  check("suits: the new ones have their own whisper, name and mark", Cards.SUITS.volley.whisper == "Something is aiming at you." and Cards.SUITS.snare.whisper == "You cannot run from this." and Cards.SUITS.brute.whisper == "It does not stop for walls." and Cards.SUITS.fester.whisper == "It swells, and it bursts." and Cards.SUITS.dusk.whisper == "Do not look away." and Cards.SUITS.warp.whisper == "It knows your name." and Cards.SUITS.warp.name == "Warp" and Cards.SUITS.warp.icon == "warp" and Cards.SUITS.volley.icon == "crosshair")
+  check("suits: every whisper fits the 40 letters of a whisper", (function() for _, id in ipairs(Cards.SUIT_ORDER) do if #Cards.SUITS[id].whisper > Cards.MAX_WHISPER then return false end end return true end)())
+  check("suits: every suit has its own accent colour and its own mark", (function()
+    local accents, icons = {}, {}
+    for _, id in ipairs(Cards.SUIT_ORDER) do
+      local a = table.concat(Cards.SUITS[id].accent, ",")
+      if accents[a] or icons[Cards.SUITS[id].icon] then return false end
+      accents[a], icons[Cards.SUITS[id].icon] = true, true
+    end
+    return true
+  end)())
+  check("suits: warp is purple (blue and red above green, red below blue)", (function() local a = Cards.SUITS.warp.accent; return a[3] > a[2] and a[1] > a[2] and a[3] > a[1] end)())
+  check("suits: a card with a Daemonhost is suggested the warp suit, also as one of the picks of a random group", Cards.suggest_suit({ { breed = "chaos_daemonhost", count = 1 } }, Groups) == "warp" and Cards.suggest_suit({ { one_of = { "chaos_poxwalker", "chaos_daemonhost" }, count = 1 } }, Groups) == "warp" and Cards.suggest_suit({ { breed = "chaos_poxwalker", count = 3 } }, Groups) ~= "warp")
+  check("suits: warp wins over the boss rule (a Daemonhost is classed as a monster by the game)", Cards.suggest_suit({ { breed = "chaos_daemonhost", count = 1 }, { breed = "chaos_beast_of_nurgle", count = 1 } }, Groups) == "warp")
+  check("suits: a custom card with a Daemonhost is a warp card until the player chooses another suit", (function()
+    local settings = { wave_def_custom_1 = "Host\t1 daemonhost" }
+    local function get(id) return settings[id] end
+    local wave = Events.get("custom_1", get, Groups)
+    local plain = Events.get("custom_2", function(id) if id == "wave_def_custom_2" then return "Pox\t3 poxwalker" end return nil end, Groups)
+    settings.su_custom_1 = "snare"
+    local chosen = Events.get("custom_1", get, Groups)
+    return wave.suit == "warp" and plain.suit == "plague" and chosen.suit == "snare"
+  end)())
+  check("suits: the modifier line can dress each name up (colour tags), the separators stay plain", (function()
+    local parts = { { breed = "chaos_poxwalker", count = 2, mods = { "enraged", "purple_stimm" } } }
+    local plain = Cards.modifier_line(parts, Groups)
+    local dressed = Cards.modifier_line(parts, Groups, function(name, id) return "[" .. id .. ":" .. name .. "]" end)
+    return plain ~= "" and dressed:find("%[enraged:", 1) ~= nil and dressed:find(" \194\183 ", 1, true) ~= nil and Cards.modifier_line(parts, Groups, nil) == plain
+  end)())
   check("tarot: every suit has its line from the brief", Cards.SUITS.plague.whisper == "Something is growing." and Cards.SUITS.murmur.whisper == "Do you hear it?" and Cards.SUITS.rage.whisper == "Faster. Faster." and Cards.SUITS.blight.whisper == "The air turns." and Cards.SUITS.swarm.whisper == "Too many to count." and Cards.SUITS.fateful.whisper == "The last page.")
   -- threat by the numbers
   local function th(r) return (Cards.threat_auto(rec(r), Groups)) end
@@ -1469,7 +1529,44 @@ do
   -- whisper, look, rarity
   check("whisper: own text, else the suit's line; cleaned and cut at 40", Cards.whisper({ whisper = "It grows.", suit = "swarm" }) == "It grows." and Cards.whisper({ whisper = "", suit = "swarm" }) == "Too many to count." and Cards.whisper({ whisper = "   ", suit = "rage" }) == "Faster. Faster." and #Cards.clean_whisper(string.rep("ab ", 30)) <= 40 and Cards.clean_whisper("a\n\tb") == "a b" and Cards.whisper({ suit = "nope" }) == "Something is growing.")
   check("look: whisper for every murmur card, rot for the rest, an explicit look wins, junk ignored", Cards.look({ suit = "murmur" }) == "whisper" and Cards.look({ suit = "rage" }) == "rot" and Cards.look({ suit = "blight", look = "vial" }) == "vial" and Cards.look({ suit = "murmur", look = "rot" }) == "rot" and Cards.look({ suit = "blight", look = "nonsense" }) == "rot")
-  check("rare: weight 1-2 is rare, 0 and 3+ are not", Cards.is_rare(1) and Cards.is_rare(2) and not Cards.is_rare(3) and not Cards.is_rare(0) and not Cards.is_rare(nil))
+  check("levels: the heaviest card is 10, the lightest 1, in between in proportion (weights 18, 10, 14)", Cards.level(18, 10, 18) == 10 and Cards.level(10, 10, 18) == 1 and Cards.level(14, 10, 18) == 6, Cards.level(14, 10, 18))
+check("levels: weights 1 to 10 are the levels 1 to 10", (function() for w = 1, 10 do if Cards.level(w, 1, 10) ~= w then return false end end return true end)())
+check("levels: when every card weighs the same all are level 10; a weight of 0 is level 0 (never drawn)", Cards.level(5, 5, 5) == 10 and Cards.level(0, 1, 10) == 0 and Cards.level(-3, 1, 10) == 0)
+check("levels: without a deck the weight itself is the level (1 to 10)", Cards.level(4, nil, nil) == 4 and Cards.level(40, nil, nil) == 10 and Cards.level(0.2, nil, nil) == 1)
+check("levels: a card outside the range is clamped (a disabled card heavier than the draw is 10)", Cards.level(99, 1, 10) == 10 and Cards.level(1, 5, 10) == 1)
+check("rare: the two lowest levels of a draw whose weights differ", Cards.is_rare_level(1, 1, 10) and Cards.is_rare_level(2, 1, 10) and not Cards.is_rare_level(3, 1, 10) and not Cards.is_rare_level(1, 5, 5) and not Cards.is_rare_level(1, nil, nil) and not Cards.is_rare_level(0, 1, 10))
+check("weight for a level: the others range 10..18 -> level 10 is 18, level 1 is 10, level 6 is 14", Cards.weight_for_level(10, 10, 18) == 18 and Cards.weight_for_level(1, 10, 18) == 10 and Cards.weight_for_level(6, 10, 18) == 14)
+check("weight for a level: with others from 1 to 10 the weight is the level", (function() for k = 1, 10 do if Cards.weight_for_level(k, 1, 10) ~= k then return false end end return true end)())
+check("weight for a level: the result shows the level asked for (wide ranges, every level)", (function()
+  for _, range in ipairs({ { 1, 10 }, { 5, 100 }, { 20, 300 }, { 1, 1000 } }) do
+    for k = 1, 10 do
+      local w = Cards.weight_for_level(k, range[1], range[2])
+      if Cards.level(w, range[1], range[2]) ~= k then return false end
+    end
+  end
+  return true
+end)())
+check("weight for a level: a range of 8 (10..18) has only nine whole weights: every level is within one of the asked one, the ends are exact", (function()
+  for k = 1, 10 do
+    local w = Cards.weight_for_level(k, 10, 18)
+    if math.abs(Cards.level(w, 10, 18) - k) > 1 then return false end
+  end
+  return Cards.level(Cards.weight_for_level(1, 10, 18), 10, 18) == 1 and Cards.level(Cards.weight_for_level(10, 10, 18), 10, 18) == 10
+end)())
+check("weight for a level: a narrow range cannot show every level, but never fails (1..4)", (function()
+  for k = 1, 10 do local w = Cards.weight_for_level(k, 1, 4); if w < 1 or w > 4 then return false end end
+  return Cards.weight_for_level(1, 1, 4) == 1 and Cards.weight_for_level(10, 1, 4) == 4
+end)())
+check("weight for a level: others that all weigh 5: level 10 matches them, lower levels are that fraction (at least 1)", Cards.weight_for_level(10, 5, 5) == 5 and Cards.weight_for_level(1, 5, 5) == 1 and Cards.weight_for_level(5, 5, 5) == 3 and Cards.weight_for_level(7, 5, 5) == 4)
+check("weight for a level: no other card in the draw: the level is the weight", Cards.weight_for_level(7, nil, nil) == 7 and Cards.weight_for_level(99, nil, nil) == 10 and Cards.weight_for_level(0, nil, nil) == 1)
+check("describe: with a range the card has its level and a relative rarity, without one the old absolute rule", (function()
+  local g = { kind = function() return "normal" end, MODIFIERS = {} }
+  local card = Cards.describe({ key = "x", name = "X", parts = {}, pct = 1, cooldown = 120, enabled = true }, g, nil, { lo = 1, hi = 10 })
+  local plain = Cards.describe({ key = "x", name = "X", parts = {}, pct = 1, cooldown = 120, enabled = true }, g)
+  local flat = Cards.describe({ key = "x", name = "X", parts = {}, pct = 1, cooldown = 120, enabled = true }, g, nil, { lo = 7, hi = 7 })
+  return card.level == 1 and card.rare == true and plain.rare == true and flat.rare == false and flat.level == 10
+end)())
+check("rare: weight 1-2 is rare, 0 and 3+ are not", Cards.is_rare(1) and Cards.is_rare(2) and not Cards.is_rare(3) and not Cards.is_rare(0) and not Cards.is_rare(nil))
   check("suit: an unknown suit falls back to plague", Cards.normalize_suit("nonsense") == "plague" and Cards.normalize_suit(nil) == "plague" and Cards.normalize_suit("rage") == "rage")
   -- rot formulas of the reference page
   check("rot: strength is 0 at 30 s, 1 at the longest cooldown, clamped, and grows with the cooldown", Cards.rot_strength(30, 600) == 0 and math.abs(Cards.rot_strength(600, 600) - 1) < 1e-9 and Cards.rot_strength(5000, 600) == 1 and Cards.rot_strength(120, 600) > 0.4 and Cards.rot_strength(120, 600) < 0.5 and Cards.rot_strength(240, 600) > Cards.rot_strength(120, 600), Cards.rot_strength(120, 600))

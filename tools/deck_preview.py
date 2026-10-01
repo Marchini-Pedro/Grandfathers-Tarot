@@ -11,6 +11,8 @@ frame guess, there is no engine layering. It shows positions, sizes, wrapping, c
 import sys, json, re
 from PIL import Image, ImageDraw, ImageFont
 
+import os
+SHOW_HOTSPOTS = os.environ.get("HOTSPOTS", "") != ""  # set HOTSPOTS=1 to outline the click areas
 src = sys.argv[1] if len(sys.argv) > 1 else "deck.json"
 out = sys.argv[2] if len(sys.argv) > 2 else "deck.png"
 data = json.load(open(src, encoding="utf-8"))
@@ -125,6 +127,10 @@ def draw_widget(wd):
         elif t == "text":
             sz = st["size"]
             draw_text(d, x, y, sz[0], sz[1], p.get("text") or "", st, alpha_mul)
+        elif t == "hotspot":
+            if SHOW_HOTSPOTS:
+                sz = st["size"]
+                d.rectangle([x, y, x + sz[0] - 1, y + sz[1] - 1], outline=(255, 60, 60, 150))
         img.alpha_composite(lay)
 
 # the strip, then the tiles
@@ -134,6 +140,6 @@ for tile in data["tiles"]:
 d = ImageDraw.Draw(img)
 d.text((105, 40), "THE GRANDFATHER'S TAROT", font=font("serif", 30), fill=(183, 194, 58, 255))
 d.text((900, 46), data["count"], font=font("sans", 20), fill=(152, 147, 111, 255))
-d.text((105, 178), data["caption"], font=font("sans", 15), fill=(152, 147, 111, 255))
+d.text((105, 162), data["caption"], font=font("sans", 15), fill=(152, 147, 111, 255))
 img.convert("RGB").save(out)
 print("wrote", out)

@@ -318,6 +318,25 @@ for _, suit_name in ipairs(Cards.SUIT_ORDER) do
   if n == 0 then icons_ok = false end
 end
 check("icons: every suit mark draws something and stays inside its 18 px box", icons_ok, "plague " .. used.plague .. " murmur " .. used.murmur .. " rage " .. used.rage .. " blight " .. used.blight .. " swarm " .. used.swarm .. " fateful " .. used.fateful)
+check("icons: twelve suits, and the new six use their own slots (volley 7, snare 4, brute 5, fester 4, dusk 5, warp 5)", #Cards.SUIT_ORDER == 12 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.fester == 4 and used.dusk == 5 and used.warp == 5, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " fester " .. used.fester .. " dusk " .. used.dusk .. " warp " .. used.warp)
+check("icons: at the Deck's 26 units every mark also stays inside its box", (function()
+  for _, suit_name in ipairs(Cards.SUIT_ORDER) do
+    Spread.icon(Cards.SUITS[suit_name].icon, 26, icon)
+    for _, t in ipairs(icon.tri) do
+      if t.on then for _, v in ipairs({ t.x1, t.y1, t.x2, t.y2, t.x3, t.y3 }) do if v ~= v or v < -0.5 or v > 26.5 then return false end end end
+    end
+    for _, c in ipairs(icon.circ) do
+      if c.on and (c.cx - c.r < -0.5 or c.cx + c.r > 26.5 or c.cy - c.r < -0.5 or c.cy + c.r > 26.5) then return false end
+    end
+  end
+  return true
+end)())
+check("icons: every shape of the cut-outs is drawn above the shape it cuts (the warp's inside, the sun's lower half)", (function()
+  Spread.icon("warp", 18, icon)
+  local ok = icon.tri[2].col == 2 and icon.tri[2].z > icon.tri[1].z and icon.tri[3].z > icon.tri[2].z and icon.circ[1].col == 2 and icon.circ[1].z > icon.tri[3].z
+  Spread.icon("dusk", 18, icon)
+  return ok and icon.tri[1].col == 2 and icon.tri[1].z > icon.circ[1].z and icon.tri[3].z > icon.tri[1].z
+end)())
 Spread.icon("moon", 18, icon)
 check("icons: the moon is a circle with a bite taken out in the card's colour", icon.circ[1].on and icon.circ[1].col == 1 and icon.circ[2].on and icon.circ[2].col == 2)
 Spread.icon("cluster", 18, icon)
@@ -404,8 +423,8 @@ check("hand: four cards visible, the fifth hidden", visible_cards(el) == 4 and c
 check("hand: card geometry follows the layout (152 wide, 8 px apart, 38 px down)", c(1).style.bg.offset[1] == 34 and c(2).style.bg.offset[1] == 194 and c(1).style.bg.offset[2] == 38 and c(1).style.bg.size[1] == 152 and c(1).style.bg.size[2] == 76)
 check("hand: the name is on the card", c(1).content.name == "The Multitude" and c(4).content.name == "Death")
 check("hand: the card takes its suit's colours (swarm card, accent bar, name text)", c(1).style.bg.color[2] == 27 and c(1).style.bg.color[3] == 29 and c(1).style.accent.color[2] == 154 and c(1).style.name.text_color[2] == 217)
-check("hand: threat diamonds are filled up to the threat, in its colour (3 = light yellow), the rest empty", c(1).style.th_o3.color[2] == 227 and c(1).style.th_i3.visible == false and c(1).style.th_i4.visible == true and c(1).style.th_o5.color[2] == 152)
-check("hand: threat 5 on The Devil is red and fills every diamond", c(2).style.th_o5.color[2] == 207 and c(2).style.th_i1.visible == false and c(2).style.th_i5.visible == false)
+check("hand: threat diamonds are filled up to the threat, in its colour (3 = light yellow), the rest the same diamond dimmed", c(1).style.th_o3.color[2] == 227 and c(1).style.th_o3.color[1] == 255 and c(1).style.th_o4.visible and c(1).style.th_o4.color[1] == 64 and c(1).style.th_o5.color[2] == 152)
+check("hand: threat 5 on The Devil is red and fills every diamond", c(2).style.th_o5.color[2] == 207 and c(2).style.th_o1.color[1] == 255 and c(2).style.th_o5.color[1] == 255)
 check("hand: one dot per enemy colour (3 fodder-like kinds with 2 colours, 4 kinds with 4)", (function()
   local n1, n4 = 0, 0
   for j = 1, 6 do if c(1).style["dot_" .. j].visible then n1 = n1 + 1 end if c(4).style["dot_" .. j].visible then n4 = n4 + 1 end end
@@ -428,8 +447,29 @@ check("hand: the eye is shut on every card (the lid and its lashes, no lens, no 
   return true
 end)())
 check("hand: the label says the card is revealed in (not 'next card')", header.content.label == "hud_card_in" and header.content.time == "0:10")
-check("hand: diamonds and dots have a faint copy under them (anti-aliasing), the empty diamonds an outline", c(1).style.th_h1.visible and c(1).style.th_h1.color[1] == 70 and c(1).style.th_h5.color[1] == 55 and c(1).style.dh_1.visible and c(1).style.dh_1.color[1] == 70 and not c(1).style.dh_3.visible)
-check("hand: the empty diamonds are drawn as a thick outline (the inside is 3.6 smaller than the diamond)", c(1).style.th_i4.size[1] == Spread.THREAT_SIDE - 3.6 and c(1).style.th_o4.size[1] == Spread.THREAT_SIDE)
+check("hand: diamonds and dots have a faint copy under them (anti-aliasing), the empty diamonds a fainter one", c(1).style.th_h1.visible and c(1).style.th_h1.color[1] == 70 and c(1).style.th_h5.color[1] == 22 and c(1).style.dh_1.visible and c(1).style.dh_1.color[1] == 70 and not c(1).style.dh_3.visible)
+check("hand: there is no inner diamond any more (an outline of two rotated squares came out uneven, with gaps)", c(1).style.th_i4 == nil and c(1).style.th_o4.size[1] == Spread.THREAT_SIDE)
+check("hand: every shape of the suit mark has a faint, slightly larger copy under it (anti-aliasing of the edge)", (function()
+  for i = 1, 4 do
+    local st = c(i).style
+    for j = 1, 4 do
+      local t1, h1 = st["icon_t" .. j], st["icon_th" .. j]
+      if t1.visible then
+        if not h1.visible or h1.color[1] ~= 77 or h1.offset[3] >= t1.offset[3] then return false end
+        -- each corner of the copy is further from the triangle's centre than the triangle's own
+        local function spread(corners) local cx, cy = (corners[1][1] + corners[2][1] + corners[3][1]) / 3, (corners[1][2] + corners[2][2] + corners[3][2]) / 3; return math.sqrt((corners[1][1] - cx) ^ 2 + (corners[1][2] - cy) ^ 2) end
+        if spread(h1.triangle_corners) <= spread(t1.triangle_corners) then return false end
+      elseif h1.visible then return false end
+      local c1, ch = st["icon_c" .. j], st["icon_ch" .. j]
+      if c1.visible then
+        if not ch.visible or ch.size[1] <= c1.size[1] or ch.color[1] ~= 77 or ch.offset[3] >= c1.offset[3] then return false end
+        -- the copy is centred on the circle
+        if math.abs((ch.offset[1] + ch.size[1] / 2) - (c1.offset[1] + c1.size[1] / 2)) > 1e-6 then return false end
+      elseif ch.visible then return false end
+    end
+  end
+  return true
+end)())
 check("hand: the fuse is nearly full and bile green", header.style.fuse_fill.visible and header.style.fuse_fill.size[1] > 0.9 * 632 and header.style.fuse_fill.color[2] == 183 and header.style.fuse_track.size[1] == 632)
 check("hand: dots keep their distance from the diamonds (12 units)", (function()
   for i = 1, 4 do
@@ -692,7 +732,7 @@ do
   local any = false
   for i = 1, 4 do
     local st = e._widgets_by_name["card_" .. i].style
-    for j = 1, 4 do if st["icon_t" .. j].visible or st["icon_c" .. j].visible then any = true end end
+    for j = 1, 4 do if st["icon_t" .. j].visible or st["icon_c" .. j].visible or st["icon_th" .. j].visible or st["icon_ch" .. j].visible then any = true end end
   end
   check("hide the corner symbol: no suit mark on any card, the name box is 24 wider", not any and e._widgets_by_name.card_1.style.name.size[1] == 124, e._widgets_by_name.card_1.style.name.size[1])
   audit_ok("no corner symbol", e)

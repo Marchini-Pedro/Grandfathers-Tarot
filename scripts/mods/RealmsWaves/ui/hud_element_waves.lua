@@ -42,9 +42,10 @@ local CARD = { "card_1", "card_2", "card_3", "card_4", "card_5" }
 local RARE = { "rare_t", "rare_b", "rare_l", "rare_r" }
 local ICON_T = { "icon_t1", "icon_t2", "icon_t3", "icon_t4" }
 local ICON_C = { "icon_c1", "icon_c2", "icon_c3", "icon_c4" }
+local ICON_TH = { "icon_th1", "icon_th2", "icon_th3", "icon_th4" }
+local ICON_CH = { "icon_ch1", "icon_ch2", "icon_ch3", "icon_ch4" }
 local TH_H = { "th_h1", "th_h2", "th_h3", "th_h4", "th_h5" }
 local TH_O = { "th_o1", "th_o2", "th_o3", "th_o4", "th_o5" }
-local TH_I = { "th_i1", "th_i2", "th_i3", "th_i4", "th_i5" }
 local DOT_H = { "dh_1", "dh_2", "dh_3", "dh_4", "dh_5", "dh_6" }
 local DOT = { "dot_1", "dot_2", "dot_3", "dot_4", "dot_5", "dot_6" }
 local DRIP = { "drip_1", "drip_2", "drip_3" }
@@ -358,6 +359,30 @@ local function place_circ(style, slot, ox, oy, z)
 	end
 end
 
+-- the feather under a shape (see Spread.FEATHER): the same shape, a little larger, one layer lower
+local function place_tri_halo(style, slot, ox, oy, z)
+	style.visible = slot.on
+
+	if slot.on then
+		local offset = style.offset
+
+		offset[1], offset[2], offset[3] = ox, oy, z + slot.z - 0.5
+		Spread.write_corners(style.triangle_corners, slot, Spread.FEATHER)
+	end
+end
+
+local function place_circ_halo(style, slot, ox, oy, z)
+	style.visible = slot.on
+
+	if slot.on then
+		local offset, size = style.offset, style.size
+		local r = slot.r + Spread.FEATHER
+
+		offset[1], offset[2], offset[3] = ox + slot.cx - r, oy + slot.cy - r, z + slot.z - 0.5
+		size[1], size[2] = r * 2, r * 2
+	end
+end
+
 local function box(style, x, y, w, h)
 	local offset, size = style.offset, style.size
 
@@ -489,15 +514,14 @@ HudElementRealmsWavesPanel._apply_body = function (self, index, scale)
 	-- the bottom row: the threat diamonds from the left, the enemy dots to the right of them
 	local cy = rec.y + rec.ch - Spread.PAD_Y - Spread.ROW_HEIGHT / 2
 	local side = Spread.THREAT_SIDE
-	local halo, inner = side + 1.4, side - 3.6
+	local halo = side + 1.4
 
 	for j = 1, #TH_O do
 		local cx = rec.x + Spread.ACCENT_WIDTH + Spread.PAD_X + side / 2 + (j - 1) * Spread.THREAT_PITCH
-		local s_halo, s_outer, s_inner = style[TH_H[j]], style[TH_O[j]], style[TH_I[j]]
+		local s_halo, s_outer = style[TH_H[j]], style[TH_O[j]]
 
 		s_halo.offset[1], s_halo.offset[2] = cx - halo / 2, cy - halo / 2
 		s_outer.offset[1], s_outer.offset[2] = cx - side / 2, cy - side / 2
-		s_inner.offset[1], s_inner.offset[2] = cx - inner / 2, cy - inner / 2
 	end
 
 	local d = rec.dot_d
@@ -542,27 +566,33 @@ HudElementRealmsWavesPanel._apply_colors = function (self, index)
 
 	paint(style.name, 255, Spread.grey(rec.p_text, suit.text, t))
 
+	local feather = Spread.alpha(Spread.FEATHER_ALPHA)
+
 	for j = 1, Spread.ICON_TRIS do
-		paint(style[ICON_T[j]], 255, rec.tri_col[j] == 2 and bg or accent)
+		local rgb = rec.tri_col[j] == 2 and bg or accent
+
+		paint(style[ICON_T[j]], 255, rgb)
+		paint(style[ICON_TH[j]], feather, rgb)
 	end
 
 	for j = 1, Spread.ICON_CIRCS do
-		paint(style[ICON_C[j]], 255, rec.circ_col[j] == 2 and bg or accent)
+		local rgb = rec.circ_col[j] == 2 and bg or accent
+
+		paint(style[ICON_C[j]], 255, rgb)
+		paint(style[ICON_CH[j]], feather, rgb)
 	end
 
-	-- threat: filled diamonds in the colour of the level; the rest are an outline (a muted diamond with the card's
-	-- colour in it)
+	-- threat: filled diamonds in the colour of the level, the rest the same diamonds dimmed (never an outline: a thin
+	-- outline drawn from two rotated squares comes out uneven, with gaps)
 	local threat_rgb = Cards.THREAT_COLORS[rec.threat]
 
 	for j = 1, #TH_O do
 		local filled = j <= rec.threat
 		local rgb = Spread.grey(rec.tmp, filled and threat_rgb or Cards.BASE.muted, t)
 
-		paint(style[TH_H[j]], filled and 70 or 55, rgb)
-		paint(style[TH_O[j]], 255, rgb)
-		paint(style[TH_I[j]], 255, bg)
+		paint(style[TH_H[j]], filled and 70 or 22, rgb)
+		paint(style[TH_O[j]], filled and 255 or 64, rgb)
 		style[TH_H[j]].visible, style[TH_O[j]].visible = true, true
-		style[TH_I[j]].visible = not filled
 	end
 
 	for j = 1, rec.dots do
@@ -671,19 +701,21 @@ HudElementRealmsWavesPanel._setup_card = function (self, index, card)
 
 	for j = 1, Spread.ICON_TRIS do
 		place_tri(style[ICON_T[j]], shape.tri[j], ox, oy, Z.card + 10)
+		place_tri_halo(style[ICON_TH[j]], shape.tri[j], ox, oy, Z.card + 10)
 		rec.tri_col[j] = shape.tri[j].col
 
 		if hide_icon then
-			style[ICON_T[j]].visible = false
+			style[ICON_T[j]].visible, style[ICON_TH[j]].visible = false, false
 		end
 	end
 
 	for j = 1, Spread.ICON_CIRCS do
 		place_circ(style[ICON_C[j]], shape.circ[j], ox, oy, Z.card + 10)
+		place_circ_halo(style[ICON_CH[j]], shape.circ[j], ox, oy, Z.card + 10)
 		rec.circ_col[j] = shape.circ[j].col
 
 		if hide_icon then
-			style[ICON_C[j]].visible = false
+			style[ICON_C[j]].visible, style[ICON_CH[j]].visible = false, false
 		end
 	end
 

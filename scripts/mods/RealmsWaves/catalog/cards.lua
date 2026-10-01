@@ -26,8 +26,10 @@ Cards.BASE = {
 	murmur_line = hex("#55603a"),
 }
 
--- the six suits: card, selected card, frame, text, accent (the reference page's exact values)
-Cards.SUIT_ORDER = { "plague", "murmur", "rage", "blight", "swarm", "fateful" }
+-- the suits: card, selected card, frame, text, accent. The first six are the reference page's exact values; the next five
+-- (volley, snare, brute, fester, dusk) are the same kind of colours (dark, desaturated, one accent), and "warp" is the
+-- purple one, the Daemonhost's own card (Cards.suggest_suit gives it to every card that holds a Daemonhost).
+Cards.SUIT_ORDER = { "plague", "murmur", "rage", "blight", "swarm", "fateful", "volley", "snare", "brute", "fester", "dusk", "warp" }
 
 Cards.SUITS = {
 	plague = { name = "Plague", card = hex("#1e2413"), hi = hex("#2a3219"), frame = hex("#3a4421"), text = hex("#e6dfc3"), accent = hex("#b7c23a"), whisper = "Something is growing.", icon = "eye" },
@@ -36,12 +38,18 @@ Cards.SUITS = {
 	blight = { name = "Blight", card = hex("#25240c"), hi = hex("#333212"), frame = hex("#5c5a1e"), text = hex("#ebe6bf"), accent = hex("#e3cf4a"), whisper = "The air turns.", icon = "drop" },
 	swarm = { name = "Swarm", card = hex("#1b1d17"), hi = hex("#262a1f"), frame = hex("#474c3a"), text = hex("#d9d8c6"), accent = hex("#9aa37a"), whisper = "Too many to count.", icon = "cluster" },
 	fateful = { name = "Fateful", card = hex("#17140f"), hi = hex("#231e14"), frame = hex("#8a7a4a"), text = hex("#efe6c9"), accent = hex("#e6dfc3"), whisper = "The last page.", icon = "star" },
+	volley = { name = "Volley", card = hex("#121a1d"), hi = hex("#1b2a30"), frame = hex("#3d5963"), text = hex("#d5dfe0"), accent = hex("#7fb2c2"), whisper = "Something is aiming at you.", icon = "crosshair" },
+	snare = { name = "Snare", card = hex("#0f1b18"), hi = hex("#17302a"), frame = hex("#2f5f55"), text = hex("#d3e1db"), accent = hex("#5fbfa5"), whisper = "You cannot run from this.", icon = "links" },
+	brute = { name = "Brute", card = hex("#241311"), hi = hex("#35201b"), frame = hex("#74352b"), text = hex("#efdcd4"), accent = hex("#cf5c45"), whisper = "It does not stop for walls.", icon = "plate" },
+	fester = { name = "Fester", card = hex("#22141a"), hi = hex("#331f28"), frame = hex("#6a3a4c"), text = hex("#edd8df"), accent = hex("#d4829a"), whisper = "It swells, and it bursts.", icon = "boil" },
+	dusk = { name = "Dusk", card = hex("#14152a"), hi = hex("#1f2142"), frame = hex("#3e4380"), text = hex("#d9dbef"), accent = hex("#8e97e3"), whisper = "Do not look away.", icon = "dusk" },
+	warp = { name = "Warp", card = hex("#1a1127"), hi = hex("#281a3b"), frame = hex("#5e408f"), text = hex("#e9dff5"), accent = hex("#b184e0"), whisper = "It knows your name.", icon = "warp" },
 }
 
 -- one colour per threat level 1..5 (unfilled diamonds are an outline in the muted colour)
 Cards.THREAT_COLORS = { hex("#a7c27c"), hex("#74b22c"), hex("#e3cf4a"), hex("#d98a2e"), hex("#cf4a30") }
 
--- a card with this weight or less is "rare": pus-yellow outline
+-- a card with this weight or less is "rare": pus-yellow outline (the old, absolute rule: only used where no deck is known)
 Cards.RARE_WEIGHT = 2
 
 Cards.normalize_suit = function (suit)
@@ -56,6 +64,78 @@ Cards.is_rare = function (weight)
 	weight = tonumber(weight) or 0
 
 	return weight > 0 and weight <= Cards.RARE_WEIGHT
+end
+
+-- ---------------------------------------------------------------------------------------------- chance levels
+-- The chance of a card as ten levels (the ten pips), RELATIVE to the other cards of the draw: the heaviest card has
+-- level 10, the lightest level 1, the rest in between in proportion to their weights; when every card weighs the same
+-- all are level 10 (all are equally likely, the highest). A weight of 0 or less is level 0 (never drawn). `lo` and `hi`
+-- are the smallest and the largest weight in the draw; without them (nothing is in the draw) the weight itself is the
+-- level (1-10).
+Cards.LEVELS = 10
+
+Cards.level = function (weight, lo, hi)
+	weight = tonumber(weight) or 0
+
+	if weight <= 0 then
+		return 0
+	end
+
+	lo, hi = tonumber(lo), tonumber(hi)
+
+	if not lo or not hi then
+		return math.max(1, math.min(Cards.LEVELS, math.floor(weight + 0.5)))
+	end
+
+	if hi <= lo then
+		return Cards.LEVELS
+	end
+
+	local t = math.max(0, math.min(1, (weight - lo) / (hi - lo)))
+
+	return math.max(1, math.min(Cards.LEVELS, 1 + math.floor((Cards.LEVELS - 1) * t + 0.5)))
+end
+
+-- A card is "rare" when it is among the two lowest levels of a draw whose weights differ.
+Cards.is_rare_level = function (level, lo, hi)
+	lo, hi = tonumber(lo), tonumber(hi)
+
+	return lo ~= nil and hi ~= nil and hi > lo and level >= 1 and level <= 2
+end
+
+-- The weight (a whole number, at least 1) that gives a card chance level `level` among the OTHER cards of the draw,
+-- whose lightest and heaviest weights are `lo` and `hi` (nil when there are no other cards: then the level is the
+-- weight). Clicking the pips of a card uses this. When the others differ the weight lies in their range (the closest
+-- whole number that shows the wanted level); when the others all weigh the same, level 10 matches them and lower
+-- levels are that fraction of it.
+Cards.weight_for_level = function (level, lo, hi)
+	level = math.max(1, math.min(Cards.LEVELS, math.floor(tonumber(level) or 1)))
+	lo, hi = tonumber(lo), tonumber(hi)
+
+	if not lo or not hi then
+		return level
+	end
+
+	if hi > lo then
+		local ideal = lo + (level - 1) / (Cards.LEVELS - 1) * (hi - lo)
+		local best, best_cost = nil, math.huge
+
+		for w = math.max(math.floor(lo), math.floor(ideal) - 1), math.min(math.ceil(hi), math.ceil(ideal) + 1) do
+			local cost = math.abs(Cards.level(w, lo, hi) - level) * 1000 + math.abs(w - ideal)
+
+			if cost < best_cost then
+				best, best_cost = w, cost
+			end
+		end
+
+		return math.max(1, best or math.floor(ideal + 0.5))
+	end
+
+	if level == Cards.LEVELS then
+		return math.max(1, math.floor(lo + 0.5))
+	end
+
+	return math.max(1, math.floor(lo * level / Cards.LEVELS + 0.5))
 end
 
 -- ---------------------------------------------------------------------------------------------- cooldown looks
@@ -197,8 +277,34 @@ Cards.threat = function (parts, override, Groups)
 	return (Cards.threat_auto(parts, Groups))
 end
 
--- Suit suggestion for a custom card: a boss -> fateful, specials -> blight, more than 60 enemies and no elites -> swarm.
+-- True when a recipe holds the given breed (also as one of the picks of a random group).
+Cards.has_breed = function (parts, breed)
+	for i = 1, #(parts or {}) do
+		local part = parts[i]
+
+		if part.breed == breed then
+			return true
+		end
+
+		for j = 1, #(part.one_of or {}) do
+			if part.one_of[j] == breed then
+				return true
+			end
+		end
+	end
+
+	return false
+end
+
+Cards.DAEMONHOST = "chaos_daemonhost"
+
+-- Suit suggestion for a custom card: a Daemonhost -> warp, a boss -> fateful, specials -> blight, more than 60 enemies and
+-- no elites -> swarm.
 Cards.suggest_suit = function (parts, Groups)
+	if Cards.has_breed(parts, Cards.DAEMONHOST) then
+		return "warp"
+	end
+
 	local kinds = Cards.kinds(parts, Groups)
 
 	if kinds.boss then
@@ -273,8 +379,10 @@ Cards.whisper = function (card)
 	return own ~= "" and own or Cards.suit(card.suit).whisper
 end
 
--- The modifiers of a recipe as one small line, "Purple · Enraged" (distinct, in catalog order).
-Cards.modifier_line = function (parts, Groups)
+-- The modifiers of a recipe as one small line, "Purple · Enraged" (distinct, in catalog order). `paint(name, id)` (optional)
+-- returns the name of one modifier dressed up (the editor passes colour tags in the Improved Havoc Tags colour of the
+-- modifier); the separators stay plain.
+Cards.modifier_line = function (parts, Groups, paint)
 	local present = {}
 
 	for i = 1, #(parts or {}) do
@@ -287,7 +395,7 @@ Cards.modifier_line = function (parts, Groups)
 
 	for _, modifier in ipairs(Groups.MODIFIERS) do
 		if present[modifier.id] then
-			names[#names + 1] = modifier.name
+			names[#names + 1] = paint and paint(modifier.name, modifier.id) or modifier.name
 		end
 	end
 
@@ -295,7 +403,8 @@ Cards.modifier_line = function (parts, Groups)
 end
 
 -- Everything the editor and the HUD show for one card (a wave from Events.get). `rgb_of(breed)` gives enemy colours.
-Cards.describe = function (wave, Groups, rgb_of)
+-- `range` ({ lo, hi }: the lightest and heaviest weight in the draw, optional) makes `level` and `rare` relative to the deck.
+Cards.describe = function (wave, Groups, rgb_of, range)
 	local parts = wave.parts or {}
 	local auto = Cards.threat_auto(parts, Groups)
 	local suit = Cards.normalize_suit(wave.suit)
@@ -323,7 +432,8 @@ Cards.describe = function (wave, Groups, rgb_of)
 		own_whisper = Cards.clean_whisper(wave.whisper) ~= "",
 		look = Cards.look({ look = wave.look, suit = suit }),
 		weight = tonumber(wave.pct) or 0,
-		rare = Cards.is_rare(wave.pct),
+		level = Cards.level(wave.pct, range and range.lo, range and range.hi),
+		rare = range and Cards.is_rare_level(Cards.level(wave.pct, range.lo, range.hi), range.lo, range.hi) or (not range and Cards.is_rare(wave.pct)),
 		cooldown = tonumber(wave.cooldown) or Cards.DEFAULT_COOLDOWN,
 		modifiers = Cards.modifier_line(parts, Groups),
 		enabled = wave.enabled == true,

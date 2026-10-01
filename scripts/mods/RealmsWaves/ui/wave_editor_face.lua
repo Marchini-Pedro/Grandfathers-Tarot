@@ -21,18 +21,19 @@ FaceView.install = function (View, h)
 		return self._wave and self._wave.key
 	end
 
-	-- the rows of the screen: the six suits, then threat, whisper, look and cooldown (ten: one page)
+	-- the rows of the screen: threat, whisper, look and cooldown, then the twelve suits. Sixteen rows are more than a page
+	-- (ten): the four settings come first so they are never out of sight, the suits scroll (the mouse wheel moves two rows)
 	View._reload_face = function (self)
 		local rows = {}
-
-		for _, suit in ipairs(mod.rw.cards.SUIT_ORDER) do
-			rows[#rows + 1] = { kind = "suit", id = suit }
-		end
 
 		rows[#rows + 1] = { kind = "threat" }
 		rows[#rows + 1] = { kind = "whisper" }
 		rows[#rows + 1] = { kind = "look" }
 		rows[#rows + 1] = { kind = "cooldown" }
+
+		for _, suit in ipairs(mod.rw.cards.SUIT_ORDER) do
+			rows[#rows + 1] = { kind = "suit", id = suit }
+		end
 
 		self._face_rows = rows
 	end

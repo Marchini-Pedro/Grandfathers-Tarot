@@ -160,6 +160,15 @@ local function card_passes()
 		circle(passes, "eye_c" .. i, z + 7)
 	end
 
+	-- the suit mark: every triangle and circle has a faint, slightly larger copy under it (see Spread.FEATHER)
+	for i = 1, Spread.ICON_TRIS do
+		triangle(passes, "icon_th" .. i, z + 9)
+	end
+
+	for i = 1, Spread.ICON_CIRCS do
+		circle(passes, "icon_ch" .. i, z + 9)
+	end
+
 	for i = 1, Spread.ICON_TRIS do
 		triangle(passes, "icon_t" .. i, z + 10)
 	end
@@ -176,10 +185,6 @@ local function card_passes()
 
 	for i = 1, definitions.THREAT_MAX do
 		diamond(passes, "th_o" .. i, z + 14, Spread.THREAT_SIDE)
-	end
-
-	for i = 1, definitions.THREAT_MAX do
-		diamond(passes, "th_i" .. i, z + 15, Spread.THREAT_SIDE - 3.6)
 	end
 
 	for i = 1, definitions.DOTS_MAX do
