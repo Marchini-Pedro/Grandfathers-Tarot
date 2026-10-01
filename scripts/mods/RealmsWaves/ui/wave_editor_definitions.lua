@@ -56,6 +56,7 @@ local scenegraph_definition = {
 	-- NOT under Back (x 125-305): Back is drawn before this button, so a click on Back that switches to the
 	-- list would land on a Presets button at the same spot in the same frame and open the presets page.
 	btn_presets = node(325, 826, 300, 44, 2),
+	btn_settings = node(645, 826, 340, 44, 2), -- list screen: timing, voting and display settings
 	btn_pload = node(325, 826, 250, 44, 2),
 	btn_psave = node(595, 826, 400, 44, 2),
 	btn_prename = node(1015, 826, 200, 44, 2),

@@ -43,6 +43,7 @@ return {
 				type = "group",
 				sub_widgets = {
 					numeric("initial_delay", 45, 0, 600, "unit_seconds"),
+					{ setting_id = "interval_random", type = "checkbox", default_value = true },
 					numeric("interval_min", 150, 5, 1800, "unit_seconds"),
 					numeric("interval_max", 300, 5, 1800, "unit_seconds"),
 					numeric("vote_duration", 25, 5, 120, "unit_seconds"),
@@ -97,6 +98,9 @@ return {
 				type = "group",
 				sub_widgets = {
 					{ setting_id = "hud_enabled", type = "checkbox", default_value = true },
+					{ setting_id = "hud_show_percent", type = "checkbox", default_value = true },
+					{ setting_id = "colour_enemies", type = "checkbox", default_value = true },
+					{ setting_id = "colour_spidey", type = "checkbox", default_value = true },
 					{ setting_id = "debug", type = "checkbox", default_value = false },
 				},
 			},

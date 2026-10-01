@@ -24,6 +24,31 @@ mod.on_all_mods_loaded = function ()
 	RW.events = mod:io_dofile(BASE .. "/catalog/events")
 	RW.groups = mod:io_dofile(BASE .. "/catalog/groups")
 	RW.presets = mod:io_dofile(BASE .. "/catalog/presets")
+	RW.colors = mod:io_dofile(BASE .. "/catalog/colors")
+
+	-- Enemy name colours: the player's Spidey Sense colours when that mod is installed, else our palette by kind.
+	RW.colors.init({
+		kind = RW.groups.kind,
+		option = function (id)
+			return mod:get(id)
+		end,
+		spidey_setting = function (id)
+			local spidey = get_mod("Spidey Sense")
+
+			return spidey and spidey:get(id) or nil
+		end,
+		named = function (name)
+			local make = Color and Color[name]
+
+			if type(make) ~= "function" then
+				return nil
+			end
+
+			local rgba = make(255, true)
+
+			return rgba and { rgba[2], rgba[3], rgba[4] } or nil
+		end,
+	})
 	RW.votes = mod:io_dofile(BASE .. "/core/votes")
 	RW.positions = mod:io_dofile(BASE .. "/spawn/positions")
 	RW.bypass = mod:io_dofile(BASE .. "/spawn/budget_bypass")

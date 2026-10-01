@@ -189,10 +189,18 @@ HudElementRealmsWavesPanel._refresh = function (self)
 		local cand = cands[i]
 		local colour = view.my_vote == i and COLOUR_MINE or COLOUR_LINE
 
+		local with_pct = mod:get("hud_show_percent") ~= false
+
 		if is_vote then
-			set_line(widget, i, mod:localize("hud_line_votes", key_label(i), cand.name, pct_text(cand.pct), cand.votes or 0), colour)
-		else
+			if with_pct then
+				set_line(widget, i, mod:localize("hud_line_votes", key_label(i), cand.name, pct_text(cand.pct), cand.votes or 0), colour)
+			else
+				set_line(widget, i, mod:localize("hud_line_votes_plain", key_label(i), cand.name, cand.votes or 0), colour)
+			end
+		elseif with_pct then
 			set_line(widget, i, mod:localize("hud_line", ">", cand.name, pct_text(cand.pct)), colour)
+		else
+			set_line(widget, i, mod:localize("hud_line_plain", ">", cand.name), colour)
 		end
 
 		line = i

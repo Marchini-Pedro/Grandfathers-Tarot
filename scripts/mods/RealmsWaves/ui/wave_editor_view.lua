@@ -34,6 +34,7 @@ local BUTTONS = {
 	{ name = "btn_reset", width = 300, cb = "cb_reset" },
 	-- presets (list screen -> presets screen -> one preset)
 	{ name = "btn_presets", width = 300, cb = "cb_presets" },
+	{ name = "btn_settings", width = 340, cb = "cb_settings" },
 	{ name = "btn_pload", width = 250, cb = "cb_preset_load" },
 	{ name = "btn_psave", width = 400, cb = "cb_preset_save" },
 	{ name = "btn_prename", width = 200, cb = "cb_preset_rename" },
@@ -86,6 +87,7 @@ RealmsWavesView.init = function (self, settings)
 	self._breeds = {}
 	self._preset_slots = {} -- presets screen rows
 	self._preset_waves = {} -- rows of the preset being viewed
+	self._settings_rows = {} -- rows of the timing/voting/display screen
 
 	RealmsWavesView.super.init(self, definitions, settings)
 end
@@ -101,6 +103,12 @@ RealmsWavesView.on_enter = function (self)
 	self._screen = "list"
 	self._offset = 0
 	self._key = nil
+	self._confirm = nil
+
+	-- the Spidey Sense colours (or this mod's colour options) may have changed since last time
+	if mod.rw.colors then
+		mod.rw.colors.clear_cache()
+	end
 
 	self:_reload()
 	self:_apply_screen()
@@ -119,6 +127,14 @@ RealmsWavesView.update = function (self, dt, t, input_service)
 	end
 
 	Popup.update(self, input_service)
+
+	-- a pending "Sure?" (second click to delete/reset) runs out after a few seconds
+	self._t = t or self._t or 0
+
+	if self._confirm and self._t > self._confirm.expires then
+		self._confirm = nil
+		self:_refresh_rows()
+	end
 
 	if self._screen == "picker" and not self._popup then
 		self:_auto_search()
@@ -310,9 +326,91 @@ RealmsWavesView._source = function (self)
 		return self._preset_slots
 	elseif self._screen == "preset_view" then
 		return self._preset_waves
+	elseif self._screen == "settings" then
+		return self._settings_rows
 	end
 
 	return self._waves
+end
+
+-- ------------------------------------------------------------ settings rows (timing, voting, display)
+
+local SETTINGS_ROWS = {
+	-- id, kind, then the numbers for a "number" row. Labels/infos are localized as set_<id> / set_<id>_info.
+	{ id = "mode", kind = "mode" },
+	{ id = "interval_random", kind = "toggle", default = true },
+	{ id = "interval_min", kind = "number", default = 150, min = 5, max = 1800, step = 5 },
+	{ id = "interval_max", kind = "number", default = 300, min = 5, max = 1800, step = 5, needs = "interval_random" },
+	{ id = "initial_delay", kind = "number", default = 45, min = 0, max = 600, step = 5 },
+	{ id = "vote_duration", kind = "number", default = 25, min = 5, max = 120, step = 5 },
+	{ id = "ballot_size", kind = "number", default = 3, min = 2, max = 5, step = 1 },
+	{ id = "hud_show_percent", kind = "toggle", default = true },
+	{ id = "colour_enemies", kind = "toggle", default = true },
+	{ id = "colour_spidey", kind = "toggle", default = true, needs = "colour_enemies" },
+}
+
+local function setting_flag(id, default)
+	local value = mod:get(id)
+
+	if value == nil then
+		return default == true
+	end
+
+	return value == true
+end
+
+-- Live rows for the settings screen (values come straight from the mod's settings).
+RealmsWavesView._reload_settings = function (self)
+	local rows = {}
+	local random_on = setting_flag("interval_random", true)
+
+	for i = 1, #SETTINGS_ROWS do
+		local def = SETTINGS_ROWS[i]
+		local row = { id = def.id, kind = def.kind, min = def.min, max = def.max, step = def.step, number = nil, on = nil }
+		local label_key = "set_" .. def.id
+
+		if def.kind == "number" then
+			row.number = math.clamp(math.floor((tonumber(mod:get(def.id)) or def.default) + 0.5), def.min, def.max)
+		elseif def.kind == "mode" then
+			row.on = mod:get("mode") == "vote"
+		else
+			row.on = setting_flag(def.id, def.default)
+		end
+
+		if def.id == "interval_min" and not random_on then
+			label_key = "set_interval_fixed"
+		end
+
+		row.label = mod:localize(label_key)
+		row.info = mod:localize(label_key .. "_info")
+		row.muted = (def.id == "interval_max" and not random_on) or (def.needs == "colour_enemies" and not setting_flag("colour_enemies", true))
+		rows[i] = row
+	end
+
+	self._settings_rows = rows
+end
+
+-- Colour tags for the enemy names inside a summary line (nil-safe: no colours -> plain text).
+RealmsWavesView._painter = function (self)
+	local colors = mod.rw.colors
+
+	if not colors then
+		return nil
+	end
+
+	return function (text, part)
+		return colors.markup(text, colors.rgb(part.breed))
+	end
+end
+
+-- What the right-hand button of a wave row does: "delete" (custom wave with enemies), "create" (empty
+-- custom slot), "reset" (changed standard wave), or nil (nothing to do: unchanged standard wave).
+RealmsWavesView._row_action = function (self, wave)
+	if wave.is_custom then
+		return (wave.parts and #wave.parts > 0) and "delete" or "create"
+	end
+
+	return wave.modified and "reset" or nil
 end
 
 -- ------------------------------------------------------------------- presets model
@@ -356,7 +454,7 @@ RealmsWavesView._reload_preset_view = function (self)
 	for i = 1, #(preset and preset.waves or {}) do
 		local wave = preset.waves[i]
 		local parts = wave.recipe ~= "" and rw.groups.parse(wave.recipe) or nil
-		local text = parts and rw.groups.summary(parts, 95) or mod:localize("row_empty_slot")
+		local text = parts and rw.groups.summary(parts, 95, self:_painter()) or mod:localize("row_empty_slot")
 
 		rows[i] = {
 			name = wave.name,
@@ -470,6 +568,11 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		widgets.bottom_title.content.bottom_title = status
 
 		widgets.hint_text.content.hint_text = ""
+	elseif screen == "settings" then
+		widgets.description_text.content.description_text = mod:localize("view_desc_settings")
+		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", mod:localize("col_setting"), mod:localize("col_what_it_does"), mod:localize("col_value"), ""
+		widgets.bottom_title.content.bottom_title = ""
+		widgets.hint_text.content.hint_text = mod:localize("hint_settings")
 	elseif screen == "presets" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_presets")
 		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", mod:localize("col_preset"), mod:localize("col_preset_holds"), "", ""
@@ -499,8 +602,10 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	local preset_view = screen == "preset_view"
 	local preset_slot = preset_view and self._preset_slots[self._preset_index]
 
-	widgets.hint_text.visible = screen == "list" or screen == "mods" or screen == "presets"
+	widgets.hint_text.visible = screen == "list" or screen == "mods" or screen == "presets" or screen == "settings"
 	widgets.btn_presets.visible = screen == "list"
+	widgets.btn_settings.visible = screen == "list"
+	widgets.btn_settings.content.hotspot_text = mod:localize("btn_settings")
 	widgets.btn_back.visible = show_back
 
 	for i = 1, #PRESET_BUTTONS do
@@ -581,6 +686,7 @@ end
 
 RealmsWavesView._refresh_rows = function (self)
 	local rw = mod.rw
+	local colors = rw.colors
 	local screen = self._screen
 	local source = self:_source()
 
@@ -601,14 +707,17 @@ RealmsWavesView._refresh_rows = function (self)
 					local share = self:_share_of(item)
 					local has_parts = item.parts and #item.parts > 0
 
+					local action = self:_row_action(item)
+					local pending = self._confirm and self._confirm.key == item.key
+
 					content.row_name = item.name
-					content.info = has_parts and rw.groups.summary(item.parts, 95) or mod:localize("row_empty_slot")
-					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = true, true, true, true, false
+					content.info = has_parts and rw.groups.summary(item.parts, 95, self:_painter()) or mod:localize("row_empty_slot")
+					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = true, true, true, action ~= nil, false
 					content.show_rep = false
 					content.checkbox_selected = item.enabled and has_parts == true
 					content.stepper_value = tostring(math.floor(item.pct))
 					content.share = share and string.format("%.1f%%", share) or "-"
-					content.hotspot_action_text = mod:localize("btn_edit")
+					content.hotspot_action_text = action and mod:localize(pending and "btn_sure" or ("btn_" .. action)) or ""
 
 					if not (item.enabled and has_parts) then
 						name_color = Components.colors.muted
@@ -626,6 +735,7 @@ RealmsWavesView._refresh_rows = function (self)
 					content.rep_value = item.rep_same and "=" or tostring(item.rep or 0)
 					content.hotspot_action_text = mod:localize("btn_remove")
 					content.hotspot_mods_text = mod:localize("btn_mods")
+					name_color = colors and item.breed and colors.argb(item.breed) or name_color
 				elseif screen == "presets" then
 					content.row_name = string.format("%d. %s", item.index, item.name)
 					content.info = item.info
@@ -634,6 +744,19 @@ RealmsWavesView._refresh_rows = function (self)
 					content.hotspot_action_text = mod:localize("btn_open")
 
 					if not item.preset then
+						name_color = Components.colors.muted
+					end
+				elseif screen == "settings" then
+					local is_number = item.kind == "number"
+
+					content.row_name = item.label
+					content.info = item.info
+					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = not is_number, is_number, false, false, false
+					content.show_rep = false
+					content.checkbox_selected = item.on == true
+					content.stepper_value = is_number and tostring(item.number) or ""
+
+					if item.muted then
 						name_color = Components.colors.muted
 					end
 				elseif screen == "preset_view" then
@@ -648,6 +771,7 @@ RealmsWavesView._refresh_rows = function (self)
 				elseif screen == "picker" then
 					content.row_name = rw.groups.display_name(item)
 					content.info = string.format("%s  (%s)", item, rw.groups.kind(item))
+					name_color = colors and colors.argb(item) or name_color
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, false, false, true, false
 					content.show_rep = false
 					content.hotspot_action_text = mod:localize("btn_add")
@@ -766,7 +890,47 @@ end)
 
 -- rows -----------------------------------------------------------------------
 
+-- Settings screen: flip a yes/no row (the "mode" row maps to random/vote).
+RealmsWavesView._toggle_setting = function (self, item)
+	if item.kind == "mode" then
+		set_setting("mode", item.on and "random" or "vote")
+	elseif item.kind == "toggle" then
+		set_setting(item.id, not item.on)
+	else
+		return
+	end
+
+	if mod.rw.colors then
+		mod.rw.colors.clear_cache()
+	end
+
+	self:_reload_settings()
+	self:_apply_screen(true)
+end
+
+RealmsWavesView._set_number_setting = function (self, item, value)
+	set_setting(item.id, math.clamp(math.floor(value + 0.5), item.min, item.max))
+	self:_reload_settings()
+	self:_apply_screen(true)
+end
+
+RealmsWavesView.cb_settings = guarded(function (self)
+	self:_reload_settings()
+	self._screen = "settings"
+	self:_apply_screen()
+end)
+
 RealmsWavesView.cb_row_check = guarded(function (self, row)
+	if self._screen == "settings" then
+		local item = self:_item_at(row)
+
+		if item then
+			self:_toggle_setting(item)
+		end
+
+		return
+	end
+
 	if self._screen == "mods" then
 		local modifier = self:_item_at(row)
 
@@ -837,8 +1001,51 @@ RealmsWavesView.cb_row_name = guarded(function (self, row)
 		self:_add_breed(item)
 	elseif self._screen == "mods" then
 		self:_toggle_mod(item.id)
+	elseif self._screen == "settings" then
+		if item.kind == "number" then
+			self:_open_setting_popup(item)
+		else
+			self:_toggle_setting(item)
+		end
 	end
 end)
+
+RealmsWavesView._open_setting_popup = function (self, item)
+	Popup.open(self, {
+		label = item.label,
+		value = tostring(item.number),
+		numeric = true, min = item.min, max = item.max, integer = true,
+		set = function (value)
+			self:_set_number_setting(item, value)
+		end,
+	})
+end
+
+-- Right-hand button of a wave row: Delete (custom wave with enemies), Create (empty custom slot) or
+-- Reset (changed standard wave). Delete and Reset ask for a second click ("Sure?") for a few seconds.
+RealmsWavesView._wave_row_action = function (self, wave)
+	local action = self:_row_action(wave)
+
+	if action == "create" then
+		self:_open_detail(wave.key)
+
+		return
+	elseif not action then
+		return
+	end
+
+	if self._confirm and self._confirm.key == wave.key and (self._t or 0) <= self._confirm.expires then
+		self._confirm = nil
+		mod.rw.events.reset(set_setting, wave.key)
+		self:_reload()
+		self:_apply_screen(true)
+
+		return
+	end
+
+	self._confirm = { key = wave.key, expires = (self._t or 0) + 4 }
+	self:_refresh_rows()
+end
 
 RealmsWavesView.cb_row_action = guarded(function (self, row)
 	local item = self:_item_at(row)
@@ -848,7 +1055,7 @@ RealmsWavesView.cb_row_action = guarded(function (self, row)
 	end
 
 	if self._screen == "list" then
-		self:_open_detail(item.key)
+		self:_wave_row_action(item)
 	elseif self._screen == "presets" then
 		self:_open_preset(item.index)
 	elseif self._screen == "detail" then
@@ -865,7 +1072,11 @@ RealmsWavesView._step_row = function (self, row, delta)
 		return
 	end
 
-	if self._screen == "list" then
+	if self._screen == "settings" then
+		if item.kind == "number" then
+			self:_set_number_setting(item, item.number + delta * item.step)
+		end
+	elseif self._screen == "list" then
 		set_setting("pct_" .. item.key, math.clamp(math.floor(item.pct) + delta, 0, 1000))
 		self:_reload()
 		self:_apply_screen(true)
@@ -965,7 +1176,11 @@ RealmsWavesView.cb_row_value = guarded(function (self, row)
 		return
 	end
 
-	if self._screen == "list" then
+	if self._screen == "settings" then
+		if item.kind == "number" then
+			self:_open_setting_popup(item)
+		end
+	elseif self._screen == "list" then
 		Popup.open(self, {
 			label = mod:localize("popup_chance_title", item.name),
 			value = tostring(math.floor(item.pct)),

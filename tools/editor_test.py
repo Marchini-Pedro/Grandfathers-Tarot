@@ -109,6 +109,7 @@ mod.rw = {
   events = dofile(BASE .. "/catalog/events.lua"),
   groups = dofile(BASE .. "/catalog/groups.lua"),
   presets = dofile(BASE .. "/catalog/presets.lua"),
+  colors = dofile(BASE .. "/catalog/colors.lua"),
 }
 
 local results = {}
@@ -140,7 +141,7 @@ local function click_row(i, hotspot) row(i).content[hotspot].pressed_callback() 
 check("list: 32 waves (12 standard + 20 custom)", #view._waves == 32, #view._waves)
 check("list: first row is Small Wave", row(1).content.row_name == "Small Wave" and row(1).visible, row(1).content.row_name)
 check("list: composition summary", row(1).content.info:find("8 Poxwalker") ~= nil, row(1).content.info)
-check("list: row flags", row(1).content.show_check and row(1).content.show_stepper and row(1).content.show_share and row(1).content.show_action)
+check("list: row flags (an unchanged standard wave has no action button)", row(1).content.show_check and row(1).content.show_stepper and row(1).content.show_share and not row(1).content.show_action)
 check("list: share shown", row(1).content.share == "18.0%", row(1).content.share)
 check("list: 10 rows visible", row(10).visible and view._offset == 0)
 check("list: buttons hidden", not view._widgets_by_name.btn_back.visible and not view._widgets_by_name.stepper_chance.visible)
@@ -165,12 +166,14 @@ local function pass_by_style(w, style_id)
   for _, p in ipairs(w.def.passes) do if p.style_id == style_id then return p end end
 end
 local r1 = row(1)
+view._waves[1].modified = true; view:_refresh_rows() -- a changed standard wave shows its Reset button
 check("engine rule: list row hotspots run (hover/click work)", hotspot_runs(r1, "hotspot_name") and hotspot_runs(r1, "hotspot_check") and hotspot_runs(r1, "hotspot_minus") and hotspot_runs(r1, "hotspot_value") and hotspot_runs(r1, "hotspot_plus") and hotspot_runs(r1, "hotspot_action"))
 check("engine rule: hidden hotspot (Mods) does not run on the list", not hotspot_runs(r1, "hotspot_mods"))
 r1.content.hotspot_action.is_hover = true
-check("engine rule: Edit button hover layers show while hovered", pass_visible(r1, pass_by_style(r1, "hotspot_action_highlight")) and pass_visible(r1, pass_by_style(r1, "hotspot_action_frame")))
+check("engine rule: action button hover layers show while hovered", pass_visible(r1, pass_by_style(r1, "hotspot_action_highlight")) and pass_visible(r1, pass_by_style(r1, "hotspot_action_frame")))
 r1.content.hotspot_action.is_hover = false
 check("engine rule: no hover layer when not hovered", not pass_visible(r1, pass_by_style(r1, "hotspot_action_highlight")))
+view._waves[1].modified = nil; view:_refresh_rows()
 local bg = pass_by_style(r1, "row_background")
 r1.content.hotspot_name.is_hover = true; bg.change_function(r1.content, r1.style.row_background)
 local hover_col = r1.style.row_background.color[2]
@@ -210,8 +213,8 @@ check("chance +1", settings["pct_wave_small"] == 19 and row(1).content.stepper_v
 click_row(1, "hotspot_minus"); click_row(1, "hotspot_minus")
 check("chance -2", settings["pct_wave_small"] == 17)
 
--- open detail
-click_row(1, "hotspot_action")
+-- open detail (click the row)
+click_row(1, "hotspot_name")
 check("detail: screen and title", view._screen == "detail" and view._widgets_by_name.description_text.content.description_text == "view_desc_detail:Small Wave")
 check("detail: composition rows", row(1).content.row_name == "8 Poxwalker" and row(4).content.row_name == "2 Rifleman" and not row(5).visible, row(1).content.row_name)
 check("detail: row flags", not row(1).content.show_check and row(1).content.show_stepper and not row(1).content.show_share and row(1).content.show_action)
@@ -546,7 +549,7 @@ click("btn_reset")
 check("reset restores spread/repeat defaults", settings["sp_wave_small"] == 3 and settings["re_wave_small"] == 10 and settings["rf_wave_small"] == 60)
 click("btn_back")
 check("list screen: repeat column header cleared, steppers hidden", view._widgets_by_name.list_header.content.col_6 == "" and not S.stepper_spread.visible and not row(1).content.show_rep)
-click_row(1, "hotspot_action")
+click_row(1, "hotspot_name")
 
 -- rename via popup
 click("btn_rename")
@@ -612,6 +615,117 @@ check("custom: first enemy added", #view._parts == 1 and view._parts[1].count ==
 click_row(1, "hotspot_plus")
 click("btn_enabled")
 check("custom: enabled and in pool", settings["on_custom_1"] == true and #mod.rw.events.build_pool(function(id) return settings[id] end, mod.rw.groups) == 13)
+
+-- row actions (Delete / Create / Reset), colours, settings screen ------------------------------------------------
+do
+  local C = mod.rw.colors
+  local spidey = { crusher_front_colour = "turquoise" }
+  local named = { turquoise = { 64, 224, 208 } }
+  C.init({ kind = mod.rw.groups.kind, option = function(id) return settings[id] end, spidey_setting = function(id) return spidey[id] end, named = function(name) return named[name] end })
+  local input_stub3 = { get = function() return nil end, is_null_service = function() return false end }
+
+  click("btn_back")
+  check("list: unchanged standard wave shows no action button", not row(1).content.show_action)
+
+  -- colours
+  local plain = view._widgets_by_name.rw_row_1.content.info:gsub("{#[^}]*}", "")
+  check("colours: list summary carries colour tags, visible text unchanged", row(1).content.info:find("{#color(", 1, true) ~= nil and plain == mod.rw.groups.summary(view._waves[1].parts, 95), plain)
+  settings.colour_enemies = false; view:_refresh_rows()
+  check("colours: switched off -> plain text", row(1).content.info:find("{#", 1, true) == nil)
+  settings.colour_enemies = nil; view:_refresh_rows()
+  check("colours: kind palette (poxwalker is normal, hound is special, spawn is boss)", table.concat(C.rgb("chaos_poxwalker"), ",") == "200,215,200" and table.concat(C.rgb("chaos_hound"), ",") == "255,160,60" and table.concat(C.rgb("chaos_spawn"), ",") == "240,90,90")
+  check("colours: Spidey Sense colour wins for the enemies it knows (crusher)", table.concat(C.rgb("chaos_ogryn_executor"), ",") == "64,224,208")
+  C.clear_cache(); settings.colour_spidey = false
+  check("colours: Spidey Sense colours can be switched off", table.concat(C.rgb("chaos_ogryn_executor"), ",") == "235,205,90")
+  settings.colour_spidey = nil; C.clear_cache()
+  spidey.crusher_front_colour = "no_such_colour"
+  check("colours: unknown Spidey Sense colour name falls back to the palette", table.concat(C.rgb("chaos_ogryn_executor"), ",") == "235,205,90")
+  spidey.crusher_front_colour = "turquoise"; C.clear_cache()
+
+  click_row(1, "hotspot_name")
+  check("colours: detail rows colour the enemy name", table.concat({ table.unpack(row(1).style.row_name.text_color, 2, 4) }, ",") == "200,215,200", table.concat(row(1).style.row_name.text_color, ","))
+  click("btn_back"); click("btn_add")
+  local crusher_row
+  for off = 0, #view._breeds - 1, 10 do
+    view._offset = off; view:_refresh_rows()
+    for i = 1, 10 do if row(i).visible and row(i).content.row_name == "Crusher" then crusher_row = i; break end end
+    if crusher_row then break end
+  end
+  check("colours: picker colours enemy names (crusher uses the Spidey Sense colour)", crusher_row ~= nil and table.concat({ table.unpack(row(crusher_row).style.row_name.text_color, 2, 4) }, ",") == "64,224,208", tostring(crusher_row))
+  view._offset = 0
+  click("btn_back"); click("btn_back")
+
+  -- Delete / Create / Reset
+  view._offset = 12; view:_refresh_rows()
+  check("actions: custom slot with enemies shows Delete, empty slots show Create", row(1).content.hotspot_action_text == "btn_delete" and row(2).content.hotspot_action_text == "btn_create" and row(1).content.show_action, row(1).content.hotspot_action_text .. "/" .. row(2).content.hotspot_action_text)
+  click_row(1, "hotspot_action")
+  check("actions: first click on Delete only asks 'Sure?'", row(1).content.hotspot_action_text == "btn_sure" and view._screen == "list")
+  check("actions: the custom wave is still there", #view._waves[13].parts == 1 and settings["on_custom_1"] == true)
+  click_row(1, "hotspot_action")
+  check("actions: second click deletes it (slot emptied, wave off)", (view._waves[13].parts == nil or #view._waves[13].parts == 0) and settings["on_custom_1"] == false and row(1).content.hotspot_action_text == "btn_create")
+  -- the confirmation runs out
+  settings["wave_def_custom_3"] = "Temp\t3 hounds"; view:_reload(); view:_refresh_rows()
+  click_row(3, "hotspot_action")
+  check("actions: pending confirmation shown", row(3).content.hotspot_action_text == "btn_sure")
+  view:update(0.01, 100, input_stub3)
+  check("actions: the confirmation expires after a few seconds", row(3).content.hotspot_action_text == "btn_delete" and view._confirm == nil)
+  view._confirm = nil; settings["wave_def_custom_3"] = ""; view._offset = 0; view:_reload(); view:_refresh_rows()
+
+  -- standard wave: Reset only when changed
+  settings["pct_wave_small"] = 33
+  settings["wave_def_wave_small"] = "My Small\t4 hounds"; view:_reload(); view:_refresh_rows()
+  check("actions: a changed standard wave shows Reset", row(1).content.show_action and row(1).content.hotspot_action_text == "btn_reset")
+  click_row(1, "hotspot_action"); click_row(1, "hotspot_action")
+  check("actions: Reset (after Sure?) restores the built-in wave", settings["wave_def_wave_small"] == "" and settings["pct_wave_small"] == 18 and row(1).content.row_name == "Small Wave" and not row(1).content.show_action)
+  settings["pct_wave_small"] = 18
+
+  -- settings screen
+  check("settings: button visible on the wave list", view._widgets_by_name.btn_settings.visible)
+  click("btn_settings")
+  check("settings: screen opens with rows, Back only", view._screen == "settings" and row(10).visible and not view._widgets_by_name.btn_settings.visible and view._widgets_by_name.btn_back.visible and view._widgets_by_name.hint_text.visible)
+  local function find_row(id) for i = 1, 10 do local it = view:_item_at(i); if it and it.id == id then return i, it end end end
+  local ri, rit = find_row("interval_random")
+  check("settings: random-time toggle defaults on", rit and rit.on == true and row(ri).content.show_check and row(ri).content.checkbox_selected)
+  local mi, mit = find_row("interval_min")
+  check("settings: minimum time row shows the minimum label while random is on", mit.label == "set_interval_min" and row(mi).content.show_stepper and row(mi).content.stepper_value == "150")
+  click_row(mi, "hotspot_plus")
+  check("settings: stepper adds 5 seconds and writes the setting", settings.interval_min == 155 and row(mi).content.stepper_value == "155", tostring(settings.interval_min))
+  click_row(mi, "hotspot_minus"); click_row(mi, "hotspot_minus")
+  check("settings: stepper goes down", settings.interval_min == 145)
+  settings.interval_min = 5; view:_reload_settings(); view:_apply_screen(true)
+  click_row(mi, "hotspot_minus")
+  check("settings: stepper stops at the minimum (5 seconds)", settings.interval_min == 5)
+  click_row(ri, "hotspot_check")
+  check("settings: random off -> minimum row becomes the fixed time, maximum row muted", settings.interval_random == false and view:_item_at(mi).label == "set_interval_fixed" and view:_item_at(find_row("interval_max")).muted == true)
+  click_row(ri, "hotspot_name")
+  check("settings: clicking the row name toggles too", settings.interval_random == true and view:_item_at(find_row("interval_max")).muted == false)
+  local mx = find_row("interval_max")
+  click_row(mx, "hotspot_value")
+  check("settings: clicking a number opens a popup limited to its range", view._popup ~= nil and view._popup.spec.min == 5 and view._popup.spec.max == 1800)
+  view._widgets_by_name.rw_popup_input.content.input_text = "40"; view:update(0.01, 0, input_stub3)
+  local PPs = dofile(BASE .. "/ui/wave_editor_components.lua"); PPs.Popup.commit(view)
+  check("settings: popup writes the number", settings.interval_max == 40 and row(mx).content.stepper_value == "40")
+  local vi = find_row("vote_duration")
+  click_row(vi, "hotspot_plus"); check("settings: vote window steps by 5", settings.vote_duration == 30)
+  local pi = find_row("hud_show_percent"); click_row(pi, "hotspot_check")
+  check("settings: percent toggle writes hud_show_percent", settings.hud_show_percent == false)
+  click_row(pi, "hotspot_check"); check("settings: ...and back on", settings.hud_show_percent == true)
+  local di = find_row("mode"); click_row(di, "hotspot_check")
+  local vote_on = settings.mode == "vote"
+  click_row(di, "hotspot_check")
+  check("settings: vote mode toggle writes mode=vote, then random", vote_on and settings.mode == "random")
+  local ci = find_row("colour_enemies"); click_row(ci, "hotspot_check")
+  check("settings: colour toggle mutes the Spidey Sense row", settings.colour_enemies == false and view:_item_at(find_row("colour_spidey")).muted == true)
+  click_row(ci, "hotspot_check")
+  local longest, which = 0, nil
+  for i = 1, #view._settings_rows do local n = #view._settings_rows[i].info; if n > longest then longest, which = n, view._settings_rows[i].id end end
+  check("settings: every description fits two lines (<= 138 characters)", longest <= 138, tostring(which) .. " " .. longest)
+  click("btn_back")
+  check("settings: back to the wave list", view._screen == "list" and view._widgets_by_name.btn_settings.visible)
+  settings.interval_min, settings.interval_max, settings.vote_duration, settings.interval_random = nil, nil, nil, nil
+  -- the presets tests below expect the custom wave from the custom-slot workflow (deleted above)
+  settings["wave_def_custom_1"] = "Custom 1\t3 hounds"; settings["on_custom_1"] = true; view:_reload(); view:_apply_screen(true)
+end
 
 -- presets ----------------------------------------------------------------------------------------------------
 do

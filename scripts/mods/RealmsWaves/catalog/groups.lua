@@ -697,7 +697,10 @@ Groups.total_count = function (parts)
 	return total
 end
 
-Groups.summary = function (parts, max_chars)
+-- "4 Hound, 2 Scab Rager [Enraged]" shortened to `max_chars` visible characters (with "...").
+-- `paint` (optional) is function (text, part) -> text wrapped in colour tags; the tags never count
+-- towards the length, so the visible text is identical to the plain summary.
+Groups.summary = function (parts, max_chars, paint)
 	local pieces = {}
 
 	for i = 1, #(parts or {}) do
@@ -705,12 +708,36 @@ Groups.summary = function (parts, max_chars)
 	end
 
 	local text = table.concat(pieces, ", ")
+	local cut = max_chars and #text > max_chars
 
-	if max_chars and #text > max_chars then
-		text = text:sub(1, max_chars - 3) .. "..."
+	if not paint then
+		return cut and (text:sub(1, max_chars - 3) .. "...") or text
 	end
 
-	return text
+	local out = {}
+	local budget = cut and (max_chars - 3) or math.huge
+
+	for i = 1, #pieces do
+		local piece = pieces[i]
+		local separator = i > 1 and ", " or ""
+
+		if #separator + #piece > budget then
+			local room = budget - #separator
+
+			if room > 0 then
+				out[#out + 1] = separator .. paint(piece:sub(1, room), parts[i])
+			elseif #separator > 0 and budget > 0 then
+				out[#out + 1] = separator:sub(1, budget)
+			end
+
+			break
+		end
+
+		out[#out + 1] = separator .. paint(piece, parts[i])
+		budget = budget - #separator - #piece
+	end
+
+	return table.concat(out) .. (cut and "..." or "")
 end
 
 return Groups

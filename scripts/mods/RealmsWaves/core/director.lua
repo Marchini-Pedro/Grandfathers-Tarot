@@ -154,7 +154,8 @@ end
 local function random_interval(first)
 	local low = math.max(5, number_setting("interval_min", 150))
 	local high = math.max(low, number_setting("interval_max", 300))
-	local interval = low + math.random() * (high - low)
+	-- random: anywhere between the minimum and the maximum; otherwise always the minimum (a fixed time)
+	local interval = mod:get("interval_random") == false and low or low + math.random() * (high - low)
 
 	if first then
 		interval = interval + number_setting("initial_delay", 45)

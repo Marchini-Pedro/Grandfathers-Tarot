@@ -287,6 +287,50 @@ Director.update(6.5)
 v = Director.view()
 check("random: new cycle after incoming", v.phase == "waiting", v.phase)
 
+-- time between waves: random between min and max, or fixed (the minimum)
+do
+  local function first_remaining()
+    Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.001)
+    return Director.view().remaining
+  end
+  settings.interval_min = 15; settings.interval_max = 40
+  local seen_min, seen_max, in_range = math.huge, -math.huge, true
+  settings.interval_random = nil -- default: random
+  for _ = 1, 200 do
+    local r = first_remaining()
+    seen_min, seen_max = math.min(seen_min, r), math.max(seen_max, r)
+    if r < 14.99 or r > 40.01 then in_range = false end
+  end
+  check("interval: random (default) stays between the minimum and the maximum and actually varies", in_range and seen_max - seen_min > 5, seen_min .. ".." .. seen_max)
+  settings.interval_random = false
+  local fixed = {}
+  for _ = 1, 20 do fixed[#fixed + 1] = first_remaining() end
+  local all_fixed = true; for _, r in ipairs(fixed) do if math.abs(r - 15) > 0.01 then all_fixed = false end end
+  check("interval: random off -> always exactly the minimum (15 s)", all_fixed, fixed[1])
+  settings.interval_random = true
+  check("interval: random on again varies", (function() local a, b = first_remaining(), first_remaining(); local c = first_remaining(); return a ~= b or b ~= c end)())
+  settings.interval_random = nil
+  settings.interval_min = 100; settings.interval_max = 100
+  Director.on_exit_gameplay(); started_waves = {}
+end
+
+-- painted summary: the visible text is identical to the plain one at every length
+do
+  local recipes = { "8 poxwalkers, 2 rifleman", "5 crushers[purple+enraged]@2, 1 plague ogryn|chaos spawn, 3 hounds", "1 twin captain one" , "3 scab rager[rotten]" }
+  local mismatches = {}
+  for _, recipe in ipairs(recipes) do
+    local parts = Groups.parse(recipe)
+    for max = 4, 130 do -- (below 4 the plain version itself cuts a negative length)
+      local plain = Groups.summary(parts, max)
+      local painted = Groups.summary(parts, max, function(text, part) return "{#color(1,2,3)}" .. text .. "{#reset()}" end)
+      local visible = painted:gsub("{#[^}]*}", "")
+      if visible ~= plain then mismatches[#mismatches + 1] = recipe:sub(1, 12) .. "@" .. max .. ": [" .. visible .. "] vs [" .. plain .. "]"; if #mismatches > 3 then break end end
+    end
+  end
+  check("summary: painted text equals the plain text at every length (colour tags never count)", #mismatches == 0, table.concat(mismatches, " | "))
+  check("summary: unpainted behaviour is unchanged (no argument)", Groups.summary(Groups.parse("3 hounds"), 95) == "3 Hound")
+end
+
 -- vote mode
 settings.mode = "vote"; settings.ballot_size = 3
 Director.on_exit_gameplay(); started_waves = {}
@@ -1025,7 +1069,7 @@ do
   check("localization: multiplier and search strings exist", loc.mult_normal and loc.mult_boss and loc.mult_special and loc.group_multipliers and loc.btn_search and loc.popup_search_hint and loc.picker_status and loc.unit_percent.en == "pct")
   -- DMF option rows: the title column holds about 27 characters on one line, the value column about 8
   -- (value + unit, e.g. "1000 pct"); longer text wraps into several lines and overlaps the next row.
-  local titles = { "initial_delay", "interval_min", "interval_max", "vote_duration", "ballot_size", "novote_fallback", "max_per_wave", "max_alive", "heap_guard_mb", "min_distance", "max_distance", "monster_min_distance", "monster_max_distance", "mult_normal", "mult_boss", "mult_special", "open_editor_bind", "vote_1_bind", "vote_2_bind", "vote_3_bind", "vote_4_bind", "vote_5_bind", "hud_enabled", "debug", "fallback_random", "fallback_skip" }
+  local titles = { "initial_delay", "interval_min", "interval_max", "vote_duration", "ballot_size", "novote_fallback", "max_per_wave", "max_alive", "heap_guard_mb", "min_distance", "max_distance", "monster_min_distance", "monster_max_distance", "mult_normal", "mult_boss", "mult_special", "open_editor_bind", "vote_1_bind", "vote_2_bind", "vote_3_bind", "vote_4_bind", "vote_5_bind", "hud_enabled", "hud_show_percent", "colour_enemies", "colour_spidey", "interval_random", "debug", "fallback_random", "fallback_skip" }
   local long = {}
   for _, id in ipairs(titles) do
     local text = loc[id] and loc[id].en

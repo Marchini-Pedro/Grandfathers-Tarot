@@ -47,6 +47,10 @@ return {
 
 	group_hud = { en = "HUD and debug" },
 	hud_enabled = { en = "Show wave panel" },
+	hud_show_percent = { en = "Show chances in the vote" },
+	colour_enemies = { en = "Colour enemy names" },
+	colour_spidey = { en = "Use Spidey Sense colours" },
+	interval_random = { en = "Random time between waves" },
 	debug = { en = "Debug logging" },
 
 	unit_seconds = { en = "s" },
@@ -61,12 +65,14 @@ return {
 	hud_empty = { en = "Waves: no wave enabled (open the wave editor)" },
 	hud_line = { en = "%s  %s (%s%%)" },
 	hud_line_votes = { en = "%s  %s (%s%%)  [%d]" },
+	hud_line_plain = { en = "%s  %s" },
+	hud_line_votes_plain = { en = "%s  %s  [%d]" },
 	vote_cast = { en = "Voted %d: %s" },
 
 	-- Wave editor
 	view_title = { en = "Realms Waves: Wave Editor" },
 	view_desc_list = {
-		en = "Every wave that can be drawn. Tick to enable, change the chance weight, or press Edit to rename it and change its enemies. Only the host's settings are used in a session.",
+		en = "Every wave that can be drawn. Tick to enable, change the chance weight, or click a wave to rename it and change its enemies. Only the host's settings are used in a session.",
 	},
 	view_desc_detail = { en = "Editing: %s" },
 	view_desc_picker = { en = "Pick an enemy to add to: %s" },
@@ -81,7 +87,7 @@ return {
 	bottom_list_title = { en = "Custom slots are empty until you add enemies to them" },
 	bottom_detail_title = { en = "%s: %d enemies in total" },
 	hint_list = {
-		en = "The share column is each wave's chance as a part of all enabled waves, so the shares always add up to 100 percent. Set a weight to 0 or untick a wave to remove it from the draw. Press Edit on a Custom slot to build your own wave: name it, then add enemies.",
+		en = "Click a wave's row to edit it (rename it, change its enemies, chance, cooldown and more). The share column is each wave's chance as a part of all enabled waves, so the shares always add up to 100 percent. Set a weight to 0 or untick a wave to remove it from the draw. Press Create on an empty Custom slot (or click it) to build your own wave: name it, then add enemies. Delete empties a custom wave, Reset undoes your changes to a standard one.",
 	},
 	view_desc_mods = { en = "Modifiers for: %s" },
 	col_modifier = { en = "Modifier" },
@@ -91,6 +97,42 @@ return {
 	hint_mods = {
 		en = "Tick the conditions to force onto this group, even if the mission did not load them (e.g. Purple or Enraged on 3 crushers). They are added as buffs right after the enemies spawn. In the text editor, write them in brackets: 3 crushers[enraged+garden]. Their visuals and effects are the game's own.",
 	},
+	-- Settings screen (timing, voting, display)
+	btn_settings = { en = "Timing and voting" },
+	btn_delete = { en = "Delete" },
+	btn_create = { en = "Create" },
+	btn_reset = { en = "Reset" },
+	btn_sure = { en = "Sure?" },
+	col_setting = { en = "Setting" },
+	col_what_it_does = { en = "What it does" },
+	col_value = { en = "Value" },
+	view_desc_settings = { en = "Timing, voting and display. Click a row to change it. The same options are in the mod's options menu. Timing and voting are host settings." },
+	hint_settings = {
+		en = "Waves arrive after a time between the minimum and the maximum, or after exactly the minimum when the time is not random. The wave names and chances are shown from the start of the wait; the vote is highlighted during the final vote window.",
+	},
+	set_mode = { en = "Players vote on the next wave" },
+	set_mode_info = { en = "On: players pick between waves with the vote keys. Off: the host rolls the next wave by chance. Host setting." },
+	set_interval_random = { en = "Random time between waves" },
+	set_interval_random_info = { en = "On: a random time between the minimum and maximum below. Off: always the same time, the minimum. Host setting." },
+	set_interval_min = { en = "Minimum time between waves" },
+	set_interval_min_info = { en = "Seconds. The shortest wait until the next wave. Host setting." },
+	set_interval_fixed = { en = "Time between waves" },
+	set_interval_fixed_info = { en = "Seconds. Every wave arrives after exactly this long. Host setting." },
+	set_interval_max = { en = "Maximum time between waves" },
+	set_interval_max_info = { en = "Seconds. The longest wait. Only used while the time is random. Host setting." },
+	set_initial_delay = { en = "First wave extra delay" },
+	set_initial_delay_info = { en = "Seconds added to the wait before the first wave of a mission. Host setting." },
+	set_vote_duration = { en = "Wave names shown (vote window)" },
+	set_vote_duration_info = { en = "Seconds before a wave arrives that its vote is open and highlighted. Never longer than the wait. Host setting." },
+	set_ballot_size = { en = "Waves on a vote ballot" },
+	set_ballot_size_info = { en = "How many different waves players can vote between (2 to 5). Host setting." },
+	set_hud_show_percent = { en = "Show chances in the vote" },
+	set_hud_show_percent_info = { en = "Your screen only: show each wave's chance (percent) next to its name in the wave panel." },
+	set_colour_enemies = { en = "Colour enemy names" },
+	set_colour_enemies_info = { en = "Your screen only: colour enemy names in this editor by type (special, boss, elite...)." },
+	set_colour_spidey = { en = "Use Spidey Sense colours" },
+	set_colour_spidey_info = { en = "Take an enemy's colour from your Spidey Sense settings when that mod is installed." },
+
 	-- Presets
 	btn_presets = { en = "Presets" },
 	btn_open = { en = "Open" },
