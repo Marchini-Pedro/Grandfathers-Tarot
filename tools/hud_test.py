@@ -470,6 +470,14 @@ check("hand: every shape of the suit mark has a faint, slightly larger copy unde
   end
   return true
 end)())
+check("hand: the label and the time are ONE line centred on the node (and the fuse): the label ends 12 before the time starts, the pair's middle is 350", (function()
+  local lw = #header.content.label * header.style.label.font_size * 0.52
+  local tw = #header.content.time * header.style.time.font_size * 0.5
+  local label_right = header.style.label.offset[1] + header.style.label.size[1]
+  local time_left = header.style.time.offset[1]
+  local middle = (label_right - lw + time_left + Spread.TIME_GAP * 0 + tw) / 2
+  return math.abs(time_left - label_right - Spread.TIME_GAP) < 1e-6 and math.abs(middle - 350) < 1e-6 + 0, tostring(middle)
+end)())
 check("hand: the fuse is nearly full and bile green", header.style.fuse_fill.visible and header.style.fuse_fill.size[1] > 0.9 * 632 and header.style.fuse_fill.color[2] == 183 and header.style.fuse_track.size[1] == 632)
 check("hand: dots keep their distance from the diamonds (12 units)", (function()
   for i = 1, 4 do

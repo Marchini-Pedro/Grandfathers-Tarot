@@ -243,6 +243,7 @@ DeckView.install = function (View, h)
 
 		for i = 1, Deck.STRIP_MAX do
 			local seg = style[h.STRIP_IDS[i]]
+			local hot = style[h.STRIP_HOT[i]]
 			local segment = self._strip_segments[i]
 
 			if i <= n then
@@ -252,8 +253,10 @@ DeckView.install = function (View, h)
 				seg.offset[1], seg.offset[2] = segment.x, raised and -3 or 0
 				seg.size[1], seg.size[2] = segment.w, raised and Deck.STRIP_H + 6 or Deck.STRIP_H
 				paint(seg, raised and 255 or 215, segment.rgb)
+				hot.offset[1], hot.offset[2], hot.size[1], hot.size[2] = segment.x, -3, segment.w, Deck.STRIP_H + 6
 			else
 				seg.visible = false
+				hot.size[1] = 0
 			end
 		end
 	end
@@ -701,6 +704,20 @@ DeckView.install = function (View, h)
 		local widgets = self._widgets_by_name
 		local hovered, hovered_widget, hovered_pip = nil, nil, nil
 
+		-- the pointer on a segment of the strip: its card (a tile on this page lights up, the name is shown over the strip)
+		local strip_key
+		local strip = widgets.rw_strip
+
+		if strip and strip.visible and self._strip_segments then
+			for i = 1, #self._strip_segments do
+				if strip.content[h.STRIP_HOT[i]].is_hover then
+					strip_key = self._strip_segments[i].key
+
+					break
+				end
+			end
+		end
+
 		for i = 1, Deck.CAPACITY do
 			local widget = widgets[TILE_PREFIX .. i]
 
@@ -708,6 +725,8 @@ DeckView.install = function (View, h)
 				local content = widget.content
 				local on_edit = content.hotspot_edit.is_hover == true
 				local pip = nil
+
+				content.strip_hover = strip_key ~= nil and content.card_key == strip_key
 
 				for k = 1, Deck.PIPS do
 					if content[IDS.hotspot_pip[k]].is_hover then
@@ -731,6 +750,18 @@ DeckView.install = function (View, h)
 
 				if content.hotspot_top.is_hover or content.hotspot_state.is_hover or on_edit or pip then
 					hovered, hovered_widget, hovered_pip = content.card_key, widget, pip
+				end
+			end
+		end
+
+		local strip_name
+
+		if strip_key and not hovered then
+			hovered = strip_key
+
+			for i = 1, #self._deck do
+				if self._deck[i].key == strip_key then
+					strip_name = self._deck[i].name
 				end
 			end
 		end
@@ -786,7 +817,7 @@ DeckView.install = function (View, h)
 				if hovered_widget and hovered_pip then
 					caption.content.deck_hover = mod:localize("tile_pip_hover", hovered_widget.content.name, hovered_pip)
 				else
-					caption.content.deck_hover = hovered_widget and hovered_widget.content.name or ""
+					caption.content.deck_hover = hovered_widget and hovered_widget.content.name or strip_name or ""
 				end
 			end
 

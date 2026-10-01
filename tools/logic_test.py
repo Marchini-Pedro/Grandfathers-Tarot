@@ -1265,6 +1265,25 @@ do
   Tuning.send_all("late_peer")
   check("tuning: a player who joins late gets the size of every living unit that has one", sent_scales[#sent_scales].recipient == "late_peer" and #sent_scales[#sent_scales].list == 1 and sent_scales[#sent_scales].list[1][1] == c.gid)
 
+  -- the buff system recomputes the stats every frame while a buff touches them: a hook puts the factor back at once
+  Tuning.install()
+  local stat_hook = hooks["BuffExtensionBase._update_stat_buffs_and_keywords!"]
+  check("tuning: a hook on the buff system's stat recompute is installed", stat_hook ~= nil)
+  c.buffs.stats.melee_attack_speed = 1.2 -- a recompute dropped our factor (a mission-wide modifier did it)
+  stat_hook(c.buffs, 5)
+  check("tuning: right after a recompute the factor is back on top (1.2 x 1.5), once", math.abs(c.buffs.stats.melee_attack_speed - 1.8) < 1e-9)
+  stat_hook(c.buffs, 5)
+  check("tuning: ...and a second call without a recompute changes nothing", math.abs(c.buffs.stats.melee_attack_speed - 1.8) < 1e-9)
+  stat_hook({ stat_buffs = function() return {} end }, 5)
+  check("tuning: the hook ignores units that are not tuned", true)
+
+  -- explosion and damage over time taken: a share of the damage, 0 = none
+  run_wave({ name = "t", parts = Groups.parse("1 crusher{explosion=50 dot=25}, 1 mauler{explosion=0}") })
+  local ex, ex0
+  for _, u in ipairs(spawned) do if u.breed == "chaos_ogryn_executor" then ex = u else ex0 = u end end
+  check("tuning: explosion 50 halves the damage taken from explosions; dot 25 sets burning, toxin and bleeding to a quarter", ex and ex.buffs.stats.damage_taken_from_explosions == 0.5 and ex.buffs.stats.damage_taken_from_burning == 0.25 and ex.buffs.stats.damage_taken_from_toxin == 0.25 and ex.buffs.stats.damage_taken_from_bleeding == 0.25 and ex.buffs.stats.melee_attack_speed == nil)
+  check("tuning: 0 means no damage at all from that source (and is kept, it is not 'unchanged')", ex0 and ex0.buffs.stats.damage_taken_from_explosions == 0 and Groups.parse("1 crusher{explosion=0}")[1].tune.explosion == 0)
+
   -- a step that fails (no navigation on this unit) is logged once and does not stop the others
   local before = #echoes
   run_wave({ name = "t", parts = Groups.parse("2 hounds{speed=150 mass=200}") })
@@ -1326,8 +1345,8 @@ do
   check("tune: works on a random group too", parts[1].one_of and #parts[1].one_of == 2 and parts[1].tune.health == 300 and parts[1].mods[1] == "garden")
   check("tune: the readable text lists the changed ones in catalog order", Groups.tune_text({ mass = 200, health = 150 }) == "Health 150%, Hit mass 200%" and Groups.tune_text(nil) == "" and Groups.tune_text({ size = 100 }) == "")
   check("tune: has_tune, copy_tune, clamp_tune", Groups.has_tune(Groups.parse("1 hound, 1 crusher{mass=200}")) and not Groups.has_tune(Groups.parse("1 hound")) and Groups.copy_tune(nil) == nil and Groups.copy_tune({ size = 120 }).size == 120 and Groups.clamp_tune("burst", 1000) == 500 and Groups.clamp_tune("melee", 26.4) == 26)
-  check("tune: seven custom mods, each with a range around 100 and a step", (function()
-    if #Groups.TUNE ~= 7 then return false end
+  check("tune: nine custom mods, each with a range around 100 and a step", (function()
+    if #Groups.TUNE ~= 9 then return false end
     for _, def in ipairs(Groups.TUNE) do if not (def.min < 100 and def.max > 100 and def.step > 0 and def.name ~= "") then return false end end
     return true
   end)())

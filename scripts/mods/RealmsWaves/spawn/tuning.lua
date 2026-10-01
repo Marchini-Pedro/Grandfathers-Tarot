@@ -28,9 +28,21 @@ local SEND_BATCH = 100
 local PENDING_TIMEOUT = 20 -- seconds a client waits for a unit to exist before it gives up
 local MAX_PENDING = 600
 
-Tuning.STAT_KEYS = { melee = "melee_attack_speed", fire = "ranged_attack_speed", burst = "minion_num_shots_modifier" }
+-- custom mod -> the stats of the unit it writes (explosion and dot take their share of the damage: 50 = half damage)
+Tuning.STAT_KEYS = {
+	melee = { "melee_attack_speed" },
+	fire = { "ranged_attack_speed" },
+	burst = { "minion_num_shots_modifier" },
+	explosion = { "damage_taken_from_explosions" },
+	dot = { "damage_taken_from_burning", "damage_taken_from_toxin", "damage_taken_from_bleeding" },
+}
 
-local STAT_IDS = { "melee", "fire", "burst" }
+local STAT_IDS = { "melee", "fire", "burst", "explosion", "dot" }
+-- stats where the written value is a share of the damage taken (the game adds `value - 1` to the damage modifiers)
+local DAMAGE_STAT = { explosion = true, dot = true }
+
+local tuned_by_extension = {} -- host: buff extension -> record (for the hook below)
+Tuning.dead = false
 
 local tuned = {} -- host: { unit, mult = { [stat] = factor }, last = { [stat] = value written } }
 local scaled = {} -- host: network id -> { unit, pct }
@@ -152,7 +164,7 @@ Tuning.apply = function (unit, tune, breed_name)
 
 	for i = 1, #STAT_IDS do
 		local id = STAT_IDS[i]
-		local factor = percent_of(tune[id])
+		local factor = tune[id] ~= nil and tonumber(tune[id]) ~= 100 and tonumber(tune[id]) / 100 or nil
 
 		if factor then
 			local ok, err = pcall(function ()
@@ -163,13 +175,19 @@ Tuning.apply = function (unit, tune, breed_name)
 				end
 
 				local stat_buffs = buffs:stat_buffs()
-				local key = Tuning.STAT_KEYS[id]
-				local value = (stat_buffs[key] or 1) * factor
+				local keys = Tuning.STAT_KEYS[id]
 
-				stat_buffs[key] = value
-				record = record or { unit = unit, mult = {}, last = {} }
-				record.mult[key] = factor
-				record.last[key] = value
+				record = record or { unit = unit, ext = buffs, mult = {}, last = {} }
+
+				for k = 1, #keys do
+					local value = (stat_buffs[keys[k]] or 1) * factor
+
+					stat_buffs[keys[k]] = value
+					record.mult[keys[k]] = factor
+					record.last[keys[k]] = value
+				end
+
+				tuned_by_extension[buffs] = record
 			end)
 
 			if not ok then
@@ -203,30 +221,67 @@ Tuning.apply = function (unit, tune, breed_name)
 	end
 end
 
--- A stat of a tuned unit that the buff system has rewritten since we wrote it gets our factor on top again.
+-- Puts our factor on top of every stat of the record that the buff system rewrote since we wrote it.
+local function reassert_record(record, buffs)
+	local stat_buffs = buffs:stat_buffs()
+
+	for key, factor in pairs(record.mult) do
+		local now = stat_buffs[key] or 1
+
+		if now ~= record.last[key] then
+			local value = now * factor
+
+			stat_buffs[key] = value
+			record.last[key] = value
+		end
+	end
+end
+
+-- The buff system recomputes a unit's stats every frame while a buff that touches them is on it (a mission's global
+-- modifier, Enraged, a debuff of a player): every recompute drops our factor, and the attack that starts in between
+-- would read the plain value. So the factor is put back right after each recompute, by a hook (once per game start).
+local installed = false
+
+Tuning.install = function ()
+	if installed or not mod.hook_safe then
+		return
+	end
+
+	installed = true
+
+	mod:hook_safe("BuffExtensionBase", "_update_stat_buffs_and_keywords", function (self)
+		if Tuning.dead then
+			return
+		end
+
+		local record = tuned_by_extension[self]
+
+		if record then
+			reassert_record(record, self)
+		end
+	end)
+end
+
+Tuning.retire = function ()
+	Tuning.dead = true
+	tuned_by_extension = {}
+end
+
+-- A stat of a tuned unit that the buff system has rewritten since we wrote it gets our factor on top again
+-- (a fallback for the hook above).
 local function reassert()
 	for i = #tuned, 1, -1 do
 		local record = tuned[i]
 
 		if not alive(record.unit) then
+			tuned_by_extension[record.ext] = nil
 			tuned[i] = tuned[#tuned]
 			tuned[#tuned] = nil
 		else
 			local buffs = ScriptUnit.has_extension(record.unit, "buff_system")
 
 			if buffs and buffs.stat_buffs then
-				local stat_buffs = buffs:stat_buffs()
-
-				for key, factor in pairs(record.mult) do
-					local now = stat_buffs[key] or 1
-
-					if now ~= record.last[key] then
-						local value = now * factor
-
-						stat_buffs[key] = value
-						record.last[key] = value
-					end
-				end
+				reassert_record(record, buffs)
 			end
 		end
 	end
@@ -351,6 +406,7 @@ end
 
 Tuning.reset = function ()
 	tuned, scaled, outbox, inbox = {}, {}, {}, {}
+	tuned_by_extension = {}
 	timer, send_timer = 0, 0
 end
 

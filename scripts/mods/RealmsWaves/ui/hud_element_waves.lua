@@ -1063,6 +1063,16 @@ HudElementRealmsWavesPanel._refresh_header = function (self, view, tl)
 		header.content.label = mod:localize(label)
 		header.content.time = paused and (text .. " " .. mod:localize("hud_paused")) or text
 		paint(style.label, 255, Cards.BASE.muted)
+
+		-- the label and the time as ONE line centred on the node (and so on the fuse): the label ends where the time
+		-- starts, widths estimated from the letters (the label is much wider than the time)
+		local half = Spread.NODE_WIDTH / 2
+		local label_w = #header.content.label * style.label.font_size * 0.52
+		local time_w = #header.content.time * style.time.font_size * 0.5
+		local left = half - (label_w + Spread.TIME_GAP + time_w) / 2
+
+		style.label.offset[1] = left + label_w - (half - 6)
+		style.time.offset[1] = left + label_w + Spread.TIME_GAP
 	end
 
 	local urgent = tl.urgent

@@ -280,7 +280,7 @@ blueprints.tile = function (node_id)
 		style = { offset = { 0, 0, 1 }, size = { TILE_W, TILE_H }, color = shape_color() },
 		-- the face takes the suit's lighter colour while the pointer is on the tile
 		change_function = function (content, style)
-			local hover = content.hotspot_top.is_hover or content.hotspot_state.is_hover or content.hotspot_edit.is_hover
+			local hover = content.hotspot_top.is_hover or content.hotspot_state.is_hover or content.hotspot_edit.is_hover or content.strip_hover
 
 			if not hover then
 				for i = 1, Deck.PIPS do
@@ -435,8 +435,11 @@ end
 -- The weight strip above the grid: one segment per card in the draw (see Deck.strip_segments); a track behind them.
 blueprints.STRIP_IDS = {}
 
+blueprints.STRIP_HOT = {}
+
 for i = 1, Deck.STRIP_MAX do
 	blueprints.STRIP_IDS[i] = "seg_" .. i
+	blueprints.STRIP_HOT[i] = "hs_" .. i
 end
 
 blueprints.strip = function (node_id)
@@ -446,6 +449,11 @@ blueprints.strip = function (node_id)
 
 	for i = 1, Deck.STRIP_MAX do
 		rect_pass(passes, "seg_" .. i, 0, 0, 1, Deck.STRIP_H, 1)
+	end
+
+	-- one quiet hotspot per segment (placed by the view): the pointer on a segment lights the card of that segment
+	for i = 1, Deck.STRIP_MAX do
+		Components.hotspot_pass(passes, blueprints.STRIP_HOT[i], { 0, 0, 6 }, { 1, Deck.STRIP_H }, nil, true)
 	end
 
 	return UIWidget.create_definition(passes, node_id, {}, { Deck.STRIP_W, Deck.STRIP_H })

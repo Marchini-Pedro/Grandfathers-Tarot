@@ -57,7 +57,7 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
   - [x] 4d. Deck polish after the user's first look (2.0.0): relative chance pips and rarity, clickable pips, right click to edit, the Edit pill, anti-aliasing copies, dimmed filled diamonds, coloured modifiers, tighter tile layout, six new suits incl. the purple Warp for the Daemonhost (offline only)
   - [x] 4c. Card builder screen ("Card face"): suit with suggestion, threat auto/override with "Threat N by the numbers", whisper, look, cooldown, live preview (`ui/wave_editor_face.lua`; offline only)
 - [x] 5. Mod options (the last one, `tarot_default_cooldown`, in 2.0.0 step 5; all others were added with their steps)
-- [x] 6. Per-group health and size multipliers, done as "custom mods" on the user's request (health, size, run speed, melee attack speed, gunner fire rate, shots per burst, hit mass; `spawn/tuning.lua`, `ui/wave_editor_tune.lua`, RPC `rw_scale`). The brief's one-crusher test in the game has NOT been done: matrix rows 91-96.
+- [x] 6. Per-group health and size multipliers, done as "custom mods" on the user's request (health, size, run speed, melee attack speed, gunner fire rate, shots per burst, hit mass, explosion and damage-over-time taken; `spawn/tuning.lua`, `ui/wave_editor_tune.lua`, RPC `rw_scale`). The brief's one-crusher test in the game has NOT been done: matrix rows 91-96.
 
 Deviations from the original plan (all deliberate):
 - No separate `handshake.lua`: hello/welcome live in `core/director.lua` (the handshake is just a version check).

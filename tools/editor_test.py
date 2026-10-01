@@ -339,6 +339,19 @@ check("hover: the Edit corner has its own highlight", tile(3).style.edit_bg.visi
 tile(3).content.hotspot_edit.is_hover = false
 view:update(0.01, 0, { get = function() return nil end, is_null_service = function() return false end })
 check("hover: and everything goes back when the pointer leaves", D.deck_hover.content.deck_hover == "" and not tile(3).style.edit_bg.visible and D.rw_strip.style.seg_3.offset[2] == 0)
+-- the pointer on a segment of the strip lights its card, names it, and raises the segment
+D.rw_strip.content.hs_3.is_hover = true
+view:update(0.01, 0, { get = function() return nil end, is_null_service = function() return false end })
+check("strip hover: the card of the segment lights up, its name is over the strip and its segment is raised", tile(3).content.strip_hover == true and tile(2).content.strip_hover == false and D.deck_hover.content.deck_hover == tile(3).content.name and view._deck_hover == "wave_large" and D.rw_strip.style.seg_3.offset[2] < 0)
+check("strip hover: the hit area of a segment is the segment (a little taller), segments past the last have none", D.rw_strip.style.hs_3.offset[1] == view._strip_segments[3].x and D.rw_strip.style.hs_3.size[1] == view._strip_segments[3].w and D.rw_strip.style.hs_20.size[1] == 0)
+check("strip hover: the tile takes the lighter colour", (function()
+  local bgp = pass_by_style(tile(3), "bg")
+  bgp.change_function(tile(3).content, tile(3).style.bg)
+  return tile(3).style.bg.color[2] == tile(3).content.bg_hi[1]
+end)())
+D.rw_strip.content.hs_3.is_hover = false
+view:update(0.01, 0, { get = function() return nil end, is_null_service = function() return false end })
+check("strip hover: and it goes out again", tile(3).content.strip_hover == false and D.deck_hover.content.deck_hover == "" and D.rw_strip.style.seg_3.offset[2] == 0)
 -- a resting card, a rare card
 mod.rw.director = { cooldown_remaining = function(key, length) return key == "wave_large" and 75 or 0 end }
 view:_reload(); view:_apply_screen()
@@ -1031,7 +1044,7 @@ do
   end)())
   local n_parts = #view._parts
   click_row(1, "hotspot_tune")
-  check("custom: the screen opens for that group with seven rows, Back and its own help text", view._screen == "tune" and view._part_index == 1 and #view:_source() == 7 and row(7).visible and not row(8).visible and W.description_text.content.description_text:find("view_desc_tune", 1, true) ~= nil and W.btn_back.visible and W.help_text.content.help_text == "help_tune")
+  check("custom: the screen opens for that group with nine rows, Back and its own help text", view._screen == "tune" and view._part_index == 1 and #view:_source() == 9 and row(9).visible and not row(10).visible and W.description_text.content.description_text:find("view_desc_tune", 1, true) ~= nil and W.btn_back.visible and W.help_text.content.help_text == "help_tune")
   check("custom: every row is a value at 100 (unchanged) with - and +, no Reset yet, no Mods/Custom buttons", row(1).content.row_name == "tune_health" and row(7).content.row_name == "tune_mass" and row(1).content.show_stepper and row(1).content.stepper_value == "100" and not row(1).content.show_action and not row(1).content.show_tune and not row(1).content.show_mods and not row(1).content.show_check and row(1).content.info:find("tune_health_info:10,1000", 1, true) ~= nil, row(1).content.info)
   check("custom: the header says the values are percents", W.list_header.content.col_4 == "col_percent")
   local text_colour = rgba(row(1).style.row_name.text_color)

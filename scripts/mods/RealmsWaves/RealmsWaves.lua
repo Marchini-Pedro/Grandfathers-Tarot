@@ -77,6 +77,7 @@ mod.on_all_mods_loaded = function ()
 	RW.director = mod:io_dofile(BASE .. "/core/director")
 
 	RW.tuning.init({ protocol = RW.protocol })
+	RW.tuning.install()
 	RW.execute.init({ positions = RW.positions, bypass = RW.bypass, groups = RW.groups, tuning = RW.tuning })
 	RW.director.init({
 		events = RW.events,
@@ -182,6 +183,10 @@ mod.on_unload = function ()
 
 	if RW.bypass then
 		RW.bypass.retire()
+	end
+
+	if RW.tuning then
+		RW.tuning.retire()
 	end
 
 	if RW.execute then

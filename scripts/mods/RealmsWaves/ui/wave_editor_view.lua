@@ -29,6 +29,8 @@ local ROW_HEIGHT = definitions.ROW_HEIGHT
 local ROW_NODE_PREFIX = definitions.ROW_NODE_PREFIX
 
 local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_tune", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same" }
+local INFO_DETAIL_WIDTH = 340 -- the info column of an enemy row ends where the repeat stepper starts
+local INFO_MAX_CHARS = 66 -- two lines of it
 local LIST_STEPPERS = { "stepper_tmin", "stepper_tmax" } -- list screen: time between waves
 local DETAIL_STEPPERS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer" }
 local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "stepper_tmin", "stepper_tmax" }
@@ -940,7 +942,7 @@ RealmsWavesView._refresh_rows = function (self)
 				local content = widget.content
 				local name_color = Components.colors.text
 
-				widget.style.info.size[1] = 640
+				widget.style.info.size[1] = screen == "detail" and INFO_DETAIL_WIDTH or 640
 				content.show_tune = false
 
 				if screen == "detail" then
@@ -969,16 +971,41 @@ RealmsWavesView._refresh_rows = function (self)
 							segments[#segments + 1] = { text = modifiers[i].name, rgb = painter.mod(modifiers[i].id) }
 						end
 
+						local shown_len = 0
+
+						for i = 1, #segments do
+							shown_len = shown_len + #segments[i].text
+						end
+
 						mods_shown = rw.groups.render_segments(segments, 40, painter.markup)
+
+						-- then the custom mods, in what is left of the line
+						local tune_text = rw.groups.tune_text(item.tune)
+
+						if tune_text ~= "" then
+							local room = INFO_MAX_CHARS - math.min(shown_len, 40) - 5
+
+							if #tune_text > room then
+								tune_text = tune_text:sub(1, math.max(3, room - 3)) .. "..."
+							end
+
+							mods_shown = mods_shown .. (shown_len > 0 and "  |  " or "") .. tune_text
+						end
 					elseif #mods_text > 40 then
 						mods_shown = mods_text:sub(1, 37) .. "..."
 					end
 
-					-- the custom mods follow the modifiers: "Enraged  |  Health 150%, Size 130%"
-					local tune_text = rw.groups.tune_text(item.tune)
-
-					if tune_text ~= "" then
-						mods_shown = (mods_shown ~= "" and (mods_shown .. "  |  ") or "") .. tune_text
+					-- the custom mods follow the modifiers: "Enraged  |  Health 150%, Size 130%" (cut like the modifiers, never wider than the column)
+					if not painter then
+						local tune_plain = rw.groups.tune_text(item.tune)
+					
+						if tune_plain ~= "" then
+							mods_shown = (mods_text ~= "" and (mods_text .. "  |  ") or "") .. tune_plain
+						end
+					
+						if #mods_shown > INFO_MAX_CHARS then
+							mods_shown = mods_shown:sub(1, INFO_MAX_CHARS - 3) .. "..."
+						end
 					end
 
 					content.info = mods_shown
@@ -1165,6 +1192,7 @@ DeckView.install(RealmsWavesView, {
 	TILE = blueprints.TILE,
 	TILE_IDS = blueprints.TILE_IDS,
 	STRIP_IDS = blueprints.STRIP_IDS,
+	STRIP_HOT = blueprints.STRIP_HOT,
 	TILE_PREFIX = TILE_PREFIX,
 	BLANK_NAME = BLANK_NAME,
 	guarded = guarded,

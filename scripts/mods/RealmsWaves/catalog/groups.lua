@@ -203,6 +203,8 @@ end
 --   melee    melee attack speed (how soon the next swing comes: the game's own `melee_attack_speed` stat)
 --   fire     gunner fire rate (the time between two shots: the game's own `ranged_attack_speed` stat)
 --   burst    shots per burst (the game's `minion_num_shots_modifier`, a fraction rounds up to one more shot)
+--   explosion / dot  the share of explosion damage / of burning, toxin and bleeding damage the unit takes (50 = half,
+--            0 = none): the game's `damage_taken_from_*` stats
 --   mass     hit mass (how much of a player's attack one hit of it soaks up, which decides how many enemies one swing can
 --            cut through: the unit's own `hit_mass`)
 Groups.TUNE = {
@@ -213,6 +215,8 @@ Groups.TUNE = {
 	{ id = "fire", name = "Gunner fire rate", min = 25, max = 400, step = 5, aliases = { "fire", "fire rate", "firerate", "gunner fire rate", "ranged", "ranged speed", "ranged attack speed" } },
 	{ id = "burst", name = "Shots per burst", min = 25, max = 500, step = 25, aliases = { "burst", "shots", "shots per burst", "burst size" } },
 	{ id = "mass", name = "Hit mass", min = 10, max = 1000, step = 10, aliases = { "mass", "hit mass", "hitmass" } },
+	{ id = "explosion", name = "Explosion damage taken", min = 0, max = 300, step = 5, aliases = { "explosion", "explosions", "explosion damage", "blast" } },
+	{ id = "dot", name = "Damage over time taken", min = 0, max = 300, step = 5, aliases = { "dot", "dot damage", "damage over time", "burn", "burning", "toxin" } },
 }
 
 local tune_by_id = {}

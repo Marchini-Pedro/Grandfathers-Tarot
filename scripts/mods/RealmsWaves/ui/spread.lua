@@ -18,6 +18,7 @@ Spread.NODE_WIDTH = 700
 Spread.GAP = 8 -- between cards
 Spread.MIN_CARD_HEIGHT = 76
 Spread.TIME_HEIGHT = 30
+Spread.TIME_GAP = 12 -- between the label and the time of the countdown
 Spread.CARDS_Y = 38
 Spread.FUSE_GAP = 10
 Spread.FUSE_HEIGHT = 4
