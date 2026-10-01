@@ -16,6 +16,7 @@ local definitions = mod:io_dofile(BASE .. "/ui/wave_editor_definitions")
 local blueprints = mod:io_dofile(BASE .. "/ui/wave_editor_blueprints")
 
 local DeckView = mod:io_dofile(BASE .. "/ui/wave_editor_deck")
+local FaceView = mod:io_dofile(BASE .. "/ui/wave_editor_face")
 
 local Popup = Components.Popup
 local Deck = blueprints.Deck
@@ -43,6 +44,7 @@ local BUTTONS = {
 	{ name = "btn_enabled", width = 260, cb = "cb_toggle_enabled" },
 	{ name = "btn_reset", width = 300, cb = "cb_reset" },
 	{ name = "btn_delete", width = 155, cb = "cb_delete" },
+	{ name = "btn_face", width = 270, cb = "cb_face" },
 	-- presets (list screen -> presets screen -> one preset)
 	{ name = "btn_presets", width = 290, cb = "cb_presets" },
 	{ name = "btn_settings", width = 340, cb = "cb_settings" },
@@ -294,6 +296,15 @@ RealmsWavesView._create_editor_widgets = function (self)
 	blank.visible = false
 	self:_create_dynamic_widget("rw_strip", blueprints.strip("deck_strip")).visible = false
 
+	-- the live preview of the card face screen: a tile nobody can click
+	local preview = self:_create_dynamic_widget("rw_tile_preview", blueprints.tile("rw_tile_preview"))
+
+	for _, hotspot in ipairs(self.TILE_HOTSPOTS) do
+		preview.content[hotspot].disabled = true
+	end
+
+	preview.visible = false
+
 	for i = 1, #BUTTONS do
 		local entry = BUTTONS[i]
 		local widget = self:_create_dynamic_widget(entry.name, blueprints.button(entry.name, entry.width))
@@ -418,6 +429,8 @@ RealmsWavesView._source = function (self)
 		return self._breeds
 	elseif self._screen == "mods" then
 		return mod.rw.groups.MODIFIERS
+	elseif self._screen == "face" then
+		return self._face_rows
 	elseif self._screen == "presets" then
 		return self._preset_slots
 	elseif self._screen == "preset_view" then
@@ -685,6 +698,12 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		widgets.bottom_title.content.bottom_title = status
 
 		widgets.hint_text.content.hint_text = ""
+	elseif screen == "face" then
+		widgets.description_text.content.description_text = mod:localize("view_desc_face", self._wave.name)
+		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", mod:localize("col_setting"), mod:localize("col_what_it_does"), mod:localize("col_value"), ""
+		widgets.bottom_title.content.bottom_title = mod:localize("bottom_face_title", self._wave.name)
+		widgets.hint_text.content.hint_text = ""
+		widgets.face_numbers.content.face_numbers = self:_face_numbers_text()
 	elseif screen == "settings" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_settings")
 		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", mod:localize("col_setting"), mod:localize("col_what_it_does"), mod:localize("col_value"), ""
@@ -720,7 +739,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	local preset_slot = preset_view and self._preset_slots[self._preset_index]
 
 	-- the long gray texts live in the help tooltip (the "?" corner button), not on the screen
-	local help_keys = { list = "hint_list", mods = "hint_mods", presets = "hint_presets", settings = "hint_settings", detail = "help_detail", picker = "help_picker", preset_view = "help_preset_view" }
+	local help_keys = { list = "hint_list", mods = "hint_mods", presets = "hint_presets", settings = "hint_settings", detail = "help_detail", picker = "help_picker", preset_view = "help_preset_view", face = "help_face" }
 
 	widgets.hint_text.visible = false
 	widgets.help_text.content.help_text = mod:localize(help_keys[screen] or "hint_list")
@@ -755,6 +774,9 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	end
 
 	widgets.btn_presets.content.hotspot_text = mod:localize("btn_presets")
+	widgets.btn_face.visible = detail
+	widgets.btn_face.content.hotspot_text = mod:localize("btn_face")
+	widgets.face_numbers.visible = screen == "face"
 	widgets.btn_delete.visible = detail
 	widgets.btn_delete.content.hotspot_text = mod:localize(self._confirm and self._wave and self._confirm.key == self._wave.key and "btn_sure" or "btn_delete")
 	widgets.btn_pload.content.hotspot_text = mod:localize("btn_pload")
@@ -933,6 +955,8 @@ RealmsWavesView._refresh_rows = function (self)
 					content.hotspot_action_text = mod:localize("btn_remove")
 					content.hotspot_mods_text = mod:localize("btn_mods")
 					name_color = colors and item.breed and colors.argb(item.breed) or name_color
+				elseif screen == "face" then
+					name_color = self:_face_row(item, content)
 				elseif screen == "presets" then
 					content.row_name = string.format("%d. %s", item.index, item.name)
 					content.info = item.info
@@ -1003,6 +1027,10 @@ RealmsWavesView._refresh_rows = function (self)
 				Components.color_into(widget.style.row_name.text_color, name_color)
 			end
 		end
+	end
+
+	if screen == "face" then
+		self:_paint_preview()
 	end
 
 	local range = self._widgets_by_name.list_range
@@ -1103,6 +1131,14 @@ DeckView.install(RealmsWavesView, {
 	set_setting = set_setting,
 })
 
+FaceView.install(RealmsWavesView, {
+	guarded = guarded,
+	set_setting = set_setting,
+	Popup = Popup,
+	Components = Components,
+	Spread = blueprints.Spread,
+})
+
 RealmsWavesView.cb_scroll = guarded(function (self, direction)
 	self._offset = self:_clamp_offset(self._offset + direction * (self._screen == "list" and Deck.COLS or 1))
 	self:_refresh_rows()
@@ -1116,7 +1152,7 @@ RealmsWavesView.cb_back = guarded(function (self)
 	if self._screen == "preset_view" then
 		self._screen = "presets"
 		self:_reload_presets()
-	elseif self._screen == "picker" or self._screen == "mods" then
+	elseif self._screen == "picker" or self._screen == "mods" or self._screen == "face" then
 		self._screen = "detail"
 	else
 		self._screen = "list"
@@ -1161,6 +1197,12 @@ RealmsWavesView.cb_settings = guarded(function (self)
 end)
 
 RealmsWavesView.cb_row_check = guarded(function (self, row)
+	if self._screen == "face" then
+		self:_face_click(row)
+
+		return
+	end
+
 	if self._screen == "settings" then
 		local item = self:_item_at(row)
 
@@ -1226,7 +1268,9 @@ RealmsWavesView.cb_row_name = guarded(function (self, row)
 		return
 	end
 
-	if self._screen == "presets" then
+	if self._screen == "face" then
+		self:_face_click(row)
+	elseif self._screen == "presets" then
 		self:_open_preset(item.index)
 	elseif self._screen == "picker" then
 		self:_add_breed(item)
@@ -1289,7 +1333,9 @@ RealmsWavesView.cb_row_action = guarded(function (self, row)
 		return
 	end
 
-	if self._screen == "presets" then
+	if self._screen == "face" then
+		self:_face_action(row)
+	elseif self._screen == "presets" then
 		self:_open_preset(item.index)
 	elseif self._screen == "detail" then
 		self:_remove_part(self._offset + row)
@@ -1309,6 +1355,8 @@ RealmsWavesView._step_row = function (self, row, delta)
 		if item.kind == "number" then
 			self:_set_number_setting(item, item.number + delta * item.step)
 		end
+	elseif self._screen == "face" then
+		self:_face_step(item, delta)
 	elseif self._screen == "detail" then
 		-- a group that only repeats may have 0 initial units; otherwise at least 1
 		item.count = math.clamp(item.count + delta, (item.rep or 0) > 0 and 0 or 1, mod.rw.groups.MAX_BREED_COUNT)
@@ -1409,6 +1457,8 @@ RealmsWavesView.cb_row_value = guarded(function (self, row)
 		if item.kind == "number" then
 			self:_open_setting_popup(item)
 		end
+	elseif self._screen == "face" then
+		self:_face_value(item)
 	elseif self._screen == "detail" then
 		Popup.open(self, {
 			label = mod:localize("popup_count_title", mod.rw.groups.describe_part(item)),

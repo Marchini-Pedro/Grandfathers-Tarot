@@ -69,6 +69,10 @@ local scenegraph_definition = {
 	-- help icon whose tooltip replaces the long gray texts that used to fill the bottom of the screen
 	btn_settings = node(1480, 36, 270, 44, 2),
 	btn_help = node(1766, 36, 50, 44, 2),
+	btn_face = node(1480, 36, 270, 44, 2), -- a card's own screen: its face (suit, threat, whisper, look); same spot as More options, which is list-only
+	-- the card face screen: "Threat N by the numbers" under the rows, the live preview of the tile in the bottom right
+	face_numbers = node(125, 852, 1400, 120, 2),
+	rw_tile_preview = node(1560, 758, 228, 262, 3),
 	help_panel = node(880, 90, 935, 300, 70),
 	help_text = node(900, 100, 895, 280, 71),
 	btn_wimport = node(645, 800, 300, 44, 2), -- list screen: import a shared wave into the first free custom slot
@@ -195,6 +199,7 @@ local widget_definitions = {
 		},
 	}, "title_text"),
 
+	face_numbers = plain_text("face_numbers", "face_numbers", 20, colors.muted, 1400, 120, "left", "top"),
 	deck_count = plain_text("deck_count", "deck_count", 20, colors.muted, 270, 44, "right"),
 	deck_caption = plain_text("deck_caption", "deck_caption", 15, colors.muted, 800, 22, "left"),
 	deck_hover = plain_text("deck_hover", "deck_hover", 15, colors.text, 800, 22, "right"),

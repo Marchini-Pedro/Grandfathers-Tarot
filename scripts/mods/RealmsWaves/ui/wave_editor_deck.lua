@@ -541,7 +541,7 @@ DeckView.install = function (View, h)
 			end
 		end
 
-		for _, name in ipairs({ h.BLANK_NAME, "deck_count", "deck_caption", "deck_hover", "rw_strip" }) do
+		for _, name in ipairs({ h.BLANK_NAME, "deck_count", "deck_caption", "deck_hover", "rw_strip", "rw_tile_preview" }) do
 			if widgets[name] then
 				widgets[name].visible = false
 			end

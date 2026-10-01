@@ -410,6 +410,121 @@ do
   reload()
 end
 
+-- the card face: the card builder (suit, threat, whisper, cooldown look, cooldown) ------------------------------------------
+do
+  local W = view._widgets_by_name
+  local Cards = mod.rw.cards
+  local inp = { get = function() return nil end, is_null_service = function() return false end }
+  local PPf = dofile(BASE .. "/ui/wave_editor_components.lua")
+  local function type_in(text) view._widgets_by_name.rw_popup_input.content.input_text = text; view:update(0.01, 0, inp) end
+  local function rgb_of_name(r) return table.concat({ table.unpack(row(r).style.row_name.text_color, 2, 4) }, ",") end
+
+  view:_open_detail("boss_ambush")
+  check("face: a card's own screen has the Card face button", W.btn_face.visible and W.btn_face.content.hotspot_text == "btn_face" and not W.face_numbers.visible and not W.rw_tile_preview.visible)
+  click("btn_face")
+  check("face: the screen has ten rows (six suits, threat, whisper, cooldown look, cooldown), Back, the numbers text and the preview tile", view._screen == "face" and #view._face_rows == 10 and row(10).visible and W.btn_back.visible and W.face_numbers.visible and W.rw_tile_preview.visible and not W.btn_face.visible and W.description_text.content.description_text == "view_desc_face:The Devil")
+  check("face: nothing of the Deck or of the card's own screen shows", not tile(1).visible and not W.btn_rename.visible and not W.btn_delete.visible and not W.stepper_chance.visible and not W.rw_strip.visible)
+  check("face: suit rows are named in the suit's own colour and ticked for the card's suit (Fateful)", row(1).content.row_name == "Plague" and rgb_of_name(1) == "183,194,58" and row(6).content.row_name == "Fateful" and rgb_of_name(6) == "230,223,195" and row(6).content.checkbox_selected and not row(1).content.checkbox_selected and row(1).content.show_check and not row(1).content.show_stepper and not row(1).content.show_action)
+  check("face: a boss makes Fateful the suggested suit, said on its row", row(6).content.info:find("face_suggested", 1, true) ~= nil and row(1).content.info:find("face_suggested", 1, true) == nil and row(1).content.info:find("suit_desc_plague", 1, true) ~= nil, row(6).content.info)
+  check("face: the preview is this card's tile as the Deck draws it, not clickable", W.rw_tile_preview.content.name == "The Devil" and W.rw_tile_preview.content.suit_label:find("FATEFUL", 1, true) ~= nil and W.rw_tile_preview.content.hotspot_top.disabled == true and W.rw_tile_preview.content.hotspot_edit.disabled == true and view._definitions.scenegraph_definition.rw_tile_preview.position[1] == 1560 and view._definitions.scenegraph_definition.rw_tile_preview.position[2] == 758)
+  check("face: the preview lies inside the bottom panel and clear of the numbers text and the buttons", (function()
+    local sg = view._definitions.scenegraph_definition
+    local p, n, b = sg.rw_tile_preview, sg.face_numbers, sg.btn_back
+    local function hit(a, c) return a.position[1] < c.position[1] + c.size[1] and c.position[1] < a.position[1] + a.size[1] and a.position[2] < c.position[2] + c.size[2] and c.position[2] < a.position[2] + a.size[2] end
+    return p.position[1] + p.size[1] <= 1815 and p.position[2] + p.size[2] <= 1030 and not hit(p, n) and not hit(p, b) and not hit(p, sg.bottom_title)
+  end)())
+  check("face: the numbers: a boss alone (1 enemy gives 1, a boss +2) is threat 3", W.face_numbers.content.face_numbers:find("^face_numbers:3,1,1") ~= nil and W.face_numbers.content.face_numbers:find("face_boss", 1, true) ~= nil and W.face_numbers.content.face_numbers:find("face_elites", 1, true) == nil, W.face_numbers.content.face_numbers)
+
+  -- choose a suit: click the name or the check box
+  click_row(3, "hotspot_name")
+  check("suit: clicking Rage writes su_<key>, ticks it, and the preview follows", settings.su_boss_ambush == "rage" and row(3).content.checkbox_selected and not row(6).content.checkbox_selected and W.rw_tile_preview.content.suit_label:find("RAGE", 1, true) ~= nil)
+  check("suit: the numbers now point at the suggested suit (Fateful) the card no longer has", W.face_numbers.content.face_numbers:find("face_suggest:Fateful", 1, true) ~= nil, W.face_numbers.content.face_numbers)
+  click_row(6, "hotspot_check")
+  check("suit: the check box does the same; back on the suggestion there is nothing more to suggest", settings.su_boss_ambush == "fateful" and row(6).content.checkbox_selected and W.face_numbers.content.face_numbers:find("face_suggest", 1, true) == nil)
+
+  -- threat: automatic, or 1 to 5 by hand
+  check("threat: the row shows 'auto' and says it is worked out", row(7).content.show_stepper and row(7).content.stepper_value == "val_auto" and row(7).content.info == "face_threat_auto" and row(7).content.row_name == "face_threat")
+  click_row(7, "hotspot_plus")
+  check("threat: + sets 1 by hand (th_<key>) and the row and the preview follow", settings.th_boss_ambush == 1 and row(7).content.stepper_value == "1" and row(7).content.info == "face_threat_own" and W.rw_tile_preview.style.th_o1.visible and W.rw_tile_preview.style.th_i2.visible and not W.rw_tile_preview.style.th_i1.visible)
+  check("threat: the numbers say it is set by hand", W.face_numbers.content.face_numbers:find("face_override:1", 1, true) ~= nil)
+  for _ = 1, 8 do click_row(7, "hotspot_plus") end
+  check("threat: never above 5", settings.th_boss_ambush == 5 and row(7).content.stepper_value == "5" and not W.rw_tile_preview.style.th_i5.visible)
+  click_row(7, "hotspot_minus"); click_row(7, "hotspot_minus")
+  check("threat: - steps down", settings.th_boss_ambush == 3)
+  for _ = 1, 5 do click_row(7, "hotspot_minus") end
+  check("threat: down to 0 = auto again, never below", settings.th_boss_ambush == 0 and row(7).content.stepper_value == "val_auto" and row(7).content.info == "face_threat_auto")
+  click_row(7, "hotspot_value")
+  check("threat: clicking the value opens a number box (0 to 5)", view._popup ~= nil and view._popup.spec.min == 0 and view._popup.spec.max == 5 and view._popup.spec.integer == true)
+  type_in("9"); PPf.Popup.commit(view)
+  check("threat: 9 is refused", view._popup ~= nil and view._popup.error ~= nil)
+  type_in("4"); PPf.Popup.commit(view)
+  check("threat: 4 is accepted", view._popup == nil and settings.th_boss_ambush == 4 and row(7).content.stepper_value == "4")
+  settings.th_boss_ambush = 0; view:_reload(); view:_apply_screen(true)
+
+  -- whisper: a short line, empty = the suit's own
+  check("whisper: the row has a Change button and shows the card's line in quotes", row(8).content.show_action and row(8).content.hotspot_action_text == "btn_change" and row(8).content.row_name == "face_whisper" and row(8).content.info:sub(1, 1) == "\"", row(8).content.info)
+  click_row(8, "hotspot_action")
+  check("whisper: the Change button opens a text box limited to 40 characters", view._popup ~= nil and view._popup.spec.max_length == 40 and view._popup.spec.label == "popup_whisper_title:The Devil")
+  type_in("  Speak,   friend  "); PPf.Popup.commit(view)
+  check("whisper: the text is cleaned (spaces) and stored as wh_<key>; row and preview show it", settings.wh_boss_ambush == "Speak, friend" and row(8).content.info == "\"Speak, friend\"" and W.rw_tile_preview.content.whisper == "\"Speak, friend\"", tostring(settings.wh_boss_ambush))
+  click_row(8, "hotspot_name")
+  type_in("This line is far too long to fit on the card, so it is cut"); PPf.Popup.commit(view)
+  check("whisper: a long line is cut at 40 characters (clicking the row name works too)", #settings.wh_boss_ambush <= 40 and #settings.wh_boss_ambush >= 30, tostring(settings.wh_boss_ambush))
+  click_row(8, "hotspot_action"); type_in(""); PPf.Popup.commit(view)
+  check("whisper: empty goes back to the card's built-in line (The Devil has one)", settings.wh_boss_ambush == "" and row(8).content.info == "\"Something big is listening.\"", row(8).content.info)
+  click("btn_back"); view:_open_detail("wave_medium"); click("btn_face")
+  check("whisper: a card with no line of its own (The Pilgrims) shows the suit's own line, marked as such", row(8).content.info == "face_whisper_suit:" .. Cards.SUITS.swarm.whisper and W.rw_tile_preview.content.whisper == "\"" .. Cards.SUITS.swarm.whisper .. "\"", row(8).content.info)
+  click("btn_back"); view:_open_detail("boss_ambush"); click("btn_face")
+
+  -- cooldown look: automatic -> rot -> whisper -> vial -> automatic
+  check("look: automatic by default, and it says what the suit gives (rot for Fateful)", row(9).content.info == "face_look_auto:look_rot" and row(9).content.show_action and row(9).content.hotspot_action_text == "btn_change")
+  click_row(9, "hotspot_action"); local a = settings.cl_boss_ambush
+  click_row(9, "hotspot_action"); local b = settings.cl_boss_ambush
+  click_row(9, "hotspot_action"); local c = settings.cl_boss_ambush
+  check("look: the button steps through rot, whisper and vial", a == "rot" and b == "whisper" and c == "vial" and row(9).content.info == "look_vial", a .. "/" .. b .. "/" .. c)
+  click_row(9, "hotspot_action")
+  check("look: and back to automatic", settings.cl_boss_ambush == "" and row(9).content.info == "face_look_auto:look_rot")
+  click_row(2, "hotspot_check")
+  check("look: ...Murmur card: automatic says the murmur returns", row(9).content.info == "face_look_auto:look_whisper", row(9).content.info)
+  settings.su_boss_ambush = "fateful"; view:_reload(); view:_apply_screen(true)
+
+  -- cooldown: 30 s steps, 30 s up to the longest cooldown option
+  check("cooldown: the row shows the card's cooldown (240 s) and where the limits come from", row(10).content.show_stepper and row(10).content.stepper_value == "240" and row(10).content.info == "face_cooldown_info:10", row(10).content.info)
+  click_row(10, "hotspot_plus")
+  check("cooldown: + adds 30 s and writes cd_<key>", settings.cd_boss_ambush == 270 and row(10).content.stepper_value == "270")
+  for _ = 1, 30 do click_row(10, "hotspot_minus") end
+  check("cooldown: never below 30 s", settings.cd_boss_ambush == 30 and row(10).content.stepper_value == "30")
+  for _ = 1, 40 do click_row(10, "hotspot_plus") end
+  check("cooldown: never above the longest cooldown option (10 minutes by default)", settings.cd_boss_ambush == 600)
+  settings.tarot_longest = 4
+  click_row(10, "hotspot_minus"); click_row(10, "hotspot_plus"); click_row(10, "hotspot_plus")
+  check("cooldown: the limit follows the option (4 minutes)", settings.cd_boss_ambush == 240 and row(10).content.info == "face_cooldown_info:4", tostring(settings.cd_boss_ambush))
+  click_row(10, "hotspot_value")
+  check("cooldown: clicking the value opens a number box (30 to the longest)", view._popup ~= nil and view._popup.spec.min == 30 and view._popup.spec.max == 240)
+  type_in("1000"); PPf.Popup.commit(view)
+  check("cooldown: more than the longest is refused", view._popup ~= nil and view._popup.error ~= nil)
+  type_in("90"); PPf.Popup.commit(view)
+  check("cooldown: 90 is accepted (it is the same setting as the Cooldown stepper of the card's screen)", view._popup == nil and settings.cd_boss_ambush == 90)
+  settings.tarot_longest = nil
+  settings.cd_boss_ambush = 100; view:_reload(); view:_apply_screen(true)
+  click_row(10, "hotspot_plus")
+  check("cooldown: an old value that is not a multiple of 30 (100 s) is rounded to the grid first (90 + 30)", settings.cd_boss_ambush == 120, tostring(settings.cd_boss_ambush))
+  settings.cd_boss_ambush = nil
+
+  -- the help text, Back
+  W.btn_help.content.hotspot.is_hover = true; view:update(0.01, 0, inp)
+  check("help: the card face screen has its own help text", W.help_text.content.help_text == "help_face" and dofile(MODROOT .. "/scripts/mods/RealmsWaves/RealmsWaves_localization.lua").help_face ~= nil)
+  W.btn_help.content.hotspot.is_hover = false; view:update(0.01, 0, inp)
+  click("btn_back")
+  check("face: Back returns to the card's own screen, the preview is hidden", view._screen == "detail" and not W.rw_tile_preview.visible and not W.face_numbers.visible and W.btn_face.visible)
+  settings.su_boss_ambush = "rage"
+  click("btn_back")
+  view:_reload(); view:_apply_screen()
+  check("face: the Deck shows the new face (Rage) on the card's tile", tile(5).content.suit_label:find("RAGE", 1, true) ~= nil and view._screen == "list")
+  settings.su_boss_ambush = nil; settings.wh_boss_ambush = nil; settings.cl_boss_ambush = nil; settings.th_boss_ambush = nil
+  view:_reload(); view:_apply_screen()
+end
+
 -- the blank tile makes a card in the first free custom slot
 blank_tile().content.hotspot.pressed_callback()
 check("blank tile: opens the first free custom slot (empty), its card screen", view._screen == "detail" and view._key == "custom_1" and #view._parts == 0 and view._wave.is_custom)
@@ -1242,6 +1357,7 @@ do
     -- widgets shown together on one screen must not overlap and must stay inside the bottom panel
     local screens = {
       list = { "btn_wimport", "btn_default", "btn_back", "stepper_tmin", "stepper_tmax" },
+      face = { "btn_back", "face_numbers", "rw_tile_preview" },
       detail = { "btn_back", "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "btn_delete", "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "btn_share" },
       picker = { "btn_back", "btn_search", "btn_stay", "btn_random", "btn_random_done" },
       preset_view = { "btn_back", "btn_pload", "btn_psave", "btn_prename", "btn_pexport", "btn_pimport", "btn_pundo", "btn_pclear" },

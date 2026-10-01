@@ -74,6 +74,12 @@ Per-event percent setting (stored as raw weight). Normalised across enabled even
 - **Cooldowns** on a tile come from `director.cooldown_remaining(key, cooldown)` (the host's own clock, a client's synced map), the state line says "Back in" and the clock.
 - **Palette**: `Components.colors` is the Plague Tarot palette for every editor screen.
 
+### 11. The card face (the card builder, 2.0.0)
+- Screen id `"face"`, entered from `"detail"` (Back returns there). Its rows are the ordinary row blueprint: six suit rows (check box and name pick the suit), a threat stepper (0 = auto, 1-5), whisper and look rows with a button, a cooldown stepper (30 s steps, 30 s to the longest-cooldown option). Every row writes the card's own setting (`su_`, `th_`, `wh_`, `cl_`, `cd_`) and reloads, so the preview tile and the Deck always show the real result.
+- `Cards.suggest_suit` and `Cards.threat_auto` (catalog/cards.lua) feed the suggestion mark and the "by the numbers" line; nothing is computed twice.
+- The preview is a tile widget (`rw_tile_preview`) painted by the Deck's `_paint_tile`; its hotspots are disabled.
+- A standard card cannot be given "no whisper": an empty setting means the card's built-in line (or the suit's line when it has none), as in the data model.
+
 ### 9. The Spread HUD (2.0.0)
 - **Files**: `ui/spread.lua` (pure arithmetic: sizes, layout, roulette, timeline, eye and icon shapes, rot geometry; tested offline), `ui/hud_element_waves_definitions.lua` (the widgets), `ui/hud_element_waves.lua` (the element: legacy text panel + the Spread).
 - **One node.** Everything is drawn inside the scenegraph node `panel` (700 x 262): custom_hud lists every non-root node, so a second node would be a second thing to drag. The node is on a **top-left basis** (`horizontal_alignment = "left"`, position x 610, y 36, which is the middle of 1920 units), because that is the basis custom_hud pins nodes on and draws its edit box on; a centre-aligned node made its box sit away from the HUD (first in-game test: "should be editable by custom HUD"). Widgets: `legacy` (the old text lines), `header` (label, time, status, fuse), `card_1..5`, `fx` (rot), `banner`. Layers are z offsets (header 10, cards 20-40, fx 70+, banner 100), because widget order is not defined (they come from a `pairs` loop).
