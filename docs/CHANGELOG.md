@@ -2,6 +2,9 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## Docs only, 2026-10-01 (no version change)
+- New section in `03-findings-realms-and-game-source.md`, "Enemy variants without new breeds": why duplicating breed or buff entries is unsafe (sorted `NetworkLookup` lists, guests without the mod), and what a variant can be instead (game modifiers, `optional_health_modifier`, per-peer `stimmed_color` tint). Read-only audit, nothing run in the game.
+
 ## 1.12.0
 - **Editor layout.** The list screen lost its long gray text and the "Timing and voting" button. **More options** (the same settings screen, renamed) is now a button in the top right corner next to a **"?" help icon**: hovering it shows a tooltip with the help text of the current screen (a click pins it open); every screen has its own help text (list, wave, enemy picker, mods, presets, a preset, more options). The area where the text was now holds the **time between waves** as two steppers, **minimum** and **maximum** (the same `interval_min` / `interval_max` as the options menu; with "random time" off the minimum is shown as "Time between waves" and the maximum as unused; 5 s steps below a minute, 15 s up to 5 minutes, then a minute; the maximum is pushed up / the minimum pulled down so they never cross). They are steppers like everywhere else, not drag sliders.
 - **Steppers are tighter**: the value now sits within 2 px of the - and + buttons in the edit screens (setting steppers, enemy rows, repeat rows); the text after a stepper moved closer too. The gap test checks it.
