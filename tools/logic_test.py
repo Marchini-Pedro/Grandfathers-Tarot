@@ -498,13 +498,31 @@ do
   local received = {}
   P.init({ on_waves = function(sender, text) received[#received + 1] = { sender, text } end, on_vote = function() end })
   local names = {}; for name in pairs(registered) do names[#names + 1] = name end; table.sort(names)
-  check("protocol: five RPCs registered (hello, state, vote, waves, welcome)", table.concat(names, ",") == "rw_hello,rw_state,rw_vote,rw_waves,rw_welcome", table.concat(names, ","))
+  check("protocol: six RPCs registered (hello, scale, state, vote, waves, welcome)", table.concat(names, ",") == "rw_hello,rw_scale,rw_state,rw_vote,rw_waves,rw_welcome", table.concat(names, ","))
   check("protocol: send_waves goes to the host with the text as one argument (dot call: mod first)", P.send_waves("RW1|x") == true and sent_rpcs[#sent_rpcs].name == "rw_waves" and sent_rpcs[#sent_rpcs].recipient == "host" and sent_rpcs[#sent_rpcs].args[1] == "RW1|x" and sent_rpcs[#sent_rpcs].mod == mod)
   local n = #sent_rpcs
   check("protocol: a text over the size limit is not sent", P.send_waves(string.rep("x", 60001)) == false and #sent_rpcs == n and P.send_waves(42) == false)
   registered.rw_waves("peer_a", "RW1|ok")
   registered.rw_waves("", "RW1|no sender"); registered.rw_waves(nil, "x"); registered.rw_waves("peer_a", 42); registered.rw_waves("peer_a", string.rep("y", 60001))
   check("protocol: received waves are validated (sender, type, size) before the handler runs", #received == 1 and received[1][1] == "peer_a" and received[1][2] == "RW1|ok", #received)
+
+  -- rw_scale: sizes of units (custom mods)
+  local scales = {}
+  P.init({ on_waves = function() end, on_vote = function() end, on_scale = function(sender, entries) scales[#scales + 1] = { sender, entries } end })
+  local next_decode
+  cjson.decode = function() return next_decode end
+  next_decode = { { 12, 150 }, { 13.5, 120 }, { -1, 120 }, { 14, 9999 }, { 15, 1 }, "x", { "a", 100 }, { 16, 0 / 0 } }
+  registered.rw_scale("host_peer", "[...]")
+  check("protocol: received sizes are checked: whole ids only, sizes clamped to 25-300 percent, junk dropped", #scales == 1 and #scales[1][2] == 3 and scales[1][2][1].id == 12 and scales[1][2][1].pct == 150 and scales[1][2][2].id == 14 and scales[1][2][2].pct == 300 and scales[1][2][3].pct == 25, scales[1] and #scales[1][2] or 0)
+  registered.rw_scale("", "[...]"); registered.rw_scale(nil, "[...]")
+  next_decode = { "nothing", { -5, 100 } }; registered.rw_scale("host_peer", "[...]")
+  check("protocol: no sender or nothing valid: the handler does not run", #scales == 1)
+  local many = {}; for i = 1, 450 do many[i] = { i, 120 } end
+  next_decode = many; registered.rw_scale("host_peer", "[...]")
+  check("protocol: at most 200 sizes are taken from one message", #scales == 2 and #scales[2][2] == 200)
+  cjson.encode = function(v) return "list:" .. #v end
+  local before = #sent_rpcs
+  check("protocol: send_scales sends one json argument to the others (or to one peer); nothing for an empty list", P.send_scales({ { 1, 120 }, { 2, 130 } }) == true and sent_rpcs[#sent_rpcs].name == "rw_scale" and sent_rpcs[#sent_rpcs].recipient == "others" and sent_rpcs[#sent_rpcs].args[1] == "list:2" and P.send_scales({ { 3, 120 } }, "peer_b") == true and sent_rpcs[#sent_rpcs].recipient == "peer_b" and P.send_scales({}) == false and #sent_rpcs == before + 2)
   get_mod = real_get_mod; cjson = nil
 end
 -- fixed-timer waves: ignore the chance, run on their own clock, independent of the draw -----------------------------
@@ -1182,6 +1200,139 @@ check("execute: each unit goes through Positions.spread with the wave radius", a
 spread_calls = {}
 run_wave({ name = "t", parts = Groups.parse("2 hounds") })
 check("execute: no spread configured -> radius 0", #spread_calls == 2 and spread_calls[1] == 0)
+
+-- custom mods on spawned units (spawn/tuning.lua) against stubbed extensions ---------------------------------------------
+do
+  local Tuning = load("spawn/tuning")
+  local sent_scales = {}
+  local fake_protocol = { is_available = function() return true end, send_scales = function(list, recipient) sent_scales[#sent_scales + 1] = { list = list, recipient = recipient }; return true end }
+  Tuning.init({ protocol = fake_protocol })
+  local dead, scales_set, next_gid = {}, {}, 100
+  local saved_su, saved_unit, saved_v3, saved_spawner = ScriptUnit, Unit, Vector3, Managers.state.unit_spawner
+  ScriptUnit = { has_extension = function(unit, sys) if sys == "buff_system" then return unit.buffs end return unit.ext and unit.ext[sys] end }
+  Unit = {
+    world_rotation = function() return "rot" end,
+    alive = function(unit) return not dead[unit] end,
+    set_local_scale = function(unit, node, v) scales_set[#scales_set + 1] = { unit = unit, node = node, x = v.x, y = v.y, z = v.z } end,
+  }
+  Vector3 = function(x, y, z) return { x = x, y = y, z = z } end
+  Managers.state.unit_spawner = { game_object_id = function(self, unit) return unit.gid end }
+  local function make_unit(breed, param)
+    local unit = { breed = breed, gid = next_gid, health_mod = param.optional_health_modifier, buffs = make_buff_ext(breed) }
+    next_gid = next_gid + 1
+    unit.buffs.stats = {}
+    unit.buffs.stat_buffs = function(self) return self.stats end
+    unit.ext = {
+      health_system = { mass = 2, hit_mass = function(self) return self.mass end, set_hit_mass = function(self, v) self.mass = v end },
+      navigation_system = { mods = {}, add_movement_modifier = function(self, m) self.mods[#self.mods + 1] = m; return #self.mods end },
+    }
+    if breed == "chaos_hound" then unit.ext.navigation_system = nil end -- a unit without navigation: that step fails alone
+    return unit
+  end
+  local saved_spawn = minion_spawn.spawn_minion
+  minion_spawn.spawn_minion = function(self, breed, pos, rot, side_id, param)
+    local unit = make_unit(breed, param)
+    spawned[#spawned + 1] = unit
+    return unit
+  end
+  Execute.init({ positions = StubPositions, bypass = Bypass, groups = Groups, tuning = Tuning })
+  Bypass.reset(); Tuning.reset()
+
+  run_wave({ name = "t", parts = Groups.parse("2 crushers[enraged]{health=150 size=130 speed=120 melee=150 fire=200 burst=300 mass=250}, 1 poxwalker") })
+  local crushers, plain = {}, nil
+  for _, u in ipairs(spawned) do if u.breed == "chaos_ogryn_executor" then crushers[#crushers + 1] = u else plain = u end end
+  local c = crushers[1]
+  check("tuning: health is a spawn parameter (x1.5); a group without custom mods gets none", #crushers == 2 and c.health_mod == 1.5 and crushers[2].health_mod == 1.5 and plain and plain.health_mod == nil)
+  check("tuning: hit mass is multiplied (2 -> 5) and the run speed gets a movement modifier of 1.2", c.ext.health_system.mass == 5 and #c.ext.navigation_system.mods == 1 and c.ext.navigation_system.mods[1] == 1.2 and plain.ext.health_system.mass == 2 and #plain.ext.navigation_system.mods == 0)
+  check("tuning: melee and ranged attack speed and the burst size are written to the unit's stat buffs", c.buffs.stats.melee_attack_speed == 1.5 and c.buffs.stats.ranged_attack_speed == 2 and c.buffs.stats.minion_num_shots_modifier == 3 and plain.buffs.stats.melee_attack_speed == nil)
+  check("tuning: the modifiers are added first (Enraged), the custom mods after", c.buffs.added[1] == "havoc_enraged_enemies")
+  local scaled_c = 0; for _, s in ipairs(scales_set) do if s.unit == c and s.node == 1 and math.abs(s.x - 1.3) < 1e-9 and s.x == s.z then scaled_c = scaled_c + 1 end end
+  check("tuning: the size is the unit's root scale (node 1, 1.3 on every axis); nothing for the plain unit", scaled_c == 1 and (function() for _, s in ipairs(scales_set) do if s.unit == plain then return false end end return true end)())
+
+  -- the buff system rewrites a stat (a debuff changed): our factor goes back on top, once
+  c.buffs.stats.melee_attack_speed = 1.2
+  Tuning.update(0.3)
+  check("tuning: a stat the buff system rewrote gets the factor again (1.2 x 1.5 = 1.8)", math.abs(c.buffs.stats.melee_attack_speed - 1.8) < 1e-9 and c.buffs.stats.ranged_attack_speed == 2)
+  Tuning.update(0.3); Tuning.update(0.3)
+  check("tuning: ...and is not multiplied again while nothing changes", math.abs(c.buffs.stats.melee_attack_speed - 1.8) < 1e-9)
+  check("tuning: the new sizes are sent to the other players in one batch: [network id, percent]", #sent_scales >= 1 and sent_scales[1].recipient == nil and #sent_scales[1].list == 2 and sent_scales[1].list[1][1] == c.gid and sent_scales[1].list[1][2] == 130)
+  local sends = #sent_scales
+  Tuning.update(0.3)
+  check("tuning: a size is sent once", #sent_scales == sends)
+  dead[crushers[2]] = true
+  Tuning.update(0.3)
+  check("tuning: dead units are dropped", Tuning.status().tuned == 1 and Tuning.status().sizes_known == 1, Tuning.status().tuned)
+  Tuning.send_all("late_peer")
+  check("tuning: a player who joins late gets the size of every living unit that has one", sent_scales[#sent_scales].recipient == "late_peer" and #sent_scales[#sent_scales].list == 1 and sent_scales[#sent_scales].list[1][1] == c.gid)
+
+  -- a step that fails (no navigation on this unit) is logged once and does not stop the others
+  local before = #echoes
+  run_wave({ name = "t", parts = Groups.parse("2 hounds{speed=150 mass=200}") })
+  local logged = 0; for i = before + 1, #echoes do if echoes[i]:find("run speed of chaos_hound was not changed", 1, true) then logged = logged + 1 end end
+  check("tuning: a missing extension only skips that step (hit mass still changed) and is logged once", #spawned == 2 and spawned[1].ext.health_system.mass == 4 and logged == 1, logged)
+  check("tuning: health_modifier is nil for 100 or nothing", Tuning.health_modifier({ health = 100 }) == nil and Tuning.health_modifier(nil) == nil and Tuning.health_modifier({ health = 250 }) == 2.5)
+
+  -- a client puts the sizes on units when they exist there
+  local present = {}
+  Managers.state.unit_spawner = {
+    unit_exists = function(self, id) return present[id] ~= nil end,
+    unit = function(self, id) return present[id] end,
+  }
+  scales_set = {}
+  Tuning.reset()
+  Tuning.receive({ { id = 7, pct = 150 }, { id = 8, pct = 80 } })
+  Tuning.update_client(1)
+  check("tuning, client: nothing happens while the unit has not arrived", #scales_set == 0 and Tuning.status().pending == 2)
+  local u7 = { name = "u7" }; present[7] = u7
+  Tuning.update_client(1)
+  check("tuning, client: the size goes on the unit as soon as it exists here", #scales_set == 1 and scales_set[1].unit == u7 and scales_set[1].x == 1.5 and Tuning.status().pending == 1)
+  Tuning.update_client(25)
+  check("tuning, client: a size whose unit never comes is dropped after 20 s", Tuning.status().pending == 0)
+
+  -- the director hands sizes to Tuning on a client only
+  local received = 0
+  local D2 = load("core/director")
+  D2.init({ events = Events, groups = Groups, protocol = Protocol, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod, cards = CardsMod, tuning = { receive = function() received = received + 1 end, update_client = function() end } })
+  is_server = false; D2.on_scale("host", { { id = 1, pct = 120 } })
+  is_server = true; D2.on_scale("peer", { { id = 1, pct = 120 } })
+  check("director: sizes from the host reach Tuning on a client, never on the host", received == 1)
+
+  ScriptUnit, Unit, Vector3, Managers.state.unit_spawner = saved_su, saved_unit, saved_v3, saved_spawner
+  minion_spawn.spawn_minion = saved_spawn
+  Execute.init({ positions = StubPositions, bypass = Bypass, groups = Groups })
+  Tuning.reset(); Bypass.reset()
+end
+
+-- custom mods ("tuning") in the recipe ----------------------------------------------------------------------------------
+do
+  local parts = Groups.parse("3 crushers[enraged]{health=150 size=130}@2, 2 hounds")
+  check("tune: '{health=150 size=130}' after the modifiers is read into part.tune (the repeat still works)", parts and parts[1].tune and parts[1].tune.health == 150 and parts[1].tune.size == 130 and parts[1].mods[1] == "enraged" and parts[1].rep == 2 and parts[1].count == 3 and parts[2].tune == nil, parts and parts[1].tune and Groups.tune_recipe(parts[1].tune))
+  local again = Groups.parse(Groups.to_recipe(parts))
+  check("tune: written back as text it reads back the same (to_recipe / parse)", Groups.to_recipe(parts) == "3 crusher[enraged]{health=150 size=130}@2, 2 hound" and again[1].tune.health == 150 and again[1].tune.size == 130 and again[1].rep == 2, Groups.to_recipe(parts))
+  parts = Groups.parse("1 crusher {hp 200, run speed 120%, melee attack speed=150; fire:200 / shots per burst 300 & hit mass 250}")
+  local tune = parts and parts[1].tune or {}
+  check("tune: names have aliases (hp, run speed, shots per burst...), separators can be spaces, commas, =, : and a % may follow the number", tune.health == 200 and tune.speed == 120 and tune.melee == 150 and tune.fire == 200 and tune.burst == 300 and tune.mass == 250, Groups.tune_recipe(tune))
+  parts = Groups.parse("1 crusher{size=999 health=1 speed=100}")
+  check("tune: values are clamped to their range (size 300 at most, health 10 at least) and 100 is the same as nothing", parts[1].tune.size == 300 and parts[1].tune.health == 10 and parts[1].tune.speed == nil)
+  parts = Groups.parse("1 crusher{}, 1 hound{speed=100}")
+  check("tune: empty braces or only 100s leave no custom mods", parts[1].tune == nil and parts[2].tune == nil)
+  local bad, err = Groups.parse("1 crusher{toughness=150}")
+  check("tune: an unknown name is refused with the list of valid ones", bad == nil and err:find("toughness", 1, true) ~= nil and err:find("health", 1, true) ~= nil, err)
+  bad, err = Groups.parse("1 crusher{health}")
+  check("tune: a name without a number is refused", bad == nil and err:find("needs a number", 1, true) ~= nil, err)
+  parts = Groups.parse("2 crushers{size=150}, 3 crushers, 1 crusher{size=150}")
+  check("tune: groups of the same enemy with different custom mods stay apart, equal ones merge", #parts == 2 and parts[1].count == 3 and parts[1].tune.size == 150 and parts[2].count == 3 and parts[2].tune == nil)
+  parts = Groups.parse("1 plague ogryn|chaos spawn[garden]{health=300}")
+  check("tune: works on a random group too", parts[1].one_of and #parts[1].one_of == 2 and parts[1].tune.health == 300 and parts[1].mods[1] == "garden")
+  check("tune: the readable text lists the changed ones in catalog order", Groups.tune_text({ mass = 200, health = 150 }) == "Health 150%, Hit mass 200%" and Groups.tune_text(nil) == "" and Groups.tune_text({ size = 100 }) == "")
+  check("tune: has_tune, copy_tune, clamp_tune", Groups.has_tune(Groups.parse("1 hound, 1 crusher{mass=200}")) and not Groups.has_tune(Groups.parse("1 hound")) and Groups.copy_tune(nil) == nil and Groups.copy_tune({ size = 120 }).size == 120 and Groups.clamp_tune("burst", 1000) == 500 and Groups.clamp_tune("melee", 26.4) == 26)
+  check("tune: seven custom mods, each with a range around 100 and a step", (function()
+    if #Groups.TUNE ~= 7 then return false end
+    for _, def in ipairs(Groups.TUNE) do if not (def.min < 100 and def.max > 100 and def.step > 0 and def.name ~= "") then return false end end
+    return true
+  end)())
+  check("tune: a card with custom mods says 'Custom' in its modifier line", CardsMod.modifier_line(Groups.parse("2 crushers[enraged]{size=120}"), Groups) == "Enraged \194\183 Custom" and CardsMod.modifier_line(Groups.parse("2 hounds{speed=150}"), Groups) == "Custom" and CardsMod.modifier_line(Groups.parse("2 hounds"), Groups) == "")
+end
 
 -- Presets: capture / encode / decode / apply / slots ---------------------------------------------------------
 do

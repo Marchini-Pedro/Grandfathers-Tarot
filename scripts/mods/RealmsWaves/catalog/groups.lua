@@ -5,9 +5,12 @@
 --
 --   repeat:      "5 crushers@2" = 5 at once, then 2 more on every repeat tick (see the wave's
 --                repeat-every / repeat-for settings). "0 crushers@2" = only the repeats.
---   modifiers:   "3 crushers[enraged+garden]"  (order: count name[mods]@repeat)
+--   modifiers:   "3 crushers[enraged+garden]"  (order: count name[mods]{custom}@repeat)
+--   custom mods: "3 crushers{health=150 size=130}"  numbers changed on the units of the group when they spawn, in percent
+--                of the normal value (100 = unchanged), see Groups.TUNE
 --
--- parts = { { breed = "name", count = n, rep = r, mods = { ids } }  or  { one_of = { "a", "b" }, ... }, ... }
+-- parts = { { breed = "name", count = n, rep = r, mods = { ids }, tune = { health = 150, ... } }  or
+--           { one_of = { "a", "b" }, ... }, ... }
 local Groups = {}
 
 Groups.MAX_PARTS = 12
@@ -190,6 +193,153 @@ do
 
 	Groups.MODIFIER_IDS = table.concat(names, ", ")
 end
+
+-- Custom mods ("tuning"): numbers changed on every unit of a group right after it spawns, in PERCENT of the normal value
+-- (100 = unchanged). They are stored in `part.tune` (only the ones that differ from 100) and written in the recipe as
+-- "{health=150 size=130}" after the modifiers. How each one is applied is in spawn/tuning.lua.
+--   health   the unit's maximum health (a spawn parameter of the game, so every player sees the right bar)
+--   size     the size of the model (`Unit.set_local_scale`, also sent to the other players that have this mod)
+--   speed    run speed (a movement modifier of the navigation: how fast it walks, trots or runs after you)
+--   melee    melee attack speed (how soon the next swing comes: the game's own `melee_attack_speed` stat)
+--   fire     gunner fire rate (the time between two shots: the game's own `ranged_attack_speed` stat)
+--   burst    shots per burst (the game's `minion_num_shots_modifier`, a fraction rounds up to one more shot)
+--   mass     hit mass (how much of a player's attack one hit of it soaks up, which decides how many enemies one swing can
+--            cut through: the unit's own `hit_mass`)
+Groups.TUNE = {
+	{ id = "health", name = "Health", min = 10, max = 1000, step = 10, aliases = { "health", "hp", "life" } },
+	{ id = "size", name = "Size", min = 25, max = 300, step = 5, aliases = { "size", "scale" } },
+	{ id = "speed", name = "Run speed", min = 25, max = 300, step = 5, aliases = { "speed", "run", "run speed", "runspeed", "move speed", "movement" } },
+	{ id = "melee", name = "Melee attack speed", min = 25, max = 400, step = 5, aliases = { "melee", "melee speed", "melee attack speed", "melee attack", "attack speed" } },
+	{ id = "fire", name = "Gunner fire rate", min = 25, max = 400, step = 5, aliases = { "fire", "fire rate", "firerate", "gunner fire rate", "ranged", "ranged speed", "ranged attack speed" } },
+	{ id = "burst", name = "Shots per burst", min = 25, max = 500, step = 25, aliases = { "burst", "shots", "shots per burst", "burst size" } },
+	{ id = "mass", name = "Hit mass", min = 10, max = 1000, step = 10, aliases = { "mass", "hit mass", "hitmass" } },
+}
+
+local tune_by_id = {}
+local tune_alias = {}
+local tune_ids = {}
+
+for index, def in ipairs(Groups.TUNE) do
+	tune_by_id[def.id] = def
+	tune_ids[index] = def.id
+	tune_alias[normalize_word(def.id)] = def.id
+
+	for _, alias in ipairs(def.aliases) do
+		tune_alias[normalize_word(alias)] = def.id
+	end
+end
+
+Groups.TUNE_IDS = table.concat(tune_ids, ", ")
+
+Groups.tune_def = function (id)
+	return tune_by_id[id]
+end
+
+-- the value in percent clamped to the allowed range of that setting (and rounded to a whole number)
+Groups.clamp_tune = function (id, value)
+	local def = tune_by_id[id]
+
+	value = math.floor((tonumber(value) or 100) + 0.5)
+
+	if not def then
+		return value
+	end
+
+	return math.max(def.min, math.min(def.max, value))
+end
+
+-- A copy of a part's custom mods (nil when it has none).
+Groups.copy_tune = function (tune)
+	if not tune or next(tune) == nil then
+		return nil
+	end
+
+	local copy = {}
+
+	for id, value in pairs(tune) do
+		copy[id] = value
+	end
+
+	return copy
+end
+
+-- "health=150 size=130": the ones that differ from 100, in catalog order ("" for none).
+Groups.tune_recipe = function (tune)
+	local fields = {}
+
+	for _, def in ipairs(Groups.TUNE) do
+		local value = tune and tune[def.id]
+
+		if value and value ~= 100 then
+			fields[#fields + 1] = def.id .. "=" .. value
+		end
+	end
+
+	return table.concat(fields, " ")
+end
+
+-- "Health 150%, Size 130%": for the rows of the editor ("" for none).
+Groups.tune_text = function (tune)
+	local fields = {}
+
+	for _, def in ipairs(Groups.TUNE) do
+		local value = tune and tune[def.id]
+
+		if value and value ~= 100 then
+			fields[#fields + 1] = def.name .. " " .. value .. "%"
+		end
+	end
+
+	return table.concat(fields, ", ")
+end
+
+-- true when at least one group of the recipe has custom mods
+Groups.has_tune = function (parts)
+	for i = 1, #(parts or {}) do
+		if parts[i].tune and next(parts[i].tune) ~= nil then
+			return true
+		end
+	end
+
+	return false
+end
+
+-- Reads the inside of "{...}": pairs of a name and a number, separated by spaces (commas and the like count as spaces):
+-- "health=150 size 130", "run speed 120%". Returns the table, nil for nothing to change, or nil and an error text.
+local function parse_tune(inner)
+	local rest = inner:gsub("[,;/%+&]+", " ")
+	local tune = {}
+	local pos = 1
+
+	while true do
+		local start = rest:find("%S", pos)
+
+		if not start then
+			break
+		end
+
+		local _, stop, name, number = rest:find("^(%a[%a ]-)%s*[=:]?%s*(%d+%.?%d*)%s*%%?", start)
+
+		if not stop then
+			return nil, string.format("%q needs a number, like health=150. Custom mods: %s", rest:sub(start):match("^%S+"), Groups.TUNE_IDS)
+		end
+
+		local id = tune_alias[normalize_word(name)]
+
+		if not id then
+			return nil, string.format("%q is not a custom mod I know. Valid ones: %s", (name:gsub("%s+$", "")), Groups.TUNE_IDS)
+		end
+
+		local value = Groups.clamp_tune(id, number)
+
+		tune[id] = value ~= 100 and value or nil
+		pos = stop + 1
+	end
+
+	return next(tune) ~= nil and tune or nil
+end
+
+Groups.parse_tune = parse_tune
 
 -- Kinds, from the game's own breed tags (S\settings\breed\breeds\...\<breed>_breed.lua):
 --   special = tags.special;  boss = tags.monster / tags.captain / tags.cultist_captain (includes the
@@ -399,6 +549,10 @@ local function part_key(part)
 		key = key .. "[" .. table.concat(part.mods, "+") .. "]"
 	end
 
+	if part.tune then
+		key = key .. "{" .. Groups.tune_recipe(part.tune) .. "}"
+	end
+
 	return key
 end
 
@@ -463,6 +617,14 @@ Groups.parse = function (recipe)
 		return "[" .. inner .. "]"
 	end)
 
+	-- the same for the custom mods in {...}: their separators are spaces ("{health=150 size=130}")
+	text = text:gsub("{(.-)}", function (inner)
+		inner = inner:gsub("%s+[aA][nN][dD]%s+", " ")
+		inner = inner:gsub("[,;/%+&]+", " ")
+
+		return "{" .. inner .. "}"
+	end)
+
 	text = text:gsub("%s+[aA][nN][dD]%s+", ",")
 	text = text:gsub("[\n\r;/%+&]", ",")
 
@@ -495,6 +657,22 @@ Groups.parse = function (recipe)
 					name = same_base
 					rep_same = true
 				end
+			end
+
+			-- custom mods "{health=150}" come after the modifiers: "crusher[enraged]{health=150}"
+			local tune
+			local without_tune, tune_inner = name:match("^(.-)%s*{(.-)}%s*$")
+
+			if without_tune then
+				local tune_err
+
+				tune, tune_err = parse_tune(tune_inner)
+
+				if tune_err then
+					return nil, tune_err
+				end
+
+				name = without_tune
 			end
 
 			local mods
@@ -544,6 +722,7 @@ Groups.parse = function (recipe)
 
 			if new_part then
 				new_part.mods = mods
+				new_part.tune = tune
 
 				local key = part_key(new_part)
 				local part = by_key[key]
@@ -612,6 +791,12 @@ Groups.to_recipe = function (parts)
 
 		if part.mods and #part.mods > 0 then
 			field = field .. "[" .. table.concat(part.mods, "+") .. "]"
+		end
+
+		local tune_text = Groups.tune_recipe(part.tune)
+
+		if tune_text ~= "" then
+			field = field .. "{" .. tune_text .. "}"
 		end
 
 		if part.rep_same then

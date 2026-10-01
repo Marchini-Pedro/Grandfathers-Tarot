@@ -14,6 +14,8 @@
 --   rw_vote    client -> host   ballot_id, option
 --   rw_waves   client -> host   the client's enabled waves as one preset text ("RW1|...", catalog/presets.lua);
 --                               used only when the host has "use everyone's waves" on
+--   rw_scale   host -> others   sizes of spawned units (custom mods, spawn/tuning.lua): a json list of
+--                               [network id, percent] (at most 200 a message)
 local mod = get_mod("RealmsWaves")
 
 local Protocol = {}
@@ -27,6 +29,9 @@ local RPC_WELCOME = "rw_welcome"
 local RPC_STATE = "rw_state"
 local RPC_VOTE = "rw_vote"
 local RPC_WAVES = "rw_waves"
+local RPC_SCALE = "rw_scale"
+local MAX_SCALES = 200
+Protocol.MIN_SCALE, Protocol.MAX_SCALE = 25, 300 -- percent (the range of the custom mod "size")
 local MAX_WAVES_TEXT = 60000 -- the Realms limit is 96 KiB per message; a full setup is about 15 KB
 
 local _realms = nil
@@ -134,7 +139,32 @@ local function on_waves(sender, text)
 	end
 end
 
--- handlers: { on_hello, on_welcome, on_state, on_vote, on_waves, on_peer_joined, on_peer_left }
+-- every entry is checked: a whole network id and a size in percent, clamped to the allowed range
+local function on_scale(sender, text)
+	local list = valid_sender(sender) and decode(text)
+
+	if not list then
+		return
+	end
+
+	local entries = {}
+
+	for i = 1, math.min(#list, MAX_SCALES) do
+		local item = list[i]
+		local id = type(item) == "table" and tonumber(item[1]) or nil
+		local pct = type(item) == "table" and tonumber(item[2]) or nil
+
+		if id and pct and id == id and pct == pct and id >= 0 and id <= 4294967295 and id == math.floor(id) then
+			entries[#entries + 1] = { id = id, pct = math.max(Protocol.MIN_SCALE, math.min(Protocol.MAX_SCALE, pct)) }
+		end
+	end
+
+	if #entries > 0 and _handlers.on_scale then
+		_handlers.on_scale(sender, entries)
+	end
+end
+
+-- handlers: { on_hello, on_welcome, on_state, on_vote, on_waves, on_scale, on_peer_joined, on_peer_left }
 Protocol.init = function (handlers)
 	_handlers = handlers or {}
 	_realms = get_mod("Realms")
@@ -151,6 +181,7 @@ Protocol.init = function (handlers)
 		{ RPC_STATE, on_state },
 		{ RPC_VOTE, on_vote },
 		{ RPC_WAVES, on_waves },
+		{ RPC_SCALE, on_scale },
 	}
 
 	for i = 1, #rpcs do
@@ -192,6 +223,21 @@ end
 
 Protocol.send_vote = function (ballot_id, option)
 	return send(RPC_VOTE, "host", ballot_id, option)
+end
+
+-- list = { { network id, percent }, ... }; recipient: "others" (default) or a peer id
+Protocol.send_scales = function (list, recipient)
+	if type(list) ~= "table" or #list == 0 then
+		return false, "nothing to send"
+	end
+
+	local json = encode(list)
+
+	if not json then
+		return false, "scale encode failed"
+	end
+
+	return send(RPC_SCALE, recipient or "others", json)
 end
 
 Protocol.send_waves = function (text)

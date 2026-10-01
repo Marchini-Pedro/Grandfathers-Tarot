@@ -57,7 +57,7 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
   - [x] 4d. Deck polish after the user's first look (2.0.0): relative chance pips and rarity, clickable pips, right click to edit, the Edit pill, anti-aliasing copies, dimmed filled diamonds, coloured modifiers, tighter tile layout, six new suits incl. the purple Warp for the Daemonhost (offline only)
   - [x] 4c. Card builder screen ("Card face"): suit with suggestion, threat auto/override with "Threat N by the numbers", whisper, look, cooldown, live preview (`ui/wave_editor_face.lua`; offline only)
 - [x] 5. Mod options (the last one, `tarot_default_cooldown`, in 2.0.0 step 5; all others were added with their steps)
-- [ ] 6. Optional: per-group health and size multipliers (deliberately not started: the brief asks for a one-crusher test in the game first; needs the user to try `optional_health_modifier` and a unit scale on one crusher, and to confirm the size reaches other players)
+- [x] 6. Per-group health and size multipliers, done as "custom mods" on the user's request (health, size, run speed, melee attack speed, gunner fire rate, shots per burst, hit mass; `spawn/tuning.lua`, `ui/wave_editor_tune.lua`, RPC `rw_scale`). The brief's one-crusher test in the game has NOT been done: matrix rows 91-96.
 
 Deviations from the original plan (all deliberate):
 - No separate `handshake.lua`: hello/welcome live in `core/director.lua` (the handshake is just a version check).
@@ -77,7 +77,7 @@ mods\RealmsWaves\
     RealmsWaves.lua                      entry: module loading, hooks, HUD registration, keybind fns, /rw_* commands
     RealmsWaves_data.lua                 options (built from catalog/events)
     RealmsWaves_localization.lua         strings (+ per-event titles generated from the catalog)
-    core\protocol.lua                    Realms RPCs: rw_hello, rw_welcome, rw_state, rw_vote
+    core\protocol.lua                    Realms RPCs: rw_hello, rw_welcome, rw_state, rw_vote, rw_waves, rw_scale (sizes of units, 2.0.0)
     core\director.lua                    timer, draw/ballot, vote handling, state sync, HUD view(), debug helpers
     core\votes.lua                       tally (one vote per peer, ties random)
     catalog\events.lua                   12 standard waves (tarot names since 2.0.0) + build_pool() normalisation
@@ -86,9 +86,11 @@ mods\RealmsWaves\
     spawn\positions.lua                  hidden-from-all-players candidate points near players
     spawn\execute.lua                    drip-feed spawner (2 per 0.15 s), direct spawn_minion, caps
     spawn\budget_bypass.lua              tracked-unit set + hooks that hide them from director counters
+    spawn\tuning.lua                     2.0.0: custom mods of a group on spawned units (health, size, speed, attack speeds, burst, hit mass)
     ui\hud_element_waves.lua (+ _definitions)   synced HUD: the old text panel (legacy modes) and, in 2.0.0, The Spread
     ui\spread.lua                        2.0.0: the arithmetic of the Spread (layout, timeline, roulette, eye, icons, rot), pure Lua
     ui\wave_editor_face.lua              2.0.0: the card face screen (the card builder): suit, threat, whisper, look, cooldown, preview
+    ui\wave_editor_tune.lua              2.0.0: the custom mods screen of one enemy group (the Custom button beside Mods)
     ui\deck.lua                          2.0.0: the arithmetic of the Deck (grid, paging, pips, strip, state, composition lines), pure Lua
     ui\wave_editor_deck.lua              2.0.0: the Deck screen's methods (tiles, strip, hover, toggle, edit, new card)
 ```

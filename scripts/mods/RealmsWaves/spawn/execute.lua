@@ -13,7 +13,7 @@ local FixedFrame = require("scripts/utilities/fixed_frame")
 
 local Execute = {}
 
-local Positions, Bypass, Groups
+local Positions, Bypass, Groups, Tuning
 
 local FEED_INTERVAL = 0.15
 local FEED_BATCH = 2
@@ -58,6 +58,7 @@ Execute.init = function (deps)
 	Positions = deps.positions
 	Bypass = deps.bypass
 	Groups = deps.groups
+	Tuning = deps.tuning
 end
 
 local warned = {}
@@ -277,7 +278,7 @@ local function expand(parts, field)
 		local amount = scaled_amount(base, percent_for(part))
 
 		for _ = 1, amount do
-			queue[#queue + 1] = { breed = one_of and one_of[math.random(1, #one_of)] or part.breed, mods = part.mods }
+			queue[#queue + 1] = { breed = one_of and one_of[math.random(1, #one_of)] or part.breed, mods = part.mods, tune = part.tune }
 		end
 	end
 
@@ -498,8 +499,8 @@ local function needs_shield_init(breed_name)
 	return result
 end
 
--- Returns true, or false and a reason.
-local function spawn_one(breed_name, position, target_unit, mod_ids)
+-- Returns true, or false and a reason. `tune` = the group's custom mods (Groups.TUNE, percent), see spawn/tuning.lua.
+local function spawn_one(breed_name, position, target_unit, mod_ids, tune)
 	local spawn_manager = Managers.state.minion_spawn
 	local side_system = Managers.state.extension:system("side_system")
 	local villains = side_system and side_system:get_side_from_name("villains")
@@ -515,6 +516,13 @@ local function spawn_one(breed_name, position, target_unit, mod_ids)
 
 	if needs_shield_init(breed_name) then
 		param.optional_init_toughness = true
+	end
+
+	-- custom mods: the health is a spawn parameter (a multiplier of the normal health)
+	local health = Tuning and Tuning.health_modifier(tune)
+
+	if health then
+		param.optional_health_modifier = health
 	end
 
 	Bypass.begin_spawn()
@@ -533,11 +541,21 @@ local function spawn_one(breed_name, position, target_unit, mod_ids)
 		Execute.apply_modifiers(unit, mod_ids, breed_name)
 	end
 
+	-- after the modifiers, so a custom attack speed or hit mass is relative to what Enraged and the like already did
+	if tune and unit and Tuning then
+		Tuning.apply(unit, tune, breed_name)
+	end
+
 	return true
 end
 
 Execute.update = function (dt)
 	clock = clock + dt
+
+	-- custom mods: keep the written stats on top, send new sizes (cheap when nothing is tuned)
+	if Tuning then
+		Tuning.update(dt)
+	end
 
 	if #jobs == 0 then
 		return
@@ -634,7 +652,7 @@ Execute.update = function (dt)
 		local ok, why
 
 		if position then
-			ok, why = spawn_one(entry.breed, position, target, entry.mods)
+			ok, why = spawn_one(entry.breed, position, target, entry.mods, entry.tune)
 		end
 
 		if ok then
@@ -658,6 +676,10 @@ Execute.reset = function ()
 
 	if Bypass then
 		Bypass.reset()
+	end
+
+	if Tuning then
+		Tuning.reset()
 	end
 end
 

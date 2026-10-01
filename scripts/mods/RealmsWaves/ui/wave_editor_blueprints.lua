@@ -15,6 +15,7 @@ local colors = Components.colors
 --   show_share    share of total chance (unused since the Deck replaced the wave list)
 --   show_action   right-hand button, label in content.hotspot_action_text
 --   show_mods     "Mods" button (detail screen, where the share column is unused)
+--   show_tune     "Custom" button beside it (detail screen): the group's custom mods (health, size, speed...)
 --   show_rep      second stepper: units added on every repeat tick (detail screen)
 blueprints.row = function (node_id)
 	local passes = {}
@@ -62,8 +63,10 @@ blueprints.row = function (node_id)
 	Components.hotspot_pass(passes, "hotspot_same", { 1122, 5, 2 }, { 36, 36 }, "show_rep")
 
 	Components.text_pass(passes, "share", "share", { 1390, 0, 2 }, { 120, 46 }, 20, colors.muted, "right", "show_share")
-	Components.button_passes(passes, "hotspot_mods", { 1390, 3, 2 }, { 130, 40 }, "", 18, colors.gold, "show_mods")
-	Components.button_passes(passes, "hotspot_action", { 1530, 3, 2 }, { 160, 40 }, "", 20, colors.gold, "show_action")
+	-- Mods, Custom and the action button (Remove, Change, Open, Add...) side by side after the count stepper (ends at 1362)
+	Components.button_passes(passes, "hotspot_mods", { 1372, 3, 2 }, { 104, 40 }, "", 18, colors.gold, "show_mods")
+	Components.button_passes(passes, "hotspot_tune", { 1482, 3, 2 }, { 104, 40 }, "", 18, colors.gold, "show_tune")
+	Components.button_passes(passes, "hotspot_action", { 1592, 3, 2 }, { 108, 40 }, "", 20, colors.gold, "show_action")
 
 	return UIWidget.create_definition(passes, node_id, {
 		row_name = "",
@@ -76,6 +79,7 @@ blueprints.row = function (node_id)
 		show_share = false,
 		show_action = false,
 		show_mods = false,
+		show_tune = false,
 		show_rep = false,
 		rep_value = "",
 		same_selected = false,

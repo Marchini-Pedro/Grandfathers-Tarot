@@ -1015,6 +1015,72 @@ click_row(1, "hotspot_action")
 check("adding a breed that exists with modifiers creates a separate group", #view._parts == n_before + 1, #view._parts .. " vs " .. n_before)
 view._parts[1].mods = nil; view:_save()
 
+-- custom mods (the Custom button beside Mods) ------------------------------------------------------------------------
+do
+  local W = view._widgets_by_name
+  local inp = { get = function() return nil end, is_null_service = function() return false end }
+  local PPt = dofile(BASE .. "/ui/wave_editor_components.lua")
+  local function type_in(text) W.rw_popup_input.content.input_text = text; view:update(0.01, 0, inp) end
+  local function rgba(c) return table.concat({ c[1], c[2], c[3], c[4] }, ",") end
+  check("custom: a Custom button beside Mods on every enemy row, and it runs", row(1).content.show_tune and row(1).content.hotspot_tune_text == "btn_tune" and hotspot_runs(row(1), "hotspot_tune") and row(2).content.show_tune)
+  check("custom: Mods, Custom and the action button sit side by side after the count stepper, inside the row, without overlapping", (function()
+    local function box(id) local s = pass_by_style(row(1), id).style; return s.offset[1], s.size[1] end
+    local mx, mw = box("hotspot_mods"); local tx, tw = box("hotspot_tune"); local ax, aw = box("hotspot_action")
+    local plus = pass_by_style(row(1), "hotspot_plus").style
+    return plus.offset[1] + plus.size[1] <= mx and mx + mw <= tx and tx + tw <= ax and ax + aw <= 1710 and mw >= 100 and tw >= 100 and aw >= 100
+  end)())
+  local n_parts = #view._parts
+  click_row(1, "hotspot_tune")
+  check("custom: the screen opens for that group with seven rows, Back and its own help text", view._screen == "tune" and view._part_index == 1 and #view:_source() == 7 and row(7).visible and not row(8).visible and W.description_text.content.description_text:find("view_desc_tune", 1, true) ~= nil and W.btn_back.visible and W.help_text.content.help_text == "help_tune")
+  check("custom: every row is a value at 100 (unchanged) with - and +, no Reset yet, no Mods/Custom buttons", row(1).content.row_name == "tune_health" and row(7).content.row_name == "tune_mass" and row(1).content.show_stepper and row(1).content.stepper_value == "100" and not row(1).content.show_action and not row(1).content.show_tune and not row(1).content.show_mods and not row(1).content.show_check and row(1).content.info:find("tune_health_info:10,1000", 1, true) ~= nil, row(1).content.info)
+  check("custom: the header says the values are percents", W.list_header.content.col_4 == "col_percent")
+  local text_colour = rgba(row(1).style.row_name.text_color)
+  click_row(1, "hotspot_plus")
+  check("custom: + raises the health by 10, saved in the card's recipe as {health=110}, with Reset", view._parts[1].tune and view._parts[1].tune.health == 110 and settings.wave_def_wave_small:find("{health=110}", 1, true) ~= nil and row(1).content.stepper_value == "110" and row(1).content.show_action and row(1).content.hotspot_action_text == "btn_tune_reset", settings.wave_def_wave_small)
+  check("custom: a changed value's name is coloured, an unchanged one keeps the text colour", rgba(row(1).style.row_name.text_color) ~= text_colour and rgba(row(2).style.row_name.text_color) == text_colour)
+  click_row(2, "hotspot_minus")
+  check("custom: - lowers the size by 5; both are kept, in catalog order", view._parts[1].tune.size == 95 and view._parts[1].tune.health == 110 and settings.wave_def_wave_small:find("{health=110 size=95}", 1, true) ~= nil, settings.wave_def_wave_small)
+  click_row(6, "hotspot_plus")
+  check("custom: the burst steps by 25", view._parts[1].tune.burst == 125)
+  click_row(1, "hotspot_value")
+  check("custom: clicking the number opens a number box with that value's range (health 10 to 1000)", view._popup ~= nil and view._popup.spec.min == 10 and view._popup.spec.max == 1000 and view._popup.spec.integer == true and view._popup.spec.label:find("^popup_tune_title:tune_health,%d+ Poxwalker$") ~= nil, view._popup and view._popup.spec.label)
+  type_in("5000"); PPt.Popup.commit(view)
+  check("custom: a number out of range is refused", view._popup ~= nil and view._popup.error ~= nil)
+  type_in("250"); PPt.Popup.commit(view)
+  check("custom: 250 is accepted", view._popup == nil and view._parts[1].tune.health == 250)
+  click_row(3, "hotspot_name")
+  check("custom: a click on a row's name opens its number box too (run speed 25 to 300)", view._popup ~= nil and view._popup.spec.min == 25 and view._popup.spec.max == 300)
+  PPt.Popup.cancel(view)
+  for _ = 1, 100 do click_row(2, "hotspot_minus") end
+  check("custom: never below the minimum (size 25)", view._parts[1].tune.size == 25)
+  click_row(2, "hotspot_action")
+  check("custom: Reset puts it back to 100 and takes it out of the recipe", view._parts[1].tune.size == nil and settings.wave_def_wave_small:find("size", 1, true) == nil and not row(2).content.show_action and row(2).content.stepper_value == "100")
+  click("btn_back")
+  check("custom: Back returns to the card's screen, the row lists the custom mods in its info column", view._screen == "detail" and plain(row(1).content.info) == "Health 250%, Shots per burst 125%", plain(row(1).content.info))
+  check("custom: the group stays one group (the screen never adds or removes groups)", #view._parts == n_parts)
+
+  -- with a modifier too: "Enraged  |  Health 250%, ..."
+  click_row(1, "hotspot_mods"); click_row(2, "hotspot_check"); click("btn_back")
+  check("custom: next to a modifier the custom mods follow a bar", plain(row(1).content.info) == "Enraged  |  Health 250%, Shots per burst 125%" and settings.wave_def_wave_small:find("[enraged]{health=250 burst=125}", 1, true) ~= nil, plain(row(1).content.info))
+  click_row(1, "hotspot_mods"); click_row(2, "hotspot_check"); click("btn_back")
+
+  -- the picker never adds to a group that has custom mods
+  local before = #view._parts
+  click("btn_add")
+  local pox; for i, b in ipairs(view._breeds) do if b == "chaos_poxwalker" then pox = i end end
+  view._offset = math.max(0, pox - 1); view:_refresh_rows()
+  click_row(1, "hotspot_action")
+  check("custom: adding an enemy that exists with custom mods makes a separate plain group", #view._parts == before + 1 and view._parts[#view._parts].tune == nil and view._parts[1].tune.health == 250, #view._parts)
+  table.remove(view._parts, #view._parts); view:_save()
+
+  -- the card's Deck tile says so
+  check("custom: the card's modifier line says Custom", mod.rw.cards.modifier_line(view._parts, mod.rw.groups) == "Custom")
+
+  -- clear everything
+  click_row(1, "hotspot_tune"); click_row(1, "hotspot_action"); click_row(6, "hotspot_action"); click("btn_back")
+  check("custom: with every value back to 100 the recipe has no braces", view._parts[1].tune == nil and settings.wave_def_wave_small:find("{", 1, true) == nil, settings.wave_def_wave_small)
+end
+
 -- spread radius and repeats -------------------------------------------------------
 local S = view._widgets_by_name
 check("detail: spread / repeat steppers visible with defaults", S.stepper_spread.visible and S.stepper_every.visible and S.stepper_for.visible and S.stepper_spread.content.stepper_value == "3" and S.stepper_every.content.stepper_value == "10" and S.stepper_for.content.stepper_value == "60", S.stepper_spread.content.stepper_value)

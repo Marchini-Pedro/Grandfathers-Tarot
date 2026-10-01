@@ -18,7 +18,7 @@ local mod = get_mod("RealmsWaves")
 
 local Director = {}
 
-local Events, Groups, Protocol, Execute, Votes, Positions, Presets, Cards
+local Events, Groups, Protocol, Execute, Votes, Positions, Presets, Cards, Tuning
 
 local INCOMING_SECONDS = 6
 local EMPTY_POOL_RETRY = 20
@@ -96,6 +96,7 @@ Director.init = function (deps)
 	Positions = deps.positions
 	Presets = deps.presets
 	Cards = deps.cards
+	Tuning = deps.tuning
 end
 
 -- ------------------------------------------------------- everyone's waves (host + clients)
@@ -786,6 +787,9 @@ Director.update = function (dt)
 			host_update(dt)
 			Execute.update(dt)
 		end
+	elseif Tuning then
+		-- a client: the sizes the host sent (custom mods) go onto the units as they arrive here
+		Tuning.update_client(dt)
 	end
 end
 
@@ -996,6 +1000,20 @@ Director.on_hello = function (sender, proto, version_text)
 	if ok and host_state then
 		Protocol.send_state(snapshot(), sender)
 	end
+
+	-- the sizes (custom mods) of the units that are already out there
+	if ok and Tuning then
+		pcall(Tuning.send_all, sender)
+	end
+end
+
+-- Client: sizes of units the host spawned (custom mods), see spawn/tuning.lua.
+Director.on_scale = function (sender, entries)
+	if Director.is_host() or client_disabled or not Tuning then
+		return
+	end
+
+	Tuning.receive(entries)
 end
 
 Director.on_welcome = function (sender, proto, version_text, ok)
@@ -1286,13 +1304,15 @@ end
 Director.status = function ()
 	local state = Director.view()
 	local exec = Execute.status()
+	local tune = Tuning and Tuning.status() or { tuned = 0, sizes_known = 0, unsent = 0, pending = 0 }
 
 	return string.format(
-		"phase=%s mode=%s remaining=%.0fs paused=%s stopped=%s cands=%d host=%s started=%s in_mission=%s disabled=%s | tracked=%d queued=%d jobs=%d stage=%s err=%s | lua heap %.0f MB (guard %d, paused %s) | timed waves: %d | everyone's waves: %s, %d from %d players",
+		"phase=%s mode=%s remaining=%.0fs paused=%s stopped=%s cands=%d host=%s started=%s in_mission=%s disabled=%s | tracked=%d queued=%d jobs=%d stage=%s err=%s | lua heap %.0f MB (guard %d, paused %s) | timed waves: %d | everyone's waves: %s, %d from %d players | custom mods: %d units with attack stats, %d sizes (%d unsent, %d waiting here)",
 		state.phase, tostring(state.mode), state.remaining or 0, tostring(paused), tostring(stopped), #(state.cands or {}), tostring(Director.is_host()), tostring(started), tostring(in_mission), tostring(client_disabled),
 		exec.tracked, exec.queued, exec.jobs, tostring(exec.stage), tostring(exec.last_error),
 		exec.heap_mb or 0, exec.heap_guard_mb or 0, tostring(exec.heap_paused),
-		Director.timed_wave_count(), mod:get("pool_all_players") == true and "on" or "off", Director.peer_wave_count()
+		Director.timed_wave_count(), mod:get("pool_all_players") == true and "on" or "off", Director.peer_wave_count(),
+		tune.tuned, tune.sizes_known, tune.unsent, tune.pending
 	)
 end
 

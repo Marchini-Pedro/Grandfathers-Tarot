@@ -72,10 +72,12 @@ mod.on_all_mods_loaded = function ()
 	RW.positions = mod:io_dofile(BASE .. "/spawn/positions")
 	RW.bypass = mod:io_dofile(BASE .. "/spawn/budget_bypass")
 	RW.execute = mod:io_dofile(BASE .. "/spawn/execute")
+	RW.tuning = mod:io_dofile(BASE .. "/spawn/tuning")
 	RW.protocol = mod:io_dofile(BASE .. "/core/protocol")
 	RW.director = mod:io_dofile(BASE .. "/core/director")
 
-	RW.execute.init({ positions = RW.positions, bypass = RW.bypass, groups = RW.groups })
+	RW.tuning.init({ protocol = RW.protocol })
+	RW.execute.init({ positions = RW.positions, bypass = RW.bypass, groups = RW.groups, tuning = RW.tuning })
 	RW.director.init({
 		events = RW.events,
 		groups = RW.groups,
@@ -85,6 +87,7 @@ mod.on_all_mods_loaded = function ()
 		positions = RW.positions,
 		presets = RW.presets,
 		cards = RW.cards,
+		tuning = RW.tuning,
 	})
 
 	RW.bypass.install()
@@ -113,6 +116,7 @@ mod.on_all_mods_loaded = function ()
 		on_state = Director.on_state,
 		on_vote = Director.on_vote,
 		on_waves = Director.on_waves,
+		on_scale = Director.on_scale,
 		on_peer_joined = Director.on_peer_joined,
 		on_peer_left = Director.on_peer_left,
 	})

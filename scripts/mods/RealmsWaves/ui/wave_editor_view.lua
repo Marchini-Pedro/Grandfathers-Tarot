@@ -17,6 +17,7 @@ local blueprints = mod:io_dofile(BASE .. "/ui/wave_editor_blueprints")
 
 local DeckView = mod:io_dofile(BASE .. "/ui/wave_editor_deck")
 local FaceView = mod:io_dofile(BASE .. "/ui/wave_editor_face")
+local TuneView = mod:io_dofile(BASE .. "/ui/wave_editor_tune")
 
 local Popup = Components.Popup
 local Deck = blueprints.Deck
@@ -27,7 +28,7 @@ local LIST_TOP = definitions.LIST_TOP
 local ROW_HEIGHT = definitions.ROW_HEIGHT
 local ROW_NODE_PREFIX = definitions.ROW_NODE_PREFIX
 
-local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same" }
+local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_tune", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same" }
 local LIST_STEPPERS = { "stepper_tmin", "stepper_tmax" } -- list screen: time between waves
 local DETAIL_STEPPERS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer" }
 local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "stepper_tmin", "stepper_tmax" }
@@ -88,6 +89,7 @@ local function copy_parts(parts)
 			rep_same = part.rep_same,
 			one_of = part.one_of and { unpack(part.one_of) } or nil,
 			mods = part.mods and { unpack(part.mods) } or nil,
+			tune = mod.rw.groups.copy_tune(part.tune),
 		}
 	end
 
@@ -272,6 +274,7 @@ RealmsWavesView._create_editor_widgets = function (self)
 		content.hotspot_plus.pressed_callback = callback(self, "cb_row_plus", i)
 		content.hotspot_action.pressed_callback = callback(self, "cb_row_action", i)
 		content.hotspot_mods.pressed_callback = callback(self, "cb_row_mods", i)
+		content.hotspot_tune.pressed_callback = callback(self, "cb_row_tune", i)
 		content.hotspot_rep_minus.pressed_callback = callback(self, "cb_row_rep_step", i, -1)
 		content.hotspot_rep_plus.pressed_callback = callback(self, "cb_row_rep_step", i, 1)
 		content.hotspot_rep_value.pressed_callback = callback(self, "cb_row_rep_input", i)
@@ -445,6 +448,8 @@ RealmsWavesView._source = function (self)
 		return self._breeds
 	elseif self._screen == "mods" then
 		return mod.rw.groups.MODIFIERS
+	elseif self._screen == "tune" then
+		return mod.rw.groups.TUNE
 	elseif self._screen == "face" then
 		return self._face_rows
 	elseif self._screen == "presets" then
@@ -720,6 +725,13 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		widgets.bottom_title.content.bottom_title = mod:localize("bottom_face_title", self._wave.name)
 		widgets.hint_text.content.hint_text = ""
 		widgets.face_numbers.content.face_numbers = self:_face_numbers_text()
+	elseif screen == "tune" then
+		local part = self._parts[self._part_index]
+
+		widgets.description_text.content.description_text = mod:localize("view_desc_tune", part and rw.groups.describe_part(part) or "")
+		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", mod:localize("col_setting"), mod:localize("col_what_it_does"), mod:localize("col_percent"), ""
+		widgets.bottom_title.content.bottom_title = mod:localize("bottom_tune_title", part and rw.groups.describe_part(part) or "")
+		widgets.hint_text.content.hint_text = ""
 	elseif screen == "settings" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_settings")
 		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", mod:localize("col_setting"), mod:localize("col_what_it_does"), mod:localize("col_value"), ""
@@ -755,7 +767,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	local preset_slot = preset_view and self._preset_slots[self._preset_index]
 
 	-- the long gray texts live in the help tooltip (the "?" corner button), not on the screen
-	local help_keys = { list = "hint_list", mods = "hint_mods", presets = "hint_presets", settings = "hint_settings", detail = "help_detail", picker = "help_picker", preset_view = "help_preset_view", face = "help_face" }
+	local help_keys = { list = "hint_list", mods = "hint_mods", presets = "hint_presets", settings = "hint_settings", detail = "help_detail", picker = "help_picker", preset_view = "help_preset_view", face = "help_face", tune = "help_tune" }
 
 	widgets.hint_text.visible = false
 	widgets.help_text.content.help_text = mod:localize(help_keys[screen] or "hint_list")
@@ -929,6 +941,7 @@ RealmsWavesView._refresh_rows = function (self)
 				local name_color = Components.colors.text
 
 				widget.style.info.size[1] = 640
+				content.show_tune = false
 
 				if screen == "detail" then
 					local mods_text = rw.groups.describe_mods(item)
@@ -961,8 +974,17 @@ RealmsWavesView._refresh_rows = function (self)
 						mods_shown = mods_text:sub(1, 37) .. "..."
 					end
 
+					-- the custom mods follow the modifiers: "Enraged  |  Health 150%, Size 130%"
+					local tune_text = rw.groups.tune_text(item.tune)
+
+					if tune_text ~= "" then
+						mods_shown = (mods_shown ~= "" and (mods_shown .. "  |  ") or "") .. tune_text
+					end
+
 					content.info = mods_shown
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, true, false, true, true
+					content.show_tune = true
+					content.hotspot_tune_text = mod:localize("btn_tune")
 					content.show_rep = true
 					content.stepper_value = tostring(item.count)
 					content.same_selected = item.rep_same == true
@@ -973,6 +995,8 @@ RealmsWavesView._refresh_rows = function (self)
 					name_color = colors and item.breed and colors.argb(item.breed) or name_color
 				elseif screen == "face" then
 					name_color = self:_face_row(item, content)
+				elseif screen == "tune" then
+					name_color = self:_tune_row(item, content)
 				elseif screen == "presets" then
 					content.row_name = string.format("%d. %s", item.index, item.name)
 					content.info = item.info
@@ -1155,6 +1179,12 @@ FaceView.install(RealmsWavesView, {
 	Spread = blueprints.Spread,
 })
 
+TuneView.install(RealmsWavesView, {
+	guarded = guarded,
+	Popup = Popup,
+	Components = Components,
+})
+
 RealmsWavesView.cb_scroll = guarded(function (self, direction)
 	self._offset = self:_clamp_offset(self._offset + direction * (self._screen == "list" and Deck.COLS or 1))
 	self:_refresh_rows()
@@ -1168,7 +1198,7 @@ RealmsWavesView.cb_back = guarded(function (self)
 	if self._screen == "preset_view" then
 		self._screen = "presets"
 		self:_reload_presets()
-	elseif self._screen == "picker" or self._screen == "mods" or self._screen == "face" then
+	elseif self._screen == "picker" or self._screen == "mods" or self._screen == "face" or self._screen == "tune" then
 		self._screen = "detail"
 	else
 		self._screen = "list"
@@ -1292,6 +1322,8 @@ RealmsWavesView.cb_row_name = guarded(function (self, row)
 		self:_add_breed(item)
 	elseif self._screen == "mods" then
 		self:_toggle_mod(item.id)
+	elseif self._screen == "tune" then
+		self:_tune_value(item)
 	elseif self._screen == "settings" then
 		if item.kind == "number" then
 			self:_open_setting_popup(item)
@@ -1351,6 +1383,8 @@ RealmsWavesView.cb_row_action = guarded(function (self, row)
 
 	if self._screen == "face" then
 		self:_face_action(row)
+	elseif self._screen == "tune" then
+		self:_tune_action(item)
 	elseif self._screen == "presets" then
 		self:_open_preset(item.index)
 	elseif self._screen == "detail" then
@@ -1373,6 +1407,8 @@ RealmsWavesView._step_row = function (self, row, delta)
 		end
 	elseif self._screen == "face" then
 		self:_face_step(item, delta)
+	elseif self._screen == "tune" then
+		self:_tune_step(item, delta)
 	elseif self._screen == "detail" then
 		-- a group that only repeats may have 0 initial units; otherwise at least 1
 		item.count = math.clamp(item.count + delta, (item.rep or 0) > 0 and 0 or 1, mod.rw.groups.MAX_BREED_COUNT)
@@ -1475,6 +1511,8 @@ RealmsWavesView.cb_row_value = guarded(function (self, row)
 		end
 	elseif self._screen == "face" then
 		self:_face_value(item)
+	elseif self._screen == "tune" then
+		self:_tune_value(item)
 	elseif self._screen == "detail" then
 		Popup.open(self, {
 			label = mod:localize("popup_count_title", mod.rw.groups.describe_part(item)),
@@ -1527,7 +1565,7 @@ RealmsWavesView._add_breed = function (self, breed)
 	local added
 
 	for i = 1, #self._parts do
-		if self._parts[i].breed == breed and not self._parts[i].mods then
+		if self._parts[i].breed == breed and not self._parts[i].mods and not self._parts[i].tune then
 			self._parts[i].count = math.min(self._parts[i].count + 1, groups.MAX_BREED_COUNT)
 			added = self._parts[i].count
 

@@ -399,6 +399,11 @@ Cards.modifier_line = function (parts, Groups, paint)
 		end
 	end
 
+	-- custom mods (health, size, speed...) of any group: one more word, so a card that has them says so
+	if Groups.has_tune and Groups.has_tune(parts) then
+		names[#names + 1] = paint and paint("Custom", "custom") or "Custom"
+	end
+
 	return table.concat(names, " \194\183 ")
 end
 
