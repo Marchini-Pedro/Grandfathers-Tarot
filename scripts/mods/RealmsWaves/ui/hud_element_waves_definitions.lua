@@ -23,7 +23,8 @@ definitions.SCREEN_HEIGHT = 1080
 definitions.LINES = 7 -- legacy panel: header + up to 5 candidates + key hint
 definitions.LINE_HEIGHT = 30
 definitions.FONT = "proxima_nova_bold"
-definitions.DISPLAY_FONT = "itc_novarese_medium"
+-- the default font of the Spread's text (the player can choose another one in the options, see hud_element_waves.lua)
+definitions.DISPLAY_FONT = "itc_novarese_bold"
 
 definitions.PANEL_WIDTH = Spread.NODE_WIDTH
 definitions.PANEL_HEIGHT = Spread.NODE_HEIGHT
@@ -74,7 +75,7 @@ local function diamond(passes, id, z, side)
 	}
 end
 
-local function text(passes, id, z, font, size, horizontal, vertical)
+local function text(passes, id, z, font, size, horizontal, vertical, shadow, display)
 	passes[#passes + 1] = {
 		pass_type = "text",
 		style_id = id,
@@ -88,7 +89,8 @@ local function text(passes, id, z, font, size, horizontal, vertical)
 			size = { 100, size + 6 },
 			text_horizontal_alignment = horizontal or "left",
 			text_vertical_alignment = vertical or "top",
-			drop_shadow = true,
+			drop_shadow = shadow ~= false, -- off on the cards: a shadow on a dark card only muddies thin strokes
+			display = display, -- the font option changes the texts flagged like this (card names, countdown, banner name)
 			visible = false,
 		},
 	}
@@ -121,7 +123,7 @@ local header_passes = {}
 local zh = definitions.Z.header
 
 text(header_passes, "label", zh, definitions.FONT, 18, "right", "center")
-text(header_passes, "time", zh, definitions.DISPLAY_FONT, 24, "left", "center")
+text(header_passes, "time", zh, definitions.DISPLAY_FONT, 24, "left", "center", true, true)
 text(header_passes, "status", zh, definitions.FONT, 20, "center", "center")
 rect(header_passes, "fuse_track", zh)
 rect(header_passes, "fuse_fill", zh + 1)
@@ -188,7 +190,7 @@ local function card_passes()
 		circle(passes, "dot_" .. i, z + 16)
 	end
 
-	text(passes, "name", z + 20, definitions.DISPLAY_FONT, Spread.NAME_FONT, "left", "top")
+	text(passes, "name", z + 20, definitions.DISPLAY_FONT, Spread.NAME_FONT, "left", "top", false, true)
 
 	return passes
 end
@@ -219,7 +221,7 @@ local banner_passes = {}
 local zb = definitions.Z.banner
 
 text(banner_passes, "kicker", zb, definitions.FONT, 14, "center", "top")
-text(banner_passes, "name", zb, definitions.DISPLAY_FONT, 34, "center", "top")
+text(banner_passes, "name", zb, definitions.DISPLAY_FONT, 34, "center", "top", true, true)
 text(banner_passes, "whisper", zb, definitions.FONT, 17, "center", "top")
 text(banner_passes, "mods", zb, definitions.FONT, 14, "center", "top")
 

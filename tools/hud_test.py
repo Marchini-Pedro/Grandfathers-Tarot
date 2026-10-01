@@ -53,7 +53,16 @@ end
 
 local HudElementBase = {}
 HudElementBase.__index = HudElementBase
+RESOLUTION_LOOKUP = { scale = 1.5, inverse_scale = 1 / 1.5 }
+local draws = {}
+HudElementBase.draw = function(self, dt, t, ui_renderer, render_settings, input_service)
+  local card = self._widgets_by_name.card_1
+  draws[#draws + 1] = { scale = render_settings.scale, inverse = render_settings.inverse_scale, ox = card.offset[1], oy = card.offset[2], a = card.alpha_multiplier,
+                        hx = self._widgets_by_name.header.offset[1], ha = self._widgets_by_name.header.alpha_multiplier }
+  if self._explode then error("boom") end
+end
 HudElementBase.init = function(self, parent, draw_layer, start_scale, definitions)
+  self._ui_scenegraph = { panel = { world_position = { 610, 36, 50 } } }
   self._definitions = definitions
   self._widgets, self._widgets_by_name = {}, {}
   for name, def in pairs(definitions.widget_definitions) do
@@ -63,6 +72,7 @@ HudElementBase.init = function(self, parent, draw_layer, start_scale, definition
   end
 end
 HudElementBase.update = function() end
+HudElementBase._set_scenegraph_size = function(self, id, w, h) self._sg_size = { id, w, h } end
 function class(name, parent)
   local c = { __name = name }
   c.__index = c
@@ -366,7 +376,7 @@ for name, def in pairs(Definitions.widget_definitions) do
   if name ~= "legacy" then for id, st in pairs(def.style) do if st.visible ~= false then hidden = false end end end
 end
 check("definitions: every pass of the Spread starts hidden", hidden)
-local known_fonts = { proxima_nova_bold = true, itc_novarese_medium = true, machine_medium = true }
+local known_fonts = { proxima_nova_bold = true, itc_novarese_bold = true, itc_novarese_medium = true, friz_quadrata = true, rexlia = true, machine_medium = true }
 local fonts_ok = true
 for _, def in pairs(Definitions.widget_definitions) do for _, st in pairs(def.style) do if st.font_type and not known_fonts[st.font_type] then fonts_ok = false end end end
 check("definitions: only fonts that exist in the game", fonts_ok)
@@ -600,6 +610,171 @@ local crash = new_element()
 current_view = view_of({ hand = { { name = "No suit, no breeds" } } })
 frame(crash); frame(crash)
 check("a malformed card is survived (and logged once at most)", #errors_logged <= 1, #errors_logged)
+
+
+-- =====================================================================================================================
+-- the chosen card loses its colour; the look options; size and opacity of the whole HUD
+-- =====================================================================================================================
+local function spread_of(col) return math.max(col[2], col[3], col[4]) - math.min(col[2], col[3], col[4]) end
+check("grey: 0 leaves a colour alone, 1 makes every channel the same", (function()
+  local out = { 0, 0, 0 }
+  Spread.grey(out, { 227, 207, 74 }, 0)
+  if out[1] ~= 227 or out[2] ~= 207 or out[3] ~= 74 then return false end
+  Spread.grey(out, { 227, 207, 74 }, 1)
+  return near(out[1], out[2], 1e-9) and near(out[2], out[3], 1e-9) and out[1] > 100 and out[1] < 227
+end)())
+do
+  local T2 = { roulette = 1.6, winner = 1.6, eye = 0.4, rot = 2 }
+  local tl2 = Spread.new_timeline()
+  Spread.timeline(view_of({ remaining = 7 }), T2, tl2)
+  check("timeline: a card in the hand has no desaturation", tl2.desat == 0)
+  check("timeline: the chosen card starts to lose its colour at the pick", Spread.timeline(view_of({ drawn = true, phase = "waiting", drawn_age = 0 }), T2, tl2).desat == 0 and Spread.timeline(view_of({ drawn = true, phase = "waiting", drawn_age = 1.42 }), T2, tl2).desat > 0.45 and tl2.desat < 0.55)
+  check("timeline: ...and is completely grey when it starts to fade away (winner shown + 62 percent of the rot)", near(Spread.timeline(view_of({ drawn = true, phase = "waiting", drawn_age = 1.6 + 0.62 * 2 }), T2, tl2).desat, 1) and Spread.timeline(view_of({ drawn = true, phase = "waiting", drawn_age = 4 }), T2, tl2).desat == 1)
+end
+
+local L2 = Spread.new_layout()
+Spread.layout(L2, hand4(), { timer_below = true })
+check("layout: timer below puts the cards at the top and the countdown under the fuse, where the banner goes", L2.cards_y == 0 and L2.fuse_y == 76 + Spread.FUSE_GAP and L2.time_y == L2.banner_y and L2.time_y == L2.fuse_y + Spread.FUSE_HEIGHT + Spread.BANNER_GAP)
+Spread.layout(L2, hand4())
+check("layout: by default the countdown is on top and the cards 38 down", L2.cards_y == 38 and L2.time_y == 0)
+Spread.layout(L2, hand4(), { hide_icon = true })
+check("layout: without the corner symbol the name gets its room (24 units more)", L2.name_w == 100 + 24, L2.name_w)
+Spread.layout(L2, hand4(), { glyph = 0.9 })
+check("layout: a wider font wraps names into more lines", L2.lines == 3 and L2.ch == 97, L2.lines)
+check("layout: every font the player can choose has a glyph width", Spread.GLYPH_BY_FONT.itc_novarese_bold and Spread.GLYPH_BY_FONT.friz_quadrata and Spread.GLYPH_BY_FONT.rexlia and Spread.GLYPH_BY_FONT.machine_medium and Spread.GLYPH_BY_FONT.proxima_nova_bold and Spread.GLYPH_BY_FONT.itc_novarese_medium)
+
+do
+  local e = new_element()
+  local function w(i) return e._widgets_by_name["card_" .. i] end
+  current_view = view_of({ remaining = 9, hand_seq = 40 }); frame(e)
+  local start_spread = spread_of(w(3).style.accent.color)
+  check("desaturation: the card in the hand is coloured (a blight card is yellow)", start_spread > 100, start_spread)
+  current_view = view_of({ phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.05, hand_seq = 40 }); frame(e)
+  check("desaturation: just after the pick it is still (nearly) as coloured", spread_of(w(3).style.accent.color) > start_spread * 0.95)
+  current_view.drawn_age = 1.5; frame(e)
+  local mid = spread_of(w(3).style.accent.color)
+  check("desaturation: halfway it has lost about half of its colour", mid < start_spread * 0.75 and mid > start_spread * 0.25, mid .. " of " .. start_spread)
+  check("desaturation: the other cards are not touched", spread_of(w(1).style.accent.color) > 30)
+  current_view.drawn_age = 2.9; frame(e)
+  local st = w(3).style
+  local function grey_col(c) return spread_of(c) <= 2 end
+  check("desaturation: completely grey at the end: card, accent bar, name, glow, diamonds, dots", grey_col(st.bg.color) and grey_col(st.accent.color) and grey_col(st.name.text_color) and grey_col(st.glow.color) and grey_col(st.th_o1.color) and grey_col(st.th_o5.color) and grey_col(st.dot_1.color) and grey_col(st.icon_c1.color), spread_of(st.accent.color) .. "/" .. spread_of(st.th_o1.color) .. "/" .. spread_of(st.dot_1.color))
+  local fxs = e._widgets_by_name.fx.style
+  local fx_grey = grey_col(fxs.wash.color)
+  for i = 1, 5 do if fxs["blot_" .. i .. "_1"].visible and not grey_col(fxs["blot_" .. i .. "_1"].color) then fx_grey = false end end
+  check("desaturation: the rot's wash and blotches go grey with it", fx_grey and e._widgets_by_name.fx.visible)
+  audit_ok("desaturation", e)
+  current_view = view_of({ remaining = 9, hand_seq = 41 }); frame(e)
+  check("desaturation: the next hand is in colour again", spread_of(w(3).style.accent.color) > 100)
+end
+
+-- the timer below the cards
+do
+  settings.tarot_timer_below = true
+  local e = new_element()
+  local hd = e._widgets_by_name.header
+  current_view = view_of({ remaining = 9, hand_seq = 50 }); frame(e)
+  check("timer below: the cards are at the top and the countdown sits under the fuse", e._widgets_by_name.card_1.style.bg.offset[2] == 0 and hd.style.time.offset[2] == 98 and hd.style.label.offset[2] == 98 and hd.style.fuse_fill.offset[2] == 86, hd.style.time.offset[2])
+  audit_ok("timer below", e)
+  current_view = view_of({ phase = "waiting", hand = nil, remaining = 60, hand_seconds = 0, hand_seq = 0 }); frame(e)
+  check("timer below: with no hand the countdown stays at the top", hd.style.time.offset[2] == 0)
+  settings.tarot_timer_below = false
+  current_view = view_of({ remaining = 9, hand_seq = 51 }); frame(e)
+  check("timer below: switching it off takes effect without a restart (cards 38 down, countdown on top)", e._widgets_by_name.card_1.style.bg.offset[2] == 38 and hd.style.time.offset[2] == 0)
+  settings.tarot_timer_below = nil
+end
+
+-- no corner symbol
+do
+  settings.tarot_hide_icon = true
+  local e = new_element()
+  current_view = view_of({ remaining = 9, hand_seq = 52 }); frame(e)
+  local any = false
+  for i = 1, 4 do
+    local st = e._widgets_by_name["card_" .. i].style
+    for j = 1, 4 do if st["icon_t" .. j].visible or st["icon_c" .. j].visible then any = true end end
+  end
+  check("hide the corner symbol: no suit mark on any card, the name box is 24 wider", not any and e._widgets_by_name.card_1.style.name.size[1] == 124, e._widgets_by_name.card_1.style.name.size[1])
+  audit_ok("no corner symbol", e)
+  settings.tarot_hide_icon = false
+  frame(e)
+  local shown = false
+  for j = 1, 4 do if e._widgets_by_name.card_2.style["icon_t" .. j].visible or e._widgets_by_name.card_2.style["icon_c" .. j].visible then shown = true end end
+  check("hide the corner symbol: turning it off brings the marks back", shown and e._widgets_by_name.card_1.style.name.size[1] == 100)
+  settings.tarot_hide_icon = nil
+end
+
+-- the font
+do
+  local e = new_element()
+  local c1 = e._widgets_by_name.card_1.style
+  local hd = e._widgets_by_name.header.style
+  local bn = e._widgets_by_name.banner.style
+  check("font: the default is the bold Novarese for the card names, the countdown and the banner name", c1.name.font_type == "itc_novarese_bold" and hd.time.font_type == "itc_novarese_bold" and bn.name.font_type == "itc_novarese_bold" and hd.label.font_type == "proxima_nova_bold")
+  check("font: card names have no drop shadow (it muddied thin strokes on a dark card), the countdown keeps one", c1.name.drop_shadow == false and hd.time.drop_shadow == true)
+  settings.tarot_font = "machine_medium"
+  current_view = view_of({ remaining = 9, hand_seq = 53 }); frame(e)
+  check("font: the choice applies to the card names, countdown and banner name (not to the small text)", e._widgets_by_name.card_3.style.name.font_type == "machine_medium" and hd.time.font_type == "machine_medium" and bn.name.font_type == "machine_medium" and hd.label.font_type == "proxima_nova_bold" and bn.whisper.font_type == "proxima_nova_bold")
+  check("font: the wider font makes the layout allow for it", e._layout_opts.glyph == Spread.GLYPH_BY_FONT.machine_medium)
+  settings.tarot_font = "friz_quadrata"; frame(e)
+  check("font: a change in the options menu applies at once", e._widgets_by_name.card_1.style.name.font_type == "friz_quadrata")
+  settings.tarot_font = "comic_sans"; frame(e)
+  check("font: an unknown font name (an edited settings file) falls back to the default, never reaching the renderer", e._widgets_by_name.card_1.style.name.font_type == "itc_novarese_bold")
+  settings.tarot_font = nil
+end
+
+-- size and opacity of everything
+do
+  local e = new_element()
+  current_view = view_of({ remaining = 9, hand_seq = 60 }); frame(e)
+  local rs = {}
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("draw: size 100 and opacity 100 draw the widgets untouched", #draws == 1 and draws[1].scale == nil and draws[1].ox == 0 and draws[1].oy == 0 and (draws[1].a == nil or draws[1].a == 1))
+  settings.tarot_scale = 150; settings.tarot_opacity = 50
+  frame(e)
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  local d = draws[1]
+  check("draw: the renderer's scale is multiplied by the size option while drawing (text, shapes and textures follow)", d.scale == 1.5 * 1.5 and near(d.inverse, 1 / 2.25, 1e-9), d.scale)
+  check("size: the node (custom_hud's box) follows the size option, 700 x 262 times 1.5", e._sg_size ~= nil and e._sg_size[1] == "panel" and near(e._sg_size[2], 1050) and near(e._sg_size[3], 393), e._sg_size and e._sg_size[2])
+  check("draw: every widget is shifted by node * (1/size - 1) so the node's corner stays where custom_hud put it", near(d.ox, 610 * (1 / 1.5 - 1), 1e-6) and near(d.oy, 36 * (1 / 1.5 - 1), 1e-6), d.ox .. "," .. d.oy)
+  check("draw: and every widget is half transparent (the header too)", near(d.a, 0.5) and near(d.ha, 0.5))
+  local c1 = e._widgets_by_name.card_1
+  check("draw: afterwards the widgets and the render settings are exactly as they were", rs.scale == nil and rs.inverse_scale == nil and c1.offset[1] == 0 and c1.offset[2] == 0 and c1.alpha_multiplier == 1 and e._widgets_by_name.header.offset[1] == 0)
+  c1.alpha_multiplier = 0.4
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("draw: the opacity multiplies a card's own fade (0.4 x 0.5)", near(draws[1].a, 0.2) and c1.alpha_multiplier == 0.4)
+  c1.alpha_multiplier = 1
+  e._explode = true
+  local ok = pcall(Element.draw, e, 0.016, 0, nil, rs, nil)
+  check("draw: if drawing fails the error is passed on and everything is still restored", ok == false and rs.scale == nil and c1.offset[1] == 0 and c1.alpha_multiplier == 1)
+  e._explode = nil
+  settings.tarot_scale = 500; settings.tarot_opacity = 0
+  frame(e)
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("draw: size is limited to 50-200 percent and opacity to 10-100 (a stray value cannot make the HUD vanish or fill the screen)", draws[1].scale == 1.5 * 2 and near(draws[1].a, 0.1))
+  settings.tarot_scale = 10
+  frame(e)
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("draw: ...and not below 50 percent", draws[1].scale == 1.5 * 0.5)
+  settings.tarot_scale = nil; settings.tarot_opacity = nil
+  frame(e)
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("draw: with the options back at 100 nothing is changed again", draws[1].scale == nil and (draws[1].a == nil or draws[1].a == 1) and draws[1].ox == 0)
+  local hidden = new_element()
+  current_view = { phase = "off" }; frame(hidden)
+  settings.tarot_scale = 150
+  frame(hidden)
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(hidden, 0.016, 0, nil, rs, nil)
+  check("draw: a hidden HUD is not touched", draws[1].scale == nil)
+  settings.tarot_scale = nil
+end
 
 -- =====================================================================================================================
 -- no allocation per frame

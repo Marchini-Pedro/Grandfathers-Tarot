@@ -115,6 +115,23 @@ return {
 				setting_id = "group_spread",
 					type = "group",
 					sub_widgets = {
+						numeric("tarot_scale", 100, 50, 200, "unit_percent", 5),
+						numeric("tarot_opacity", 100, 10, 100, "unit_percent", 5),
+						{ setting_id = "tarot_timer_below", type = "checkbox", default_value = false },
+						{ setting_id = "tarot_hide_icon", type = "checkbox", default_value = false },
+						{
+							setting_id = "tarot_font",
+							type = "dropdown",
+							default_value = "itc_novarese_bold",
+							options = {
+								{ text = "font_novarese_bold", value = "itc_novarese_bold" },
+								{ text = "font_novarese", value = "itc_novarese_medium" },
+								{ text = "font_friz", value = "friz_quadrata" },
+								{ text = "font_proxima", value = "proxima_nova_bold" },
+								{ text = "font_rexlia", value = "rexlia" },
+								{ text = "font_machine", value = "machine_medium" },
+							},
+						},
 						decimal("tarot_roulette", 1.6, 0.4, 4, "unit_seconds"),
 						decimal("tarot_winner", 1.6, 0.6, 5, "unit_seconds"),
 						decimal("tarot_eye_open", 0.4, 0.1, 1.5, "unit_seconds"),

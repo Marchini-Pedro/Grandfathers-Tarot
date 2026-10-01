@@ -51,10 +51,13 @@ Spread.card_width = function (count)
 end
 
 -- How many lines a name takes in a box `width` wide (a greedy word wrap with an average glyph width), at most 3.
-local GLYPH = 0.54 -- of the font size
+local GLYPH = 0.54 -- of the font size, for the default font
 
-Spread.wrap_lines = function (text, width, font_size)
-	local per_line = max(1, floor(width / (font_size * GLYPH)))
+-- average glyph width (of the font size) of the fonts the player can choose; unknown fonts use GLYPH
+Spread.GLYPH_BY_FONT = { itc_novarese_bold = 0.56, itc_novarese_medium = 0.54, friz_quadrata = 0.56, proxima_nova_bold = 0.56, rexlia = 0.62, machine_medium = 0.62 }
+
+Spread.wrap_lines = function (text, width, font_size, glyph)
+	local per_line = max(1, floor(width / (font_size * (glyph or GLYPH))))
 	local lines, used = 1, 0
 
 	for word in tostring(text or ""):gmatch("%S+") do
@@ -81,18 +84,22 @@ Spread.wrap_lines = function (text, width, font_size)
 end
 
 Spread.new_layout = function ()
-	return { count = 0, cw = 176, ch = Spread.MIN_CARD_HEIGHT, lines = 1, name_w = 120, total_w = 0, x0 = 0, x = { 0, 0, 0, 0, 0 }, fuse_y = 0, banner_y = 0 }
+	return { count = 0, cw = 176, ch = Spread.MIN_CARD_HEIGHT, lines = 1, name_w = 120, total_w = 0, x0 = 0, x = { 0, 0, 0, 0, 0 }, cards_y = Spread.CARDS_Y, fuse_y = 0, banner_y = 0, time_y = 0 }
 end
 
--- Positions of the cards in the node for a hand (cards with a `name`), written into `layout`.
-Spread.layout = function (layout, hand)
+-- Positions of the cards in the node for a hand (cards with a `name`), written into `layout`. `options` (all optional):
+-- timer_below (the countdown goes under the fuse instead of above the cards), hide_icon (no suit mark in the corner,
+-- the name gets its room), glyph (average glyph width of the font, see GLYPH_BY_FONT).
+Spread.layout = function (layout, hand, options)
+	options = options or {}
+
 	local count = min(#hand, Spread.MAX_CARDS)
 	local cw = Spread.card_width(count)
-	local name_w = cw - Spread.ACCENT_WIDTH - 2 * Spread.PAD_X - Spread.ICON - Spread.ICON_GAP
+	local name_w = cw - Spread.ACCENT_WIDTH - 2 * Spread.PAD_X - (options.hide_icon and 0 or Spread.ICON + Spread.ICON_GAP)
 	local lines = 1
 
 	for i = 1, count do
-		lines = max(lines, Spread.wrap_lines(hand[i].name, name_w, Spread.NAME_FONT))
+		lines = max(lines, Spread.wrap_lines(hand[i].name, name_w, Spread.NAME_FONT, options.glyph))
 	end
 
 	local ch = max(Spread.MIN_CARD_HEIGHT, 2 * Spread.PAD_Y + lines * Spread.NAME_LINE + 4 + Spread.ROW_HEIGHT)
@@ -105,8 +112,11 @@ Spread.layout = function (layout, hand)
 		layout.x[i] = layout.x0 + (i - 1) * (cw + Spread.GAP)
 	end
 
-	layout.fuse_y = Spread.CARDS_Y + ch + Spread.FUSE_GAP
+	layout.cards_y = options.timer_below and 0 or Spread.CARDS_Y
+	layout.fuse_y = layout.cards_y + ch + Spread.FUSE_GAP
 	layout.banner_y = layout.fuse_y + Spread.FUSE_HEIGHT + Spread.BANNER_GAP
+	-- the countdown sits above the cards, or (timer below) where the banner will be: they are never shown together
+	layout.time_y = options.timer_below and layout.banner_y or 0
 
 	return layout
 end
@@ -158,7 +168,7 @@ Spread.roulette_index = function (count, win, p)
 end
 
 Spread.new_timeline = function ()
-	return { stage = "waiting", count = 0, hi = 0, fuse = 0, urgent = false, reveal_t = 0, pop = 0, lose = 1, eye = 0, rot_p = 0 }
+	return { stage = "waiting", count = 0, hi = 0, fuse = 0, urgent = false, reveal_t = 0, pop = 0, lose = 1, eye = 0, rot_p = 0, desat = 0 }
 end
 
 -- Where the Spread is on its timeline, from the director's view and the player's timing options
@@ -174,7 +184,7 @@ Spread.timeline = function (view, T, out)
 	local count = hand and #hand or 0
 
 	out.stage, out.count, out.hi, out.fuse, out.urgent = "waiting", count, 0, 0, false
-	out.reveal_t, out.pop, out.lose, out.eye, out.rot_p = 0, 0, 1, 0, 0
+	out.reveal_t, out.pop, out.lose, out.eye, out.rot_p, out.desat = 0, 0, 1, 0, 0, 0
 
 	if count == 0 then
 		return out
@@ -188,6 +198,8 @@ Spread.timeline = function (view, T, out)
 		out.reveal_t = t
 		out.pop = clamp(t / Spread.POP_TIME, 0, 1)
 		out.eye = clamp(t / max(0.05, T.eye), 0, 1)
+		-- the chosen card loses its colour from the moment it is shown and is completely grey when it starts to fade away
+		out.desat = clamp(t / max(0.1, T.winner + 0.62 * T.rot), 0, 1)
 
 		if t < rot_start then
 			out.stage = "reveal"
@@ -523,6 +535,15 @@ end
 -- The rot's brown wash and the card colours are plain {r, g, b}; these write {a, r, g, b} into a style colour.
 Spread.set_color = function (target, alpha, rgb)
 	target[1], target[2], target[3], target[4] = alpha, rgb[1], rgb[2], rgb[3]
+end
+
+-- rgb pulled toward its own grey by t (0 = unchanged, 1 = completely grey), written into `out` (returned)
+Spread.grey = function (out, rgb, t)
+	local grey = 0.299 * rgb[1] + 0.587 * rgb[2] + 0.114 * rgb[3]
+
+	out[1], out[2], out[3] = rgb[1] + (grey - rgb[1]) * t, rgb[2] + (grey - rgb[2]) * t, rgb[3] + (grey - rgb[3]) * t
+
+	return out
 end
 
 Spread.set_alpha = function (target, alpha)

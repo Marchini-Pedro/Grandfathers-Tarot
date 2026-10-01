@@ -66,6 +66,17 @@ return {
 
 	-- The Spread: the timeline of the reveal, on your own screen only
 	group_spread = { en = "The Spread (your screen)" },
+	tarot_scale = { en = "HUD size" },
+	tarot_opacity = { en = "HUD opacity" },
+	tarot_timer_below = { en = "Timer below the cards" },
+	tarot_hide_icon = { en = "Hide the corner symbol" },
+	tarot_font = { en = "Font of the cards" },
+	font_novarese_bold = { en = "Novarese Bold" },
+	font_novarese = { en = "Novarese" },
+	font_friz = { en = "Friz Quadrata" },
+	font_proxima = { en = "Proxima Nova" },
+	font_rexlia = { en = "Rexlia" },
+	font_machine = { en = "Machine" },
 	tarot_roulette = { en = "Roulette" },
 	tarot_winner = { en = "Winner shown" },
 	tarot_eye_open = { en = "Eye opening" },
