@@ -57,6 +57,14 @@ blueprints.row = function (node_id)
 		plus_offset = { 1013, 3, 2 },
 	}, "show_rep", { minus = "hotspot_rep_minus", value = "hotspot_rep_value", plus = "hotspot_rep_plus", text = "rep_value" })
 
+	-- cooldown of a wave (wave list only): seconds before the wave can be drawn again
+	Components.stepper_passes(passes, {
+		minus_offset = { 1030, 3, 2 },
+		value_offset = { 1076, 3, 2 },
+		value_size = { 60, 40 },
+		plus_offset = { 1138, 3, 2 },
+	}, "show_cd", { minus = "hotspot_cd_minus", value = "hotspot_cd_value", plus = "hotspot_cd_plus", text = "cd_value" })
+
 	-- "Same": every repeat spawns the same number as the initial spawn (the stepper is ignored)
 	Components.checkbox_passes(passes, { 1128, 9, 1 }, nil, "show_rep", "same", "same_selected")
 	Components.hotspot_pass(passes, "hotspot_same", { 1122, 5, 2 }, { 36, 36 }, "show_rep")
@@ -77,6 +85,8 @@ blueprints.row = function (node_id)
 		show_action = false,
 		show_mods = false,
 		show_rep = false,
+		show_cd = false,
+		cd_value = "",
 		rep_value = "",
 		same_selected = false,
 	}, { 1710, 46 })

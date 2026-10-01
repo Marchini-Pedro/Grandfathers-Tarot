@@ -48,7 +48,9 @@ local scenegraph_definition = {
 
 	btn_back = node(125, 800, 180, 44, 2),
 	btn_search = node(325, 800, 420, 44, 2), -- enemy picker only (same spot as Rename)
-	btn_stay = node(765, 800, 560, 44, 2), -- enemy picker only: stay after adding / back to the wave
+	btn_stay = node(765, 800, 380, 44, 2), -- enemy picker only: stay after adding / back to the wave
+	btn_random = node(1165, 800, 310, 44, 2), -- enemy picker only: collect several enemies into ONE random group
+	btn_random_done = node(1495, 800, 290, 44, 2), -- ...and create it
 	btn_rename = node(325, 800, 200, 44, 2),
 	btn_text = node(545, 800, 250, 44, 2),
 	btn_add = node(815, 800, 230, 44, 2),
@@ -192,6 +194,7 @@ local widget_definitions = {
 		header_pass("col_5", 1390, 120, "right"),
 		header_pass("col_6", 890, 210, "center"),
 		header_pass("col_7", 1110, 100, "center"),
+		header_pass("col_8", 1030, 152, "center"), -- wave list: cooldown
 	}, "list_header"),
 
 	list_range = plain_text("list_range", "list_range", 18, colors.muted, 340, 28, "right"),

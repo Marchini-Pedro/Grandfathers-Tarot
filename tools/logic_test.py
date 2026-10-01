@@ -123,9 +123,10 @@ local tw = Groups.parse("1 twin captain one, 1 twin captain two, 2 packmasters, 
 check("twins are two separate breeds", tw and tw[1].breed == "renegade_twin_captain" and tw[2].breed == "renegade_twin_captain_two", tw and (tw[1].breed .. "/" .. tw[2].breed))
 check("packmaster and old beastmaster/houndmaster names resolve to the same breed", tw[3].breed == "chaos_ogryn_houndmaster" and #tw == 3 and tw[3].count == 3, tw and tw[3].count)
 check("aliases: female twin -> twin two, twin one -> twin one", tw[2].count == 2 and tw[1].count == 2, tw[1].count .. "/" .. tw[2].count)
-check("display names: Packmaster, Twin Captain One/Two", Groups.display_name("chaos_ogryn_houndmaster") == "Packmaster" and Groups.display_name("renegade_twin_captain") == "Twin Captain One" and Groups.display_name("renegade_twin_captain_two") == "Twin Captain Two", Groups.display_name("renegade_twin_captain"))
+check("display names: Packmaster, Ranged Twin (plasma pistol) and Melee Twin (power sword)", Groups.display_name("chaos_ogryn_houndmaster") == "Packmaster" and Groups.display_name("renegade_twin_captain") == "Ranged Twin" and Groups.display_name("renegade_twin_captain_two") == "Melee Twin", Groups.display_name("renegade_twin_captain"))
+check("the new twin names and every old name parse to the right breed", (function() local function b(name) local p = Groups.parse("1 " .. name); return p and p[1].breed end return b("ranged twin") == "renegade_twin_captain" and b("melee twin") == "renegade_twin_captain_two" and b("twin captain one") == "renegade_twin_captain" and b("twin captain two") == "renegade_twin_captain_two" and b("male twin") == "renegade_twin_captain" and b("female twin") == "renegade_twin_captain_two" end)())
 check("both twins are in the picker list", (function() local n = 0 for _, b in ipairs(Groups.breed_list()) do if b:find("^renegade_twin_captain") then n = n + 1 end end return n == 2 end)())
-check("recipe roundtrip for twins/packmaster", Groups.to_recipe(Groups.parse("1 twin one, 2 packmaster")) == "1 twin captain one, 2 packmaster")
+check("recipe roundtrip for twins/packmaster", Groups.to_recipe(Groups.parse("1 twin one, 2 packmaster")) == "1 ranged twin, 2 packmaster")
 
 -- kinds / categories / search --------------------------------------------------
 check("kinds from the game's tags", Groups.kind("chaos_hound") == "special" and Groups.kind("chaos_ogryn_executor") == "elite" and Groups.kind("chaos_plague_ogryn") == "boss" and Groups.kind("renegade_twin_captain") == "boss" and Groups.kind("renegade_twin_captain_two") == "boss" and Groups.kind("cultist_captain") == "boss" and Groups.kind("chaos_ogryn_houndmaster") == "boss" and Groups.kind("chaos_poxwalker") == "normal" and Groups.kind("renegade_melee") == "normal")
@@ -772,7 +773,7 @@ do
   check("modifier colours: painted summary (enemy + modifier segments) has exactly the plain visible text at every length", #mismatches == 0, table.concat(mismatches, " | "))
   local text = Groups.summary(parts, 200, painter)
   check("modifier colours: modifier names carry their own colour tags", text:find("{#color(138,43,226)}Purple{#reset()}", 1, true) ~= nil and text:find("{#color(255,54,36)}Enraged{#reset()}", 1, true) ~= nil and text:find("{#color(132,156,99)}Rotten Armor{#reset()}", 1, true) ~= nil, text)
-  check("modifier colours: the enemy part keeps the enemy's colour around them", text:find("{#color(240,240,240)}3 Crusher [{#reset()}", 1, true) ~= nil and text:find("{#color(240,240,240)}]", 1, true) ~= nil)
+  check("modifier colours: the enemy part keeps the enemy's colour around them", text:find("{#color(240,240,240)}3 Crusher{#reset()}{#color(240,240,240)} [{#reset()}", 1, true) ~= nil and text:find("{#color(240,240,240)}]", 1, true) ~= nil)
   local head, mods, tail = Groups.describe_part_pieces(parts[1])
   check("modifier colours: describe_part is unchanged by the refactor", head == "3 Crusher" and #mods == 2 and mods[1].id == "garden" and tail == " (+2 per repeat)" and Groups.describe_part(parts[1], true) == "3 Crusher [Purple, Enraged] (+2 per repeat)" and Groups.describe_part(parts[2]) == "5 Hound")
 end
@@ -1194,7 +1195,7 @@ do
   for _, b in ipairs({ "chaos_beast_of_nurgle", "chaos_plague_ogryn", "chaos_spawn", "chaos_ogryn_houndmaster" }) do
     check("palette: boss " .. b .. " strong red", same(b, "chaos_spawn") and rgb(b)[1] > 240 and rgb(b)[2] < 80 and rgb(b)[3] < 80)
   end
-  check("palette: all gunners strong white", same("renegade_gunner", "cultist_gunner") and same("renegade_gunner", "chaos_ogryn_gunner") and table.concat(rgb("renegade_gunner"), ",") == "255,255,255")
+  check("palette: all gunners blue (and the sniper no longer blue)", same("renegade_gunner", "cultist_gunner") and same("renegade_gunner", "chaos_ogryn_gunner") and same("renegade_gunner", "renegade_plasma_gunner") and rgb("renegade_gunner")[3] > 220 and rgb("renegade_gunner")[1] < 120 and rgb("renegade_gunner")[2] < 180 and not same("renegade_sniper", "renegade_gunner"))
   check("palette: bomber orangeish, not the flamer's orange", rgb("renegade_grenadier")[1] > 240 and rgb("renegade_grenadier")[2] > 140 and not same("renegade_grenadier", "renegade_flamer"))
   check("palette: Spidey Sense off in the options gives the palette even when it knows the enemy", (function()
     Colors.init({ kind = Groups.kind, option = function(id) if id == "colour_spidey" then return false end end, spidey_setting = function() return "red" end, named = function() return { 1, 2, 3 } end })
@@ -1204,6 +1205,35 @@ do
     Colors.init({ kind = Groups.kind, option = function() end, spidey_setting = function() return "red" end, named = function() return { 1, 2, 3 } end })
     return table.concat(Colors.rgb("chaos_ogryn_executor"), ",") == "1,2,3" and table.concat(Colors.rgb("chaos_twin_nobody") or {}, ",") ~= "1,2,3" and table.concat(Colors.rgb("renegade_twin_captain"), ",") == "218,186,126"
   end)())
+end
+-- random groups are coloured per enemy, and colours survive the cut -----------------------------------------------------
+do
+  local Colors = load("catalog/colors")
+  Colors.init({ kind = Groups.kind, option = function() end, havoc_setting = function() return nil end })
+  local painter = { part = function(p) return Colors.rgb(p.breed) end, breed = function(b) return Colors.rgb(b) end, mod = function(id) return Colors.modifier_rgb(id) end, markup = Colors.markup }
+  local parts, perr = Groups.parse("2 plague ogryn|beast of nurgle|chaos spawn|packmaster, 4 crushers[purple+enraged+toughened+rotten]")
+  check("random: the test recipe parses", parts ~= nil, perr)
+  parts = parts or {}
+  local text = Groups.summary(parts, 300, painter)
+  check("random: every enemy of a random group has its own colour tag, the words around them none", text:find("2 random of {#color(255,50,50)}Plague Ogryn{#reset()} / {#color(255,50,50)}Beast of Nurgle{#reset()}", 1, true) ~= nil, text)
+  local mixed = Groups.summary(Groups.parse("1 hound|crusher"), 200, painter)
+  check("random: mixed enemies get different colours", mixed:find("{#color(255,235,40)}Hound{#reset()}", 1, true) ~= nil and mixed:find("{#color(240,240,240)}Crusher{#reset()}", 1, true) ~= nil, mixed)
+  local seg = Groups.paint_part_segments(parts[1], painter, false)
+  check("random: the row name of a random group is built from the same segments", Groups.render_segments(seg, nil, painter.markup):gsub("{#[^}]*}", "") == "2 random of Plague Ogryn / Beast of Nurgle / Chaos Spawn / Packmaster")
+  -- a cut keeps the colours of what is left (the old code lost the modifier colours of a cut piece)
+  local mismatches, lost = {}, {}
+  for max = 4, 160 do
+    local plain = Groups.summary(parts, max)
+    local painted = Groups.summary(parts, max, painter)
+    if painted:gsub("{#[^}]*}", "") ~= plain then mismatches[#mismatches + 1] = max end
+  end
+  check("random: the painted text equals the plain text at every length", #mismatches == 0, table.concat(mismatches, ","))
+  local cut = Groups.summary(parts, 100, painter)
+  check("cut: a modifier name that is still visible after the cut keeps its colour", cut:find("{#color(138,43,226)}Purple{#reset()}", 1, true) ~= nil and cut:find("{#color(255,54,36)}Enraged{#reset()}", 1, true) ~= nil and cut:sub(-3) == "...", cut)
+  local segs = { { text = "Purple", rgb = { 1, 2, 3 } }, { text = ", " }, { text = "Red", rgb = { 4, 5, 6 } }, { text = ", " }, { text = "Pus-Hardened Skin", rgb = { 7, 8, 9 } } }
+  local cut40 = Groups.render_segments(segs, 20, painter.markup)
+  check("cut: render_segments keeps the colours of the visible part and the ellipsis is plain", cut40:gsub("{#[^}]*}", "") == "Purple, Red, Pus-..." and cut40:find("{#color(4,5,6)}Red{#reset()}", 1, true) ~= nil and cut40:find("{#color(7,8,9)}Pus-{#reset()}", 1, true) ~= nil, cut40)
+  check("cut: nothing is cut when the text fits", Groups.render_segments(segs, 100, painter.markup):gsub("{#[^}]*}", "") == "Purple, Red, Pus-Hardened Skin")
 end
 -- twin captains: the shield starts down (toughness template start_depleted) and must be raised via optional_init_toughness
 do

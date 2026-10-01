@@ -35,7 +35,7 @@ Colors.SPIDEY_TYPE = {
 
 -- Own palette per enemy, {r, g, b}: used when Spidey Sense is off or does not know the enemy.
 local FODDER = { 135, 135, 135 } -- weak grey
-local GUNNER = { 255, 255, 255 } -- strong white
+local GUNNER = { 80, 140, 255 } -- blue
 local SHOTGUNNER = { 205, 195, 110 } -- weak yellow
 local HOUND = { 255, 235, 40 } -- bright yellow
 local FLAMER = { 255, 130, 10 } -- strong orange
@@ -80,7 +80,7 @@ Colors.PALETTE = {
 	renegade_netgunner = { 205, 70, 70 }, -- trapper: neutral red
 	renegade_grenadier = { 255, 175, 100 }, -- bomber: orangeish
 	cultist_grenadier = { 170, 255, 50 }, -- tox bomber: toxic green
-	renegade_sniper = { 150, 190, 255 },
+	renegade_sniper = { 80, 215, 230 }, -- cyan (the gunners took the blue)
 	-- bosses
 	chaos_daemonhost = { 202, 62, 255 }, -- purple (also the colour of its health bar)
 	renegade_captain = CAPTAIN,

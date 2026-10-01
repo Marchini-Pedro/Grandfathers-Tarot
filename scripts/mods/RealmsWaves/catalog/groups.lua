@@ -45,8 +45,10 @@ local ALIASES = {
 	chaos_spawn = { "chaos spawn", "spawn" },
 	-- the Twins are two separate breeds (male / female); the game's monster pacing links them
 	-- (shared health, "empowered_twin"), a wave spawns each one on its own
-	renegade_twin_captain = { "twin captain one", "twin one", "male twin", "twin captain" },
-	renegade_twin_captain_two = { "twin captain two", "twin two", "female twin" },
+	-- renegade_twin_captain spawns with a plasma pistol (spawn_inventory_slot = slot_plasma_pistol), the second twin
+	-- with a power sword (slot_power_sword): ranged and melee. The old names stay valid in recipes.
+	renegade_twin_captain = { "ranged twin", "twin captain one", "twin one", "male twin", "twin captain" },
+	renegade_twin_captain_two = { "melee twin", "twin captain two", "twin two", "female twin" },
 	cultist_captain = { "dreg captain", "tox captain" },
 	renegade_captain = { "captain", "scab captain" },
 	chaos_armored_infected = { "armored infected", "armoured infected" },
@@ -719,6 +721,110 @@ Groups.total_count = function (parts)
 	return total
 end
 
+-- The text of a part as segments { text, kind, breed, mod } so each piece can get its own colour:
+-- kind "base" (the enemy colour of the whole part), "breed" (one enemy of a random group), "mod" (a modifier
+-- name) or "plain". The concatenated texts equal Groups.describe_part(part, with_mods).
+Groups.part_segments = function (part, with_mods)
+	local segments = {}
+
+	local function add(text, kind, breed, mod_id)
+		segments[#segments + 1] = { text = text, kind = kind, breed = breed, mod = mod_id }
+	end
+
+	if part.one_of then
+		add(string.format("%d random of ", part.count), "plain")
+
+		for i = 1, #part.one_of do
+			if i > 1 then
+				add(" / ", "plain")
+			end
+
+			add(Groups.display_name(part.one_of[i]), "breed", part.one_of[i])
+		end
+	else
+		add(string.format("%d %s", part.count, Groups.display_name(part.breed)), "base")
+	end
+
+	if with_mods then
+		local _, modifiers, tail = Groups.describe_part_pieces(part)
+
+		if #modifiers > 0 then
+			add(" [", "base")
+
+			for i = 1, #modifiers do
+				if i > 1 then
+					add(", ", "base")
+				end
+
+				add(modifiers[i].name, "mod", nil, modifiers[i].id)
+			end
+
+			add("]", "base")
+		end
+
+		if tail ~= "" then
+			add(tail, "base")
+		end
+	end
+
+	return segments
+end
+
+-- Appends the part's segments to `list` with their colour `rgb` resolved through the painter table.
+Groups.paint_part_segments = function (part, painter, with_mods, list)
+	list = list or {}
+
+	local base = painter.part and painter.part(part)
+	local segments = Groups.part_segments(part, with_mods)
+
+	for i = 1, #segments do
+		local segment = segments[i]
+		local rgb
+
+		if segment.kind == "base" then
+			rgb = base
+		elseif segment.kind == "breed" then
+			rgb = painter.breed and painter.breed(segment.breed) or nil
+		elseif segment.kind == "mod" then
+			rgb = painter.mod and painter.mod(segment.mod) or base
+		end
+
+		list[#list + 1] = { text = segment.text, rgb = rgb }
+	end
+
+	return list
+end
+
+-- Joins coloured segments { text, rgb } into one string, cut to `max_chars` VISIBLE characters ("..." when cut, the
+-- same rule as Groups.summary: the first max_chars - 3 characters). markup(text, rgb) wraps a coloured piece.
+Groups.render_segments = function (segments, max_chars, markup)
+	local total = 0
+
+	for i = 1, #segments do
+		total = total + #segments[i].text
+	end
+
+	local cut = max_chars and total > max_chars
+	local budget = cut and (max_chars - 3) or math.huge
+	local out = {}
+
+	for i = 1, #segments do
+		if budget <= 0 then
+			break
+		end
+
+		local text = segments[i].text
+
+		if #text > budget then
+			text = text:sub(1, budget)
+		end
+
+		budget = budget - #text
+		out[#out + 1] = segments[i].rgb and markup(text, segments[i].rgb) or text
+	end
+
+	return table.concat(out) .. (cut and "..." or "")
+end
 -- "4 Hound, 2 Scab Rager [Enraged]" shortened to `max_chars` visible characters (with "...").
 -- `paint` (optional) is function (text, part) -> text wrapped in colour tags; the tags never count
 -- towards the length, so the visible text is identical to the plain summary.
@@ -736,62 +842,21 @@ Groups.summary = function (parts, max_chars, paint)
 		return cut and (text:sub(1, max_chars - 3) .. "...") or text
 	end
 
-	-- A painter TABLE { part = function (part) -> rgb|nil, mod = function (id) -> rgb|nil, markup = function (text, rgb) }
-	-- colours the enemy part and each modifier name separately; a plain function paints a whole piece.
+	-- A painter TABLE { part = function (part) -> rgb, breed = function (breed) -> rgb, mod = function (id) -> rgb,
+	-- markup = function (text, rgb) } colours the enemy names, each enemy of a random group and each modifier
+	-- name separately (colours survive the cut: the segments are cut, not the finished text).
 	if type(paint) == "table" then
-		local painter = paint
-		local whole = function (piece_text, part)
-			return painter.markup(piece_text, painter.part(part))
-		end
+		local segments = {}
 
-		-- a piece that fits is painted in segments (enemy colour, modifier colours); a cut piece in one colour
-		local function segmented(part)
-			local head, modifiers, tail = Groups.describe_part_pieces(part)
-			local base = painter.part(part)
-
-			if #modifiers == 0 then
-				return painter.markup(head .. tail, base)
+		for i = 1, #parts do
+			if i > 1 then
+				segments[#segments + 1] = { text = ", " }
 			end
 
-			local out = { painter.markup(head .. " [", base) }
-
-			for i = 1, #modifiers do
-				out[#out + 1] = painter.markup(modifiers[i].name, painter.mod(modifiers[i].id) or base)
-
-				if i < #modifiers then
-					out[#out + 1] = painter.markup(", ", base)
-				end
-			end
-
-			out[#out + 1] = painter.markup("]" .. tail, base)
-
-			return table.concat(out)
+			segments = Groups.paint_part_segments(parts[i], paint, true, segments)
 		end
 
-		local result = {}
-		local room = cut and (max_chars - 3) or math.huge
-
-		for i = 1, #pieces do
-			local piece = pieces[i]
-			local separator = i > 1 and ", " or ""
-
-			if #separator + #piece > room then
-				local left = room - #separator
-
-				if left > 0 then
-					result[#result + 1] = separator .. whole(piece:sub(1, left), parts[i])
-				elseif #separator > 0 and room > 0 then
-					result[#result + 1] = separator:sub(1, room)
-				end
-
-				break
-			end
-
-			result[#result + 1] = separator .. segmented(parts[i])
-			room = room - #separator - #piece
-		end
-
-		return table.concat(result) .. (cut and "..." or "")
+		return Groups.render_segments(segments, max_chars, paint.markup)
 	end
 
 	local out = {}

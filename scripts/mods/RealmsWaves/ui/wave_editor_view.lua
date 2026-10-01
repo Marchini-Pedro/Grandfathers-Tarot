@@ -20,7 +20,7 @@ local LIST_TOP = definitions.LIST_TOP
 local ROW_HEIGHT = definitions.ROW_HEIGHT
 local ROW_NODE_PREFIX = definitions.ROW_NODE_PREFIX
 
-local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same" }
+local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same", "hotspot_cd_minus", "hotspot_cd_value", "hotspot_cd_plus" }
 local LIST_STEPPERS = { "stepper_tmin", "stepper_tmax" } -- list screen: time between waves
 local DETAIL_STEPPERS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer" }
 local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "stepper_tmin", "stepper_tmax" }
@@ -28,7 +28,9 @@ local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
 local BUTTONS = {
 	{ name = "btn_back", width = 180, cb = "cb_back" },
 	{ name = "btn_search", width = 420, cb = "cb_search" },
-	{ name = "btn_stay", width = 560, cb = "cb_toggle_stay" },
+	{ name = "btn_stay", width = 380, cb = "cb_toggle_stay" },
+	{ name = "btn_random", width = 310, cb = "cb_toggle_random" },
+	{ name = "btn_random_done", width = 290, cb = "cb_random_done" },
 	{ name = "btn_rename", width = 200, cb = "cb_rename" },
 	{ name = "btn_text", width = 250, cb = "cb_edit_text" },
 	{ name = "btn_add", width = 230, cb = "cb_add" },
@@ -94,6 +96,8 @@ RealmsWavesView.init = function (self, settings)
 	self._preset_slots = {} -- presets screen rows
 	self._preset_waves = {} -- rows of the preset being viewed
 	self._settings_rows = {} -- rows of the timing/voting/display screen
+	self._random_mode = false -- enemy picker: collecting a random group
+	self._random_pick = {}
 
 	RealmsWavesView.super.init(self, definitions, settings)
 end
@@ -257,6 +261,9 @@ RealmsWavesView._create_editor_widgets = function (self)
 		content.hotspot_rep_minus.pressed_callback = callback(self, "cb_row_rep_step", i, -1)
 		content.hotspot_rep_plus.pressed_callback = callback(self, "cb_row_rep_step", i, 1)
 		content.hotspot_rep_value.pressed_callback = callback(self, "cb_row_rep_input", i)
+		content.hotspot_cd_minus.pressed_callback = callback(self, "cb_row_cd_step", i, -1)
+		content.hotspot_cd_plus.pressed_callback = callback(self, "cb_row_cd_step", i, 1)
+		content.hotspot_cd_value.pressed_callback = callback(self, "cb_row_cd_input", i)
 		content.hotspot_same.pressed_callback = callback(self, "cb_row_same", i)
 	end
 
@@ -447,6 +454,9 @@ RealmsWavesView._painter = function (self)
 		part = function (part)
 			return colors.rgb(part.breed)
 		end,
+		breed = function (breed)
+			return colors.rgb(breed)
+		end,
 		mod = function (id)
 			return colors.modifier_rgb(id)
 		end,
@@ -582,11 +592,13 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 
 	header.col_6 = ""
 	header.col_7 = ""
+	header.col_8 = ""
 
 	if screen == "list" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_list")
 		header.col_1, header.col_2, header.col_3 = mod:localize("col_on"), mod:localize("col_wave"), mod:localize("col_composition")
 		header.col_4, header.col_5 = mod:localize("col_chance"), mod:localize("col_share")
+		header.col_8 = mod:localize("col_cooldown")
 		widgets.bottom_title.content.bottom_title = (self._deleted_count or 0) > 0 and mod:localize("bottom_list_deleted", self._deleted_count) or mod:localize("bottom_list_title")
 
 		-- the time between waves (the same two settings as in the options menu)
@@ -619,6 +631,16 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 			status = mod:localize("picker_status_filtered", shown, total, self._filter)
 		else
 			status = mod:localize("picker_status", shown, total)
+		end
+
+		if self._random_mode then
+			local names = {}
+
+			for i = 1, #self._random_pick do
+				names[i] = rw.groups.display_name(self._random_pick[i])
+			end
+
+			status = mod:localize("picker_random_status", #names == 0 and mod:localize("picker_random_none") or table.concat(names, ", ")) .. "   " .. status
 		end
 
 		-- shown in the description (top of the screen) so it stays visible under the search popup
@@ -701,6 +723,10 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.btn_pclear.content.hotspot_text = mod:localize("btn_pclear")
 	widgets.btn_search.visible = screen == "picker"
 	widgets.btn_stay.visible = screen == "picker"
+	widgets.btn_random.visible = screen == "picker"
+	widgets.btn_random_done.visible = screen == "picker" and self._random_mode == true
+	widgets.btn_random.content.hotspot_text = mod:localize(self._random_mode and "btn_random_on" or "btn_random_off")
+	widgets.btn_random_done.content.hotspot_text = mod:localize("btn_random_done", #(self._random_pick or {}))
 	widgets.btn_rename.visible = detail
 	widgets.btn_text.visible = detail
 	widgets.btn_add.visible = detail
@@ -800,6 +826,10 @@ RealmsWavesView._refresh_rows = function (self)
 				local content = widget.content
 				local name_color = Components.colors.text
 
+				-- per-screen defaults: no cooldown column, full width for the info text (the wave list narrows it)
+				content.show_cd = false
+				widget.style.info.size[1] = 640
+
 				if screen == "list" then
 					local share = self:_share_of(item)
 					local has_parts = item.parts and #item.parts > 0
@@ -816,6 +846,11 @@ RealmsWavesView._refresh_rows = function (self)
 					content.share = item.timer > 0 and mod:localize("share_timer", math.floor(item.timer)) or share and string.format("%.1f%%", share) or "-"
 					content.hotspot_action_text = action and mod:localize(pending and "btn_sure" or ("btn_" .. action)) or ""
 
+					-- the cooldown column sits between the composition and the chance weight
+					content.show_cd = true
+					content.cd_value = tostring(math.floor(item.cooldown))
+					widget.style.info.size[1] = 470
+
 					if not (item.enabled and has_parts) then
 						name_color = Components.colors.muted
 					end
@@ -823,18 +858,31 @@ RealmsWavesView._refresh_rows = function (self)
 					local mods_text = rw.groups.describe_mods(item)
 					local mods_shown = mods_text
 
-					content.row_name = rw.groups.describe_part(item)
-					if #mods_text > 40 then
-						mods_shown = mods_text:sub(1, 37) .. "..."
-					elseif colors and #mods_text > 0 then
-						local _, modifiers = rw.groups.describe_part_pieces(item)
-						local parts_out = {}
+					local painter = self:_painter()
 
-						for i = 1, #modifiers do
-							parts_out[i] = colors.markup(modifiers[i].name, colors.modifier_rgb(modifiers[i].id))
+					content.row_name = rw.groups.describe_part(item)
+
+					-- a random group colours each enemy of the group, the modifier names get their own colours;
+					-- the modifier text is cut at 40 visible characters WITHOUT losing the colours
+					if painter then
+						if item.one_of then
+							content.row_name = rw.groups.render_segments(rw.groups.paint_part_segments(item, painter, false), nil, painter.markup)
 						end
 
-						mods_shown = table.concat(parts_out, ", ")
+						local _, modifiers = rw.groups.describe_part_pieces(item)
+						local segments = {}
+
+						for i = 1, #modifiers do
+							if i > 1 then
+								segments[#segments + 1] = { text = ", " }
+							end
+
+							segments[#segments + 1] = { text = modifiers[i].name, rgb = painter.mod(modifiers[i].id) }
+						end
+
+						mods_shown = rw.groups.render_segments(segments, 40, painter.markup)
+					elseif #mods_text > 40 then
+						mods_shown = mods_text:sub(1, 37) .. "..."
 					end
 
 					content.info = mods_shown
@@ -882,6 +930,16 @@ RealmsWavesView._refresh_rows = function (self)
 				elseif screen == "picker" then
 					content.row_name = rw.groups.display_name(item)
 					content.info = string.format("%s  (%s)", item, rw.groups.kind(item))
+
+					-- random group mode: the enemies picked so far are marked
+					if self._random_mode then
+						for j = 1, #self._random_pick do
+							if self._random_pick[j] == item then
+								content.info = "[picked]  " .. content.info
+							end
+						end
+					end
+
 					name_color = colors and colors.argb(item) or name_color
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, false, false, true, false
 					content.show_rep = false
@@ -986,6 +1044,9 @@ RealmsWavesView.cb_scroll = guarded(function (self, direction)
 end)
 
 RealmsWavesView.cb_back = guarded(function (self)
+	self._random_mode = false
+	self._random_pick = {}
+
 	if self._screen == "preset_view" then
 		self._screen = "presets"
 		self:_reload_presets()
@@ -1279,6 +1340,37 @@ RealmsWavesView.cb_row_rep_input = guarded(function (self, row)
 	})
 end)
 
+-- cooldown column of the wave list: seconds before a wave can be drawn again (5 s steps, 0 to 3600)
+RealmsWavesView.cb_row_cd_step = guarded(function (self, row, delta)
+	local wave = self._screen == "list" and self:_item_at(row)
+
+	if not wave then
+		return
+	end
+
+	set_setting("cd_" .. wave.key, math.clamp(math.floor(wave.cooldown) + delta * 5, 0, 3600))
+	self:_reload()
+	self:_apply_screen(true)
+end)
+
+RealmsWavesView.cb_row_cd_input = guarded(function (self, row)
+	local wave = self._screen == "list" and self:_item_at(row)
+
+	if not wave then
+		return
+	end
+
+	Popup.open(self, {
+		label = mod:localize("popup_cooldown_title", wave.name),
+		value = tostring(math.floor(wave.cooldown)),
+		numeric = true, min = 0, max = 3600, integer = true,
+		set = function (value)
+			set_setting("cd_" .. wave.key, value)
+			self:_reload()
+			self:_apply_screen(true)
+		end,
+	})
+end)
 RealmsWavesView.cb_row_minus = guarded(function (self, row)
 	self:_step_row(row, -1)
 end)
@@ -1328,6 +1420,28 @@ end)
 -- several enemies can be added in a row ("stay", toggled with the button next to Search).
 RealmsWavesView._add_breed = function (self, breed)
 	local groups = mod.rw.groups
+
+	-- random group mode: clicking an enemy picks / unpicks it for the group instead of adding it
+	if self._random_mode then
+		local at
+
+		for i = 1, #self._random_pick do
+			if self._random_pick[i] == breed then
+				at = i
+			end
+		end
+
+		if at then
+			table.remove(self._random_pick, at)
+		else
+			self._random_pick[#self._random_pick + 1] = breed
+		end
+
+		self:_apply_screen(true)
+
+		return
+	end
+
 	local stay = mod:get("picker_stay") == true
 
 	-- picked while the search box was open: in "back" mode close it (keeping what was typed);
@@ -1362,6 +1476,39 @@ RealmsWavesView._add_breed = function (self, breed)
 
 	self:_save()
 end
+
+-- Random group: turn the mode on, click two or more enemies, press Create. The group is "1 random of A / B / C"
+-- (the count is changed like any other: with the - and + buttons).
+RealmsWavesView.cb_toggle_random = guarded(function (self)
+	self._random_mode = not self._random_mode
+	self._random_pick = {}
+	self._picker_note = nil
+	self:_apply_screen(true)
+end)
+
+RealmsWavesView.cb_random_done = guarded(function (self)
+	if #self._random_pick < 2 then
+		self._picker_note = mod:localize("picker_random_need_two")
+		self:_apply_screen(true)
+
+		return
+	end
+
+	local stay = mod:get("picker_stay") == true
+	local pick = { unpack(self._random_pick) }
+
+	self._parts[#self._parts + 1] = { one_of = pick, count = 1 }
+	self._random_mode = false
+	self._random_pick = {}
+
+	if self._popup and not stay then
+		Popup.close_keep(self)
+	end
+
+	self._screen = stay and "picker" or "detail"
+	self._picker_note = stay and mod:localize("picker_random_added", #pick) or nil
+	self:_save()
+end)
 
 RealmsWavesView.cb_toggle_stay = guarded(function (self)
 	mod:set("picker_stay", not (mod:get("picker_stay") == true))
@@ -1416,6 +1563,8 @@ RealmsWavesView.cb_edit_text = guarded(function (self)
 end)
 
 RealmsWavesView.cb_add = guarded(function (self)
+	self._random_mode = false
+	self._random_pick = {}
 	self._screen = "picker"
 	self._filter = ""
 	self._picker_note = nil

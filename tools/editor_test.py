@@ -269,7 +269,7 @@ click("btn_search")
 check("search popup opens low on the screen so the list stays visible", view._popup ~= nil and view._sg.rw_popup_panel[2] == 700 and view._sg.rw_popup_input[2] == 770, view._sg.rw_popup_panel and view._sg.rw_popup_panel[2])
 view._widgets_by_name.rw_popup_input.content.input_text = "twin"
 view:update(0.01, 0, input_stub)
-check("typing filters the list live", #view._breeds == 2 and row(1).visible and row(2).visible and not row(3).visible and row(1).content.row_name == "Twin Captain One" and row(2).content.row_name == "Twin Captain Two", #view._breeds)
+check("typing filters the list live", #view._breeds == 2 and row(1).visible and row(2).visible and not row(3).visible and row(1).content.row_name == "Melee Twin" and row(2).content.row_name == "Ranged Twin", #view._breeds)
 check("status text shows the match count and the filter", view._widgets_by_name.description_text.content.description_text:find("picker_status_filtered:2,") ~= nil and view._widgets_by_name.description_text.content.description_text:find("twin") ~= nil)
 check("search box open: enemy rows stay clickable, other buttons are locked", row(1).content.hotspot_name.disabled == false and row(1).content.hotspot_action.disabled == false and view._widgets_by_name.btn_back.content.hotspot.disabled == true and view._widgets_by_name.btn_search.content.hotspot.disabled == true and view._widgets_by_name.rw_scroll_down.content.hotspot.disabled == (view._offset >= math.max(0, #view._breeds - 10)), tostring(row(1).content.hotspot_name.disabled))
 check("popup buttons are wide enough for the vanilla ornamental frame (240x56 each, no overlap)", view._sg.rw_popup_confirm[1] == 600 and view._sg.rw_popup_cancel[1] == 870 and view._sg.rw_popup_confirm[2] == 900 and view._sg.rw_popup_cancel[2] == 900, view._sg.rw_popup_confirm[2])
@@ -285,7 +285,7 @@ click("btn_search")
 view._widgets_by_name.rw_popup_input.content.input_text = "twin two"
 view:update(0.01, 0, input_stub)
 local parts_before_pick = #view._parts
-check("typing 'twin two' leaves exactly one row", #view._breeds == 1 and row(1).content.row_name == "Twin Captain Two")
+check("typing 'twin two' leaves exactly one row", #view._breeds == 1 and row(1).content.row_name == "Melee Twin")
 click_row(1, "hotspot_action")
 check("clicking a row while the search box is open adds the enemy, closes the box and returns to the detail screen", view._popup == nil and view._screen == "detail" and #view._parts == parts_before_pick + 1 and view._parts[#view._parts].breed == "renegade_twin_captain_two" and view._sg.rw_popup_panel[2] == 400, tostring(view._screen) .. " " .. #view._parts .. " vs " .. parts_before_pick)
 click("btn_add")
@@ -863,6 +863,74 @@ do
   click_row(1, "hotspot_name"); click("btn_reset"); click("btn_back")
   check("timer: Reset to default clears the timer", settings.ev_wave_small == 0 and row(1).content.share ~= "share_timer:90")
 end
+-- cooldown column, random groups, colours that survive the cut -------------------------------------------------------
+do
+  local W = view._widgets_by_name
+  settings.colour_enemies = nil; settings.colour_spidey = nil; mod.rw.colors.clear_cache() -- earlier tests may have left the colours switched off
+  local inp = { get = function() return nil end, is_null_service = function() return false end }
+  local PPc = dofile(BASE .. "/ui/wave_editor_components.lua")
+  view._offset = 0; view:_reload(); view:_apply_screen()
+  check("cooldown: the wave list has a Cooldown column header and a stepper per row", W.list_header.content.col_8 == "col_cooldown" and row(1).content.show_cd == true and row(1).content.cd_value == tostring(math.floor(view._waves[1].cooldown)), tostring(row(1).content.cd_value))
+  check("cooldown: the composition text is narrower on the list (470 px) to make room, full width elsewhere", row(1).style.info.size[1] == 470)
+  local before = math.floor(view._waves[1].cooldown)
+  click_row(1, "hotspot_cd_plus")
+  check("cooldown: + adds 5 s and writes cd_<key>", settings["cd_wave_small"] == before + 5 and row(1).content.cd_value == tostring(before + 5), tostring(settings["cd_wave_small"]))
+  click_row(1, "hotspot_cd_minus"); click_row(1, "hotspot_cd_minus")
+  check("cooldown: - subtracts 5 s", settings["cd_wave_small"] == before - 5)
+  settings["cd_wave_small"] = 2; view:_reload(); view:_apply_screen(true)
+  click_row(1, "hotspot_cd_minus")
+  check("cooldown: never below 0", settings["cd_wave_small"] == 0 and row(1).content.cd_value == "0")
+  click_row(1, "hotspot_cd_value")
+  check("cooldown: clicking the number opens a popup (0 to 3600)", view._popup ~= nil and view._popup.spec.min == 0 and view._popup.spec.max == 3600)
+  view._widgets_by_name.rw_popup_input.content.input_text = "90"; view:update(0.01, 0, inp); PPc.Popup.commit(view)
+  check("cooldown: the popup writes it", settings["cd_wave_small"] == 90 and row(1).content.cd_value == "90")
+  check("cooldown: the cooldown hotspots work like the others (engine rule) and are hidden on other screens", (function() click_row(2, "hotspot_name"); local ok = row(1).content.show_cd == false and row(1).style.info.size[1] == 640; click("btn_back"); return ok end)())
+  check("cooldown: the cooldown stepper of the wave edit screen and the column are the same setting", (function() click_row(1, "hotspot_name"); local ok = W.stepper_cooldown.content.stepper_value == "90"; click("btn_back"); return ok end)())
+  settings["cd_wave_small"] = nil; view:_reload(); view:_apply_screen(true)
+
+  -- random group, the easy way
+  view:_open_detail("custom_1")
+  local parts_before = #view._parts
+  click("btn_add")
+  check("random: the picker has a Random group button, Create only while the mode is on", W.btn_random.visible and not W.btn_random_done.visible and W.btn_random.content.hotspot_text == "btn_random_off")
+  click("btn_random")
+  check("random: turning it on shows Create group (0) and a hint in the status line", W.btn_random.content.hotspot_text == "btn_random_on" and W.btn_random_done.visible and W.btn_random_done.content.hotspot_text == "btn_random_done:0" and W.description_text.content.description_text:find("picker_random_status", 1, true) ~= nil)
+  local first, second = view._breeds[1], view._breeds[2]
+  click_row(1, "hotspot_action")
+  check("random: clicking an enemy picks it instead of adding it", view._screen == "picker" and #view._parts == parts_before and #view._random_pick == 1 and row(1).content.info:find("^%[picked%]") ~= nil and W.btn_random_done.content.hotspot_text == "btn_random_done:1")
+  click_row(1, "hotspot_name")
+  check("random: clicking it again unpicks it", #view._random_pick == 0 and row(1).content.info:find("picked", 1, true) == nil)
+  click("btn_random_done")
+  check("random: Create with fewer than two enemies only says so", view._screen == "picker" and #view._parts == parts_before and view._picker_note == "picker_random_need_two")
+  click_row(1, "hotspot_action"); click_row(2, "hotspot_action"); click_row(3, "hotspot_action")
+  click("btn_random_done")
+  local made = view._parts[#view._parts]
+  check("random: Create group adds ONE part '1 random of A / B / C' and returns to the wave", view._screen == "detail" and #view._parts == parts_before + 1 and made.one_of ~= nil and #made.one_of == 3 and made.count == 1 and made.one_of[1] == first and made.one_of[2] == second and view._random_mode == false)
+  local last_row = #view._parts
+  check("random: the wave's recipe text holds the group (a|b|c)", mod.rw.groups.to_recipe(view._parts):find("|", 1, true) ~= nil and settings["wave_def_custom_1"]:find("|", 1, true) ~= nil)
+  check("random: the group's row names each enemy in its own colour", row(last_row).content.row_name:find("{#color(", 1, true) ~= nil and (row(last_row).content.row_name:gsub("{#[^}]*}", "")):find("^1 random of ") ~= nil, row(last_row).content.row_name)
+  -- the mode is left again when the picker is left, and a single click on Add enemy starts clean
+  click("btn_add"); click("btn_random"); click_row(1, "hotspot_action"); click("btn_back")
+  click("btn_add")
+  check("random: leaving or re-entering the picker clears the mode and the picks", view._random_mode == false and #view._random_pick == 0 and not W.btn_random_done.visible)
+  -- stay mode: the group is added and the picker stays open
+  settings.picker_stay = true
+  click("btn_random"); click_row(1, "hotspot_action"); click_row(2, "hotspot_action"); click("btn_random_done")
+  check("random: with 'stays here after adding' the picker stays open after Create", view._screen == "picker" and view._random_mode == false and view._picker_note == "picker_random_added:2")
+  settings.picker_stay = nil
+  click("btn_back")
+
+  -- colours survive the cut in the wave edit screen (the Mods column) and the wave list
+  local part = view._parts[1]
+  part.mods = { "garden", "enraged", "toughened", "rotten" }; view:_save()
+  local info = row(1).content.info
+  check("cut: modifier names in the Mods column keep their colours when the list is cut at 40 characters", (info:gsub("{#[^}]*}", "")) == "Purple, Enraged, Pus-Hardened Skin, R..." and info:find("{#color(138,43,226)}Purple", 1, true) ~= nil and info:find("{#color(255,54,36)}Enraged", 1, true) ~= nil and info:find("{#color(157,169,75)}Pus-Hardened Skin", 1, true) ~= nil and info:find("{#color(132,156,99)}R{#reset()}", 1, true) ~= nil, info)
+  click("btn_back")
+  view._offset = 12; view:_refresh_rows()
+  check("cut: and in the wave list's composition text", row(1).content.info:find("{#color(138,43,226)}Purple", 1, true) ~= nil and row(1).content.info:find("{#color(255,54,36)}Red", 1, true) == nil or row(1).content.info:find("{#color(255,54,36)}Enraged", 1, true) ~= nil, row(1).content.info)
+  view._offset = 0
+  view:_open_detail("custom_1"); view._parts = {}; for _, p in ipairs(mod.rw.groups.parse("3 hounds")) do view._parts[#view._parts + 1] = p end; view:_save(); click("btn_back")
+end
 -- tighter steppers and the corner buttons ------------------------------------------------------------------------
 do
   local function gap_report(widget, label)
@@ -995,7 +1063,7 @@ do
     local screens = {
       list = { "btn_presets", "btn_wimport", "btn_default", "btn_back", "stepper_tmin", "stepper_tmax" },
       detail = { "btn_back", "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "btn_share" },
-      picker = { "btn_back", "btn_search", "btn_stay" },
+      picker = { "btn_back", "btn_search", "btn_stay", "btn_random", "btn_random_done" },
       preset_view = { "btn_back", "btn_pload", "btn_psave", "btn_prename", "btn_pexport", "btn_pimport", "btn_pundo", "btn_pclear" },
     }
     local problems = {}
