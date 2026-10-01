@@ -53,7 +53,7 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 3. The Spread HUD: `ui/spread.lua`, widgets, element, the `The Spread (your screen)` options, `tools/hud_test.py` (offline only; the shapes are unseen)
 - [ ] 4. The Deck screen, cooldown looks, custom card builder
   - [x] 4a. The Deck: tiles, strip, toggle, Edit, blank tile, paging, Delete in the card's screen, palette (`ui/deck.lua`, `ui/wave_editor_deck.lua`, offline only)
-  - [ ] 4b. Cooldown looks on the tiles (rot and renewal, the murmur returns, the vial fills, ready ping option)
+  - [x] 4b. Cooldown looks on the tiles (rot and renewal, the murmur returns, the vial fills, ready ping option `tarot_ping`; offline only)
   - [ ] 4c. Card builder screen: suit with suggestion, threat auto/override with "Threat N by the numbers", whisper, look
 - [ ] 5. Mod options
 - [ ] 6. Optional: per-group health and size multipliers

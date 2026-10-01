@@ -19,6 +19,27 @@ local function mix(a, b, t)
 	return { a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t }
 end
 
+-- the first n bytes of a text, never cutting a multi-byte character
+local function utf8_cut(text, n)
+	if n >= #text then
+		return text
+	end
+
+	local cut = n
+
+	while cut > 0 do
+		local byte = text:byte(cut + 1)
+
+		if byte and byte >= 0x80 and byte < 0xC0 then
+			cut = cut - 1
+		else
+			break
+		end
+	end
+
+	return text:sub(1, cut)
+end
+
 local function place_tri(style, slot, ox, oy, z)
 	style.visible = slot.on
 
@@ -161,6 +182,14 @@ DeckView.install = function (View, h)
 		local bg, accent, ink = tone(suit.card), tone(suit.accent), tone(suit.text)
 		local border = card.rare and tone(Cards.BASE.pus) or tone(mix(suit.frame, suit.accent, 0.45))
 
+		-- what the per-frame cooldown looks need to know (see _apply_look); a new record on every paint
+		local fx = {
+			key = wave.key, wave = wave, cooldown = card.cooldown, look = card.look, state = state, suit = suit, rare = card.rare,
+			accent = accent, ink = ink, bg = bg, whisper = card.whisper, p = -1, clock = -1, filled = Deck.pips(card.weight),
+			tri_col = {}, circ_col = {},
+		}
+
+		content.fx = fx
 		content.card_key, content.card_state = wave.key, state
 		content.bg_rgb, content.bg_hi = bg, tone(suit.hi)
 		widget.alpha_multiplier = state == "off" and 0.55 or 1
@@ -186,6 +215,7 @@ DeckView.install = function (View, h)
 
 			place_tri(s, shape.tri[i], origin_x, origin_y, 4)
 			paint(s, 255, shape.tri[i].col == 2 and bg or accent)
+			fx.tri_col[i] = shape.tri[i].col
 		end
 
 		for i = 1, Spread.ICON_CIRCS do
@@ -193,6 +223,7 @@ DeckView.install = function (View, h)
 
 			place_circ(s, shape.circ[i], origin_x, origin_y, 4)
 			paint(s, 255, shape.circ[i].col == 2 and bg or accent)
+			fx.circ_col[i] = shape.circ[i].col
 		end
 
 		content.suit_label = string.upper(suit.name .. (card.rare and (" \194\183 " .. mod:localize("tile_rare")) or ""))
@@ -285,6 +316,157 @@ DeckView.install = function (View, h)
 		paint(style.edit_label, 255, tone(Cards.BASE.muted))
 		paint(style.edit_bg, 90, tone(suit.frame))
 		style.edit_bg.visible = false
+
+		-- the effects of a cooldown and of the ready ping start hidden; a resting card gets its look right away
+		style.vial.visible, style.vial_line.visible = false, false
+
+		for i = 1, #IDS.bubble do
+			style[IDS.bubble[i]].visible = false
+		end
+
+		for i = 1, #IDS.ping do
+			style[IDS.ping[i]].visible = false
+		end
+
+		if state == "cooling" then
+			fx.clock = math.ceil(remaining)
+			self:_apply_look(widget, fx, math.max(0, math.min(1, 1 - remaining / math.max(1, card.cooldown))), 0)
+		end
+	end
+
+	-- ---------------------------------------------------------------------------------- cooldown looks
+	-- A resting card shows how far its cooldown has come (p = 0..1) in the look of its card:
+	--   rot      "rot and renewal": everything that has the suit's colour goes grey, then brown, then ochre, then back to
+	--            the suit's colour; the text is faint (50 percent) and returns to full
+	--   whisper  "the murmur returns": the whisper writes itself letter by letter and the whole card is faint (60
+	--            percent) until it is back
+	--   vial     "the vial fills": a liquid rises from the bottom, pus yellow, with a bright top line and bubbles
+	View._apply_look = function (self, widget, fx, p, time)
+		local rw = mod.rw
+		local Cards = rw.cards
+		local style, content = widget.style, widget.content
+
+		fx.p = p
+
+		if fx.look == "rot" then
+			local rgb = Cards.rot_color(p, fx.suit.accent)
+			local alpha = Spread.alpha(Cards.rot_text_alpha(p))
+
+			paint(style.suit_label, 255, rgb)
+
+			for i = 1, Spread.ICON_TRIS do
+				if fx.tri_col[i] == 1 then
+					paint(style[IDS.icon_t[i]], 255, rgb)
+				end
+			end
+
+			for i = 1, Spread.ICON_CIRCS do
+				if fx.circ_col[i] == 1 then
+					paint(style[IDS.icon_c[i]], 255, rgb)
+				end
+			end
+
+			paint(style.glow, fx.rare and 110 or 70, fx.rare and Cards.BASE.pus or rgb)
+
+			if not fx.rare then
+				local border = mix(fx.suit.frame, rgb, 0.45)
+
+				for i = 1, #IDS.border do
+					paint(style[IDS.border[i]], 255, border)
+				end
+			end
+
+			for i = 1, math.min(fx.filled, Deck.PIPS) do
+				paint(style[IDS.pip[i]], 255, rgb)
+			end
+
+			paint(style.name, alpha, fx.ink)
+			paint(style.comp, alpha, Cards.BASE.muted)
+			paint(style.whisper, alpha, fx.suit == Cards.SUITS.murmur and Cards.BASE.whisper or Cards.BASE.muted)
+		elseif fx.look == "whisper" then
+			local letters = Cards.whisper_letters(fx.whisper, p)
+
+			widget.alpha_multiplier = Cards.murmur_card_alpha(p)
+			content.whisper = "\"" .. utf8_cut(fx.whisper, letters) .. (letters >= #fx.whisper and "\"" or "")
+		elseif fx.look == "vial" then
+			self:_animate_vial(widget, fx, p, time)
+		end
+	end
+
+	-- the vial: the liquid's height follows the cooldown, three bubbles rise through it (every frame)
+	View._animate_vial = function (self, widget, fx, p, time)
+		local style = widget.style
+		local Cards = mod.rw.cards
+		local fill = (Deck.TILE_H) * p
+
+		fx.p = p
+		style.vial.visible = fill > 0.5
+		style.vial.offset[2], style.vial.size[2] = Deck.TILE_H - fill, fill
+		paint(style.vial, 70, Cards.BASE.pus)
+		style.vial_line.visible = fill > 0.5
+		style.vial_line.offset[2] = Deck.TILE_H - fill
+		paint(style.vial_line, 230, Cards.BASE.pus)
+
+		for i = 1, #IDS.bubble do
+			local bubble = style[IDS.bubble[i]]
+			local rise = ((time or 0) * 0.38 + (i - 1) / 3) % 1
+
+			bubble.visible = fill > 24
+			bubble.offset[1], bubble.offset[2] = 28 + (i - 1) * 84, Deck.TILE_H - 10 - rise * (fill - 10)
+			bubble.size[1], bubble.size[2] = 6, 6
+			paint(bubble, math.floor(150 * (1 - rise)), Cards.BASE.pus)
+		end
+	end
+
+	-- the ready ping: a ring that leaves the card and fades, and the name that flashes in the suit's colour
+	View._start_ping = function (self, widget)
+		local fx = widget.content.fx
+
+		if fx then
+			fx.ping_t = 0
+			widget.content.state_left = mod:localize("tile_ready")
+		end
+	end
+
+	local PING_TIME, FLASH_TIME = 1.1, 0.9
+
+	View._tick_ping = function (self, widget, fx, dt)
+		local style, content = widget.style, widget.content
+
+		fx.ping_t = fx.ping_t + dt
+
+		local u = fx.ping_t / PING_TIME
+
+		if u >= 1 then
+			for i = 1, #IDS.ping do
+				style[IDS.ping[i]].visible = false
+			end
+
+			content.state_left = mod:localize("tile_in")
+			paint(style.name, 255, fx.ink)
+			fx.ping_t = nil
+
+			return
+		end
+
+		local scale = 0.96 + 0.16 * u
+		local w, h = Deck.TILE_W * scale, Deck.TILE_H * scale
+		local x0, y0 = (Deck.TILE_W - w) / 2, (Deck.TILE_H - h) / 2
+		local alpha = math.floor(230 * (1 - u))
+
+		for i = 1, #IDS.ping do
+			style[IDS.ping[i]].visible = true
+			paint(style[IDS.ping[i]], alpha, fx.accent)
+		end
+
+		style.ping_t.offset[1], style.ping_t.offset[2], style.ping_t.size[1] = x0, y0, w
+		style.ping_b.offset[1], style.ping_b.offset[2], style.ping_b.size[1] = x0, y0 + h - 2, w
+		style.ping_l.offset[1], style.ping_l.offset[2], style.ping_l.size[2] = x0, y0, h
+		style.ping_r.offset[1], style.ping_r.offset[2], style.ping_r.size[2] = x0 + w - 2, y0, h
+
+		local k = math.min(1, fx.ping_t / FLASH_TIME)
+
+		paint(style.name, 255, mix(fx.accent, fx.ink, k))
 	end
 
 	-- ------------------------------------------------------------------------------------- the screen
@@ -367,7 +549,7 @@ DeckView.install = function (View, h)
 	end
 
 	-- Per frame (only while the Deck is shown): which tile the pointer is on, for the strip and the caption.
-	View._update_deck = function (self)
+	View._update_deck = function (self, dt, t)
 		local widgets = self._widgets_by_name
 		local hovered, hovered_widget = nil, nil
 
@@ -383,6 +565,47 @@ DeckView.install = function (View, h)
 				if content.hotspot_top.is_hover or content.hotspot_state.is_hover or on_edit then
 					hovered, hovered_widget = content.card_key, widget
 				end
+			end
+		end
+
+		-- the resting cards: the clock, the look, and the moment a card is back (repaint + ping)
+		local director = mod.rw.director
+		local ping_on = mod:get("tarot_ping") ~= false
+
+		for i = 1, Deck.CAPACITY do
+			local widget = widgets[TILE_PREFIX .. i]
+			local fx = widget and widget.visible and widget.content.fx
+
+			if fx and fx.state == "cooling" then
+				local remaining = director and director.cooldown_remaining and director.cooldown_remaining(fx.key, fx.cooldown) or 0
+
+				if remaining <= 0 then
+					self:_paint_tile(widget, fx.wave)
+
+					if ping_on then
+						self:_start_ping(widget)
+					end
+				else
+					local p = math.max(0, math.min(1, 1 - remaining / math.max(1, fx.cooldown)))
+					local seconds = math.ceil(remaining)
+
+					if seconds ~= fx.clock then
+						fx.clock = seconds
+						widget.content.state_clock = Deck.clock_text(remaining)
+					end
+
+					if fx.look == "vial" then
+						self:_animate_vial(widget, fx, p, t)
+					elseif math.abs(p - fx.p) >= 0.004 then
+						self:_apply_look(widget, fx, p, t)
+					end
+				end
+			end
+
+			fx = widget and widget.visible and widget.content.fx
+
+			if fx and fx.ping_t then
+				self:_tick_ping(widget, fx, dt or 0)
 			end
 		end
 

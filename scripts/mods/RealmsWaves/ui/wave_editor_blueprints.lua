@@ -215,7 +215,12 @@ local function tile_text(passes, id, box, font, size, horizontal, vertical, z)
 end
 
 -- the ids of the repeated passes, so the view never concatenates strings while it paints
-blueprints.TILE_IDS = { border = { "border_t", "border_b", "border_l", "border_r" }, icon_t = {}, icon_c = {}, th_o = {}, th_i = {}, dot = {}, pip = {} }
+blueprints.TILE_IDS = {
+	border = { "border_t", "border_b", "border_l", "border_r" },
+	ping = { "ping_t", "ping_b", "ping_l", "ping_r" },
+	bubble = { "bubble_1", "bubble_2", "bubble_3" },
+	icon_t = {}, icon_c = {}, th_o = {}, th_i = {}, dot = {}, pip = {},
+}
 
 for i = 1, Spread.ICON_TRIS do
 	blueprints.TILE_IDS.icon_t[i] = "icon_t" .. i
@@ -261,6 +266,14 @@ blueprints.tile = function (node_id)
 		end,
 	}
 
+	-- "the vial fills": a liquid rising from the bottom of the card, with a bright top line and bubbles
+	rect_pass(passes, "vial", 0, TILE_H, TILE_W, 0, 2)
+	rect_pass(passes, "vial_line", 0, TILE_H, TILE_W, 2, 2)
+
+	for i = 1, 3 do
+		circle_pass(passes, blueprints.TILE_IDS.bubble[i], 3)
+	end
+
 	rect_pass(passes, "border_t", 0, 0, TILE_W, 1, 2)
 	rect_pass(passes, "border_b", 0, TILE_H - 1, TILE_W, 1, 2)
 	rect_pass(passes, "border_l", 0, 0, 1, TILE_H, 2)
@@ -302,6 +315,12 @@ blueprints.tile = function (node_id)
 	tile_text(passes, "state_clock", T.state_clock, "proxima_nova_bold", 12, "right", "center", 4)
 	rect_pass(passes, "edit_bg", T.hot_edit[1], T.hot_edit[2], T.hot_edit[3], T.hot_edit[4], 3)
 	tile_text(passes, "edit_label", T.edit_label, "proxima_nova_bold", 12, "right", "center", 5)
+
+	-- the ready ping: a ring that leaves the card and fades, when its cooldown ends
+	rect_pass(passes, "ping_t", 0, 0, TILE_W, 2, 7)
+	rect_pass(passes, "ping_b", 0, 0, TILE_W, 2, 7)
+	rect_pass(passes, "ping_l", 0, 0, 2, TILE_H, 7)
+	rect_pass(passes, "ping_r", 0, 0, 2, TILE_H, 7)
 
 	Components.hotspot_pass(passes, "hotspot_top", { T.hot_top[1], T.hot_top[2], 6 }, { T.hot_top[3], T.hot_top[4] })
 	Components.hotspot_pass(passes, "hotspot_state", { T.hot_state[1], T.hot_state[2], 6 }, { T.hot_state[3], T.hot_state[4] })

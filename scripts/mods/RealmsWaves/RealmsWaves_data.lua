@@ -119,6 +119,7 @@ return {
 						numeric("tarot_opacity", 100, 10, 100, "unit_percent", 5),
 						{ setting_id = "tarot_timer_below", type = "checkbox", default_value = false },
 						{ setting_id = "tarot_hide_icon", type = "checkbox", default_value = false },
+						{ setting_id = "tarot_ping", type = "checkbox", default_value = true },
 						{
 							setting_id = "tarot_font",
 							type = "dropdown",

@@ -307,6 +307,109 @@ check("rare: a card with weight 2 or less has the pus-yellow outline and says ra
 settings.pct_boss_ambush = nil
 view:_reload(); view:_apply_screen()
 
+-- cooldown looks on the tiles: rot and renewal, the murmur returns, the vial fills, the ready ping -------------------------
+do
+  local Cards = mod.rw.cards
+  local rem = {}
+  mod.rw.director = { cooldown_remaining = function(key, length) return rem[key] or 0 end }
+  local inp = { get = function() return nil end, is_null_service = function() return false end }
+  local function step(dt, t) view:update(dt, t or 0, inp) end
+  local function rgb_of(col) return col[2], col[3], col[4] end
+  local function same(col, rgb) return col[2] == rgb[1] and col[3] == rgb[2] and col[4] == rgb[3] end
+  local function reload() view:_reload(); view:_apply_screen() end
+
+  -- rot and renewal (the default look): The Procession (swarm), cooldown 150 s
+  local C = view._waves[3].cooldown
+  rem.wave_large = C
+  reload()
+  local accent = Cards.SUITS.swarm.accent
+  check("rot: a card that has just been drawn is grey: the suit mark, label, glow and pips are rgb(74,74,64)", same(tile(3).style.suit_label.text_color, { 74, 74, 64 }) and same(tile(3).style.icon_c1.color, { 74, 74, 64 }) and same(tile(3).style.glow.color, { 74, 74, 64 }) and same(tile(3).style.pip_1.color, { 74, 74, 64 }) and tile(3).content.card_state == "cooling")
+  check("rot: its text is faint (50 percent) and the name, composition and whisper share that", tile(3).style.name.text_color[1] == 128 and tile(3).style.comp.text_color[1] == 128 and tile(3).style.whisper.text_color[1] == 128, tile(3).style.name.text_color[1])
+  rem.wave_large = C / 2
+  step(0.01)
+  local want = Cards.rot_color(0.5, accent)
+  check("rot: halfway the colour is on the path between brown and ochre (the reference's rot path)", same(tile(3).style.suit_label.text_color, want) and same(tile(3).style.icon_c1.color, want) and want[1] > 90 and want[1] < 194, table.concat(want, ","))
+  check("rot: ...the text has come back to 75 percent and the clock counts down (75 s = 1:15)", tile(3).style.name.text_color[1] == 191 and tile(3).content.state_clock == "1:15", tostring(tile(3).content.state_clock))
+  rem.wave_large = C * 0.85
+  step(0.01)
+  check("rot: the clock follows the director's remaining time", tile(3).content.state_clock == "2:08" and tile(3).content.state_left == "tile_cooling", tile(3).content.state_clock)
+  rem.wave_large = C * 0.02
+  step(0.01)
+  check("rot: nearly back: the colour is almost the suit's own", math.abs(tile(3).style.suit_label.text_color[2] - accent[1]) <= 8 and tile(3).style.name.text_color[1] >= 250)
+  rem.wave_large = 0
+  step(0.01)
+  check("ready: the card is back: it says Ready, its colours are the suit's again and a ring leaves it", tile(3).content.state_left == "tile_ready" and same(tile(3).style.suit_label.text_color, accent) and tile(3).style.name.text_color[1] == 255 and tile(3).style.ping_t.visible and tile(3).style.ping_l.visible and tile(3).content.card_state == "in")
+  local ping_alpha = tile(3).style.ping_t.color[1]
+  step(0.5)
+  check("ready: the ring grows and fades, the name flashes from the suit colour back to the text colour", tile(3).style.ping_t.size[1] > 228 * 0.96 and tile(3).style.ping_t.color[1] < ping_alpha and tile(3).style.name.text_color[2] ~= Cards.SUITS.swarm.text[1], tile(3).style.ping_t.size[1])
+  step(0.7)
+  check("ready: after 1.1 s the ring is gone and the card is simply in the draw", not tile(3).style.ping_t.visible and tile(3).content.state_left == "tile_in" and tile(3).style.name.text_color[2] == Cards.SUITS.swarm.text[1])
+  settings.tarot_ping = false
+  rem.wave_large = C; reload(); rem.wave_large = 0; step(0.01)
+  check("ready: the ping can be turned off (the card just returns to 'In the draw')", tile(3).content.state_left == "tile_in" and not tile(3).style.ping_t.visible)
+  settings.tarot_ping = nil
+
+  -- the murmur returns: the whisper writes itself letter by letter, the card is faint (60 percent) until it is back
+  settings.cl_wave_medium = "whisper"
+  rem.wave_medium = C
+  reload()
+  check("murmur: a resting card with this look is faint (60 percent) and its whisper has not started", tile(2).alpha_multiplier == 0.6 and tile(2).content.whisper == "\"", tostring(tile(2).alpha_multiplier) .. " " .. tostring(tile(2).content.whisper))
+  rem.wave_medium = C / 2
+  step(0.01)
+  local text = "Too many to count."
+  local letters = Cards.whisper_letters(text, 0.5)
+  check("murmur: halfway it has written " .. letters .. " of its " .. #text .. " letters, the quote is still open, the card is at 80 percent", tile(2).content.whisper == "\"" .. text:sub(1, letters) and letters > 8 and letters < #text and math.abs(tile(2).alpha_multiplier - 0.8) < 1e-9, tile(2).content.whisper)
+  check("murmur: nothing else of the card changes colour (that is the rot look's job)", same(tile(2).style.suit_label.text_color, Cards.SUITS.swarm.accent))
+  rem.wave_medium = C * 0.005
+  step(0.01)
+  check("murmur: at the end the whisper is whole and closed", tile(2).content.whisper == "\"" .. text .. "\"" and tile(2).alpha_multiplier > 0.99, tile(2).content.whisper)
+  rem.wave_medium = 0; step(0.01)
+  check("murmur: back: normal opacity and the ring", tile(2).alpha_multiplier == 1 and tile(2).style.ping_t.visible)
+  step(1.2)
+  settings.cl_wave_medium = nil
+  -- a custom whisper with a multi-byte character is never cut in the middle of it
+  settings.wh_wave_medium = "Sch\195\182n und gut"; settings.cl_wave_medium = "whisper"
+  rem.wave_medium = C * 0.7; reload()
+  check("murmur: a whisper with a two-byte letter (o with umlaut) is cut between letters, never inside one", (function()
+    for k = 0, 8 do
+      local p = k / 8
+      rem.wave_medium = C * (1 - p); step(0.01)
+      local w = tile(2).content.whisper:gsub("^\"", ""):gsub("\"$", "")
+      if not utf8.len(w) then return false end
+    end
+    return true
+  end)())
+  settings.wh_wave_medium = nil; settings.cl_wave_medium = nil; rem.wave_medium = nil
+
+  -- the vial fills (Rain of Rot has this look by default)
+  rem.grenade_legion = view._waves[8].cooldown / 2
+  reload()
+  local rain = nil
+  for i = 1, 14 do if tile(i).visible and tile(i).content.card_key == "grenade_legion" then rain = tile(i) end end
+  check("vial: Rain of Rot has the vial look by default, half-way the liquid is half the tile high, in pus yellow, with a top line", rain ~= nil and rain.style.vial.visible and math.abs(rain.style.vial.size[2] - 131) < 1 and math.abs(rain.style.vial.offset[2] - 131) < 1 and same(rain.style.vial.color, Cards.BASE.pus) and rain.style.vial_line.visible and math.abs(rain.style.vial_line.offset[2] - 131) < 1)
+  check("vial: three bubbles rise inside the liquid", rain.style.bubble_1.visible and rain.style.bubble_2.visible and rain.style.bubble_3.visible and rain.style.bubble_1.offset[2] > 131 - 12 and rain.style.bubble_1.offset[2] < 262)
+  local y1 = rain.style.bubble_1.offset[2]
+  step(0.5, 1.5)
+  check("vial: the bubbles move with time", rain.style.bubble_1.offset[2] ~= y1)
+  rem.grenade_legion = view._waves[8].cooldown * 0.97
+  step(0.01, 2)
+  check("vial: with only a little liquid there are no bubbles yet", not rain.style.bubble_1.visible and rain.style.vial.visible)
+  check("vial: the card keeps its own colours (nothing is greyed)", same(rain.style.suit_label.text_color, Cards.SUITS.blight.accent))
+  rem.grenade_legion = nil
+
+  -- a card out of the draw does not rest visibly, and a repaint (a change in the editor) keeps the look
+  settings.on_wave_large = false
+  rem.wave_large = C / 2
+  reload()
+  check("off: a card that is out of the draw shows no cooldown look (dimmed, 'Out of the draw')", tile(3).content.state_left == "tile_off" and tile(3).content.card_state == "off" and tile(3).alpha_multiplier == 0.55 and tile(3).content.fx.state == "off")
+  settings.on_wave_large = nil
+  reload()
+  check("off: back in the draw and still resting: the rot look is back with the right colour", tile(3).content.card_state == "cooling" and same(tile(3).style.suit_label.text_color, Cards.rot_color(0.5, accent)))
+  rem.wave_large = nil
+  mod.rw.director = nil
+  reload()
+end
+
 -- the blank tile makes a card in the first free custom slot
 blank_tile().content.hotspot.pressed_callback()
 check("blank tile: opens the first free custom slot (empty), its card screen", view._screen == "detail" and view._key == "custom_1" and #view._parts == 0 and view._wave.is_custom)
@@ -1287,7 +1390,9 @@ if DUMP and DUMP ~= "" then
   settings.on_wave_medium = false; settings.pct_boss_ambush = 2
   settings.wave_def_custom_1 = "The Pale Choir\t24 mauler, 3 crusher[enraged], 2 hound, 1 plague ogryn, 4 sniper"; settings.on_custom_1 = true; settings.su_custom_1 = "murmur"; settings.wh_custom_1 = "They were never quiet."; settings.pct_custom_1 = 8
   settings.wave_def_custom_2 = "Nurgle's Rage\t8 mutants, 3 hounds"; settings.on_custom_2 = true; settings.su_custom_2 = "rage"; settings.th_custom_2 = 4
-  mod.rw.director = { cooldown_remaining = function(key) return key == "wave_large" and 75 or 0 end }
+  settings.on_wave_medium = true; settings.cl_wave_medium = "whisper"
+  local resting = { wave_large = 75, wave_medium = 90, grenade_legion = 100, hound_frenzy = 20 }
+  mod.rw.director = { cooldown_remaining = function(key) return resting[key] or 0 end }
   view._screen = "list"; view._offset = 0; view:_reload(); view:_apply_screen()
   local tiles = {}
   local function dump_widget(w, x, y)
