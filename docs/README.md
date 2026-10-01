@@ -14,6 +14,8 @@ A standalone Darktide mod, compatible with the **Realms Server** mod (LAN / list
 | [04-design-and-rationale.md](04-design-and-rationale.md) | Requirements, decisions and why, design per requirement, protocol |
 | [05-implementation-plan.md](05-implementation-plan.md) | Ordered checklist with status, reuse map, options list |
 | [06-verification-and-open-issues.md](06-verification-and-open-issues.md) | Test matrix, risks, unverified assumptions, results log |
+| [07-learnings-and-gaps.md](07-learnings-and-gaps.md) | The journal: open gaps with next steps, discoveries, attempts and dead ends, insights |
+| [CHANGELOG.md](CHANGELOG.md) | What changed, per commit. Every .md stays under 100 KB (`python tools/check_docs.py`); at 100 KB it is split into granular files |
 
 ## Current status
 See the checkboxes in `05-implementation-plan.md`. Update this line when a phase completes.
@@ -32,6 +34,26 @@ Quick start for testing: disable TwitchVersus and RealmsEvent, keep Realms and R
 **1.4.1-1.4.2 (2026-09-29):** `/rw_test` by wave name; out-of-memory crash analysis and hardening (Lua memory guard option, throttled failed position searches, reload hygiene). Offline tests: 178 logic + 106 editor. Cause of the crash NOT proven (see doc 06); restart instead of hot-reloading, keep max alive/per wave moderate.
 
 **1.5.0-1.5.1 (2026-09-29):** "Same" tick box for repeats, modifier renames (Purple, Red, Blight, Orange, Pus-Hardened Skin), new **Purple Stimm** modifier (self-created split spawner), multi-word names in brackets. Offline tests: 225 logic + 115 editor. In-game verification pending (matrix rows 36-38 in doc 06).
+
+**1.5.2-1.5.8 (2026-09-29):** bigger popup buttons, pick enemies while the search box is open (1.5.2); typing in the editor no longer triggers keybinds, `check_keybinds` hook (1.5.3); `/rw_test` in the Psykhanium, typing opens the search, "stay or go back" toggle (1.5.4); twin captains spawn with their void shield (1.5.5); new **Rotten Armor** modifier (1.5.6); `FixedFrame` require fix, stubs no longer define modules as globals (1.5.7); shorter Rotten Armor text (1.5.8). Offline tests: 151 editor, 9 entry.
+
+**1.6.0-1.6.2 (2026-09-29):** **wave presets** with five slots, import/export text, undo (1.6.0); Back no longer clicks through to Presets (1.6.1); options menu without wrapped lines and two per-frame allocations removed from the HUD path (1.6.2). Offline tests: 183 editor.
+
+**1.7.0 (2026-09-29):** coloured enemy names (Spidey Sense colours when present), a "Timing and voting" screen, `interval_random`, `hud_show_percent`, wave list rows with Delete / Create / Reset. Editor tests 219. Matrix rows 51-54.
+
+**1.8.0 (2026-09-29):** per-wave minimum and maximum spawn distance (0 = the options' values), three stepper rows in the editor panel. Editor tests 230. Matrix row 55.
+
+**1.9.0 (2026-09-29):** share a single wave as one line of text and import a friend's wave into the first free custom slot. Editor tests 243. Matrix row 56.
+
+**1.10.0 (2026-09-29):** host option "Use everyone's waves": clients send their enabled waves to the host over the new RPC `rw_waves`; the host merges them into the draw. Matrix row 57 (two machines needed).
+
+**1.11.0 (2026-09-29):** **fixed timer per wave** (a wave that ignores chance and cooldown and spawns every N seconds). Editor tests 258. Matrix row 58.
+
+**1.12.0 (2026-09-29):** editor layout (corner "More options" and "?" help), time between waves as steppers, delete any wave and Restore defaults, blank presets load the defaults, commands `/rw_stop` `/rw_start` `/rw_pause` `/rw_next`, anti-snowballing, enemy colours without Spidey Sense, Improved Havoc Tags colours for modifiers. Editor tests 289, entry 13. Matrix rows 59-64.
+
+**1.13.0 (2026-09-29, last release before 2.0.0, git tag `v1.13.0`):** random-group button in the picker, colours that survive the cut, Ranged Twin / Melee Twin names, blue gunners, editable cooldown column. Editor tests 310. Also a compatibility check against game 1.13.0: no code change needed. Matrix row 65.
+
+**2.0.0 "The Grandfather's Tarot" (2026-10-01, in progress; each step is a commit, see `CHANGELOG.md` and `05`):** step 1 card data model, step 2 tarot draw director, step 3 the Spread HUD (two fix rounds after the first in-game look), step 4 the Deck (4a), cooldown looks (4b), card face builder (4c), polish after the first look (4d), step 5 the options, step 6 (done as) **custom mods per enemy group** (health, size, run speed, melee attack speed, gunner fire rate, shots per burst, hit mass, explosion and damage-over-time taken) plus its first fix round after the in-game test. Current offline tests: logic 0 failures, editor 497, entry 14, hud 179.
 
 ## Where the originals are now
 `mods\TwitchVersus` and `mods\RealmsEvent` were purged by the user (empty marker folders). Their files remain in Vortex staging: `C:\Users\ayko4\AppData\Roaming\Vortex\warhammer40kdarktide\mods\<folder>\mods\<mod>\...` (folder names include version/date, e.g. `RealmsEvent 1338 1.1.0 2026-09-23T15-11Z l24cL2qMY`, `DT Twitch Versus realms(crash fix) 1273 5 2026-09-16T16-47Z ndQ1mdFjx(1)`). Read-only reference; do not copy them back into `mods\`.
