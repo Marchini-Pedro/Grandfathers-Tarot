@@ -2,6 +2,11 @@
 
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
+## 2.1.0 - Workshop redesign, step 3: the card tile at any scale (branch `feature/workshop-redesign`)
+The card on the right of the card's screens is the Deck's tile at 1.4 times its size. This step makes the tile scalable; nothing on screen changes yet (the Deck is scale 1). Offline only.
+- `blueprints.tile(node_id, k)` builds the tile at scale `k` (default 1). `blueprints.tile_metrics(k)` gives every box, font size, hit area and shape size at that scale (`blueprints.TILE` is scale 1); the widget keeps them in `content.metrics`, and the painting (`_paint_tile`, `_animate_vial`, `_tick_ping`, `_name_lines` in `ui/wave_editor_deck.lua`) reads them instead of the constants: the divider and composition positions, the threat diamonds (and their pitch), the dots, the vial and its bubbles, the ready ping, the number of lines a name takes. Fonts become `round(size * k)` (name 20 -> 28), the 1 unit lines (border, divider) stay 1 unit, the anti-aliasing copies stay 0.55 units.
+- Tests: 12 new editor checks (562): the widget and its content know their scale, scale 1 is exactly the old tile (all 550 earlier checks pass unchanged), fonts, glow, pips, shapes, divider and composition, diamonds, everything drawn lies inside the tile, the 13 hotspots (the ten pips edge to edge, none overlapping), the name lines, the vial and the ready ping at 1.4.
+
 ## 2.1.0 - Workshop redesign, step 2: Dreg or Scab, and the shelf catalog (branch `feature/workshop-redesign`)
 The user's answers to the design page: add the Houndmaster to the bosses, both vanguards to the fodder, and a way to tell a Dreg gunner from a Scab gunner. Offline only.
 - **Faction** (`Groups.faction`): the cultists (`cultist_*`) are the **Dregs**, the renegades (`renegade_*`) the **Scabs**, Chaos units neither. `Groups.faction_suffix` is the word to put after a name that does not already say it: "Gunner" is the Scab one (renegade_gunner), so a row reads "2 Gunner  Scab"; "Dreg Gunner" and "Scab Rager" say it themselves and get nothing; "Tox Flamer" and "Rager" (the Dreg ones) get "Dreg"; a hound gets nothing. The word is brass for the Scabs and soft green for the Dregs (`Colors.FACTION`, off with the enemy colours), on the rows of a card's screen and in the enemy picker.
