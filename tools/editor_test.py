@@ -788,7 +788,7 @@ check("blank tile: Back returns to the Deck", view._screen == "list" and blank_t
 settings["pct_wave_small"] = 4
 open_card(1)
 check("detail: screen and title", view._screen == "detail" and view._widgets_by_name.description_text.content.description_text == "view_desc_detail:The Fool")
-check("detail: composition rows", row(1).content.row_name == "8 Poxwalker" and row(4).content.row_name == "2 Rifleman" and not row(5).visible, row(1).content.row_name)
+check("detail: composition rows (a Scab enemy whose name does not say so gets the faction word, a Chaos unit does not)", plain(row(1).content.row_name) == "8 Poxwalker" and plain(row(4).content.row_name) == "2 Rifleman  Scab" and not row(5).visible, plain(row(1).content.row_name) .. " / " .. plain(row(4).content.row_name))
 check("detail: row flags", not row(1).content.show_check and row(1).content.show_stepper and not row(1).content.show_share and row(1).content.show_action)
 check("detail: buttons visible", view._widgets_by_name.btn_rename.visible and view._widgets_by_name.btn_add.visible and view._widgets_by_name.stepper_cooldown.visible and view._widgets_by_name.btn_delete.visible)
 check("detail: steppers show values", view._widgets_by_name.stepper_chance.content.stepper_value == "4" and view._widgets_by_name.stepper_cooldown.content.stepper_value == "120")
@@ -842,7 +842,7 @@ click("btn_search")
 check("search popup opens low on the screen so the list stays visible", view._popup ~= nil and view._sg.rw_popup_panel[2] == 700 and view._sg.rw_popup_input[2] == 770, view._sg.rw_popup_panel and view._sg.rw_popup_panel[2])
 view._widgets_by_name.rw_popup_input.content.input_text = "twin"
 view:update(0.01, 0, input_stub)
-check("typing filters the list live", #view._breeds == 2 and row(1).visible and row(2).visible and not row(3).visible and row(1).content.row_name == "Melee Twin" and row(2).content.row_name == "Ranged Twin", #view._breeds)
+check("typing filters the list live", #view._breeds == 2 and row(1).visible and row(2).visible and not row(3).visible and plain(row(1).content.row_name) == "Melee Twin  Scab" and plain(row(2).content.row_name) == "Ranged Twin  Scab", #view._breeds)
 check("status text shows the match count and the filter", view._widgets_by_name.description_text.content.description_text:find("picker_status_filtered:2,") ~= nil and view._widgets_by_name.description_text.content.description_text:find("twin") ~= nil)
 check("search box open: enemy rows stay clickable, other buttons are locked", row(1).content.hotspot_name.disabled == false and row(1).content.hotspot_action.disabled == false and view._widgets_by_name.btn_back.content.hotspot.disabled == true and view._widgets_by_name.btn_search.content.hotspot.disabled == true and view._widgets_by_name.rw_scroll_down.content.hotspot.disabled == (view._offset >= math.max(0, #view._breeds - 10)), tostring(row(1).content.hotspot_name.disabled))
 check("popup buttons: the mod's own (200 x 48), Cancel left of OK on the right of the panel, no overlap, inside the panel (560 to 1360)", view._sg.rw_popup_confirm[1] == 1130 and view._sg.rw_popup_cancel[1] == 910 and view._sg.rw_popup_confirm[2] == 896 and view._sg.rw_popup_cancel[2] == 896 and view._sg.rw_popup_cancel[1] + 200 <= view._sg.rw_popup_confirm[1] and view._sg.rw_popup_confirm[1] + 200 <= 1360 - 30, view._sg.rw_popup_confirm[2])
@@ -858,7 +858,7 @@ click("btn_search")
 view._widgets_by_name.rw_popup_input.content.input_text = "twin two"
 view:update(0.01, 0, input_stub)
 local parts_before_pick = #view._parts
-check("typing 'twin two' leaves exactly one row", #view._breeds == 1 and row(1).content.row_name == "Melee Twin")
+check("typing 'twin two' leaves exactly one row", #view._breeds == 1 and plain(row(1).content.row_name) == "Melee Twin  Scab")
 click_row(1, "hotspot_action")
 check("clicking a row while the search box is open adds the enemy, closes the box and returns to the detail screen", view._popup == nil and view._screen == "detail" and #view._parts == parts_before_pick + 1 and view._parts[#view._parts].breed == "renegade_twin_captain_two" and view._sg.rw_popup_panel[2] == 400, tostring(view._screen) .. " " .. #view._parts .. " vs " .. parts_before_pick)
 click("btn_add")
@@ -2010,6 +2010,23 @@ do
   settings.wave_def_custom_1 = nil; settings.on_custom_1 = nil
   view:_reload(); view:_apply_screen()
   check("pixel snapping is switched on for the editor (the renderer snaps rects, bitmaps and text to whole device pixels)", view._render_settings.snap_pixel_positions == true)
+end
+
+-- ---- Dreg or Scab on the rows of a card and in the picker (docs/08) ---------------------------------------------------------
+do
+  settings.wave_def_custom_1 = "Mix\t2 gunner, 2 dreg gunner, 1 hound, 1 tox flamer"; settings.on_custom_1 = true
+  view._screen = "list"; view._key = nil; view:_reload(); view:_apply_screen()
+  view:_open_detail("custom_1")
+  check("rows: a Scab gunner says Scab, a Dreg gunner already says Dreg, a hound says nothing, a Tox Flamer says Dreg", plain(row(1).content.row_name) == "2 Gunner  Scab" and plain(row(2).content.row_name) == "2 Dreg Gunner" and plain(row(3).content.row_name) == "1 Hound" and plain(row(4).content.row_name) == "1 Tox Flamer  Dreg", plain(row(1).content.row_name) .. "|" .. plain(row(2).content.row_name) .. "|" .. plain(row(4).content.row_name))
+  check("rows: the faction word is in the faction's colour (brass for the Scabs, soft green for the Dregs)", row(1).content.row_name:find("{#color(214,168,86)}Scab{#reset()}", 1, true) ~= nil and row(4).content.row_name:find("{#color(143,204,112)}Dreg{#reset()}", 1, true) ~= nil, row(1).content.row_name)
+  click("btn_add")
+  view._filter = "gunner"; view:_apply_screen()
+  local names = {}
+  for i = 1, 6 do if row(i).visible then names[#names + 1] = plain(row(i).content.row_name) end end
+  check("picker: 'gunner' (also finds the shotgunners): the Scab ones say Scab, the Dreg ones already say Dreg, the Reaper is a Chaos ogryn and says nothing", table.concat(names, "|") == "Dreg Gunner|Dreg Shocktrooper|Gunner  Scab|Plasma Gunner  Scab|Reaper|Shocktrooper  Scab", table.concat(names, "|"))
+  view._filter = ""; view:cb_back(); view._screen = "list"; view._key = nil
+  settings.wave_def_custom_1 = nil; settings.on_custom_1 = nil
+  view:_reload(); view:_apply_screen()
 end
 
 -- last: closing the whole editor while a popup is open must release the keybinds

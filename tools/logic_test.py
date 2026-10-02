@@ -146,6 +146,49 @@ check("search: by breed id fragment and case-insensitive", ids(Groups.search("PL
 check("search: all words must match (ogryn AND boss = plague ogryn + packmaster)", #Groups.search("ogryn boss") == 2 and #Groups.search("hound special") == 2, #Groups.search("ogryn boss") .. "/" .. #Groups.search("hound special"))
 check("search: no match -> empty list", #Groups.search("xyzzy") == 0)
 
+-- factions and the shelf (docs/08) ----------------------------------------------------------------------------------------
+do
+  local dregs, scabs, chaos, other = 0, 0, 0, {}
+  for _, b in ipairs(Groups.breed_list()) do
+    local f = Groups.faction(b)
+    if b:find("^cultist_") and f == "dreg" then dregs = dregs + 1
+    elseif b:find("^renegade_") and f == "scab" then scabs = scabs + 1
+    elseif b:find("^chaos_") and f == nil then chaos = chaos + 1
+    else other[#other + 1] = b end
+  end
+  check("factions: every cultist breed is a Dreg, every renegade a Scab, every Chaos unit neither", #other == 0 and dregs >= 9 and scabs >= 15 and chaos >= 12 and dregs + scabs + chaos == #Groups.breed_list(), table.concat(other, ","))
+  check("factions: no breed, nil and junk have none", Groups.faction(nil) == nil and Groups.faction("") == nil and Groups.faction(42) == nil and Groups.faction("whatever") == nil)
+  check("faction word: Gunner is the Scab one and says so; a name that says it already adds nothing; Tox Flamer says Dreg; Chaos units say nothing", Groups.faction_suffix("renegade_gunner") == "Scab" and Groups.faction_suffix("cultist_gunner") == nil and Groups.faction_suffix("renegade_melee") == nil and Groups.faction_suffix("cultist_melee") == nil and Groups.faction_suffix("cultist_flamer") == "Dreg" and Groups.faction_suffix("renegade_flamer") == "Scab" and Groups.faction_suffix("cultist_berzerker") == "Dreg" and Groups.faction_suffix("renegade_berzerker") == nil and Groups.faction_suffix("chaos_hound") == nil and Groups.faction_suffix("cultist_mutant") == "Dreg")
+  check("factions: the faction word never doubles a faction already in the name (Scab Rager, Dreg Shocktrooper)", (function() for _, b in ipairs(Groups.breed_list()) do local n = Groups.display_name(b) if Groups.faction_suffix(b) and (n:find("Dreg") or n:find("Scab")) then return false end end return true end)())
+
+  -- the shelf
+  local seen, problems, count = {}, {}, 0
+  local KIND_OF_GROUP = { fodder = "normal", elite = "elite", special = "special", boss = "boss" }
+  for _, group in ipairs(Groups.SHELF) do
+    for _, entry in ipairs(group.entries) do
+      count = count + 1
+      local list = entry.breed and { entry.breed } or { entry.dreg, entry.scab }
+      if not entry.breed and (not entry.dreg or not entry.scab or not entry.label) then problems[#problems + 1] = "incomplete pair " .. tostring(entry.label) end
+      for _, b in ipairs(list) do
+        if not Groups.is_known(b) then problems[#problems + 1] = "unknown " .. tostring(b)
+        elseif Groups.kind(b) ~= KIND_OF_GROUP[group.id] then problems[#problems + 1] = b .. " is " .. Groups.kind(b) .. " in " .. group.id end
+        if seen[b] then problems[#problems + 1] = "twice " .. b end
+        seen[b] = true
+      end
+      if not entry.breed and (Groups.faction(entry.dreg) ~= "dreg" or Groups.faction(entry.scab) ~= "scab") then problems[#problems + 1] = "faction mismatch " .. entry.label end
+    end
+  end
+  check("shelf: four groups (fodder, elite, special, boss), every breed known, in the group of its kind, none twice, each pair a Dreg and a Scab", #Groups.SHELF == 4 and #problems == 0 and count == 30, table.concat(problems, ", ") .. " / " .. count)
+  check("shelf: the Packmaster (the houndmaster) is among the bosses", seen.chaos_ogryn_houndmaster == true and Groups.SHELF[4].entries[5].breed == "chaos_ogryn_houndmaster")
+  check("shelf: both vanguards are fodder, as a Dreg / Scab pair", (function() for _, e in ipairs(Groups.SHELF[1].entries) do if e.dreg == "cultist_vanguard" and e.scab == "renegade_vanguard" then return true end end return false end)())
+  check("shelf: the vanguards count as normal enemies, not elites, for the threat and the multipliers", Groups.kind("cultist_vanguard") == "normal" and Groups.kind("renegade_vanguard") == "normal" and Groups.category("renegade_vanguard") == "normal")
+  local gunner = Groups.SHELF[2].entries[2]
+  check("shelf: a role both factions have adds the Dreg or the Scab one by the switch, a unit with one faction ignores it", Groups.shelf_breed(gunner, "dreg") == "cultist_gunner" and Groups.shelf_breed(gunner, "scab") == "renegade_gunner" and Groups.shelf_breed(Groups.SHELF[2].entries[4], "dreg") == "renegade_executor" and Groups.shelf_breed(Groups.SHELF[1].entries[1], "scab") == "chaos_poxwalker")
+  check("shelf: the tag a chip shows: the switch for a pair, the unit's own for a Mauler (Scab) or a Mutant (Dreg), none for a Poxwalker", Groups.shelf_faction(gunner, "dreg") == "dreg" and Groups.shelf_faction(gunner, "scab") == "scab" and Groups.shelf_faction(Groups.SHELF[2].entries[4], "dreg") == "scab" and Groups.shelf_faction(Groups.SHELF[3].entries[1], "scab") == "dreg" and Groups.shelf_faction(Groups.SHELF[1].entries[1], "dreg") == nil)
+  check("shelf: labels: the role for a pair, the enemy's own name otherwise", Groups.shelf_label(gunner) == "Gunner" and Groups.shelf_label(Groups.SHELF[2].entries[4]) == "Mauler" and Groups.shelf_label(Groups.SHELF[4].entries[5]) == "Packmaster")
+  check("shelf: 'houndmaster' still finds the Packmaster (the old names parse)", Groups.parse("1 houndmaster")[1].breed == "chaos_ogryn_houndmaster")
+end
+
 -- repeats ("@N") ------------------------------------------------------------
 local r1 = Groups.parse("5 crushers[enraged]@2, 3 hounds, 0 snipers@4")
 check("parse repeat: count, rep, mods", r1 and #r1 == 3 and r1[1].count == 5 and r1[1].rep == 2 and r1[1].mods[1] == "enraged" and r1[2].rep == nil and r1[3].count == 0 and r1[3].rep == 4, r1 and (tostring(r1[1].rep) .. "/" .. tostring(r1[3] and r1[3].rep)))
