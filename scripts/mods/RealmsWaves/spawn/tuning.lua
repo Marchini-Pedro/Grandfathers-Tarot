@@ -112,6 +112,32 @@ Tuning.health_modifier = function (tune)
 	return tune and percent_of(tune.health) or nil
 end
 
+-- Units whose health the player set below normal (host: the units this mod spawned with health under 100 percent). The game calls a
+-- boss that has less than its normal health "weakened": its health bar says "Weakened <name>" and the pacing counts it as a fifth of a
+-- boss (boss_extension.lua:61-66, hud_element_boss_health.lua:132-141, pacing_manager.lua:853-858). That is the game's reading of "less
+-- health", not a different boss, so for a boss the player tuned on purpose the flag is cleared at once and the name is shown plain.
+local tuned_health = setmetatable({}, { __mode = "k" })
+
+Tuning.is_health_tuned = function (unit)
+	return tuned_health[unit] == true
+end
+
+-- Clears the "weakened" mark the game put on a boss spawned with less health (a no-op for units that are not bosses).
+local function clear_weakened(unit, label)
+	local ok, err = pcall(function ()
+		local boss = ScriptUnit.has_extension(unit, "boss_system")
+
+		if boss then
+			boss._is_weakened = false
+			tuned_health[unit] = true
+		end
+	end)
+
+	if not ok then
+		warn_once(string.format("the weakened mark of %s was not cleared: %s", label, tostring(err)))
+	end
+end
+
 -- Applies the custom mods `tune` ({ speed = 120, ... }, percent) to a unit that has just spawned. Every step is guarded:
 -- a step that fails is logged once and never breaks the wave or the other steps.
 Tuning.apply = function (unit, tune, breed_name)
@@ -120,6 +146,13 @@ Tuning.apply = function (unit, tune, breed_name)
 	end
 
 	local label = tostring(breed_name or "enemy")
+
+	-- health under 100 percent: the game would call a boss "weakened" (see tuned_health above)
+	local health = Tuning.health_modifier(tune)
+
+	if health and health < 1 then
+		clear_weakened(unit, label)
+	end
 
 	-- hit mass: relative to what the unit has now (an Enraged modifier added before this has already raised it)
 	local mass = percent_of(tune.mass)
@@ -260,6 +293,36 @@ Tuning.install = function ()
 			reassert_record(record, self)
 		end
 	end)
+
+	-- the boss health bar writes "Weakened" before the name of a boss with less than its normal health: not for a boss whose health the
+	-- player set (the breed's own flag for this is switched on while the bar is made, then put back)
+	if mod.hook then
+		mod:hook("HudElementBossHealth", "event_boss_encounter_start", function (func, self, unit, ...)
+			if Tuning.dead or not tuned_health[unit] then
+				return func(self, unit, ...)
+			end
+
+			local ok_breed, breed = pcall(function ()
+				return ScriptUnit.extension(unit, "unit_data_system"):breed()
+			end)
+
+			if not ok_breed or type(breed) ~= "table" then
+				return func(self, unit, ...)
+			end
+
+			local had = breed.ignore_weakened_boss_name
+
+			breed.ignore_weakened_boss_name = true
+
+			local ok, err = pcall(func, self, unit, ...)
+
+			breed.ignore_weakened_boss_name = had
+
+			if not ok then
+				error(err, 0)
+			end
+		end)
+	end
 end
 
 Tuning.retire = function ()
@@ -407,6 +470,7 @@ end
 Tuning.reset = function ()
 	tuned, scaled, outbox, inbox = {}, {}, {}, {}
 	tuned_by_extension = {}
+	tuned_health = setmetatable({}, { __mode = "k" })
 	timer, send_timer = 0, 0
 end
 

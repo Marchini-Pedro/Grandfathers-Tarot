@@ -88,7 +88,7 @@ check("unload: the flag is cleared and this instance's hook becomes a pass-throu
 local names = {}
 for _, h in ipairs(hooks) do if type(h.obj) == "string" then names[#names + 1] = h.obj .. "." .. h.method end end
 table.sort(names)
-check("entry: the four budget-bypass hooks and the custom-mods stat hook are installed", table.concat(names, ",") == "BuffExtensionBase._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion", table.concat(names, ","))
+check("entry: the four budget-bypass hooks, the custom-mods stat hook and the boss health bar hook are installed", table.concat(names, ",") == "BuffExtensionBase._update_stat_buffs_and_keywords,HudElementBossHealth.event_boss_encounter_start,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion", table.concat(names, ","))
 check("entry: editor view registered under its name with the right class", #views == 1 and views[1].view_name == "realms_waves_editor" and views[1].view_settings.class == "RealmsWavesView")
 check("entry: commands registered (rw_test, rw_editor, rw_status, rw_custom, rw_roll, rw_start, rw_skip, rw_vote)", commands.rw_test and commands.rw_editor and commands.rw_status and commands.rw_custom and commands.rw_roll and commands.rw_start and commands.rw_skip and commands.rw_vote ~= nil)
 check("entry: keybind functions exist (open_editor, vote_1..vote_5)", type(mod.open_editor) == "function" and type(mod.vote_1) == "function" and type(mod.vote_5) == "function")

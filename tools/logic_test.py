@@ -1291,7 +1291,10 @@ do
   Tuning.init({ protocol = fake_protocol })
   local dead, scales_set, next_gid = {}, {}, 100
   local saved_su, saved_unit, saved_v3, saved_spawner = ScriptUnit, Unit, Vector3, Managers.state.unit_spawner
-  ScriptUnit = { has_extension = function(unit, sys) if sys == "buff_system" then return unit.buffs end return unit.ext and unit.ext[sys] end }
+  ScriptUnit = {
+    has_extension = function(unit, sys) if sys == "buff_system" then return unit.buffs end return unit.ext and unit.ext[sys] end,
+    extension = function(unit, sys) local ext = unit.ext and unit.ext[sys]; if not ext then error("no extension " .. tostring(sys)) end return ext end,
+  }
   Unit = {
     world_rotation = function() return "rot" end,
     alive = function(unit) return not dead[unit] end,
@@ -1299,6 +1302,7 @@ do
   }
   Vector3 = function(x, y, z) return { x = x, y = y, z = z } end
   Managers.state.unit_spawner = { game_object_id = function(self, unit) return unit.gid end }
+  local boss_breeds = {}
   local function make_unit(breed, param)
     local unit = { breed = breed, gid = next_gid, health_mod = param.optional_health_modifier, buffs = make_buff_ext(breed) }
     next_gid = next_gid + 1
@@ -1309,6 +1313,12 @@ do
       navigation_system = { mods = {}, add_movement_modifier = function(self, m) self.mods[#self.mods + 1] = m; return #self.mods end },
     }
     if breed == "chaos_hound" then unit.ext.navigation_system = nil end -- a unit without navigation: that step fails alone
+    -- bosses: the game marks one spawned with less than its normal health as weakened (boss_extension.lua:61-66)
+    if breed == "chaos_plague_ogryn" or breed == "chaos_beast_of_nurgle" then
+      unit.ext.boss_system = { _is_weakened = (param.optional_health_modifier or 1) < 1 }
+      unit.ext.unit_data_system = { breed = function() return boss_breeds[breed] end }
+      boss_breeds[breed] = boss_breeds[breed] or { name = breed }
+    end
     return unit
   end
   local saved_spawn = minion_spawn.spawn_minion
@@ -1372,6 +1382,37 @@ do
   local logged = 0; for i = before + 1, #echoes do if echoes[i]:find("run speed of chaos_hound was not changed", 1, true) then logged = logged + 1 end end
   check("tuning: a missing extension only skips that step (hit mass still changed) and is logged once", #spawned == 2 and spawned[1].ext.health_system.mass == 4 and logged == 1, logged)
   check("tuning: health_modifier is nil for 100 or nothing", Tuning.health_modifier({ health = 100 }) == nil and Tuning.health_modifier(nil) == nil and Tuning.health_modifier({ health = 250 }) == 2.5)
+
+  -- a boss with less health than normal is "weakened" for the game (its bar says so, the pacing counts a fifth of it): not for a boss
+  -- whose health the player set, the number is the player's
+  run_wave({ name = "t", parts = Groups.parse("1 plague ogryn{health=50}, 1 beast of nurgle{health=150}, 2 poxwalker{health=50}") })
+  local ogryn, beast, pox_tuned = nil, nil, 0
+  for _, u in ipairs(spawned) do
+    if u.breed == "chaos_plague_ogryn" then ogryn = u elseif u.breed == "chaos_beast_of_nurgle" then beast = u else pox_tuned = pox_tuned + 1 end
+  end
+  check("weakened: a boss spawned with the player's health of 50 percent has its health set (x0.5) and the game's weakened mark cleared", ogryn and ogryn.health_mod == 0.5 and ogryn.ext.boss_system._is_weakened == false and Tuning.is_health_tuned(ogryn) == true)
+  check("weakened: a boss with more health (150) was never weakened and is not touched; units that are not bosses are fine", beast and beast.health_mod == 1.5 and beast.ext.boss_system._is_weakened == false and Tuning.is_health_tuned(beast) == false and pox_tuned == 2)
+  local hud_hook = hooks["HudElementBossHealth.event_boss_encounter_start"]
+  check("weakened: a hook on the boss health bar is installed", hud_hook ~= nil)
+  local seen, calls = "unset", 0
+  local function bar(self, unit, ext, extra) calls = calls + 1; seen = boss_breeds[unit.breed].ignore_weakened_boss_name; return extra end
+  local back = hud_hook(bar, {}, ogryn, {}, "extra")
+  check("weakened: while the bar of a tuned boss is made the breed says to leave the 'Weakened' out, afterwards it is as before", seen == true and boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == nil and calls == 1)
+  hud_hook(bar, {}, beast, {})
+  check("weakened: another boss is left alone (the game's own rule stays for it)", seen == nil and calls == 2)
+  boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name = false
+  hud_hook(bar, {}, ogryn, {})
+  check("weakened: a breed that had its own value gets it back", boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == false)
+  boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name = nil
+  local ok_boom = pcall(hud_hook, function() error("boom") end, {}, ogryn, {})
+  check("weakened: when the bar fails the error goes on and the breed is restored all the same", not ok_boom and boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == nil)
+  local unknown = { breed = "chaos_plague_ogryn", ext = {} }
+  check("weakened: a unit the hook cannot read the breed of just runs the bar", (function() local ran = false; hud_hook(function() ran = true end, {}, unknown, {}); return ran end)())
+  Tuning.dead = true
+  local ran_dead = false
+  hud_hook(function() ran_dead = true end, {}, ogryn, {})
+  Tuning.dead = false
+  check("weakened: after a hot reload (the old module retired) the hook does nothing but run the bar", ran_dead and boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == nil)
 
   -- a client puts the sizes on units when they exist there
   local present = {}
