@@ -82,7 +82,7 @@ local scenegraph_definition = {
 	stepper_tmax = node(870, 858, 700, 48, 2),
 	-- detail screen: export this wave / import over it. Top right of the panel, beside the title line (the
 	-- steppers need every pixel of the three rows below)
-	btn_share = node(1500, 754, 300, 42, 2),
+	btn_share = node(1520, 752, 280, 44, 2),
 	btn_pload = node(325, 800, 250, 44, 2),
 	btn_psave = node(595, 800, 400, 44, 2),
 	btn_prename = node(1015, 800, 200, 44, 2),
@@ -102,10 +102,9 @@ local scenegraph_definition = {
 	-- input popup, centred
 	rw_popup_panel = node(560, 400, 800, 260, 45),
 	rw_popup_input = node(600, 470, 720, 46, 50),
-	-- The vanilla button template draws big ornamental side frames inside its box, so the box must
-	-- be wide (the clickable/visible inner rectangle is roughly the width minus ~120 px).
-	rw_popup_confirm = node(600, 600, 240, 56, 50),
-	rw_popup_cancel = node(870, 600, 240, 56, 50),
+	-- OK and Cancel are the mod's own buttons (Components.button), 200 x 48, on the right of the panel
+	rw_popup_confirm = node(1130, 596, 200, 48, 50),
+	rw_popup_cancel = node(910, 596, 200, 48, 50),
 }
 
 for i = 1, definitions.LIST_CAPACITY do
@@ -161,6 +160,12 @@ local function plain_text(node_id, value_id, font_size, color, w, h, align, vali
 		},
 	}, node_id)
 end
+
+-- the frames of the tooltip and of the input popup: four rects in the accent, the popup with the two corner brackets
+local help_frame, popup_frame = {}, {}
+
+Components.frame_passes(help_frame, "frame", 935, 300, 1)
+Components.frame_passes(popup_frame, "frame", 800, 260, 1, { brackets = true })
 
 local widget_definitions = {
 	background = UIWidget.create_definition({
@@ -240,28 +245,13 @@ local widget_definitions = {
 	-- tooltip shown while the pointer is on the "?" corner button
 	help_panel = UIWidget.create_definition({
 		{ pass_type = "rect", style = { color = { 245, 15, 23, 19 } } },
-		{
-			style_id = "frame",
-			pass_type = "texture",
-			value = "content/ui/materials/frames/frame_tile_2px",
-			style = { scale_to_material = true, color = Components.clone_color(colors.gold), offset = { 0, 0, 1 } },
-		},
+		unpack(help_frame),
 	}, "help_panel"),
 	help_text = plain_text("help_text", "help_text", 20, colors.text, 895, 280, "left", "top"),
 
 	-- input popup: fill, gold frame, title and hint (input and buttons are dynamic)
 	rw_popup_panel = UIWidget.create_definition({
 		{ pass_type = "rect", style = { color = { 245, 15, 23, 19 } } },
-		{
-			style_id = "frame",
-			pass_type = "texture",
-			value = "content/ui/materials/frames/frame_tile_2px",
-			style = {
-				scale_to_material = true,
-				color = Components.clone_color(colors.gold),
-				offset = { 0, 0, 1 },
-			},
-		},
 		{
 			value_id = "title_text",
 			style_id = "title_text",
@@ -289,10 +279,11 @@ local widget_definitions = {
 				text_horizontal_alignment = "left",
 				text_vertical_alignment = "top",
 				size = { 760, 60 },
-				offset = { 20, 150, 2 },
+				offset = { 20, 130, 2 },
 				word_wrap = true,
 			},
 		},
+		unpack(popup_frame),
 	}, Components.POPUP_PANEL_NAME),
 }
 

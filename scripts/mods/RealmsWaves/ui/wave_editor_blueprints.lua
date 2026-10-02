@@ -3,7 +3,6 @@
 local mod = get_mod("RealmsWaves")
 
 local UIWidget = require("scripts/managers/ui/ui_widget")
-local ButtonPassTemplates = require("scripts/ui/pass_templates/button_pass_templates")
 local Components = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/wave_editor_components")
 
 local blueprints = {}
@@ -21,21 +20,25 @@ blueprints.row = function (node_id)
 	local passes = {}
 
 	passes[#passes + 1] = {
-		pass_type = "texture",
-		value = "content/ui/materials/backgrounds/default_square",
+		pass_type = "rect",
+		style_id = "row_frame",
+		style = { size = { 1710, 46 }, offset = { 0, 0, 0 }, color = { 190, 58, 68, 33 } },
+	}
+	passes[#passes + 1] = {
+		pass_type = "rect",
 		style_id = "row_background",
-		style = {
-			size = { 1710, 46 },
-			offset = { 0, 0, 0 },
-			color = Components.clone_color(colors.normal),
-		},
-		-- highlight the whole row while the pointer is over its name/composition area
+		style = { size = { 1708, 44 }, offset = { 1, 1, 0.5 }, color = Components.clone_color(colors.normal) },
+		-- highlight the whole row while the pointer is over its name/composition area: a wash of the accent
 		change_function = function (content, style)
-			Components.color_into(style.color, content.hotspot_name.is_hover and colors.hover or colors.normal)
+			if content.hotspot_name.is_hover then
+				Components.put_mix(style.color, 250, Components.rgb.plate, Components.accent, 0.10)
+			else
+				Components.color_into(style.color, colors.normal)
+			end
 		end,
 	}
 
-	Components.checkbox_passes(passes, { 10, 9, 1 }, nil, "show_check")
+	Components.checkbox_passes(passes, { 10, 9, 1 }, nil, "show_check", nil, nil, "hotspot_check")
 	Components.hotspot_pass(passes, "hotspot_check", { 4, 5, 2 }, { 36, 36 }, "show_check")
 
 	-- clickable area: name + composition (everything left of the steppers)
@@ -59,14 +62,15 @@ blueprints.row = function (node_id)
 	}, "show_rep", { minus = "hotspot_rep_minus", value = "hotspot_rep_value", plus = "hotspot_rep_plus", text = "rep_value" })
 
 	-- "Same": every repeat spawns the same number as the initial spawn (the stepper is ignored)
-	Components.checkbox_passes(passes, { 1128, 9, 1 }, nil, "show_rep", "same", "same_selected")
+	Components.checkbox_passes(passes, { 1128, 9, 1 }, nil, "show_rep", "same", "same_selected", "hotspot_same")
 	Components.hotspot_pass(passes, "hotspot_same", { 1122, 5, 2 }, { 36, 36 }, "show_rep")
 
 	Components.text_pass(passes, "share", "share", { 1390, 0, 2 }, { 120, 46 }, 20, colors.muted, "right", "show_share")
 	-- Mods, Custom and the action button (Remove, Change, Open, Add...) side by side after the count stepper (ends at 1362)
-	Components.button_passes(passes, "hotspot_mods", { 1372, 3, 2 }, { 104, 40 }, "", 18, colors.gold, "show_mods")
-	Components.button_passes(passes, "hotspot_tune", { 1482, 3, 2 }, { 104, 40 }, "", 18, colors.gold, "show_tune")
-	Components.button_passes(passes, "hotspot_action", { 1592, 3, 2 }, { 108, 40 }, "", 20, colors.gold, "show_action")
+	-- chips: Mods and Custom light up (a lit diamond) when the group has any
+	Components.button(passes, "hotspot_mods", { 1372, 3, 2 }, { 104, 40 }, { font_size = 18, flag = "show_mods", role = "chip", pip = true })
+	Components.button(passes, "hotspot_tune", { 1482, 3, 2 }, { 104, 40 }, { font_size = 18, flag = "show_tune", role = "chip", pip = true })
+	Components.button(passes, "hotspot_action", { 1592, 3, 2 }, { 108, 40 }, { font_size = 20, flag = "show_action", role = "chip" })
 
 	return UIWidget.create_definition(passes, node_id, {
 		row_name = "",
@@ -86,12 +90,13 @@ blueprints.row = function (node_id)
 	}, { 1710, 46 })
 end
 
-blueprints.button = function (node_id, width)
+-- role: "standard" (default), "primary", "danger", "quiet", "tab" (see Components.button); pip: a toggle diamond before the label
+blueprints.button = function (node_id, width, role, height, label, pip)
 	local passes = {}
 
-	Components.button_passes(passes, "hotspot", { 0, 0, 0 }, { width, 44 }, "", 22)
+	Components.button(passes, "hotspot", { 0, 0, 0 }, { width, height or 44 }, { font_size = 22, role = role, label = label, pip = pip })
 
-	return UIWidget.create_definition(passes, node_id, {}, { width, 44 })
+	return UIWidget.create_definition(passes, node_id, {}, { width, height or 44 })
 end
 
 -- Label + minus + value + plus + trailing text (content.label / stepper_value / extra).
@@ -115,21 +120,18 @@ blueprints.setting_stepper = function (node_id, width, label_width)
 	return UIWidget.create_definition(passes, node_id, { label = "", stepper_value = "", extra = "" }, { width, 48 })
 end
 
+-- the scroll buttons: a triangle (`label` "^" points up, anything else down)
 blueprints.scroll_button = function (node_id, label)
 	local passes = {}
 
-	Components.button_passes(passes, "hotspot", { 0, 0, 0 }, { 44, 36 }, label)
+	Components.button(passes, "hotspot", { 0, 0, 0 }, { 44, 36 }, { role = "icon", glyph = label == "^" and "up" or "down" })
 
 	return UIWidget.create_definition(passes, node_id, {}, { 44, 36 })
 end
 
-blueprints.popup_confirm = UIWidget.create_definition(ButtonPassTemplates.default_button, Components.POPUP_CONFIRM_NAME, {
-	original_text = mod:localize("popup_ok"),
-})
-
-blueprints.popup_cancel = UIWidget.create_definition(ButtonPassTemplates.default_button, Components.POPUP_CANCEL_NAME, {
-	original_text = mod:localize("popup_cancel"),
-})
+-- OK (primary) and Cancel (standard): the same buttons as everywhere, no vanilla ornamental frame
+blueprints.popup_confirm = blueprints.button(Components.POPUP_CONFIRM_NAME, Components.POPUP_BUTTON_WIDTH, "primary", Components.POPUP_BUTTON_HEIGHT, mod:localize("popup_ok"))
+blueprints.popup_cancel = blueprints.button(Components.POPUP_CANCEL_NAME, Components.POPUP_BUTTON_WIDTH, nil, Components.POPUP_BUTTON_HEIGHT, mod:localize("popup_cancel"))
 
 blueprints.popup_input = Components.popup_input_definition()
 

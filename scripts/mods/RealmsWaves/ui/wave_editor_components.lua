@@ -100,152 +100,560 @@ function Components.hotspot_pass(passes, content_id, offset, size, flag, quiet)
 	}
 end
 
--- Button with hover layers. The label lives in content[content_id .. "_text"].
--- `flag` (optional): the button only exists while content[flag] == true.
-function Components.button_passes(passes, content_id, offset, size, label, font_size, label_color, flag)
-	Components.hotspot_pass(passes, content_id, offset, size, flag)
+-- ---------------------------------------------------------------------------
+-- The button family (docs/08-workshop-redesign.md): standard, primary, danger, quiet, chip, tab and icon buttons, the stepper
+-- (one plate) and the diamond check. Every part is a rect, a triangle or a rotated rect (no textures: nothing to blur at
+-- another resolution); the colours are worked out per frame into the style's own tables (no allocation while drawing).
+-- ---------------------------------------------------------------------------
+local PLATE, PLATE_DOWN, PLATE_OFF = { 22, 27, 14 }, { 12, 15, 8 }, { 16, 19, 10 }
+local FRAME, FRAME_OFF = { 58, 68, 33 }, { 38, 43, 24 }
+local TEXT, BRIGHT, LABEL_OFF, MUTED = { 230, 223, 195 }, { 244, 239, 214 }, { 95, 93, 72 }, { 152, 147, 111 }
+local GROUND, WHITE, BLACK = { 10, 12, 7 }, { 255, 255, 255 }, { 0, 0, 0 }
+local RUST, RUST_TEXT, RUST_BRIGHT = { 194, 122, 44 }, { 226, 164, 104 }, { 242, 199, 150 }
+local PRIMARY_OFF, PRIMARY_LABEL_OFF = { 43, 48, 23 }, { 107, 106, 80 }
 
-	local x, y, z = offset[1], offset[2], offset[3] or 0
-	local visible = flag_visible(flag)
+-- plain {r, g, b}, for the code that draws the other parts of the workshop in the same colours
+Components.rgb = {
+	plate = PLATE, plate_down = PLATE_DOWN, plate_off = PLATE_OFF, frame = FRAME, frame_off = FRAME_OFF, text = TEXT, bright = BRIGHT,
+	label_off = LABEL_OFF, muted = MUTED, ground = GROUND, rust = RUST,
+}
 
-	passes[#passes + 1] = {
-		pass_type = "texture",
-		value = "content/ui/materials/backgrounds/default_square",
-		style_id = content_id .. "_background",
-		style = {
-			size = size,
-			offset = { x, y, z },
-			color = clone_color(Components.colors.normal),
-		},
-		change_function = function (content, style)
-			local hotspot = content[content_id]
+-- The accent of the buttons: bile everywhere, the suit's accent inside a card's screens (the view sets it, see
+-- RealmsWavesView._apply_screen). Read every frame by the change functions below.
+-- The table lives on the mod object: the view, the blueprints and the definitions each load this file with io_dofile (three
+-- copies of Components), and the buttons built by one must see the accent set by another. Changed in place, never replaced.
+Components.BILE = { 183, 194, 58 }
+mod.rw_accent = mod.rw_accent or { 183, 194, 58 }
+Components.accent = mod.rw_accent
 
-			color_into(style.color, hotspot.disabled and Components.colors.disabled
-				or hotspot.is_hover and Components.colors.hover
-				or Components.colors.normal)
-		end,
-		visibility_function = visible,
-	}
+function Components.set_accent(rgb)
+	local accent = Components.accent
 
-	passes[#passes + 1] = {
-		pass_type = "texture",
-		value = "content/ui/materials/buttons/background_selected",
-		style_id = content_id .. "_highlight",
-		style = {
-			size = size,
-			offset = { x, y, z + 1 },
-			color = { 55, 151, 167, 122 },
-		},
-		visibility_function = function (content)
-			local hotspot = content[content_id]
+	accent[1], accent[2], accent[3] = rgb[1], rgb[2], rgb[3]
+end
 
-			return (visible == nil or visible(content)) and not hotspot.disabled and hotspot.is_hover
-		end,
-	}
+local function put_rgb(out, alpha, rgb)
+	out[1], out[2], out[3], out[4] = alpha, rgb[1], rgb[2], rgb[3]
+end
 
-	passes[#passes + 1] = {
-		pass_type = "texture",
-		value = "content/ui/materials/frames/hover",
-		style_id = content_id .. "_frame",
-		style = {
-			size = size,
-			offset = { x, y, z + 1 },
-			color = { 120, 151, 167, 152 },
-		},
-		visibility_function = function (content)
-			local hotspot = content[content_id]
+local function put_mix(out, alpha, a, b, t)
+	out[1], out[2], out[3], out[4] = alpha, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t
+end
 
-			return (visible == nil or visible(content)) and not hotspot.disabled and hotspot.is_hover
-		end,
-	}
+Components.put_rgb, Components.put_mix = put_rgb, put_mix
 
+local REST, HOVER, DOWN, OFF = 0, 1, 2, 3
+
+-- what a button is doing: resting, under the pointer, pressed (held under the pointer) or disabled
+local function state_of(hotspot)
+	if hotspot.disabled then
+		return OFF
+	elseif hotspot.is_hover then
+		return hotspot.is_held and DOWN or HOVER
+	end
+
+	return REST
+end
+
+Components.state_of = state_of
+Components.STATE = { REST = REST, HOVER = HOVER, DOWN = DOWN, OFF = OFF }
+
+-- `on` is the button's own flag (content[content_id .. "_on"]): a lit chip, the armed "Sure?" of a danger button, the
+-- selected tab.
+local function paint_fill(out, role, st, accent, on)
+	if role == "primary" then
+		if st == OFF then
+			put_rgb(out, 255, PRIMARY_OFF)
+		elseif st == DOWN then
+			put_mix(out, 255, accent, BLACK, 0.26)
+		elseif st == HOVER then
+			put_mix(out, 255, accent, WHITE, 0.24)
+		else
+			put_rgb(out, 255, accent)
+		end
+	elseif role == "danger" then
+		if on and st ~= OFF then
+			put_rgb(out, 255, RUST)
+		elseif st == OFF then
+			put_rgb(out, 255, PLATE_OFF)
+		elseif st == DOWN then
+			put_mix(out, 255, PLATE_DOWN, RUST, 0.12)
+		elseif st == HOVER then
+			put_mix(out, 255, PLATE, RUST, 0.20)
+		else
+			put_rgb(out, 255, PLATE)
+		end
+	elseif role == "quiet" then
+		-- transparent, a wash of the accent under the pointer
+		put_rgb(out, st == DOWN and 24 or st == HOVER and 38 or 0, accent)
+	elseif role == "tab" then
+		if st == OFF then
+			put_rgb(out, 255, PLATE_OFF)
+		elseif on then
+			put_mix(out, 255, PLATE, accent, 0.16)
+		elseif st == HOVER or st == DOWN then
+			put_mix(out, 255, PLATE, accent, 0.10)
+		else
+			put_rgb(out, 255, PLATE)
+		end
+	else -- standard, chip, icon
+		if st == OFF then
+			put_rgb(out, 255, PLATE_OFF)
+		elseif st == DOWN then
+			put_mix(out, 255, PLATE_DOWN, accent, 0.07)
+		elseif st == HOVER then
+			put_mix(out, 255, PLATE, accent, 0.14)
+		else
+			put_rgb(out, 255, PLATE)
+		end
+	end
+end
+
+local function paint_frame(out, role, st, accent, on)
+	if role == "primary" then
+		paint_fill(out, role, st, accent, on)
+	elseif role == "danger" then
+		if st == OFF then
+			put_rgb(out, 255, FRAME_OFF)
+		elseif on or st ~= REST then
+			put_rgb(out, 255, RUST)
+		else
+			put_mix(out, 255, FRAME, RUST, 0.5)
+		end
+	elseif role == "quiet" then
+		if st == OFF then
+			put_rgb(out, 255, FRAME_OFF)
+		elseif st ~= REST then
+			put_rgb(out, 255, accent)
+		else
+			put_rgb(out, 255, FRAME)
+		end
+	elseif role == "tab" then
+		put_rgb(out, 255, st == OFF and FRAME_OFF or FRAME)
+	else -- standard, chip, icon
+		if st == OFF then
+			put_rgb(out, 255, FRAME_OFF)
+		elseif st ~= REST then
+			put_rgb(out, 255, accent)
+		elseif on then
+			put_mix(out, 255, FRAME, accent, 0.55)
+		else
+			put_rgb(out, 255, FRAME)
+		end
+	end
+end
+
+local function paint_label(out, role, st, accent, on)
+	if role == "primary" then
+		put_rgb(out, 255, st == OFF and PRIMARY_LABEL_OFF or GROUND)
+	elseif role == "danger" then
+		if st == OFF then
+			put_rgb(out, 255, LABEL_OFF)
+		elseif on then
+			put_rgb(out, 255, GROUND)
+		elseif st ~= REST then
+			put_rgb(out, 255, RUST_BRIGHT)
+		else
+			put_rgb(out, 255, RUST_TEXT)
+		end
+	elseif role == "quiet" then
+		if st == OFF then
+			put_rgb(out, 255, LABEL_OFF)
+		elseif st ~= REST then
+			put_rgb(out, 255, BRIGHT)
+		else
+			put_rgb(out, 255, accent)
+		end
+	elseif role == "tab" then
+		if st == OFF then
+			put_rgb(out, 255, LABEL_OFF)
+		elseif on then
+			put_rgb(out, 255, BRIGHT)
+		elseif st ~= REST then
+			put_rgb(out, 255, TEXT)
+		else
+			put_rgb(out, 255, MUTED)
+		end
+	else -- standard, chip, icon
+		if st == OFF then
+			put_rgb(out, 255, LABEL_OFF)
+		elseif st ~= REST or on then
+			put_rgb(out, 255, BRIGHT)
+		else
+			put_rgb(out, 255, TEXT)
+		end
+	end
+end
+
+Components.paint_fill, Components.paint_frame, Components.paint_label = paint_fill, paint_frame, paint_label
+
+local BRACKET = 9 -- length of a corner bracket, its thickness is 2
+local BRACKET_OUT = 4 -- how far outside the frame it sits at rest on hover (1 when pressed)
+
+local function rect_pass(passes, style_id, x, y, w, h, z, visibility, change)
 	passes[#passes + 1] = {
 		pass_type = "rect",
-		style_id = content_id .. "_edge",
-		style = {
-			size = { size[1], 1 },
-			offset = { x, y + size[2] - 1, z + 1 },
-			color = { 160, 70, 87, 62 },
-		},
-		visibility_function = visible,
+		style_id = style_id,
+		style = { offset = { x, y, z }, size = { w, h }, color = { 255, 255, 255, 255 } },
+		visibility_function = visibility,
+		change_function = change,
 	}
+end
+
+-- A triangle slightly larger than `corners` ({ {x, y} x3 }, relative to its offset): the faint copy that stands in for
+-- anti-aliasing (see docs/08, section 3)
+local function grown(corners, by)
+	local cx, cy = (corners[1][1] + corners[2][1] + corners[3][1]) / 3, (corners[1][2] + corners[2][2] + corners[3][2]) / 3
+	local out = {}
+
+	for i = 1, 3 do
+		local dx, dy = corners[i][1] - cx, corners[i][2] - cy
+		local length = math.sqrt(dx * dx + dy * dy)
+
+		out[i] = { corners[i][1] + dx / length * by, corners[i][2] + dy / length * by }
+	end
+
+	return out
+end
+
+local function glyph_corners(kind, w, h)
+	local cx, cy = w / 2, h / 2
+
+	if kind == "up" then
+		return { { cx - 8, cy + 5 }, { cx + 8, cy + 5 }, { cx, cy - 5 } }
+	end
+
+	return { { cx - 8, cy - 5 }, { cx + 8, cy - 5 }, { cx, cy + 5 } }
+end
+
+-- A diamond (a square turned 45 degrees) centred at (cx, cy) with a faint larger copy under it. `paint(color, content,
+-- halo)` writes the colour of the diamond (halo = true for the copy, whose opacity should be about a third).
+function Components.diamond_passes(passes, id, cx, cy, side, z, visibility, paint)
+	for i = 1, 2 do
+		local halo = i == 1
+		local s = halo and side + 1.1 or side
+
+		passes[#passes + 1] = {
+			pass_type = "rotated_rect",
+			style_id = halo and (id .. "_h") or id,
+			style = { offset = { cx - s / 2, cy - s / 2, halo and z - 0.5 or z }, size = { s, s }, color = { 255, 255, 255, 255 }, angle = math.pi / 4, pivot = { s / 2, s / 2 } },
+			visibility_function = visibility,
+			change_function = function (content, style)
+				paint(style.color, content, halo)
+			end,
+		}
+	end
+end
+
+-- Button (`opts`): label, font_size, flag (the visibility flag of the content), role ("standard" (default), "primary",
+-- "danger", "quiet", "chip", "tab", "icon"), pip (a small diamond before the label, lit with the button's `_on` flag),
+-- glyph ("up" or "down": a triangle instead of the label). The label lives in content[content_id .. "_text"], the
+-- button's own flag in content[content_id .. "_on"].
+function Components.button(passes, content_id, offset, size, opts)
+	opts = opts or {}
+
+	local role = opts.role or "standard"
+	local x, y, z = offset[1], offset[2], offset[3] or 0
+	local w, h = size[1], size[2]
+	local visible = flag_visible(opts.flag)
+	local on_key = content_id .. "_on"
+	local accent = Components.accent
+
+	Components.hotspot_pass(passes, content_id, offset, size, opts.flag)
+
+	local function shown(content)
+		return visible == nil or visible(content)
+	end
+
+	if role == "quiet" then
+		rect_pass(passes, content_id .. "_fill", x, y, w, h, z, visible, function (content, style)
+			paint_fill(style.color, role, state_of(content[content_id]), accent, content[on_key])
+		end)
+		rect_pass(passes, content_id .. "_line", x, y + h - 1, w, 1, z + 1, visible, function (content, style)
+			local st = state_of(content[content_id])
+
+			paint_frame(style.color, role, st, accent, content[on_key])
+			style.offset[2], style.size[2] = (st == HOVER or st == DOWN) and y + h - 2 or y + h - 1, (st == HOVER or st == DOWN) and 2 or 1
+		end)
+	else
+		-- the frame is the outer rect, the fill sits one unit inside it
+		rect_pass(passes, content_id .. "_frame", x, y, w, h, z, visible, function (content, style)
+			paint_frame(style.color, role, state_of(content[content_id]), accent, content[on_key])
+		end)
+		rect_pass(passes, content_id .. "_fill", x + 1, y + 1, w - 2, h - 2, z + 1, visible, function (content, style)
+			paint_fill(style.color, role, state_of(content[content_id]), accent, content[on_key])
+		end)
+	end
+
+	if role == "tab" then
+		rect_pass(passes, content_id .. "_bar", x, y + h - 3, w, 3, z + 2, function (content)
+			return shown(content) and content[on_key] == true
+		end, function (content, style)
+			put_rgb(style.color, 255, accent)
+		end)
+	end
+
+	if role == "standard" or role == "primary" or role == "danger" then
+		-- two corner brackets (top left, bottom right), 4 units outside the frame under the pointer, 1 unit when pressed
+		local armed_shows = role == "danger"
+
+		local function bracket_visible(content)
+			local st = state_of(content[content_id])
+
+			return shown(content) and st ~= OFF and (st == HOVER or st == DOWN or (armed_shows and content[on_key] == true))
+		end
+
+		local function bracket_paint(content, style)
+			put_rgb(style.color, 255, role == "danger" and RUST or accent)
+		end
+
+		local function place(id, ox, oy, bw, bh, inward_x, inward_y)
+			rect_pass(passes, content_id .. id, x + ox, y + oy, bw, bh, z + 4, bracket_visible, function (content, style)
+				bracket_paint(content, style)
+
+				local d = state_of(content[content_id]) == DOWN and 3 or 0
+
+				style.offset[1], style.offset[2] = x + ox + d * inward_x, y + oy + d * inward_y
+			end)
+		end
+
+		place("_b1", -BRACKET_OUT, -BRACKET_OUT, BRACKET, 2, 1, 1)
+		place("_b2", -BRACKET_OUT, -BRACKET_OUT, 2, BRACKET, 1, 1)
+		place("_b3", w + BRACKET_OUT - BRACKET, h + BRACKET_OUT - 2, BRACKET, 2, -1, -1)
+		place("_b4", w + BRACKET_OUT - 2, h + BRACKET_OUT - BRACKET, 2, BRACKET, -1, -1)
+	end
+
+	local label_x, label_w = x, w
+
+	if opts.pip then
+		-- a small diamond before the label: lit while the button's flag is on
+		local side = 7
+		local pip_x = x + 14
+
+		Components.diamond_passes(passes, content_id .. "_pip", pip_x, y + h / 2, side, z + 3, visible, function (color, content, halo)
+			local st = state_of(content[content_id])
+
+			if content[on_key] == true and st ~= OFF then
+				put_rgb(color, halo and 80 or 255, accent)
+			else
+				put_rgb(color, halo and 24 or 90, st == OFF and LABEL_OFF or MUTED)
+			end
+		end)
+
+		label_x, label_w = x + 10, w - 10
+	end
+
+	if opts.glyph then
+		local corners = glyph_corners(opts.glyph, w, h)
+
+		for i = 1, 2 do
+			local halo = i == 1
+
+			passes[#passes + 1] = {
+				pass_type = "triangle",
+				style_id = content_id .. (halo and "_glyph_h" or "_glyph"),
+				style = { offset = { x, y, halo and z + 2.5 or z + 3 }, color = { 255, 255, 255, 255 }, triangle_corners = halo and grown(corners, 0.55) or corners },
+				visibility_function = visible,
+				change_function = function (content, style)
+					local st = state_of(content[content_id])
+
+					paint_label(style.color, role, st, accent, content[on_key])
+
+					if halo then
+						style.color[1] = 77
+					end
+				end,
+			}
+		end
+
+		return
+	end
 
 	passes[#passes + 1] = {
 		style_id = content_id .. "_label",
 		value_id = content_id .. "_text",
 		pass_type = "text",
-		value = label or "",
+		value = opts.label or "",
 		style = {
 			font_type = "proxima_nova_bold",
-			font_size = font_size or 26,
-			text_color = clone_color(label_color or Components.colors.text),
+			font_size = opts.font_size or 22,
+			text_color = { 255, 255, 255, 255 },
 			text_horizontal_alignment = "center",
 			text_vertical_alignment = "center",
-			size = size,
-			offset = { x, y, z + 2 },
+			size = { label_w, h },
+			offset = { label_x, y, z + 5 },
 		},
 		change_function = function (content, style)
-			local hotspot = content[content_id]
+			local st = state_of(content[content_id])
 
-			color_into(style.text_color, hotspot.disabled and Components.colors.muted
-				or label_color or Components.colors.text)
+			paint_label(style.text_color, role, st, accent, content[on_key])
+			style.offset[2] = y + (st == DOWN and 2 or 0)
 		end,
 		visibility_function = visible,
 	}
 end
 
--- Checkbox: frame + filled square when content[selected_key] (default "checkbox_selected").
--- `flag` as above. `id` (default "checkbox") prefixes the style ids so one widget can hold
--- several checkboxes.
-function Components.checkbox_passes(passes, offset, size, flag, id, selected_key)
+-- The old call: kept for the places that have not named a role (the label colour is the role's now).
+function Components.button_passes(passes, content_id, offset, size, label, font_size, label_color, flag, role)
+	Components.button(passes, content_id, offset, size, { label = label, font_size = font_size, flag = flag, role = role })
+end
+
+-- Diamond check: a diamond that is lit (the accent) when content[selected_key] (default "checkbox_selected"), dimmed
+-- when it is not, and brighter while the pointer is on `hover_id` (the hotspot of the box, optional). `flag` as above.
+-- `id` (default "checkbox") prefixes the style ids so one widget can hold several checkboxes.
+function Components.checkbox_passes(passes, offset, size, flag, id, selected_key, hover_id)
 	size = size or { 28, 28 }
 	id = id or "checkbox"
 	selected_key = selected_key or "checkbox_selected"
 
-	passes[#passes + 1] = {
-		pass_type = "texture",
-		value = "content/ui/materials/backgrounds/default_square",
-		style_id = id .. "_frame",
-		style = {
-			size = size,
-			offset = offset,
-			color = clone_color(Components.colors.frame),
-		},
-		visibility_function = flag_visible(flag),
-	}
+	local accent = Components.accent
+	local visible = flag_visible(flag)
 
-	passes[#passes + 1] = {
-		pass_type = "texture",
-		value = "content/ui/materials/backgrounds/default_square",
-		style_id = id .. "_check",
-		style = {
-			size = { math.max(size[1] - 6, 0), math.max(size[2] - 6, 0) },
-			offset = { offset[1] + 3, offset[2] + 3, (offset[3] or 0) + 1 },
-			color = clone_color(Components.colors.gold),
-		},
-		visibility_function = function (content)
-			return content[selected_key] == true and (flag == nil or content[flag] == true)
-		end, -- no content_id: receives the widget content
-	}
+	Components.diamond_passes(passes, id, offset[1] + size[1] / 2, offset[2] + size[2] / 2, 13, (offset[3] or 0) + 1, visible, function (color, content, halo)
+		local hover = hover_id and content[hover_id] and content[hover_id].is_hover
+
+		if content[selected_key] == true then
+			put_rgb(color, halo and 80 or 255, accent)
+		else
+			put_rgb(color, halo and (hover and 40 or 24) or (hover and 150 or 80), hover and accent or MUTED)
+		end
+	end)
 end
 
--- Stepper: minus button + clickable value + plus button, prefixed by `prefix`
+-- Stepper: one plate with the minus, the clickable value and the plus, prefixed by `prefix`
 -- ("hotspot" gives hotspot_minus / hotspot_value / hotspot_plus and stepper_value).
 -- `ids` (optional) renames the hotspots/text so a widget can hold several steppers:
 -- { minus = "hotspot_rep_minus", value = "hotspot_rep_value", plus = "hotspot_rep_plus", text = "rep_value" }.
+-- content[<text id> .. "_dim"] = true dims the whole plate (a value that is not used).
 function Components.stepper_passes(passes, layout, flag, ids)
 	ids = ids or {}
 
 	local button_size = layout.button_size or { 44, 40 }
 	local text_id = ids.text or "stepper_value"
+	local minus_id, value_id, plus_id = ids.minus or "hotspot_minus", ids.value or "hotspot_value", ids.plus or "hotspot_plus"
+	local dim_key = text_id .. "_dim"
+	local accent = Components.accent
+	local visible = flag_visible(flag)
 
-	Components.button_passes(passes, ids.minus or "hotspot_minus", layout.minus_offset, button_size, "-", nil, nil, flag)
-	Components.hotspot_pass(passes, ids.value or "hotspot_value", layout.value_offset, layout.value_size, flag)
-	Components.text_pass(passes, text_id, text_id, layout.value_offset, {
-		layout.value_size[1],
-		layout.value_size[2] + 6,
-	}, 22, Components.colors.gold, "center", flag)
-	Components.button_passes(passes, ids.plus or "hotspot_plus", layout.plus_offset, button_size, "+", nil, nil, flag)
+	local x, y, z = layout.minus_offset[1], layout.minus_offset[2], layout.minus_offset[3] or 0
+	local bw, h = button_size[1], button_size[2]
+	local right = layout.plus_offset[1] + bw
+	local w = right - x
+	local plus_x = layout.plus_offset[1]
+
+	local function dim(content)
+		return content[dim_key] == true
+	end
+
+	Components.hotspot_pass(passes, minus_id, layout.minus_offset, button_size, flag)
+	Components.hotspot_pass(passes, value_id, layout.value_offset, layout.value_size, flag)
+	Components.hotspot_pass(passes, plus_id, layout.plus_offset, button_size, flag)
+
+	-- the plate: frame, fill, and the two dividers
+	rect_pass(passes, text_id .. "_frame", x, y, w, h, z, visible, function (content, style)
+		put_rgb(style.color, 255, dim(content) and FRAME_OFF or FRAME)
+	end)
+	rect_pass(passes, text_id .. "_plate", x + 1, y + 1, w - 2, h - 2, z + 1, visible, function (content, style)
+		put_rgb(style.color, 255, dim(content) and PLATE_OFF or PLATE)
+	end)
+	rect_pass(passes, text_id .. "_div1", x + bw, y + 1, 1, h - 2, z + 2, visible, function (content, style)
+		put_rgb(style.color, 255, dim(content) and FRAME_OFF or FRAME)
+	end)
+	rect_pass(passes, text_id .. "_div2", plus_x - 1, y + 1, 1, h - 2, z + 2, visible, function (content, style)
+		put_rgb(style.color, 255, dim(content) and FRAME_OFF or FRAME)
+	end)
+
+	-- the cells light up under the pointer
+	for _, cell in ipairs({ { minus_id, x + 1, bw - 1, "_hl1" }, { plus_id, plus_x, bw - 1, "_hl2" } }) do
+		rect_pass(passes, text_id .. cell[4], cell[2], y + 1, cell[3], h - 2, z + 2, function (content)
+			return (visible == nil or visible(content)) and not dim(content) and state_of(content[cell[1]]) ~= REST and state_of(content[cell[1]]) ~= OFF
+		end, function (content, style)
+			local down = state_of(content[cell[1]]) == DOWN
+
+			put_mix(style.color, 255, down and PLATE_DOWN or PLATE, accent, down and 0.07 or 0.16)
+		end)
+	end
+
+	-- the signs: a bar for the minus, two bars for the plus
+	local sign_y = y + h / 2
+	local minus_x = x + bw / 2 + 0.5
+	local plus_cx = plus_x + bw / 2
+
+	local function sign_color(hotspot_id)
+		return function (content, style)
+			local st = state_of(content[hotspot_id])
+
+			if dim(content) or st == OFF then
+				put_rgb(style.color, 255, LABEL_OFF)
+			elseif st ~= REST then
+				put_rgb(style.color, 255, accent)
+			else
+				put_rgb(style.color, 255, TEXT)
+			end
+		end
+	end
+
+	rect_pass(passes, text_id .. "_minus", minus_x - 7, sign_y - 1, 14, 2, z + 3, visible, sign_color(minus_id))
+	rect_pass(passes, text_id .. "_plus_h", plus_cx - 7, sign_y - 1, 14, 2, z + 3, visible, sign_color(plus_id))
+	rect_pass(passes, text_id .. "_plus_v", plus_cx - 1, sign_y - 7, 2, 14, z + 3, visible, sign_color(plus_id))
+
+	-- the value, and a line under it while the pointer is on it (a click opens the number box)
+	passes[#passes + 1] = {
+		value_id = text_id,
+		style_id = text_id,
+		pass_type = "text",
+		value = "",
+		style = {
+			font_type = "proxima_nova_bold",
+			font_size = 22,
+			text_color = { 255, 255, 255, 255 },
+			text_horizontal_alignment = "center",
+			text_vertical_alignment = "center",
+			size = { layout.value_size[1], layout.value_size[2] + 6 },
+			offset = { layout.value_offset[1], layout.value_offset[2], z + 4 },
+		},
+		change_function = function (content, style)
+			if dim(content) then
+				put_rgb(style.text_color, 255, LABEL_OFF)
+			else
+				put_rgb(style.text_color, 255, accent)
+			end
+		end,
+		visibility_function = visible,
+	}
+	rect_pass(passes, text_id .. "_underline", layout.value_offset[1] + layout.value_size[1] / 2 - 14, y + h - 9, 28, 1, z + 4, function (content)
+		return (visible == nil or visible(content)) and not dim(content) and state_of(content[value_id]) == HOVER
+	end, function (content, style)
+		put_rgb(style.color, 255, accent)
+	end)
+end
+
+-- A frame of four rects (`thickness` units, default 1) around a w x h box at the node's origin, in the accent (or the
+-- fixed `rgb`, with `alpha`), and optionally the two corner brackets of the buttons, `out` units outside it (default 5), `len`
+-- long (default 14) and `bracket` thick (default 3). Style ids: <prefix>_t, _b, _l, _r, and _k1.._k4 for the brackets.
+function Components.frame_passes(passes, prefix, w, h, z, opts)
+	opts = opts or {}
+
+	local t = opts.thickness or 1
+	local rgb, alpha = opts.rgb, opts.alpha or 255
+
+	local function color(content, style)
+		put_rgb(style.color, alpha, rgb or Components.accent)
+	end
+
+	rect_pass(passes, prefix .. "_t", 0, 0, w, t, z, nil, color)
+	rect_pass(passes, prefix .. "_b", 0, h - t, w, t, z, nil, color)
+	rect_pass(passes, prefix .. "_l", 0, 0, t, h, z, nil, color)
+	rect_pass(passes, prefix .. "_r", w - t, 0, t, h, z, nil, color)
+
+	if opts.brackets then
+		local out, len, bt = opts.out or 5, opts.len or 14, opts.bracket or 3
+
+		rect_pass(passes, prefix .. "_k1", -out, -out, len, bt, z + 1, nil, color)
+		rect_pass(passes, prefix .. "_k2", -out, -out, bt, len, z + 1, nil, color)
+		rect_pass(passes, prefix .. "_k3", w + out - len, h + out - bt, len, bt, z + 1, nil, color)
+		rect_pass(passes, prefix .. "_k4", w + out - bt, h + out - len, bt, len, z + 1, nil, color)
+	end
 end
 
 -- ---------------------------------------------------------------------------
@@ -256,6 +664,7 @@ Components.POPUP_INPUT_NAME = "rw_popup_input"
 Components.POPUP_CONFIRM_NAME = "rw_popup_confirm"
 Components.POPUP_CANCEL_NAME = "rw_popup_cancel"
 Components.POPUP_INPUT_SIZE = { 720, 46 }
+Components.POPUP_BUTTON_WIDTH, Components.POPUP_BUTTON_HEIGHT = 200, 48
 
 -- Text input widget definition (vanilla template, focus behaviour adjusted).
 Components.popup_input_definition = function ()
@@ -301,8 +710,9 @@ local POPUP_DEFAULT_Y = 400
 local function place_popup(view, y)
 	view:_set_scenegraph_position(Components.POPUP_PANEL_NAME, 560, y, 45)
 	view:_set_scenegraph_position(Components.POPUP_INPUT_NAME, 600, y + 70, 50)
-	view:_set_scenegraph_position(Components.POPUP_CONFIRM_NAME, 600, y + 200, 50)
-	view:_set_scenegraph_position(Components.POPUP_CANCEL_NAME, 870, y + 200, 50)
+	-- OK and Cancel on the right of the panel (560 to 1360), Cancel on the left of OK, 30 from the edge
+	view:_set_scenegraph_position(Components.POPUP_CONFIRM_NAME, 1130, y + 196, 50)
+	view:_set_scenegraph_position(Components.POPUP_CANCEL_NAME, 910, y + 196, 50)
 end
 
 -- spec = { label, value (string), max_length, set(value_or_text),
@@ -513,6 +923,7 @@ function POPUP.refresh(view)
 		local panel = widgets[Components.POPUP_PANEL_NAME]
 
 		panel.content.title_text = tostring(spec.label)
+		put_rgb(panel.style.title_text.text_color, 255, Components.accent)
 		panel.content.hint_text = edit.error or spec.hint or mod:localize(spec.numeric and "popup_hint_number" or "popup_hint_text")
 
 		panel.style.hint_text.text_color = clone_color(edit.error and Components.colors.gold or Components.colors.muted)

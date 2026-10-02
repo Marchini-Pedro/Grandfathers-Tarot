@@ -109,6 +109,9 @@ return {
 
 	-- Wave editor
 	view_title = { en = "The Grandfather's Tarot" },
+	-- the screens of one card: its enemies (and the picker, Mods and Custom) and its face
+	view_title_cauldron = { en = "The Grandfather's Cauldron" },
+	view_title_mirror = { en = "The Grandfather's Mirror" },
 	view_desc_list = {
 		en = "Every card that can be drawn. Click a card to put it in or out of the draw; Edit opens it. Only the host's settings are used in a session.",
 	},

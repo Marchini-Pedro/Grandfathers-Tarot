@@ -35,35 +35,47 @@ local LIST_STEPPERS = { "stepper_tmin", "stepper_tmax" } -- list screen: time be
 local DETAIL_STEPPERS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer" }
 local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "stepper_tmin", "stepper_tmax" }
 local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
+-- role: "primary" (the action a screen is for), "danger" (resets and removals), nothing = standard; pip = a toggle (a diamond
+-- that is lit while it is on). See Components.button.
 local BUTTONS = {
 	{ name = "btn_back", width = 180, cb = "cb_back" },
 	{ name = "btn_search", width = 420, cb = "cb_search" },
-	{ name = "btn_stay", width = 380, cb = "cb_toggle_stay" },
-	{ name = "btn_random", width = 310, cb = "cb_toggle_random" },
-	{ name = "btn_random_done", width = 290, cb = "cb_random_done" },
+	{ name = "btn_stay", width = 380, cb = "cb_toggle_stay", pip = true },
+	{ name = "btn_random", width = 310, cb = "cb_toggle_random", pip = true },
+	{ name = "btn_random_done", width = 290, cb = "cb_random_done", role = "primary" },
 	{ name = "btn_rename", width = 200, cb = "cb_rename" },
 	{ name = "btn_text", width = 250, cb = "cb_edit_text" },
-	{ name = "btn_add", width = 230, cb = "cb_add" },
-	{ name = "btn_enabled", width = 260, cb = "cb_toggle_enabled" },
-	{ name = "btn_reset", width = 300, cb = "cb_reset" },
-	{ name = "btn_delete", width = 155, cb = "cb_delete" },
+	{ name = "btn_add", width = 230, cb = "cb_add", role = "primary" },
+	{ name = "btn_enabled", width = 260, cb = "cb_toggle_enabled", pip = true },
+	{ name = "btn_reset", width = 300, cb = "cb_reset", role = "danger" },
+	{ name = "btn_delete", width = 155, cb = "cb_delete", role = "danger" },
 	{ name = "btn_face", width = 270, cb = "cb_face" },
 	-- presets (list screen -> presets screen -> one preset)
 	{ name = "btn_presets", width = 290, cb = "cb_presets" },
-	{ name = "btn_settings", width = 340, cb = "cb_settings" },
-	{ name = "btn_wimport", width = 300, cb = "cb_wave_import" },
-	{ name = "btn_default", width = 320, cb = "cb_defaults" },
+	{ name = "btn_settings", width = 270, cb = "cb_settings" },
+	{ name = "btn_wimport", width = 300, cb = "cb_wave_import", role = "primary" },
+	{ name = "btn_default", width = 320, cb = "cb_defaults", role = "danger" },
 	{ name = "btn_help", width = 50, cb = "cb_help" },
 	{ name = "btn_share", width = 280, cb = "cb_wave_share" },
-	{ name = "btn_pload", width = 250, cb = "cb_preset_load" },
+	{ name = "btn_pload", width = 250, cb = "cb_preset_load", role = "primary" },
 	{ name = "btn_psave", width = 400, cb = "cb_preset_save" },
 	{ name = "btn_prename", width = 200, cb = "cb_preset_rename" },
 	{ name = "btn_pexport", width = 220, cb = "cb_preset_export" },
 	{ name = "btn_pimport", width = 220, cb = "cb_preset_import" },
 	{ name = "btn_pundo", width = 380, cb = "cb_preset_undo" },
-	{ name = "btn_pclear", width = 260, cb = "cb_preset_clear" },
+	{ name = "btn_pclear", width = 260, cb = "cb_preset_clear", role = "danger" },
 }
 local PRESET_BUTTONS = { "btn_pload", "btn_psave", "btn_prename", "btn_pexport", "btn_pimport", "btn_pundo", "btn_pclear" }
+
+-- The screens of a card (its enemies, the picker, Mods, Custom and its face) have their own titles and take the card's suit
+-- as the accent of the buttons; the others keep "The Grandfather's Tarot" and the bile accent (docs/08).
+local CARD_SCREEN_TITLE = {
+	detail = "view_title_cauldron",
+	picker = "view_title_cauldron",
+	mods = "view_title_cauldron",
+	tune = "view_title_cauldron",
+	face = "view_title_mirror",
+}
 
 local function get_setting(id)
 	return mod:get(id)
@@ -119,6 +131,12 @@ end
 
 RealmsWavesView.on_enter = function (self)
 	RealmsWavesView.super.on_enter(self)
+
+	-- Crisp lines at every resolution: the renderer snaps rects, bitmaps and text to whole device pixels (only when the UI
+	-- scale is 1 or more; the stock default is off). docs/08, section 3.
+	if self._render_settings then
+		self._render_settings.snap_pixel_positions = true
+	end
 
 	self:_setup_input_legend()
 	self:_create_editor_widgets()
@@ -328,7 +346,7 @@ RealmsWavesView._create_editor_widgets = function (self)
 
 	for i = 1, #BUTTONS do
 		local entry = BUTTONS[i]
-		local widget = self:_create_dynamic_widget(entry.name, blueprints.button(entry.name, entry.width))
+		local widget = self:_create_dynamic_widget(entry.name, blueprints.button(entry.name, entry.width, entry.role, nil, nil, entry.pip))
 
 		widget.content.hotspot.pressed_callback = callback(self, entry.cb)
 	end
@@ -659,7 +677,8 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 
 	self._offset = self:_clamp_offset(self._offset)
 
-	widgets.title_text.content.title_text = mod:localize("view_title")
+	widgets.title_text.content.title_text = mod:localize(CARD_SCREEN_TITLE[screen] or "view_title")
+	Components.set_accent(CARD_SCREEN_TITLE[screen] and self._wave and rw.cards.suit(self._wave.suit).accent or Components.BILE)
 
 	local header = widgets.list_header.content
 
@@ -785,6 +804,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	self:_set_scenegraph_position("scroll_down", deck_screen and 1826 or 1771, deck_screen and Deck.Y0 + 2 * Deck.TILE_H + Deck.GAP - 36 or 696, 2)
 	widgets.btn_default.visible = screen == "list"
 	widgets.btn_default.content.hotspot_text = mod:localize(self._confirm and self._confirm.key == "__defaults" and "btn_sure" or "btn_default")
+	widgets.btn_default.content.hotspot_on = self._confirm ~= nil and self._confirm.key == "__defaults"
 	widgets.btn_presets.visible = screen == "list"
 	widgets.btn_settings.visible = screen == "list"
 	widgets.btn_settings.content.hotspot_text = mod:localize("btn_settings")
@@ -809,6 +829,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.face_numbers.visible = screen == "face"
 	widgets.btn_delete.visible = detail
 	widgets.btn_delete.content.hotspot_text = mod:localize(self._confirm and self._wave and self._confirm.key == self._wave.key and "btn_sure" or "btn_delete")
+	widgets.btn_delete.content.hotspot_on = self._confirm ~= nil and self._wave ~= nil and self._confirm.key == self._wave.key
 	widgets.btn_pload.content.hotspot_text = mod:localize("btn_pload")
 	widgets.btn_psave.content.hotspot_text = mod:localize("btn_psave")
 	widgets.btn_prename.content.hotspot_text = mod:localize("btn_rename")
@@ -821,6 +842,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.btn_random.visible = screen == "picker"
 	widgets.btn_random_done.visible = screen == "picker" and self._random_mode == true
 	widgets.btn_random.content.hotspot_text = mod:localize(self._random_mode and "btn_random_on" or "btn_random_off")
+	widgets.btn_random.content.hotspot_on = self._random_mode == true
 	widgets.btn_random_done.content.hotspot_text = mod:localize("btn_random_done", #(self._random_pick or {}))
 	widgets.btn_rename.visible = detail
 	widgets.btn_text.visible = detail
@@ -838,6 +860,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.btn_back.content.hotspot_text = mod:localize("btn_back")
 	widgets.btn_search.content.hotspot_text = (self._filter or "") ~= "" and mod:localize("btn_search_active", self._filter) or mod:localize("btn_search")
 	widgets.btn_stay.content.hotspot_text = mod:localize(mod:get("picker_stay") == true and "btn_stay_on" or "btn_stay_off")
+	widgets.btn_stay.content.hotspot_on = mod:get("picker_stay") == true
 	widgets.btn_rename.content.hotspot_text = mod:localize("btn_rename")
 	widgets.btn_text.content.hotspot_text = mod:localize("btn_edit_text")
 	widgets.btn_add.content.hotspot_text = mod:localize("btn_add_enemy")
@@ -846,6 +869,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		local wave = self._wave
 
 		widgets.btn_enabled.content.hotspot_text = mod:localize(wave.enabled and "btn_enabled_on" or "btn_enabled_off")
+		widgets.btn_enabled.content.hotspot_on = wave.enabled == true
 		widgets.btn_reset.content.hotspot_text = mod:localize(wave.is_custom and "btn_reset_clear" or "btn_reset_default")
 
 		local chance = widgets.stepper_chance.content
@@ -944,6 +968,7 @@ RealmsWavesView._refresh_rows = function (self)
 
 				widget.style.info.size[1] = screen == "detail" and INFO_DETAIL_WIDTH or 640
 				content.show_tune = false
+				content.hotspot_mods_on, content.hotspot_tune_on = false, false
 
 				if screen == "detail" then
 					local mods_text = rw.groups.describe_mods(item)
@@ -1012,6 +1037,8 @@ RealmsWavesView._refresh_rows = function (self)
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, true, false, true, true
 					content.show_tune = true
 					content.hotspot_tune_text = mod:localize("btn_tune")
+					content.hotspot_mods_on = item.mods ~= nil and #item.mods > 0
+					content.hotspot_tune_on = rw.groups.tune_text(item.tune) ~= ""
 					content.show_rep = true
 					content.stepper_value = tostring(item.count)
 					content.same_selected = item.rep_same == true
