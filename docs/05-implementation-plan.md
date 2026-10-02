@@ -65,7 +65,7 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 2. The shelf data (Packmaster, vanguards as fodder, Dreg / Scab) and the faction word on rows and in the picker (offline only); the titles are done
 - [x] 3. The tile at any scale (`blueprints.tile(node, k)`, metrics in the content; offline only); the stage plate comes with the Cauldron
 - [x] 4. The Cauldron: rows, shelf, spawn block, action bar, stage with the 1.4 times card, quick face, tabs, cooldown preview (offline only)
-- [ ] 5. The Mirror: suit plates, threat sum, whisper, cooldown, looks
+- [x] 5. The Mirror: suit plates, threat diamonds and sum, whisper field with a live box, cooldown stepper, three look plates, Reset face, the shared stage, "In the hand" (offline only; the look plates' pictures are static)
 - [ ] 6. Preview tool for any screen, tests, docs
 - [ ] In-game verification (matrix rows from 97 in doc 06)
 

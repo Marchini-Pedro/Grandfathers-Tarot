@@ -38,7 +38,7 @@ Common: the title at (80, 38), the subtitle at (80, 95), tabs `Enemies | Face` a
 - Left: Suit (twelve plates, 4 columns, each with its icon, its name and its line of whisper; the suggested one marked; the long description under the grid), Threat (five big diamonds, Auto | By hand, "Threat N by the numbers" as a sum), Whisper (the card's line and Change; the card follows while the box is open), Cooldown (stepper in 30 s steps, then three look plates: Rot and renewal, The murmur returns, The vial fills, and Automatic for this suit), and Back / Reset face.
 - Right: the same stage plate and toolbar.
 
-Not in the first build (deferred, see the checklist): the "In the hand" mini card, animated look plates (they are static swatches), whisper typed inline instead of in a box.
+Not built (decided against or left for later): animated look plates (they are static pictures; the real look plays on the card with Preview cooldown), whisper typed inline instead of in a box (the box shows its text live on the card).
 
 ## 3. Resolution and sharpness (what the engine does, from the source)
 
@@ -54,7 +54,7 @@ Not in the first build (deferred, see the checklist): the "In the hand" mini car
 - [x] 2. The shelf data: `Groups.faction`, `Groups.SHELF` (30 chips, Packmaster, vanguards as fodder, Dreg / Scab pairs), the faction word in rows and the picker. Done offline.
 - [x] 3. The tile at any scale (`blueprints.tile(node, k)`, `blueprints.tile_metrics(k)`, `_paint_tile` and the vial, ping and name lines read `content.metrics`). Done offline; the stage plate is built with the Cauldron.
 - [x] 4. The Cauldron (rows, shelf, spawn block, action bar, stage, quick face, tabs). Done offline. What differs from the design page: the shelf has 30 chips (the page had 25) and its head row carries the Dreg | Scab switch; five enemy rows, not four; Back is in the action row of every card screen (the page had it only on the Cauldron); the chip shows a tag letter and lights when the card has the enemy (no count badge: the row has it); the quiet button "Whisper and cooldown" opens the Face tab. Coordinates: left pane rows y 164-420, summary 428, shelf 472-806, spawn label 818, steppers 840 and 888, action bar 946; right pane caption 134, plate 164-604, toolbar 612, quick face 672, suits 712 and 782, threat 858, chance 910.
-- [ ] 5. The Mirror (suit plates, threat, whisper, cooldown, looks).
+- [x] 5. The Mirror (suit plates, threat, whisper, cooldown, looks). Done offline. What differs from the design page: the whisper is changed in the box (Change, or a click on the field) that shows its text live on the card, not typed inline; the look plates show a static picture (stripes, a faded line, a half-filled vial), not an animation (Preview cooldown plays the real look on the card); the threat sum is one line of text. Coordinates: headers y 134 / 460 / 566 / 664; suit plates 4 x 3 from y 170 (274 x 66); description y 396; threat row y 494 (diamonds 26 in a row of 54, Auto and By hand at x 387 and 463); whisper field y 600 (700 x 44) with Change and Use the suit's line; cooldown stepper y 698; look plates y 756 (365 x 110); Automatic y 876; the action bar is the Cauldron's (y 946): Back at the left, Reset face (170 wide) at the right. Right pane: the stage and toolbar as on the Cauldron, "In the hand" caption y 684, the card at y 716.
 - [ ] 6. Preview tool for any screen, tests, docs.
 
 ## 5. Tests
