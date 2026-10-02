@@ -389,6 +389,121 @@ Groups.category = function (breed_name)
 	return "normal"
 end
 
+-- ------------------------------------------------------------------------------------------------ factions and the shelf
+-- The two human factions: the Dregs are the cultists (`cultist_*`), the Scabs the renegades (`renegade_*`). The Chaos units
+-- (`chaos_*`) belong to neither. Several roles exist in both (a Dreg gunner and a Scab gunner are different breeds).
+Groups.FACTIONS = { "dreg", "scab" }
+Groups.FACTION_NAMES = { dreg = "Dreg", scab = "Scab" }
+
+-- "dreg" | "scab" | nil
+Groups.faction = function (breed_name)
+	local name = tostring(breed_name or "")
+
+	if name:find("^cultist_") then
+		return "dreg"
+	elseif name:find("^renegade_") then
+		return "scab"
+	end
+
+	return nil
+end
+
+-- The faction word to put after an enemy's name when the name does not already say it: "Gunner" is the Scab one
+-- (renegade_gunner), "Dreg Gunner" says it itself, "Tox Flamer" does not say Dreg, Chaos units have none. nil = nothing to add.
+Groups.faction_suffix = function (breed_name)
+	local faction = Groups.faction(breed_name)
+
+	if not faction then
+		return nil
+	end
+
+	local name = Groups.display_name(breed_name)
+
+	if name:find("Dreg") or name:find("Scab") then
+		return nil
+	end
+
+	return Groups.FACTION_NAMES[faction]
+end
+
+-- The shelf of the card's own screen (the Cauldron): the common enemies as chips, grouped by kind (the ids are the kinds of
+-- the multiplier sliders, "fodder" being the "normal" breeds: both vanguards are fodder, not elites). An entry is one chip:
+-- { breed = ... } for an enemy with no twin in the other faction (its faction tag, if it has one, is its own), or
+-- { label = "Gunner", dreg = ..., scab = ... } for a role both factions have; the shelf's "Adds: Dreg | Scab" switch chooses
+-- which of the two a click adds. The picker (Search all enemies) still lists every breed.
+Groups.SHELF = {
+	{
+		id = "fodder",
+		entries = {
+			{ breed = "chaos_poxwalker" },
+			{ breed = "chaos_mutated_poxwalker" },
+			{ label = "Melee", dreg = "cultist_melee", scab = "renegade_melee" },
+			{ label = "Assault", dreg = "cultist_assault", scab = "renegade_assault" },
+			{ label = "Vanguard", dreg = "cultist_vanguard", scab = "renegade_vanguard" },
+			{ breed = "renegade_rifleman" },
+		},
+	},
+	{
+		id = "elite",
+		entries = {
+			{ label = "Shocktrooper", dreg = "cultist_shocktrooper", scab = "renegade_shocktrooper" },
+			{ label = "Gunner", dreg = "cultist_gunner", scab = "renegade_gunner" },
+			{ label = "Rager", dreg = "cultist_berzerker", scab = "renegade_berzerker" },
+			{ breed = "renegade_executor" },
+			{ breed = "chaos_ogryn_executor" },
+			{ breed = "chaos_ogryn_bulwark" },
+			{ breed = "chaos_ogryn_gunner" },
+			{ breed = "renegade_plasma_gunner" },
+		},
+	},
+	{
+		id = "special",
+		entries = {
+			{ breed = "cultist_mutant" },
+			{ breed = "chaos_hound" },
+			{ breed = "chaos_armored_hound" },
+			{ label = "Flamer", dreg = "cultist_flamer", scab = "renegade_flamer" },
+			{ label = "Bomber", dreg = "cultist_grenadier", scab = "renegade_grenadier" },
+			{ breed = "chaos_poxwalker_bomber" },
+			{ breed = "renegade_netgunner" },
+			{ breed = "renegade_sniper" },
+		},
+	},
+	{
+		id = "boss",
+		entries = {
+			{ breed = "chaos_plague_ogryn" },
+			{ breed = "chaos_beast_of_nurgle" },
+			{ breed = "chaos_spawn" },
+			{ breed = "chaos_daemonhost" },
+			{ breed = "chaos_ogryn_houndmaster" },
+			{ label = "Captain", dreg = "cultist_captain", scab = "renegade_captain" },
+			{ breed = "renegade_twin_captain" },
+			{ breed = "renegade_twin_captain_two" },
+		},
+	},
+}
+
+-- The breed a click on a chip adds, with the switch at `faction` ("dreg" or "scab").
+Groups.shelf_breed = function (entry, faction)
+	return entry.breed or entry[faction] or entry.scab or entry.dreg
+end
+
+-- The faction a chip shows: the switch for a role both factions have, the unit's own for one that has a faction, nil for a
+-- Chaos unit.
+Groups.shelf_faction = function (entry, faction)
+	if entry.breed then
+		return Groups.faction(entry.breed)
+	end
+
+	return faction
+end
+
+-- What a chip says: the role ("Gunner") or the enemy's own name.
+Groups.shelf_label = function (entry)
+	return entry.label or Groups.display_name(entry.breed)
+end
+
 local function normalize(word)
 	word = tostring(word or ""):lower()
 	word = word:gsub("[_%-%.]", " ")

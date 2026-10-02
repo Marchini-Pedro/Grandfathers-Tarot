@@ -178,6 +178,23 @@ Colors.markup = function (text, rgb)
 	return string.format("{#color(%d,%d,%d)}%s{#reset()}", rgb[1], rgb[2], rgb[3], text)
 end
 
+-- ---------------------------------------------------------------------------- faction colours
+-- The word and the tag that say whether an enemy is a Dreg (a cultist) or a Scab (a renegade): soft green and brass, quieter
+-- than the enemy colours.
+Colors.FACTION = {
+	dreg = { 143, 204, 112 },
+	scab = { 214, 168, 86 },
+}
+
+-- {r, g, b} of a faction ("dreg" | "scab"), or nil when colouring is switched off.
+Colors.faction_rgb = function (faction)
+	if not faction or not enabled("colour_enemies") then
+		return nil
+	end
+
+	return Colors.FACTION[faction]
+end
+
 -- ---------------------------------------------------------------------------- modifier colours
 -- Modifiers are coloured like the Improved Havoc Tags mod does: its colour option when it is installed,
 -- otherwise ITS default colour (copied from ImprovedHavocTags_data.lua, so the look is the same either way).

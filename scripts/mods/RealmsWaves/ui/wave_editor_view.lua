@@ -85,6 +85,20 @@ local function set_setting(id, value)
 	mod:set(id, value)
 end
 
+-- "Gunner" -> "Gunner  Scab" with the faction word in its colour (or plain when the enemy colours are off): which kind of
+-- human enemy a row or a picker line is. Nothing is added to a Chaos unit or to a name that already says it ("Dreg Gunner").
+local function with_faction(rw, breed, text)
+	local suffix = breed and rw.groups.faction_suffix(breed)
+
+	if not suffix then
+		return text
+	end
+
+	local rgb = rw.colors and rw.colors.faction_rgb(rw.groups.faction(breed))
+
+	return text .. "  " .. (rgb and rw.colors.markup(suffix, rgb) or suffix)
+end
+
 -- True while the list rows/scrolling may be used even though a popup is open (the enemy search box).
 local function rows_active(self)
 	return self._popup == nil or self._popup.spec.allow_rows == true
@@ -1033,6 +1047,7 @@ RealmsWavesView._refresh_rows = function (self)
 						end
 					end
 
+					content.row_name = with_faction(rw, item.breed, content.row_name)
 					content.info = mods_shown
 					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, true, false, true, true
 					content.show_tune = true
@@ -1084,7 +1099,7 @@ RealmsWavesView._refresh_rows = function (self)
 						name_color = Components.colors.muted
 					end
 				elseif screen == "picker" then
-					content.row_name = rw.groups.display_name(item)
+					content.row_name = with_faction(rw, item, rw.groups.display_name(item))
 					content.info = string.format("%s  (%s)", item, rw.groups.kind(item))
 
 					-- random group mode: the enemies picked so far are marked
