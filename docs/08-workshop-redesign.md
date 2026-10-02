@@ -50,8 +50,8 @@ Not in the first build (deferred, see the checklist): the "In the hand" mini car
 ## 4. Build order (each a commit on the branch) and status
 
 - [x] 0. This document and the plan in `05`.
-- [ ] 1. Button family in `ui/wave_editor_components.lua` (standard, primary, danger, quiet, chip, stepper, diamond check, tabs, icon), the popup buttons and frame, pixel snapping, the accent colour.
-- [ ] 2. Titles (Cauldron, Mirror) and the shelf data: `Groups.faction`, the shelf catalog (Packmaster, vanguards as fodder, Dreg / Scab pairs), faction word in the picker.
+- [x] 1. Button family in `ui/wave_editor_components.lua` (standard, primary, danger, quiet, chip, stepper, diamond check, tabs, icon), the popup buttons and frame, pixel snapping, the accent colour, and the two titles. Done offline; the accent lives on `mod.rw_accent` (see `07`).
+- [ ] 2. The shelf data: `Groups.faction`, the shelf catalog (Packmaster, vanguards as fodder, Dreg / Scab pairs), faction word in the picker.
 - [ ] 3. The tile at any scale (`blueprints.tile(node, k)`, `_paint_tile` with the scale) and the stage plate.
 - [ ] 4. The Cauldron (rows, shelf, spawn block, action bar, stage, quick face, tabs).
 - [ ] 5. The Mirror (suit plates, threat, whisper, cooldown, looks).

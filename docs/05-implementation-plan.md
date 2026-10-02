@@ -61,8 +61,8 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 
 ### 2.1.0: the Workshop redesign (spec: `08-workshop-redesign.md`, branch `feature/workshop-redesign`)
 - [x] 0. Design page, the user's answers, spec and plan (doc 08)
-- [ ] 1. Button family (standard, primary, danger, quiet, chip, stepper, diamond check, tabs, icon), popup buttons and frame, pixel snapping, the suit accent
-- [ ] 2. Titles (Cauldron, Mirror) and the shelf data (Packmaster, vanguards as fodder, Dreg / Scab)
+- [x] 1. Button family (standard, primary, danger, quiet, chip, stepper, diamond check, tabs, icon), popup buttons and frame, pixel snapping, the suit accent; titles (Cauldron, Mirror) came with it (offline only)
+- [ ] 2. The shelf data (Packmaster, vanguards as fodder, Dreg / Scab); the titles are done
 - [ ] 3. The tile at any scale and the stage plate
 - [ ] 4. The Cauldron: rows, shelf, spawn block, action bar, stage, quick face, tabs
 - [ ] 5. The Mirror: suit plates, threat sum, whisper, cooldown, looks
