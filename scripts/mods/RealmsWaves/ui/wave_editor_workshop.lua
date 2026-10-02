@@ -17,11 +17,13 @@ WorkshopView.install = function (View, h)
 	local ERROW, CHIP, SUIT, STAGE = definitions.ERROW_NODE_PREFIX, definitions.CHIP_NODE_PREFIX, definitions.SUIT_NODE_PREFIX, definitions.STAGE_CARD_NODE
 
 	-- the widgets that exist only while the Cauldron is shown (its buttons are shown with the other buttons, see _apply_screen)
-	local STATIC = { "enemy_header", "shelf_panel", "stage_plate", "stage_caption", "stage_stats", "quick_label", "threat_label", "spawn_label" }
+	local STATIC = { "enemy_header", "shelf_panel", "quick_label", "threat_label", "spawn_label" }
+	-- the stage: on the Cauldron and on the Mirror
+	local STAGE_WIDGETS = { "stage_plate", "stage_caption", "stage_stats", STAGE }
 	local ROW_HOTSPOTS = { "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same", "hotspot_mods", "hotspot_tune", "hotspot_action" }
 
 	-- every dynamic widget of the Cauldron by name (rows, chips, suit tiles, the threat control, the stage card)
-	local DYNAMIC = { "rw_threat", STAGE }
+	local DYNAMIC = { "rw_threat" }
 
 	for i = 1, Workshop.ROWS do
 		DYNAMIC[#DYNAMIC + 1] = ERROW .. i
@@ -89,6 +91,7 @@ WorkshopView.install = function (View, h)
 		end
 
 		stage.visible = false
+		self:_create_mirror_widgets(WB)
 	end
 
 	-- ------------------------------------------------------------------------------------------ visibility
@@ -107,7 +110,16 @@ WorkshopView.install = function (View, h)
 			end
 		end
 
-		self._preview = nil
+		-- (the stage is shared: it goes with the Mirror when this is not the Cauldron or the Mirror)
+		if self._screen ~= "face" then
+			for _, name in ipairs(STAGE_WIDGETS) do
+				if widgets[name] then
+					widgets[name].visible = false
+				end
+			end
+
+			self._preview = nil
+		end
 	end
 
 	-- Enables or disables the hotspots of the Cauldron's dynamic widgets (a popup locks them all).
@@ -316,22 +328,7 @@ WorkshopView.install = function (View, h)
 
 		widgets.spawn_label.content.spawn_label = string.upper(mod:localize("spawn_label"))
 
-		-- the stage: the card as the Deck draws it, 1.4 times as big, on a plate in the suit's colours
-		local suit = Cards.suit(wave.suit)
-		local stage = widgets[STAGE]
-
-		stage.visible = true
-		self:_paint_tile(stage, wave)
-
-		local plate = widgets.stage_plate.content.stage
-
-		plate.card, plate.frame, plate.accent = suit.card, suit.frame, suit.accent
-
-		local card = Cards.describe(wave, groups, nil, self._deck_range)
-		local share = self:_share_of(wave)
-
-		widgets.stage_caption.content.stage_caption = string.upper(mod:localize("stage_caption"))
-		widgets.stage_stats.content.stage_stats = share and mod:localize("stage_stats", card.threat, groups.total_count(self._parts), string.format("%.1f", share)) or mod:localize("stage_stats_off")
+		local card = self:_refresh_stage()
 
 		-- the quick face: the twelve suits (the chosen one lifted, the suggested one marked), the threat, the chance
 		local suggested = Cards.suggest_suit(wave.parts or {}, groups)
@@ -367,7 +364,321 @@ WorkshopView.install = function (View, h)
 		widgets.btn_thr_hand.content.hotspot_on = card.threat_override ~= 0
 	end
 
-	-- Per frame (only while the Cauldron is shown): the cooldown preview of the stage card.
+	-- The stage, shared by the Cauldron and the Mirror: the card as the Deck draws it, 1.4 times as big, on a plate in the suit's
+	-- colours, the line under it, the toolbar (In the draw, Preview cooldown). Returns Cards.describe of the card.
+	View._refresh_stage = function (self)
+		local widgets = self._widgets_by_name
+		local rw = mod.rw
+		local Cards, groups = rw.cards, rw.groups
+		local wave = self._wave
+		local suit = Cards.suit(wave.suit)
+		local stage = widgets[STAGE]
+
+		self._tile_shape = self._tile_shape or Spread.new_shape(Spread.ICON_TRIS, Spread.ICON_CIRCS)
+
+		for _, name in ipairs(STAGE_WIDGETS) do
+			if widgets[name] then
+				widgets[name].visible = true
+			end
+		end
+
+		self:_paint_tile(stage, wave)
+
+		local plate = widgets.stage_plate.content.stage
+
+		plate.card, plate.frame, plate.accent = suit.card, suit.frame, suit.accent
+
+		local colors = rw.colors
+		local card = Cards.describe(wave, groups, function (breed)
+			return colors and colors.rgb(breed) or Cards.BASE.muted
+		end, self._deck_range)
+		local share = self:_share_of(wave)
+
+		widgets.stage_caption.content.stage_caption = string.upper(mod:localize("stage_caption"))
+		widgets.stage_stats.content.stage_stats = share and mod:localize("stage_stats", card.threat, groups.total_count(self._parts), string.format("%.1f", share)) or mod:localize("stage_stats_off")
+		widgets.btn_enabled.content.hotspot_text = mod:localize(wave.enabled and "btn_enabled_on" or "btn_enabled_off")
+		widgets.btn_enabled.content.hotspot_on = wave.enabled == true
+		widgets.btn_preview.content.hotspot_text = mod:localize("btn_preview_cooldown")
+
+		return card
+	end
+
+	-- ------------------------------------------------------------------------------------------ the Mirror
+	local MIRROR_STATIC = { "mirror_head_1", "mirror_head_2", "mirror_head_3", "mirror_head_4", "mirror_desc", "mirror_numbers", "hand_caption" }
+	local MIRROR_BUTTONS = { "btn_whisper_change", "btn_whisper_suit", "btn_look_auto", "btn_reset_face" }
+	local PLATE, LOOK = definitions.PLATE_NODE_PREFIX, definitions.LOOK_NODE_PREFIX
+	local LOOKS = definitions.MIRROR_LOOKS
+	local MIRROR_DYNAMIC = { "rw_threat_big", "whisper_field", "rw_hand_card" }
+
+	for i = 1, 12 do
+		MIRROR_DYNAMIC[#MIRROR_DYNAMIC + 1] = PLATE .. i
+	end
+
+	for i = 1, #LOOKS do
+		MIRROR_DYNAMIC[#MIRROR_DYNAMIC + 1] = LOOK .. i
+	end
+
+	View._create_mirror_widgets = function (self, WB)
+		for i = 1, 12 do
+			local name = PLATE .. i
+			local widget = self:_create_dynamic_widget(name, WB.suit_plate(name, TILE_IDS))
+
+			widget.content.hotspot.pressed_callback = callback(self, "cb_suit_pick", i)
+			widget.visible = false
+		end
+
+		for i = 1, #LOOKS do
+			local name = LOOK .. i
+			local widget = self:_create_dynamic_widget(name, WB.look_plate(name, LOOKS[i]))
+
+			widget.content.hotspot.pressed_callback = callback(self, "cb_look_pick", i)
+			widget.visible = false
+		end
+
+		local big = self:_create_dynamic_widget("rw_threat_big", WB.threat_control("rw_threat_big", Workshop.MIRROR.threat_side, Workshop.MIRROR.threat_pitch, Workshop.MIRROR.threat_h))
+
+		for k = 1, 5 do
+			big.content["hotspot_t" .. k].pressed_callback = callback(self, "cb_threat_pick", k)
+		end
+
+		big.visible = false
+
+		local field = self:_create_dynamic_widget("whisper_field", WB.whisper_field("whisper_field"))
+
+		field.content.hotspot.pressed_callback = callback(self, "cb_whisper_change")
+		field.visible = false
+
+		self:_create_dynamic_widget("rw_hand_card", WB.hand_card("rw_hand_card", TILE_IDS)).visible = false
+	end
+
+	-- The card as the Spread draws it, at 1.5 times: the bar and the background as high as the lines of the name need (the HUD's
+	-- rule: 76 high at least), the name, the mark, the diamonds and the dots in the places of the HUD (ui/spread.lua), all times 1.5.
+	View._paint_hand = function (self, widget, card, suit)
+		local H = Workshop.HAND
+		local k = H.scale
+		local style, content = widget.style, widget.content
+		local rw = mod.rw
+		local pad, icon = H.pad, H.icon
+		local name_w = H.hud_w - H.bar - 2 * pad - icon - 6
+		local lines = Spread.wrap_lines(card.name, name_w, H.name_font, Spread.GLYPH_BY_FONT.itc_novarese_bold)
+		local height = math.max(Spread.MIN_CARD_HEIGHT, 2 * Spread.PAD_Y + lines * Spread.NAME_LINE + 4 + Spread.ROW_HEIGHT) * k
+
+		style.hand_bg.size[2], style.hand_bar.size[2] = height, height
+		Spread.set_color(style.hand_bg.color, 255, suit.card)
+		Spread.set_color(style.hand_bar.color, 255, suit.accent)
+
+		content.hand_name = card.name
+		style.hand_name.offset[1], style.hand_name.offset[2] = (H.bar + pad) * k, Spread.PAD_Y * k
+		style.hand_name.size[1], style.hand_name.size[2] = name_w * k, lines * Spread.NAME_LINE * k
+		Spread.set_color(style.hand_name.text_color, 255, suit.text)
+
+		self:_paint_suit_mark(style, suit.icon, icon * k, (H.hud_w - pad - icon) * k, Spread.PAD_Y * k, suit.accent, suit.card)
+
+		-- the bottom row: the threat diamonds from the left, the dots to the right
+		local cy = height - (Spread.PAD_Y + Spread.ROW_HEIGHT / 2) * k
+		local side = Spread.THREAT_SIDE * k
+		local threat_rgb = rw.cards.THREAT_COLORS[card.threat]
+
+		for i = 1, 5 do
+			local cx = (H.bar + pad + Spread.THREAT_SIDE / 2 + (i - 1) * Spread.THREAT_PITCH) * k
+			local outer, halo = style[TILE_IDS.th_o[i]], style[TILE_IDS.th_h[i]]
+			local filled = i <= card.threat
+			local rgb = filled and threat_rgb or rw.cards.BASE.muted
+
+			outer.visible, halo.visible = true, true
+			outer.size[1], outer.size[2], outer.pivot[1], outer.pivot[2] = side, side, side / 2, side / 2
+			halo.size[1], halo.size[2], halo.pivot[1], halo.pivot[2] = side + 1.1, side + 1.1, (side + 1.1) / 2, (side + 1.1) / 2
+			outer.offset[1], outer.offset[2] = cx - side / 2, cy - side / 2
+			halo.offset[1], halo.offset[2] = cx - (side + 1.1) / 2, cy - (side + 1.1) / 2
+			Spread.set_color(outer.color, filled and 255 or 64, rgb)
+			Spread.set_color(halo.color, filled and 70 or 22, rgb)
+		end
+
+		local dots = card.dots
+		local diameter, pitch, count = Spread.dots_fit(H.hud_w, #dots)
+
+		for i = 1, 6 do
+			local dot, halo = style[TILE_IDS.dot[i]], style[TILE_IDS.dot_h[i]]
+
+			dot.visible, halo.visible = i <= count, i <= count
+
+			if i <= count then
+				local d = diameter * k
+				local x = (H.hud_w - pad) * k - d - (count - i) * pitch * k
+
+				dot.offset[1], dot.offset[2], dot.size[1], dot.size[2] = x, cy - d / 2, d, d
+				halo.offset[1], halo.offset[2], halo.size[1], halo.size[2] = x - 0.6, cy - d / 2 - 0.6, d + 1.2, d + 1.2
+				Spread.set_color(dot.color, 255, dots[i])
+				Spread.set_color(halo.color, 70, dots[i])
+			end
+		end
+	end
+
+	View._hide_mirror = function (self)
+		local widgets = self._widgets_by_name
+
+		for _, name in ipairs(MIRROR_STATIC) do
+			if widgets[name] then
+				widgets[name].visible = false
+			end
+		end
+
+		for _, name in ipairs(MIRROR_DYNAMIC) do
+			if widgets[name] then
+				widgets[name].visible = false
+			end
+		end
+
+		if self._screen ~= "detail" then
+			for _, name in ipairs(STAGE_WIDGETS) do
+				if widgets[name] then
+					widgets[name].visible = false
+				end
+			end
+
+			self._preview = nil
+		end
+	end
+
+	View._set_mirror_interaction = function (self, enabled)
+		local widgets = self._widgets_by_name
+
+		for i = 1, 12 do
+			local widget = widgets[PLATE .. i]
+
+			if widget then
+				widget.content.hotspot.disabled = not (enabled and widget.visible)
+			end
+		end
+
+		for i = 1, #LOOKS do
+			local widget = widgets[LOOK .. i]
+
+			if widget then
+				widget.content.hotspot.disabled = not (enabled and widget.visible)
+			end
+		end
+
+		local field = widgets.whisper_field
+
+		if field then
+			field.content.hotspot.disabled = not (enabled and field.visible)
+		end
+
+		local big = widgets.rw_threat_big
+
+		if big then
+			for k = 1, 5 do
+				big.content["hotspot_t" .. k].disabled = not (enabled and big.visible)
+			end
+		end
+	end
+
+	-- (Re)paints the Mirror: the four sections and the stage. Called by _refresh_rows for the screen "face".
+	View._refresh_mirror = function (self)
+		local widgets = self._widgets_by_name
+		local rw = mod.rw
+		local Cards, groups, colors = rw.cards, rw.groups, rw.colors
+		local wave = self._wave
+		local M = Workshop.MIRROR
+
+		for _, name in ipairs(MIRROR_STATIC) do
+			widgets[name].visible = true
+		end
+
+		local card = self:_refresh_stage()
+		local suggested = Cards.suggest_suit(wave.parts or {}, groups)
+
+		-- the headers
+		local titles = { "mirror_suit", "mirror_threat", "mirror_whisper", "mirror_cooldown" }
+
+		for i = 1, 4 do
+			local content = widgets["mirror_head_" .. i].content
+
+			content.head_title = string.upper(mod:localize(titles[i]))
+			content.head_hint = i == 4 and mod:localize("mirror_cooldown_hint", math.floor(self:_longest_cooldown() / 60)) or mod:localize(titles[i] .. "_hint")
+		end
+
+		-- the suit: twelve plates, then the description of the card's suit
+		for i = 1, 12 do
+			local id = Cards.SUIT_ORDER[i]
+			local def = Cards.SUITS[id]
+			local widget = widgets[PLATE .. i]
+			local content = widget.content
+
+			widget.visible = true
+			content.suit_name = def.name
+			content.suit_line = def.whisper
+			content.selected = id == card.suit
+			content.sug_label = suggested == id and id ~= card.suit and string.upper(mod:localize("mirror_suggested")) or ""
+			content.suit.card, content.suit.hi, content.suit.frame, content.suit.text, content.suit.accent = def.card, def.hi, def.frame, def.text, def.accent
+			self:_paint_suit_mark(widget.style, def.icon, 30, 14, 18, def.accent, def.card)
+		end
+
+		local own = Cards.suit(wave.suit)
+
+		widgets.hand_caption.content.hand_caption = string.upper(mod:localize("hand_caption"))
+		widgets.rw_hand_card.visible = true
+		self:_paint_hand(widgets.rw_hand_card, card, own)
+
+		widgets.mirror_desc.content.mirror_desc = string.format("{#color(%d,%d,%d)}%s{#reset()}  %s", own.accent[1], own.accent[2], own.accent[3], own.name, mod:localize("suit_desc_" .. card.suit))
+
+		-- the threat: the diamonds, Auto | By hand, and the sum
+		local big = widgets.rw_threat_big
+
+		big.visible = true
+		big.content.threat = card.threat
+		widgets.btn_thr_auto.content.hotspot_text = mod:localize("btn_thr_auto")
+		widgets.btn_thr_auto.content.hotspot_on = card.threat_override == 0
+		widgets.btn_thr_hand.content.hotspot_text = mod:localize("btn_thr_hand")
+		widgets.btn_thr_hand.content.hotspot_on = card.threat_override ~= 0
+		widgets.mirror_numbers.content.mirror_numbers = self:_face_numbers_text()
+
+		-- the whisper: the card's line (or the suit's own, dimmer) in quotes
+		local field = widgets.whisper_field
+
+		field.visible = true
+		field.content.whisper_text = "\"" .. card.whisper .. "\""
+		field.content.whisper_own = card.own_whisper
+		widgets.btn_whisper_change.content.hotspot_text = mod:localize("btn_change")
+		widgets.btn_whisper_suit.content.hotspot_text = mod:localize("btn_whisper_suit")
+
+		-- the cooldown: the stepper and the three looks
+		local stepper = widgets.stepper_cooldown.content
+
+		stepper.label = ""
+		stepper.stepper_value = h.Deck.clock_text(wave.cooldown)
+		-- a card with a fixed timer ignores its cooldown and says so
+		stepper.extra = wave.timer > 0 and mod:localize("extra_timer_ignored") or mod:localize("mirror_cooldown_extra", math.floor(wave.cooldown))
+
+		local explicit = Cards.normalize_look(wave.look)
+
+		for i = 1, #LOOKS do
+			local kind = LOOKS[i]
+			local widget = widgets[LOOK .. i]
+			local content = widget.content
+
+			widget.visible = true
+			content.look_name = mod:localize("look_" .. kind)
+			content.look_desc = mod:localize("look_" .. kind .. "_desc")
+			content.hotspot_on = card.look == kind
+			content.look_auto = (not explicit and card.look == kind) and string.upper(mod:localize("look_automatic")) or ""
+			content.accent_rgb = own.accent
+
+			if kind == "whisper" then
+				local sample = mod:localize("look_sample")
+				local third = math.floor(#sample / 3)
+
+				content.look_sample = string.format("{#color(143,160,122)}%s{#color(98,110,84)}%s{#color(56,64,48)}%s{#reset()}", sample:sub(1, third), sample:sub(third + 1, 2 * third), sample:sub(2 * third + 1))
+			end
+		end
+
+		widgets.btn_look_auto.content.hotspot_text = mod:localize("btn_look_auto")
+		widgets.btn_look_auto.content.hotspot_on = not explicit
+		widgets.btn_reset_face.content.hotspot_text = mod:localize("btn_reset_face")
+	end
+
+	-- Per frame (while the Cauldron or the Mirror is shown): the cooldown preview of the stage card.
 	View._update_cauldron = function (self, dt, t)
 		local play = self._preview
 
@@ -460,7 +771,7 @@ WorkshopView.install = function (View, h)
 	View.cb_suit_pick = guarded(function (self, index)
 		local id = mod.rw.cards.SUIT_ORDER[index]
 
-		if self._screen == "detail" and id then
+		if (self._screen == "detail" or self._screen == "face") and id then
 			set_setting("su_" .. self._key, id)
 			changed(self)
 		end
@@ -468,7 +779,7 @@ WorkshopView.install = function (View, h)
 
 	-- a threat diamond: the threat by hand (1 to 5)
 	View.cb_threat_pick = guarded(function (self, level)
-		if self._screen == "detail" then
+		if self._screen == "detail" or self._screen == "face" then
 			set_setting("th_" .. self._key, math.max(1, math.min(5, level)))
 			changed(self)
 		end
@@ -476,7 +787,7 @@ WorkshopView.install = function (View, h)
 
 	-- Auto: the threat is worked out from the enemies again
 	View.cb_threat_auto = guarded(function (self)
-		if self._screen == "detail" then
+		if self._screen == "detail" or self._screen == "face" then
 			set_setting("th_" .. self._key, 0)
 			changed(self)
 		end
@@ -484,7 +795,7 @@ WorkshopView.install = function (View, h)
 
 	-- By hand: the threat stays what it shows now, and the diamonds set it from here
 	View.cb_threat_hand = guarded(function (self)
-		if self._screen == "detail" then
+		if self._screen == "detail" or self._screen == "face" then
 			local rw = mod.rw
 			local override = tonumber(self._wave.threat_override) or 0
 			local value = override > 0 and override or rw.cards.threat_auto(self._parts, rw.groups)
@@ -496,7 +807,7 @@ WorkshopView.install = function (View, h)
 
 	-- Preview cooldown: the stage card plays the look of its cooldown through, in PREVIEW_SECONDS
 	View.cb_preview_cooldown = guarded(function (self)
-		if self._screen == "detail" then
+		if self._screen == "detail" or self._screen == "face" then
 			self._preview = { t = 0 }
 		end
 	end)

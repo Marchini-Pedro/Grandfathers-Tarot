@@ -149,4 +149,39 @@ end
 Workshop.THREAT_PITCH = 40
 Workshop.THREAT_X = Workshop.RIGHT_X + Workshop.ROW_LABEL_W
 
+-- ------------------------------------------------------------------------------------------------- the Mirror
+-- The card face screen (screen "face"): four sections on the left (suit, threat, whisper, cooldown with its look) and the same
+-- stage on the right as the Cauldron's. y of every part; the action bar is the Cauldron's (Workshop.under_shelf).
+Workshop.MIRROR = {
+	head = { 134, 460, 566, 664 }, -- the section headers: suit, threat, whisper, cooldown
+	head_h = 28,
+	plate = { w = 274, h = 66, gap_x = 13, gap_y = 10, y0 = 170, cols = 4 }, -- the twelve suits as plates, 4 x 3
+	desc_y = 396, desc_h = 52,
+	threat_y = 494, threat_side = 26, threat_pitch = 54, threat_h = 56,
+	whisper_y = 600, whisper_h = 44, whisper_w = 700,
+	cooldown_y = 698,
+	look = { y = 756, w = 365, h = 110, gap = 20 }, -- the three looks of the cooldown
+	auto_y = 876, auto_h = 36,
+}
+Workshop.MIRROR.bottom = Workshop.MIRROR.auto_y + Workshop.MIRROR.auto_h
+
+-- "In the hand" (under the toolbar): the card as the Spread HUD draws it, at 1.5 times its HUD size (176 wide there).
+Workshop.HAND = { x = Workshop.RIGHT_X, caption_y = Workshop.TOOLBAR_Y + 44 + 28, scale = 1.5, hud_w = 176, pad = 12, bar = 4, icon = 18, name_font = 18 }
+Workshop.HAND.y = Workshop.HAND.caption_y + 32
+Workshop.HAND.w = Workshop.HAND.hud_w * Workshop.HAND.scale
+Workshop.HAND.max_h = 150 -- (a name of three lines)
+
+Workshop.plate_pos = function (index)
+	local M = Workshop.MIRROR.plate
+	local col, row = (index - 1) % M.cols, floor((index - 1) / M.cols)
+
+	return Workshop.LEFT_X + col * (M.w + M.gap_x), M.y0 + row * (M.h + M.gap_y)
+end
+
+Workshop.look_pos = function (index)
+	local L = Workshop.MIRROR.look
+
+	return Workshop.LEFT_X + (index - 1) * (L.w + L.gap), L.y
+end
+
 return Workshop

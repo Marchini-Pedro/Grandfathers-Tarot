@@ -424,6 +424,19 @@ Events.reset = function (set_setting, key)
 	set_setting("del_" .. key, false)
 end
 
+-- Back to the defaults of a card's face only (Reset face on the card face screen): the suit the card would have without a choice,
+-- the threat worked out from the enemies, the suit's own whisper, the look the suit gives, the default cooldown. The enemies and
+-- everything else stay.
+Events.reset_face = function (set_setting, key)
+	local std = by_key[key]
+
+	set_setting("su_" .. key, "")
+	set_setting("th_" .. key, 0)
+	set_setting("wh_" .. key, "")
+	set_setting("cl_" .. key, "")
+	set_setting("cd_" .. key, std and std.cooldown or nil)
+end
+
 -- The definition handed to the spawner (Execute.start_wave) for a resolved wave.
 Events.spawn_def = function (wave)
 	return {

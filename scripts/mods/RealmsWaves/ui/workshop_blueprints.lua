@@ -304,15 +304,17 @@ WB.suit_tile = function (node_id, tile_ids)
 	}, { W, H })
 end
 
--- The threat control: five diamonds in a row (40 apart), each a hit area, coloured by their level up to content.threat, dim
--- after it, brighter under the pointer. Clicking one sets the threat by hand.
-WB.threat_control = function (node_id)
+-- The threat control: five diamonds in a row, each a hit area `pitch` wide (default 40) and `height` high (default 44), `side` long
+-- (default 15): coloured by their level up to content.threat, dim after it, brighter under the pointer. Clicking one sets the
+-- threat by hand. The Cauldron's is the small one, the Mirror's the big one (26, 54, 56).
+WB.threat_control = function (node_id, side, pitch, height)
 	local passes = {}
-	local pitch = Workshop.THREAT_PITCH
+
+	side, pitch, height = side or 15, pitch or Workshop.THREAT_PITCH, height or 44
 
 	for i = 1, 5 do
-		Components.hotspot_pass(passes, "hotspot_t" .. i, { (i - 1) * pitch, 0, 6 }, { pitch, 44 })
-		Components.diamond_passes(passes, "threat_" .. i, (i - 1) * pitch + pitch / 2, 22, 15, 3, nil, function (color, content, halo)
+		Components.hotspot_pass(passes, "hotspot_t" .. i, { (i - 1) * pitch, 0, 6 }, { pitch, height })
+		Components.diamond_passes(passes, "threat_" .. i, (i - 1) * pitch + pitch / 2, height / 2, side, 3, nil, function (color, content, halo)
 			local on = i <= (content.threat or 0)
 			local rgb = on and mod.rw.cards.THREAT_COLORS[i] or R.muted
 			local hover = content["hotspot_t" .. i].is_hover
@@ -321,7 +323,237 @@ WB.threat_control = function (node_id)
 		end)
 	end
 
-	return UIWidget.create_definition(passes, node_id, { threat = 3 }, { 5 * pitch, 44 })
+	return UIWidget.create_definition(passes, node_id, { threat = 3 }, { 5 * pitch, height })
+end
+
+-- ------------------------------------------------------------------------------------------------- the Mirror
+local FIELD = { 12, 15, 8 }
+local TRACK_GREY, TRACK_BROWN, TRACK_OCHRE = { 74, 74, 64 }, { 90, 70, 49 }, { 194, 122, 44 }
+local PUS = { 227, 207, 74 }
+
+-- text that wraps (the passes of `text` do not)
+local function wrapped(passes, id, x, y, w, h, z, size, change)
+	text(passes, id, x, y, w, h, z, size, "left", "top", change)
+	passes[#passes].style.word_wrap = true
+end
+
+-- A section's header on the Mirror: its title, a hint after it, a thin line under both. Content: head_title, head_hint.
+WB.section_head = function (node_id)
+	local passes = {}
+	local W, H = Workshop.LEFT_W, Workshop.MIRROR.head_h
+
+	text(passes, "head_title", 0, 0, 140, H - 2, 2, 15, "left", "center", function (content, style)
+		put_rgb(style.text_color, 255, R.text)
+	end)
+	text(passes, "head_hint", 150, 0, W - 150, H - 2, 2, 18, "left", "center", function (content, style)
+		put_rgb(style.text_color, 255, R.muted)
+	end)
+	rect(passes, "head_line", 0, H - 1, W, 1, 1, function (content, style)
+		put_rgb(style.color, 255, R.frame)
+	end)
+
+	return UIWidget.create_definition(passes, node_id, { head_title = "", head_hint = "" }, { W, H })
+end
+
+-- The mark of a suit: the triangles and circles of the card tile, with the same style ids (so one routine paints both), the
+-- feathers first. Used by the suit tile and the suit plate.
+local function mark_passes(passes, tile_ids)
+	for i = 1, Spread.ICON_TRIS do
+		passes[#passes + 1] = { pass_type = "triangle", style_id = tile_ids.icon_th[i], style = { offset = { 0, 0, 4 }, color = shape_color(), triangle_corners = { { 0, 0 }, { 0, 0 }, { 0, 0 } }, visible = false } }
+	end
+
+	for i = 1, Spread.ICON_CIRCS do
+		passes[#passes + 1] = { pass_type = "circle", style_id = tile_ids.icon_ch[i], style = { offset = { 0, 0, 4 }, size = { 1, 1 }, color = shape_color(), visible = false } }
+	end
+
+	for i = 1, Spread.ICON_TRIS do
+		passes[#passes + 1] = { pass_type = "triangle", style_id = tile_ids.icon_t[i], style = { offset = { 0, 0, 4 }, color = shape_color(), triangle_corners = { { 0, 0 }, { 0, 0 }, { 0, 0 } }, visible = false } }
+	end
+
+	for i = 1, Spread.ICON_CIRCS do
+		passes[#passes + 1] = { pass_type = "circle", style_id = tile_ids.icon_c[i], style = { offset = { 0, 0, 4 }, size = { 1, 1 }, color = shape_color(), visible = false } }
+	end
+end
+
+-- A suit as a plate (274 x 66): the suit's colours, its mark (30 units), its name, its own line of whisper; the card's suit is
+-- lit with a diamond at the right, the suit the enemies suggest says so in its corner. Content: suit_name, suit_line, sug_label,
+-- selected, suit = { card, hi, frame, text, accent }.
+WB.suit_plate = function (node_id, tile_ids)
+	local passes = {}
+	local W, H = Workshop.MIRROR.plate.w, Workshop.MIRROR.plate.h
+
+	Components.hotspot_pass(passes, "hotspot", { 0, 0, 6 }, { W, H })
+
+	local function lit(content)
+		return content.selected == true or state_of(content.hotspot) ~= STATE.REST
+	end
+
+	rect(passes, "plate_frame", 0, 0, W, H, 0, function (content, style)
+		put_rgb(style.color, 255, lit(content) and content.suit.accent or content.suit.frame)
+	end)
+	rect(passes, "plate_fill", 1, 1, W - 2, H - 2, 0.5, function (content, style)
+		put_rgb(style.color, 255, lit(content) and content.suit.hi or content.suit.card)
+	end)
+	mark_passes(passes, tile_ids)
+	text(passes, "suit_name", 56, 8, 190, 28, 5, 22, "left", "center", function (content, style)
+		put_rgb(style.text_color, 255, content.suit.text)
+	end)
+	text(passes, "suit_line", 56, 38, 206, 20, 5, 15, "left", "center", function (content, style)
+		put_rgb(style.text_color, 170, content.suit.text)
+	end)
+	text(passes, "sug_label", W - 118, 6, 106, 14, 5, 11, "right", "center", function (content, style)
+		put_rgb(style.text_color, 255, Components.BILE)
+	end)
+	Components.diamond_passes(passes, "plate_mark", W - 18, H / 2 + 8, 9, 3, function (content)
+		return content.selected == true
+	end, function (color, content, halo)
+		put_rgb(color, halo and 80 or 255, content.suit.accent)
+	end)
+
+	return UIWidget.create_definition(passes, node_id, {
+		suit_name = "",
+		suit_line = "",
+		sug_label = "",
+		selected = false,
+		suit = { card = { 30, 36, 19 }, hi = { 42, 50, 25 }, frame = { 58, 68, 33 }, text = { 230, 223, 195 }, accent = { 183, 194, 58 } },
+	}, { W, H })
+end
+
+-- The field that shows the card's whisper (the text, or the suit's own line when the card has none, dimmer); a click on it
+-- opens the box, like Change does. Content: whisper_text, whisper_own.
+WB.whisper_field = function (node_id)
+	local passes = {}
+	local W, H = Workshop.MIRROR.whisper_w, Workshop.MIRROR.whisper_h
+
+	Components.hotspot_pass(passes, "hotspot", { 0, 0, 6 }, { W, H })
+	rect(passes, "field_frame", 0, 0, W, H, 0, function (content, style)
+		put_rgb(style.color, 255, state_of(content.hotspot) == STATE.REST and R.frame or Components.accent)
+	end)
+	rect(passes, "field_fill", 1, 1, W - 2, H - 2, 0.5, function (content, style)
+		put_rgb(style.color, 255, FIELD)
+	end)
+	text(passes, "whisper_text", 16, 0, W - 32, H, 3, 22, "left", "center", function (content, style)
+		put_rgb(style.text_color, 255, content.whisper_own and R.text or R.muted)
+	end)
+
+	return UIWidget.create_definition(passes, node_id, { whisper_text = "", whisper_own = false }, { W, H })
+end
+
+-- One look of the cooldown on the Mirror (365 x 110): its name, what it does, a small picture of it, and AUTOMATIC in the
+-- corner when the suit chooses it. The chosen look has an accent frame (the button's own flag, hotspot_on). `kind`: "rot" (four
+-- stripes from grey through brown and ochre to the suit's colour, content.accent_rgb), "whisper" (a line that writes itself)
+-- or "vial" (a liquid rising in a vial).
+WB.look_plate = function (node_id, kind)
+	local passes = {}
+	local W, H = Workshop.MIRROR.look.w, Workshop.MIRROR.look.h
+	local SX, SW, SY, SH = 16, W - 32, 82, 20
+
+	Components.button(passes, "hotspot", { 0, 0, 0 }, { W, H }, { role = "chip", label = "" })
+
+	local function selected(content)
+		return content.hotspot_on == true
+	end
+
+	for i, frame in ipairs({ { 0, 0, W, 2 }, { 0, H - 2, W, 2 }, { 0, 0, 2, H }, { W - 2, 0, 2, H } }) do
+		rect(passes, "look_sel_" .. i, frame[1], frame[2], frame[3], frame[4], 6, function (content, style)
+			put_rgb(style.color, 255, Components.accent)
+		end, selected)
+	end
+
+	text(passes, "look_name", 16, 10, W - 130, 28, 5, 22, "left", "center", function (content, style)
+		Components.paint_label(style.text_color, "chip", state_of(content.hotspot), Components.accent, content.hotspot_on)
+	end)
+	wrapped(passes, "look_desc", 16, 40, W - 32, 38, 5, 16, function (content, style)
+		put_rgb(style.text_color, 255, R.muted)
+	end)
+	text(passes, "look_auto", W - 114, 12, 100, 14, 5, 11, "right", "center", function (content, style)
+		put_rgb(style.text_color, 255, Components.BILE)
+	end)
+
+	if kind == "rot" then
+		local cell = SW / 4
+
+		for i, rgb in ipairs({ TRACK_GREY, TRACK_BROWN, TRACK_OCHRE }) do
+			rect(passes, "swatch_" .. i, SX + (i - 1) * cell, SY, cell, SH, 4, function (content, style)
+				put_rgb(style.color, 255, rgb)
+			end)
+		end
+
+		rect(passes, "swatch_4", SX + 3 * cell, SY, cell, SH, 4, function (content, style)
+			put_rgb(style.color, 255, content.accent_rgb)
+		end)
+	elseif kind == "whisper" then
+		text(passes, "look_sample", SX, SY - 4, SW, SH + 8, 4, 18, "left", "center", function (content, style)
+			put_rgb(style.text_color, 255, R.muted)
+		end)
+	else
+		rect(passes, "vial_track", SX, SY, SW, SH, 4, function (content, style)
+			put_rgb(style.color, 255, R.frame)
+		end)
+		rect(passes, "vial_inside", SX + 1, SY + 1, SW - 2, SH - 2, 4.5, function (content, style)
+			put_rgb(style.color, 255, FIELD)
+		end)
+		rect(passes, "vial_fill", SX + 1, SY + 1, (SW - 2) * 0.6, SH - 2, 5, function (content, style)
+			put_rgb(style.color, 110, PUS)
+		end)
+		rect(passes, "vial_line", SX + 1 + (SW - 2) * 0.6, SY + 1, 2, SH - 2, 5, function (content, style)
+			put_rgb(style.color, 255, PUS)
+		end)
+	end
+
+	return UIWidget.create_definition(passes, node_id, {
+		look_name = "",
+		look_desc = "",
+		look_auto = "",
+		look_sample = "",
+		accent_rgb = { 183, 194, 58 },
+	}, { W, H })
+end
+
+-- The card as the Spread HUD draws it (a coloured bar at the left, the name, the suit's mark, the threat diamonds and the enemy dots)
+-- at 1.5 times its size: "In the hand" on the Mirror. The shapes use the ids of the card tile (icon_*, th_*, dot_*). The view
+-- sets the size of the background and the bar (they follow the lines of the name) and the places of everything.
+WB.hand_card = function (node_id, tile_ids)
+	local passes = {}
+	local H = Workshop.HAND
+
+	passes[#passes + 1] = { pass_type = "rect", style_id = "hand_bg", style = { offset = { 0, 0, 0 }, size = { H.w, H.max_h }, color = shape_color() } }
+	passes[#passes + 1] = { pass_type = "rect", style_id = "hand_bar", style = { offset = { 0, 0, 1 }, size = { H.bar * H.scale, H.max_h }, color = shape_color() } }
+	mark_passes(passes, tile_ids)
+	passes[#passes + 1] = {
+		pass_type = "text",
+		style_id = "hand_name",
+		value_id = "hand_name",
+		value = "",
+		style = {
+			font_type = "itc_novarese_bold",
+			font_size = H.name_font * H.scale,
+			text_color = shape_color(),
+			text_horizontal_alignment = "left",
+			text_vertical_alignment = "top",
+			offset = { 0, 0, 5 },
+			size = { 100, 30 },
+			word_wrap = true,
+		},
+	}
+
+	for i = 1, 5 do
+		passes[#passes + 1] = { pass_type = "rotated_rect", style_id = tile_ids.th_h[i], style = { offset = { 0, 0, 3.8 }, size = { 13, 13 }, color = shape_color(), angle = math.pi / 4, pivot = { 6.5, 6.5 }, visible = false } }
+	end
+
+	for i = 1, 5 do
+		passes[#passes + 1] = { pass_type = "rotated_rect", style_id = tile_ids.th_o[i], style = { offset = { 0, 0, 4 }, size = { 12, 12 }, color = shape_color(), angle = math.pi / 4, pivot = { 6, 6 }, visible = false } }
+	end
+
+	for i = 1, 6 do
+		passes[#passes + 1] = { pass_type = "circle", style_id = tile_ids.dot_h[i], style = { offset = { 0, 0, 3.8 }, size = { 1, 1 }, color = shape_color(), visible = false } }
+	end
+
+	for i = 1, 6 do
+		passes[#passes + 1] = { pass_type = "circle", style_id = tile_ids.dot[i], style = { offset = { 0, 0, 4 }, size = { 1, 1 }, color = shape_color(), visible = false } }
+	end
+
+	return UIWidget.create_definition(passes, node_id, { hand_name = "" }, { H.w, H.max_h })
 end
 
 return WB

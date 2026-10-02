@@ -60,6 +60,11 @@ local BUTTONS = {
 	{ name = "btn_thr_hand", width = 100, height = 36, font = 19, cb = "cb_threat_hand", role = "tab" },
 	{ name = "btn_preview", width = 283, cb = "cb_preview_cooldown" },
 	{ name = "btn_quickface", width = 250, height = 36, font = 20, cb = "cb_face", role = "quiet" },
+	-- the Mirror (the card face screen)
+	{ name = "btn_whisper_change", width = 150, cb = "cb_whisper_change" },
+	{ name = "btn_whisper_suit", width = 261, height = 36, font = 20, cb = "cb_whisper_suit", role = "quiet" },
+	{ name = "btn_look_auto", width = 330, height = 36, font = 19, cb = "cb_look_auto", pip = true },
+	{ name = "btn_reset_face", width = 170, cb = "cb_face_reset", role = "danger" },
 	-- presets (list screen -> presets screen -> one preset)
 	{ name = "btn_presets", width = 290, cb = "cb_presets" },
 	{ name = "btn_settings", width = 270, cb = "cb_settings" },
@@ -234,7 +239,7 @@ RealmsWavesView.update = function (self, dt, t, input_service)
 		self:_update_deck(dt, t)
 	end
 
-	if self._screen == "detail" then
+	if self._screen == "detail" or self._screen == "face" then
 		self:_update_cauldron(dt, t)
 	end
 
@@ -366,15 +371,6 @@ RealmsWavesView._create_editor_widgets = function (self)
 
 	self:_create_workshop_widgets(blueprints, WB)
 
-	-- the live preview of the card face screen: a tile nobody can click
-	local preview = self:_create_dynamic_widget("rw_tile_preview", blueprints.tile("rw_tile_preview"))
-
-	for _, hotspot in ipairs(self.TILE_HOTSPOTS) do
-		preview.content[hotspot].disabled = true
-	end
-
-	preview.visible = false
-
 	for i = 1, #BUTTONS do
 		local entry = BUTTONS[i]
 		local widget = self:_create_dynamic_widget(entry.name, blueprints.button(entry.name, entry.width, entry.role, entry.height, nil, entry.pip, entry.font))
@@ -388,10 +384,10 @@ RealmsWavesView._create_editor_widgets = function (self)
 	chance.content.hotspot_plus.pressed_callback = callback(self, "cb_chance_step", 1)
 	chance.content.hotspot_value.pressed_callback = callback(self, "cb_chance_input")
 
-	local cooldown = self:_create_dynamic_widget("stepper_cooldown", blueprints.setting_stepper("stepper_cooldown"))
+	local cooldown = self:_create_dynamic_widget("stepper_cooldown", blueprints.workshop_stepper("stepper_cooldown", 700, 0))
 
-	cooldown.content.hotspot_minus.pressed_callback = callback(self, "cb_cooldown_step", -5)
-	cooldown.content.hotspot_plus.pressed_callback = callback(self, "cb_cooldown_step", 5)
+	cooldown.content.hotspot_minus.pressed_callback = callback(self, "cb_cooldown_step", -1)
+	cooldown.content.hotspot_plus.pressed_callback = callback(self, "cb_cooldown_step", 1)
 	cooldown.content.hotspot_value.pressed_callback = callback(self, "cb_cooldown_input")
 
 	-- spread radius, repeat every, repeat for
@@ -502,7 +498,7 @@ RealmsWavesView._source = function (self)
 	elseif self._screen == "tune" then
 		return mod.rw.groups.TUNE
 	elseif self._screen == "face" then
-		return self._face_rows
+		return {} -- (the Mirror has no table)
 	elseif self._screen == "presets" then
 		return self._preset_slots
 	elseif self._screen == "preset_view" then
@@ -773,10 +769,8 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		widgets.hint_text.content.hint_text = ""
 	elseif screen == "face" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_face", self._wave.name)
-		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", mod:localize("col_setting"), mod:localize("col_what_it_does"), mod:localize("col_value"), ""
-		widgets.bottom_title.content.bottom_title = mod:localize("bottom_face_title", self._wave.name)
+		widgets.bottom_title.content.bottom_title = ""
 		widgets.hint_text.content.hint_text = ""
-		widgets.face_numbers.content.face_numbers = self:_face_numbers_text()
 	elseif screen == "tune" then
 		local part = self._parts[self._part_index]
 
@@ -832,9 +826,9 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	local cauldron = screen == "detail"
 	local under = definitions.under_shelf
 
-	widgets.list_panel.visible = not deck_screen and not cauldron
-	widgets.list_header.visible = not deck_screen and not cauldron
-	widgets.bottom_panel.visible = not cauldron
+	widgets.list_panel.visible = not deck_screen and not cauldron and screen ~= "face"
+	widgets.list_header.visible = not deck_screen and not cauldron and screen ~= "face"
+	widgets.bottom_panel.visible = not cauldron and screen ~= "face"
 
 	-- Back is at the foot of every screen of a card (its enemies, the picker, Mods, Custom, its face) in the same place, with the
 	-- picker's buttons beside it; the other screens keep it at 125, 800. Never on a spot where the screen it returns to has a button.
@@ -887,10 +881,29 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.btn_enemies.content.hotspot_text = mod:localize("tab_enemies")
 	widgets.btn_enemies.content.hotspot_on = detail
 
-	for _, name in ipairs({ "btn_dreg", "btn_scab", "btn_thr_auto", "btn_thr_hand", "btn_preview", "btn_quickface" }) do
+	local mirror = screen == "face"
+
+	for _, name in ipairs({ "btn_dreg", "btn_scab", "btn_quickface" }) do
 		widgets[name].visible = detail
 	end
-	widgets.face_numbers.visible = screen == "face"
+
+	-- (the stage's toolbar and the threat switch are on both screens, in their own places; the Mirror's buttons only on the Mirror)
+	for _, name in ipairs({ "btn_thr_auto", "btn_thr_hand", "btn_preview", "btn_enabled" }) do
+		widgets[name].visible = detail or mirror
+	end
+
+	for _, name in ipairs({ "btn_whisper_change", "btn_whisper_suit", "btn_look_auto", "btn_reset_face" }) do
+		widgets[name].visible = mirror
+	end
+
+	local thr_y = mirror and Workshop.MIRROR.threat_y + 10 or Workshop.THREAT_Y + 4
+	local thr_x = mirror and Workshop.LEFT_X + 5 * Workshop.MIRROR.threat_pitch + 12 or Workshop.THREAT_X + 5 * Workshop.THREAT_PITCH + 12
+
+	self:_set_scenegraph_position("btn_thr_auto", thr_x, thr_y, 2)
+	self:_set_scenegraph_position("btn_thr_hand", thr_x + 76, thr_y, 2)
+	widgets.rw_scroll_up.visible = not mirror
+	widgets.rw_scroll_down.visible = not mirror
+	widgets.bottom_title.visible = not mirror
 	widgets.btn_delete.visible = detail
 	widgets.btn_delete.content.hotspot_text = mod:localize(self._confirm and self._wave and self._confirm.key == self._wave.key and "btn_sure" or "btn_delete")
 	widgets.btn_delete.content.hotspot_on = self._confirm ~= nil and self._wave ~= nil and self._confirm.key == self._wave.key
@@ -911,14 +924,13 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.btn_rename.visible = detail
 	widgets.btn_text.visible = detail
 	widgets.btn_add.visible = detail
-	widgets.btn_enabled.visible = detail
 	widgets.btn_reset.visible = detail
 	for i = 1, #DETAIL_STEPPERS do
 		widgets[DETAIL_STEPPERS[i]].visible = detail
 	end
 
-	-- (the cooldown stepper of the old card screen: the cooldown is set on the card face screen now)
-	widgets.stepper_cooldown.visible = false
+	-- the cooldown stepper is the Mirror's
+	widgets.stepper_cooldown.visible = screen == "face"
 
 	for i = 1, #LIST_STEPPERS do
 		widgets[LIST_STEPPERS[i]].visible = screen == "list"
@@ -945,12 +957,6 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		chance.label = mod:localize("lbl_chance")
 		chance.stepper_value = tostring(math.floor(wave.pct))
 		chance.extra = wave.timer > 0 and mod:localize("extra_timer_wave") or share and mod:localize("extra_share", string.format("%.1f", share)) or mod:localize("extra_not_drawn")
-
-		local cooldown = widgets.stepper_cooldown.content
-
-		cooldown.label = mod:localize("lbl_cooldown")
-		cooldown.stepper_value = tostring(math.floor(wave.cooldown))
-		cooldown.extra = mod:localize(wave.timer > 0 and "extra_timer_ignored" or "extra_cooldown")
 
 		local spread = widgets.stepper_spread.content
 
@@ -1016,6 +1022,7 @@ RealmsWavesView._refresh_rows = function (self)
 		end
 
 		self:_hide_cauldron()
+		self:_hide_mirror()
 		self:_refresh_deck()
 
 		return
@@ -1023,8 +1030,8 @@ RealmsWavesView._refresh_rows = function (self)
 
 	self:_hide_deck()
 
-	if screen == "detail" then
-		-- the Cauldron: its own rows, shelf, stage and quick face; the table rows are not used
+	if screen == "detail" or screen == "face" then
+		-- the Cauldron and the Mirror have their own widgets; the table rows are not used
 		for i = 1, LIST_CAPACITY do
 			local widget = self._widgets_by_name[ROW_NODE_PREFIX .. i]
 
@@ -1033,6 +1040,15 @@ RealmsWavesView._refresh_rows = function (self)
 			end
 		end
 
+		if screen == "face" then
+			self:_hide_cauldron()
+			self:_refresh_mirror()
+			self._widgets_by_name.list_range.content.list_range = ""
+
+			return
+		end
+
+		self:_hide_mirror()
 		self:_refresh_cauldron()
 
 		local parts = #self._parts
@@ -1043,6 +1059,7 @@ RealmsWavesView._refresh_rows = function (self)
 	end
 
 	self:_hide_cauldron()
+	self:_hide_mirror()
 
 	for i = 1, LIST_CAPACITY do
 		local widget = self._widgets_by_name[ROW_NODE_PREFIX .. i]
@@ -1061,9 +1078,7 @@ RealmsWavesView._refresh_rows = function (self)
 				content.show_tune = false
 				content.hotspot_mods_on, content.hotspot_tune_on = false, false
 
-				if screen == "face" then
-					name_color = self:_face_row(item, content)
-				elseif screen == "tune" then
+				if screen == "tune" then
 					name_color = self:_tune_row(item, content)
 				elseif screen == "presets" then
 					content.row_name = string.format("%d. %s", item.index, item.name)
@@ -1137,10 +1152,6 @@ RealmsWavesView._refresh_rows = function (self)
 		end
 	end
 
-	if screen == "face" then
-		self:_paint_preview()
-	end
-
 	local range = self._widgets_by_name.list_range
 
 	if range then
@@ -1200,6 +1211,7 @@ RealmsWavesView._set_interaction_enabled = function (self)
 	end
 
 	self:_set_cauldron_interaction(rows_enabled)
+	self:_set_mirror_interaction(rows_enabled)
 
 	local max_offset = self:_max_offset()
 	local up, down = widgets.rw_scroll_up, widgets.rw_scroll_down
@@ -1246,8 +1258,7 @@ FaceView.install(RealmsWavesView, {
 	guarded = guarded,
 	set_setting = set_setting,
 	Popup = Popup,
-	Components = Components,
-	Spread = blueprints.Spread,
+	definitions = definitions,
 })
 
 TuneView.install(RealmsWavesView, {
@@ -1257,6 +1268,7 @@ TuneView.install(RealmsWavesView, {
 })
 
 WorkshopView.install(RealmsWavesView, {
+	Deck = Deck,
 	Workshop = Workshop,
 	Spread = blueprints.Spread,
 	TILE_IDS = blueprints.TILE_IDS,
@@ -1325,12 +1337,6 @@ RealmsWavesView.cb_settings = guarded(function (self)
 end)
 
 RealmsWavesView.cb_row_check = guarded(function (self, row)
-	if self._screen == "face" then
-		self:_face_click(row)
-
-		return
-	end
-
 	if self._screen == "settings" then
 		local item = self:_item_at(row)
 
@@ -1396,9 +1402,7 @@ RealmsWavesView.cb_row_name = guarded(function (self, row)
 		return
 	end
 
-	if self._screen == "face" then
-		self:_face_click(row)
-	elseif self._screen == "presets" then
+	if self._screen == "presets" then
 		self:_open_preset(item.index)
 	elseif self._screen == "picker" then
 		self:_add_breed(item)
@@ -1463,9 +1467,7 @@ RealmsWavesView.cb_row_action = guarded(function (self, row)
 		return
 	end
 
-	if self._screen == "face" then
-		self:_face_action(row)
-	elseif self._screen == "tune" then
+	if self._screen == "tune" then
 		self:_tune_action(item)
 	elseif self._screen == "presets" then
 		self:_open_preset(item.index)
@@ -1487,8 +1489,6 @@ RealmsWavesView._step_row = function (self, row, delta)
 		if item.kind == "number" then
 			self:_set_number_setting(item, item.number + delta * item.step)
 		end
-	elseif self._screen == "face" then
-		self:_face_step(item, delta)
 	elseif self._screen == "tune" then
 		self:_tune_step(item, delta)
 	elseif self._screen == "detail" then
@@ -1591,8 +1591,6 @@ RealmsWavesView.cb_row_value = guarded(function (self, row)
 		if item.kind == "number" then
 			self:_open_setting_popup(item)
 		end
-	elseif self._screen == "face" then
-		self:_face_value(item)
 	elseif self._screen == "tune" then
 		self:_tune_value(item)
 	elseif self._screen == "detail" then
@@ -1898,25 +1896,6 @@ RealmsWavesView.cb_chance_input = guarded(function (self)
 		numeric = true, min = 0, max = 1000, integer = true,
 		set = function (value)
 			set_setting("pct_" .. self._key, value)
-			self:_reload()
-			self:_apply_screen(true)
-		end,
-	})
-end)
-
-RealmsWavesView.cb_cooldown_step = guarded(function (self, delta)
-	set_setting("cd_" .. self._key, math.clamp(math.floor(self._wave.cooldown) + delta, 0, 3600))
-	self:_reload()
-	self:_apply_screen(true)
-end)
-
-RealmsWavesView.cb_cooldown_input = guarded(function (self)
-	Popup.open(self, {
-		label = mod:localize("popup_cooldown_title", self._wave.name),
-		value = tostring(math.floor(self._wave.cooldown)),
-		numeric = true, min = 0, max = 3600, integer = true,
-		set = function (value)
-			set_setting("cd_" .. self._key, value)
 			self:_reload()
 			self:_apply_screen(true)
 		end,

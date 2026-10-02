@@ -73,8 +73,6 @@ local scenegraph_definition = {
 	btn_help = node(1766, 36, 50, 44, 2),
 	btn_face = node(1480, 36, 270, 44, 2), -- a card's own screen: its face (suit, threat, whisper, look); same spot as More options, which is list-only
 	-- the card face screen: "Threat N by the numbers" under the rows, the live preview of the tile in the bottom right
-	face_numbers = node(125, 852, 1400, 120, 2),
-	rw_tile_preview = node(1560, 756, 228, 270, 3),
 	help_panel = node(880, 90, 935, 300, 70),
 	help_text = node(900, 100, 895, 280, 71),
 	btn_wimport = node(645, 800, 300, 44, 2), -- list screen: import a shared wave into the first free custom slot
@@ -196,6 +194,42 @@ scenegraph_definition.btn_thr_auto = node(Workshop.THREAT_X + 5 * Workshop.THREA
 scenegraph_definition.btn_thr_hand = node(Workshop.THREAT_X + 5 * Workshop.THREAT_PITCH + 12 + 76, Workshop.THREAT_Y + 4, 100, 36, 2)
 scenegraph_definition.stepper_chance = node(P.x, Workshop.CHANCE_Y, P.w, 48, 2)
 
+-- ---- the Mirror (the card face screen): four sections on the left, the stage of the Cauldron on the right
+local M = Workshop.MIRROR
+
+definitions.PLATE_NODE_PREFIX, definitions.LOOK_NODE_PREFIX = "rw_plate_", "rw_look_"
+definitions.MIRROR_LOOKS = { "rot", "whisper", "vial" }
+
+for i = 1, 4 do
+	scenegraph_definition["mirror_head_" .. i] = node(LX, M.head[i], Workshop.LEFT_W, M.head_h, 2)
+end
+
+scenegraph_definition.mirror_desc = node(LX, M.desc_y, Workshop.LEFT_W, M.desc_h, 2)
+
+for i = 1, 12 do
+	local x, y = Workshop.plate_pos(i)
+
+	scenegraph_definition[definitions.PLATE_NODE_PREFIX .. i] = node(x, y, M.plate.w, M.plate.h, 3)
+end
+
+scenegraph_definition.rw_threat_big = node(LX, M.threat_y, 5 * M.threat_pitch, M.threat_h, 2)
+scenegraph_definition.mirror_numbers = node(LX + 5 * M.threat_pitch + 12 + 76 + 100 + 24, M.threat_y, Workshop.LEFT_W - (5 * M.threat_pitch + 12 + 76 + 100 + 24), M.threat_h, 2)
+scenegraph_definition.whisper_field = node(LX, M.whisper_y, M.whisper_w, M.whisper_h, 2)
+scenegraph_definition.btn_whisper_change = node(LX + M.whisper_w + 12, M.whisper_y, 150, 44, 2)
+scenegraph_definition.btn_whisper_suit = node(LX + M.whisper_w + 12 + 150 + 12, M.whisper_y + 4, Workshop.LEFT_W - (M.whisper_w + 12 + 150 + 12), 36, 2)
+scenegraph_definition.stepper_cooldown = node(LX, M.cooldown_y, 700, 48, 2)
+
+for i = 1, 3 do
+	local x, y = Workshop.look_pos(i)
+
+	scenegraph_definition[definitions.LOOK_NODE_PREFIX .. i] = node(x, y, M.look.w, M.look.h, 3)
+end
+
+scenegraph_definition.btn_look_auto = node(LX, M.auto_y, 330, M.auto_h, 2)
+scenegraph_definition.hand_caption = node(Workshop.HAND.x, Workshop.HAND.caption_y, P.w, 28, 2)
+scenegraph_definition.rw_hand_card = node(Workshop.HAND.x, Workshop.HAND.y, Workshop.HAND.w, Workshop.HAND.max_h, 2)
+scenegraph_definition.btn_reset_face = node(1070, under.actions_y, 170, 44, 2)
+
 local function header_pass(id, x, w, align)
 	return {
 		value_id = id,
@@ -278,7 +312,6 @@ local widget_definitions = {
 		},
 	}, "title_text"),
 
-	face_numbers = plain_text("face_numbers", "face_numbers", 20, colors.muted, 1400, 120, "left", "top"),
 	deck_count = plain_text("deck_count", "deck_count", 20, colors.muted, 270, 44, "right"),
 	deck_caption = plain_text("deck_caption", "deck_caption", 15, colors.muted, 800, 22, "left"),
 	deck_hover = plain_text("deck_hover", "deck_hover", 15, colors.text, 800, 22, "right"),
@@ -323,6 +356,15 @@ local widget_definitions = {
 	quick_label = plain_text("quick_label", "quick_label", 16, colors.text, 200, 28, "left"),
 	threat_label = plain_text("threat_label", "threat_label", 16, colors.muted, Workshop.ROW_LABEL_W, 44, "left"),
 	spawn_label = plain_text("spawn_label", "spawn_label", 16, colors.muted, 600, 22, "left"),
+
+	-- the Mirror's static widgets: the section headers, the suit's description, the threat sum
+	mirror_head_1 = WB.section_head("mirror_head_1"),
+	mirror_head_2 = WB.section_head("mirror_head_2"),
+	mirror_head_3 = WB.section_head("mirror_head_3"),
+	mirror_head_4 = WB.section_head("mirror_head_4"),
+	hand_caption = plain_text("hand_caption", "hand_caption", 16, colors.text, P.w, 28, "left"),
+	mirror_desc = plain_text("mirror_desc", "mirror_desc", 20, colors.muted, Workshop.LEFT_W, M.desc_h, "left", "top"),
+	mirror_numbers = plain_text("mirror_numbers", "mirror_numbers", 19, colors.muted, Workshop.LEFT_W - (5 * M.threat_pitch + 12 + 76 + 100 + 24), M.threat_h, "left", "center"),
 
 	bottom_panel = UIWidget.create_definition({
 		{ pass_type = "rect", style = { color = Components.clone_color(colors.panel) } },
