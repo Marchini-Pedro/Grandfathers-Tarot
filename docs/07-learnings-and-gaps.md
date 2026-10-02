@@ -10,9 +10,10 @@ Things we know are missing or unverified, each with the next concrete step.
 | Gap | Next step | Since |
 |---|---|---|
 | Nothing of 2.0.0 (Spread HUD options, Deck look, card builder, custom mods) has been checked in a real two-player game | the user plays; matrix rows 91-96 in `06` | 2026-10-01 |
-| Per-unit **animation speed** of attacks ("Animation attack speed"): no API found in the game scripts | run `/rw_anim` in a mission with a wave unit alive (host) and send the console log; then build the setting against what exists, or close the gap as impossible | 2026-10-01 |
+| Per-unit **animation speed** of attacks ("Animation attack speed") | CLOSED 2026-10-02 as not possible cleanly: `/rw_anim` found no speed variable on three breeds and the engine's speed functions are for simple animations only (docs/03). Reopen only if someone finds a state-machine variable by another route | 2026-10-01 |
+| **Gunner fire rate and shots per burst do nothing** on riflemen and scab gunners (the user, 2026-10-02), while the melee stat works | run riflemen with fire 25 / burst 500, let them shoot, run `/rw_tune`, send the console log (lines "custom stats written on", "started shooting"); the three outcomes: not written, written but reset, read but no visible effect | 2026-10-02 |
 | Time between attacks, the chain fix and `/rw_anim` are untested in game | matrix rows 94 and 97-101 in `06`; the user's "100 percent working" merges `feature/attack-timing` into `main` | 2026-10-01 |
-| Does DMF apply a string-class hook (`BtMeleeAttackAction`) when the class is loaded after the mod? | `entry_test.py` assumes it (the same as the pacing and buff hooks, which work); if the chain fix does nothing in game, look for the hook in the console log first | 2026-10-01 |
+| (closed 2026-10-02) Does DMF apply a string-class hook when the class loads after the mod? | Yes: the console log shows "needs to be delayed" at load and "Hooking ..." at mission start | 2026-10-01 |
 | Size of a custom-mod enemy on a client without RealmsWaves is the normal size | by design (see doc 03, "Custom mods per group"); only a mod on every machine can fix it | 2026-10-01 |
 | `CHANGELOG.md` is 86 KB (limit 100) | split into `docs/changelog/` per major version when it passes 100 KB (`check_docs.py` warns from 80) | 2026-10-01 |
 
@@ -30,12 +31,18 @@ Things we know are missing or unverified, each with the next concrete step.
 - **Darktide UI passes have no anti-aliasing** (rect, circle, triangle, rotated_rect): shapes get a faint wider copy (a "feather") underneath. A second left click inside the double-click window calls ONLY the `double_click_callback`.
 - **Git on Windows**: PowerShell 5.1 mangles multi-line `-m` text and `Set-Content -Encoding UTF8` adds a BOM, so commit messages are written to a BOM-free file and passed with `-F`; git writing progress to stderr makes PowerShell print `NativeCommandError` even when the push worked (read the `main -> main` line). The first push needs the user to sign in through the Git Credential Manager browser window; later pushes work.
 
+- **2026-10-02, the burster's blast ignores the model's size.** The model's own danger-zone effect scales with the unit, but the explosion is made from fixed templates with a constant charge level (`bt_chaos_poxwalker_explode_action.lua:14,44`; `scalable_radius` only matters with a charge level other than 1; `explosion_radius_modifier` only counts for attack type "explosion", `explosion.lua:484-500`). The size mod now swaps the templates of the action for scaled copies during that one call. The user noticed it by looking, no test could have.
+- **2026-10-02, the answer of `/rw_anim`** (the user ran it on a cultist berzerker, a plague ogryn and a chaos spawn): only `anim_move_speed` and `moving_attack_fwd_speed` exist; 50 `Unit` functions mention animation, speed, time, scale or rate; the speed ones are for simple animations and crossfades. A probe built in a few minutes closed a question that source reading could not.
+- **2026-10-02, the DMF log shows when a hook is really in place**: "`(hook_safe): [BtMeleeAttackAction._start_attack_anim] needs to be delayed`" at load and "`Hooking '_start_attack_anim' from [BtMeleeAttackAction]`" when the mission starts: string-class hooks work for classes that load later (settles the open question in section 1).
+
 ## 3. Attempts and dead ends
 
 - **2026-10-01, re-asserting stats from a 0.25 s timer** (first version of the custom mods): did not work for melee/fire rate/burst because of the per-frame recompute above. Replaced by the hook; the timer stays as a fallback only.
 - **2026-10-01, one global animation speed** was considered and rejected: the engine's world time scale is global (every unit and the players), not per unit.
 - **2026-10-01, scaling the damage timings to fake a faster animation** was considered and rejected: without a way to speed the animation itself the hit would land before the wind-up on screen.
 - **2026-10-01, keeping the number of the old setting under the new name** was considered and rejected: a "Time between attacks" of 250 that makes enemies faster reads as a bug. The number was inverted (`100 / value`) and the old names are read through a `legacy` alias list that converts once, so saved cards behave as before.
+- **2026-10-02, stepping the animation time by hand** (`Unit.animation_set_time` each frame, host only) as an "Animation attack speed": rejected, the other players would see the normal-speed animation under a faster hit.
+- **2026-10-02, a direct (stat-free) application of fire rate and burst inside a hook after `start_shooting`**: rejected for now. If the stat the game reads is the one we write, it adds nothing; if it is not, we do not know what else is wrong. The log lines and `/rw_tune` come first.
 - **2026-10-01, a virtual clock for the whole attack** (hooking `BtMeleeAttackAction.run` and feeding it `t0 + (t - t0) * speed`) would make timings, movement and damage consistent at any speed, but without an animation speed control the picture still plays at normal speed; kept as the plan for an "Animation attack speed" IF `/rw_anim` finds a control.
 
 ## 4. Insights (how to work on this mod)
