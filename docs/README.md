@@ -15,7 +15,7 @@ A standalone Darktide mod, compatible with the **Realms Server** mod (LAN / list
 | [05-implementation-plan.md](05-implementation-plan.md) | Ordered checklist with status, reuse map, options list |
 | [06-verification-and-open-issues.md](06-verification-and-open-issues.md) | Test matrix, risks, unverified assumptions, results log |
 | [07-learnings-and-gaps.md](07-learnings-and-gaps.md) | The journal: open gaps with next steps, discoveries, attempts and dead ends, insights |
-| [CHANGELOG.md](CHANGELOG.md) | What changed, per commit. Every .md stays under 100 KB (`python tools/check_docs.py`); at 100 KB it is split into granular files |
+| [CHANGELOG.md](CHANGELOG.md), [changelog/1.x.md](changelog/1.x.md) | What changed, per commit (2.0.0 here, 1.0.0 to 1.13.0 in the second file). Every .md stays under 100 KB (`python tools/check_docs.py`); at 100 KB it is split into granular files |
 
 ## Current status
 See the checkboxes in `05-implementation-plan.md`. Update this line when a phase completes.
