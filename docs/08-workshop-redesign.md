@@ -53,7 +53,7 @@ Not in the first build (deferred, see the checklist): the "In the hand" mini car
 - [x] 1. Button family in `ui/wave_editor_components.lua` (standard, primary, danger, quiet, chip, stepper, diamond check, tabs, icon), the popup buttons and frame, pixel snapping, the accent colour, and the two titles. Done offline; the accent lives on `mod.rw_accent` (see `07`).
 - [x] 2. The shelf data: `Groups.faction`, `Groups.SHELF` (30 chips, Packmaster, vanguards as fodder, Dreg / Scab pairs), the faction word in rows and the picker. Done offline.
 - [x] 3. The tile at any scale (`blueprints.tile(node, k)`, `blueprints.tile_metrics(k)`, `_paint_tile` and the vial, ping and name lines read `content.metrics`). Done offline; the stage plate is built with the Cauldron.
-- [ ] 4. The Cauldron (rows, shelf, spawn block, action bar, stage, quick face, tabs).
+- [x] 4. The Cauldron (rows, shelf, spawn block, action bar, stage, quick face, tabs). Done offline. What differs from the design page: the shelf has 30 chips (the page had 25) and its head row carries the Dreg | Scab switch; five enemy rows, not four; Back is in the action row of every card screen (the page had it only on the Cauldron); the chip shows a tag letter and lights when the card has the enemy (no count badge: the row has it); the quiet button "Whisper and cooldown" opens the Face tab. Coordinates: left pane rows y 164-420, summary 428, shelf 472-806, spawn label 818, steppers 840 and 888, action bar 946; right pane caption 134, plate 164-604, toolbar 612, quick face 672, suits 712 and 782, threat 858, chance 910.
 - [ ] 5. The Mirror (suit plates, threat, whisper, cooldown, looks).
 - [ ] 6. Preview tool for any screen, tests, docs.
 

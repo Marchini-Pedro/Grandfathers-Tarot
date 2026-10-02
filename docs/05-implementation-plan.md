@@ -64,7 +64,7 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 1. Button family (standard, primary, danger, quiet, chip, stepper, diamond check, tabs, icon), popup buttons and frame, pixel snapping, the suit accent; titles (Cauldron, Mirror) came with it (offline only)
 - [x] 2. The shelf data (Packmaster, vanguards as fodder, Dreg / Scab) and the faction word on rows and in the picker (offline only); the titles are done
 - [x] 3. The tile at any scale (`blueprints.tile(node, k)`, metrics in the content; offline only); the stage plate comes with the Cauldron
-- [ ] 4. The Cauldron: rows, shelf, spawn block, action bar, stage, quick face, tabs
+- [x] 4. The Cauldron: rows, shelf, spawn block, action bar, stage with the 1.4 times card, quick face, tabs, cooldown preview (offline only)
 - [ ] 5. The Mirror: suit plates, threat sum, whisper, cooldown, looks
 - [ ] 6. Preview tool for any screen, tests, docs
 - [ ] In-game verification (matrix rows from 97 in doc 06)
