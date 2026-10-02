@@ -2029,6 +2029,95 @@ do
   view:_reload(); view:_apply_screen()
 end
 
+-- ---- the tile at another scale (docs/08: the card on the stage is 1.4 times the Deck's tile) -----------------------------------
+do
+  local BP = dofile(BASE .. "/ui/wave_editor_blueprints.lua")
+  local K = 1.4
+  local def = BP.tile("rw_tile_big", K)
+  local big = view:_create_dynamic_widget("rw_tile_big", def)
+  local small = view:_create_dynamic_widget("rw_tile_small", BP.tile("rw_tile_small"))
+  local Spread = BP.Spread
+  view._tile_shape = view._tile_shape or Spread.new_shape(Spread.ICON_TRIS, Spread.ICON_CIRCS)
+  view._screen = "list"; view:_reload()
+  local wave = view._waves[1]
+  view:_paint_tile(big, wave)
+  view:_paint_tile(small, wave)
+  local function near(a, b) return math.abs(a - b) < 1e-6 end
+
+  check("tile scale: the widget and its content know their scale: 319.2 x 378 for 1.4, 228 x 270 for the Deck's", big.content.metrics.k == K and near(def.size[1], 228 * K) and near(def.size[2], 270 * K) and small.content.metrics.k == 1 and small.def.size[1] == 228 and small.def.size[2] == 270)
+  check("tile scale: no argument gives the Deck's tile exactly (the metrics of scale 1: a widget keeps its own copy of them)", small.content.metrics.k == 1 and small.content.metrics.w == 228 and small.content.metrics.pips_x == BP.TILE.pips_x and BP.TILE.w == 228 and BP.TILE.h == 270 and BP.TILE.name[3] == 200 and BP.TILE.pip[1] == 16)
+  check("tile scale: fonts follow the scale (name 20 -> 28, text 13 -> 18, labels 12 -> 17), the Deck's stay 20 / 13 / 12", big.style.name.font_size == 28 and big.style.comp.font_size == 18 and big.style.suit_label.font_size == 17 and big.style.state_left.font_size == 17 and small.style.name.font_size == 20 and small.style.comp.font_size == 13 and small.style.suit_label.font_size == 12)
+  check("tile scale: the glow, the pips and the hit areas scale, a line stays 1 unit", near(big.style.glow.size[1], 228 * K + 24 * K) and near(big.style.pip_1.size[1], 16 * K) and near(big.style.pip_1.size[2], 7 * K) and near(big.style.pip_2.offset[1] - big.style.pip_1.offset[1], 20 * K) and big.style.border_t.size[2] == 1 and big.style.border_l.size[1] == 1 and near(big.style.border_t.size[1], 228 * K) and big.style.divider.size[2] == 1)
+  check("tile scale: the painted shapes scale: threat diamonds 8 -> 11.2 on a copy of 9.4 -> 13.2, dots 9 -> 12.6, the suit mark 26 -> 36.4", near(big.style.th_o1.size[1], 8 * K) and near(big.style.th_h1.size[1], 9.4 * K) and near(big.style.dot_1.size[1], 9 * K) and near(big.style.dot_h1.size[1], 10.2 * K) and big.style.icon_c1.visible and near(big.style.icon_c1.size[1] / small.style.icon_c1.size[1], K))
+  check("tile scale: the divider and the composition follow the name at the same proportion", near(big.style.divider.offset[2], small.style.divider.offset[2] * K) and near(big.style.comp.offset[2], small.style.comp.offset[2] * K) and near(big.style.comp.size[2], small.style.comp.size[2] * K))
+  check("tile scale: the threat diamonds are 11.2 apart times 1.4 and sit on the row", near(big.style.th_o2.offset[1] - big.style.th_o1.offset[1], (small.style.th_o2.offset[1] - small.style.th_o1.offset[1]) * K) and near(big.style.th_o1.offset[2], small.style.th_o1.offset[2] * K))
+
+  -- everything visible lies inside the tile
+  local function inside(w)
+    local W, H = w.def.size[1], w.def.size[2]
+    local bad = {}
+    for _, p in ipairs(w.def.passes) do
+      local st = w.style[p.style_id]
+      if st and st.visible ~= false and p.pass_type ~= "texture" then
+        local o, s = st.offset, st.size
+        if p.pass_type == "triangle" then
+          for i = 1, 3 do
+            local x, y = o[1] + st.triangle_corners[i][1], o[2] + st.triangle_corners[i][2]
+            if x < -1 or y < -1 or x > W + 1 or y > H + 1 then bad[#bad + 1] = p.style_id end
+          end
+        elseif s and (o[1] < -1 or o[2] < -1 or o[1] + s[1] > W + 1 or o[2] + s[2] > H + 1) then
+          bad[#bad + 1] = p.style_id .. string.format(" (%.1f,%.1f %.1fx%.1f)", o[1], o[2], s[1], s[2])
+        end
+      end
+    end
+    return #bad == 0, table.concat(bad, ", ")
+  end
+  local ok_big, why_big = inside(big)
+  local ok_small, why_small = inside(small)
+  check("tile scale: everything drawn lies inside the tile at 1.4 as it does at 1 (the ping and the vial start hidden)", ok_big and ok_small, why_big .. " / " .. why_small)
+
+  -- the hotspots: the ten pips side by side from edge to edge, nothing overlaps, everything inside
+  local boxes, pips = {}, {}
+  for _, p in ipairs(big.def.passes) do
+    if p.pass_type == "hotspot" then
+      local b = { p.style.offset[1], p.style.offset[2], p.style.size[1], p.style.size[2] }
+      boxes[#boxes + 1] = b
+      if p.content_id:find("^hotspot_pip") then pips[#pips + 1] = b end
+    end
+  end
+  table.sort(pips, function(a, b) return a[1] < b[1] end)
+  local flush = #pips == 10 and pips[1][1] == 0
+  for i = 1, 9 do flush = flush and near(pips[i][1] + pips[i][3], pips[i + 1][1]) end
+  flush = flush and near(pips[10][1] + pips[10][3], 228 * K)
+  local overlap = false
+  for i = 1, #boxes do for j = i + 1, #boxes do
+    local a, b = boxes[i], boxes[j]
+    if a[1] < b[1] + b[3] - 1e-9 and b[1] < a[1] + a[3] - 1e-9 and a[2] < b[2] + b[4] - 1e-9 and b[2] < a[2] + a[4] - 1e-9 then overlap = true end
+  end end
+  check("tile scale: 13 hotspots, the ten pips are side by side from edge to edge of the scaled tile, none overlap", #boxes == 13 and flush and not overlap)
+
+  -- the name's lines are measured with the scaled box and font, so a name takes the same number of lines
+  local long = "The Magician Of Endless Plague"
+  check("tile scale: a name takes the same number of lines at 1.4 as at 1 (the box and the font grow together)", view:_name_lines(long, small.style.name, small.content.metrics) == view:_name_lines(long, big.style.name, big.content.metrics) and view:_name_lines("The Wheel", small.style.name) == 1)
+
+  -- the vial and its bubbles at the scale
+  view:_animate_vial(big, big.content.fx, 0.5, 1)
+  view:_animate_vial(small, small.content.fx, 0.5, 1)
+  check("tile scale: the vial rises through half the scaled tile, the bubbles are 6 -> 8.4", near(big.style.vial.size[2], 378 / 2) and near(big.style.vial.offset[2], 378 / 2) and near(small.style.vial.size[2], 135) and near(big.style.bubble_1.size[1], 6 * K) and near(small.style.bubble_1.size[1], 6))
+
+  -- the ready ping at the scale stays around the tile
+  big.content.fx.ping_t = 0
+  view:_tick_ping(big, big.content.fx, 0.5)
+  check("tile scale: the ready ping is a ring around the scaled tile", big.style.ping_t.visible and big.style.ping_t.size[1] > 228 * K * 0.96 and big.style.ping_l.size[2] > 270 * K * 0.96 and big.style.ping_t.offset[1] < 228 * K / 2)
+
+  -- tidy: the two test widgets are not part of any screen
+  for _, name in ipairs({ "rw_tile_big", "rw_tile_small" }) do
+    local w = view._widgets_by_name[name]
+    for i = #view._widgets, 1, -1 do if view._widgets[i] == w then table.remove(view._widgets, i) end end
+    view._widgets_by_name[name] = nil
+  end
+end
+
 -- last: closing the whole editor while a popup is open must release the keybinds
 do
   local PP = dofile(BASE .. "/ui/wave_editor_components.lua")
