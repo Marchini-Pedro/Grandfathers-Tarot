@@ -248,6 +248,11 @@ WorkshopView.install = function (View, h)
 
 		content.row_name = with_faction(rw, item.breed, content.row_name)
 		content.info = mods_shown
+
+		-- with no modifier line under it the name is centred in the row, like the steppers beside it
+		local has_info = mods_shown ~= ""
+
+		widget.style.row_name.offset[2], widget.style.row_name.size[2] = has_info and 1 or 0, has_info and 30 or Workshop.ROW_H
 		content.stepper_value = tostring(item.count)
 		content.same_selected = item.rep_same == true
 		-- with "same" ticked the repeat number is the initial count, shown as "="
@@ -336,8 +341,7 @@ WorkshopView.install = function (View, h)
 
 			widget.visible = true
 			content.chip_label = groups.shelf_label(chip.entry)
-			content.chip_tag = chip.tag and chip_faction and groups.FACTION_NAMES[chip_faction]:sub(1, 1) or ""
-			content.tag_rgb = chip_faction and colors and colors.faction_rgb(chip_faction) or Components.rgb.muted
+			content.tint = chip_faction and colors and colors.faction_tint(chip_faction) or false
 			content.dot_rgb = colors and colors.rgb(breed) or Components.rgb.muted
 			content.hotspot_on = self:_card_has_plain(breed)
 		end

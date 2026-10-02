@@ -153,14 +153,47 @@ WB.shelf_panel = function (node_id, layout)
 	return UIWidget.create_definition(passes, node_id, content, { W, H })
 end
 
--- One chip of the shelf, `w` wide (Workshop.chip_width): a dot in the enemy's colour, the label, the faction tag (D or S in the
--- faction's colour). The button's own flag (hotspot_on) says the card already has this enemy. Content: chip_label, chip_tag,
--- dot_rgb, tag_rgb.
+-- One chip of the shelf, `w` wide (Workshop.chip_width): a dot in the enemy's colour and the label. A chip of a Dreg or a Scab is
+-- tinted with the faction: putrid yellow-green for a Dreg, steel grey over black for a Scab (content.tint = Colors.FACTION_TINT[..],
+-- false for the neutral chips). The button's own flag (hotspot_on) says the card already has this enemy. The label box is wider than the
+-- chip and left aligned, so a label that turns out wider than estimated spills over the edge instead of breaking in two lines.
+-- Content: chip_label, dot_rgb, tint.
 WB.shelf_chip = function (node_id, w)
 	local passes = {}
 	local H = Workshop.CHIP_H
 
-	Components.button(passes, "hotspot", { 0, 0, 0 }, { w, H }, { role = "chip", label = "" })
+	Components.hotspot_pass(passes, "hotspot", { 0, 0, 0 }, { w, H })
+
+	rect(passes, "chip_frame", 0, 0, w, H, 0, function (content, style)
+		local st, tint = state_of(content.hotspot), content.tint or nil
+
+		if st == STATE.OFF then
+			put_rgb(style.color, 255, R.frame_off)
+		elseif st ~= STATE.REST then
+			put_rgb(style.color, 255, tint and tint.bright or Components.accent)
+		elseif content.hotspot_on == true then
+			put_mix(style.color, 255, tint and tint.frame or R.frame, tint and tint.bright or Components.accent, 0.55)
+		else
+			put_rgb(style.color, 255, tint and tint.frame or R.frame)
+		end
+	end)
+	rect(passes, "chip_fill", 1, 1, w - 2, H - 2, 0.5, function (content, style)
+		local st, tint = state_of(content.hotspot), content.tint or nil
+
+		if st == STATE.OFF then
+			put_rgb(style.color, 255, R.plate_off)
+		elseif st == STATE.DOWN then
+			put_mix(style.color, 255, R.plate_down, tint and tint.hi or Components.accent, tint and 0.5 or 0.07)
+		elseif st == STATE.HOVER then
+			if tint then
+				put_rgb(style.color, 255, tint.hi)
+			else
+				put_mix(style.color, 255, R.plate, Components.accent, 0.14)
+			end
+		else
+			put_rgb(style.color, 255, tint and tint.fill or R.plate)
+		end
+	end)
 
 	for i = 1, 2 do
 		local halo = i == 1
@@ -178,29 +211,19 @@ WB.shelf_chip = function (node_id, w)
 		}
 	end
 
-	text(passes, "chip_label", Workshop.CHIP_DOT, 0, w - Workshop.CHIP_DOT - Workshop.CHIP_PAD, H, 4, 16, "left", "center", function (content, style)
-		Components.paint_label(style.text_color, "chip", state_of(content.hotspot), Components.accent, content.hotspot_on)
-	end)
-	passes[#passes + 1] = {
-		pass_type = "text",
-		style_id = "chip_tag",
-		value_id = "chip_tag",
-		value = "",
-		style = {
-			font_type = "proxima_nova_bold",
-			font_size = 14,
-			text_color = shape_color(),
-			text_horizontal_alignment = "center",
-			text_vertical_alignment = "center",
-			offset = { w - Workshop.CHIP_PAD - Workshop.CHIP_TAG + 2, 0, 4 },
-			size = { Workshop.CHIP_TAG, H },
-		},
-		change_function = function (content, style)
-			put_rgb(style.text_color, 255, content.tag_rgb or R.muted)
-		end,
-	}
+	text(passes, "chip_label", Workshop.CHIP_DOT, 0, w * 2, H, 4, 16, "left", "center", function (content, style)
+		local st, tint = state_of(content.hotspot), content.tint or nil
 
-	return UIWidget.create_definition(passes, node_id, { chip_label = "", chip_tag = "", dot_rgb = { 135, 135, 135 }, tag_rgb = { 143, 204, 112 } }, { w, H })
+		if st == STATE.OFF then
+			put_rgb(style.text_color, 255, R.label_off)
+		elseif st ~= STATE.REST or content.hotspot_on == true then
+			put_rgb(style.text_color, 255, tint and tint.bright or R.bright)
+		else
+			put_rgb(style.text_color, 255, tint and tint.text or R.text)
+		end
+	end)
+
+	return UIWidget.create_definition(passes, node_id, { chip_label = "", dot_rgb = { 135, 135, 135 }, tint = false }, { w, H })
 end
 
 -- ------------------------------------------------------------------------------------------------- the stage

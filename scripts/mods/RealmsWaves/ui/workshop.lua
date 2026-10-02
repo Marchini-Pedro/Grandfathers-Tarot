@@ -49,7 +49,7 @@ Workshop.SHELF_HEAD = 56 -- the panel's title row (title, hint, the faction swit
 Workshop.GROUP_LABEL_W = 100
 Workshop.GROUP_GAP = 6
 Workshop.CHIP_FONT = 16
-Workshop.GLYPH = 0.6 -- of the font size: how wide a letter is, a little careful (a chip that is too wide only leaves a gap)
+Workshop.GLYPH = 0.64 -- of the font size: how wide a letter is of the bold sans (a "Hound" is 3.05 em), a little careful: a chip that is too wide only leaves a gap
 
 Workshop.SHELF_Y = Workshop.SUMMARY_Y + Workshop.SUMMARY_H + 10
 
@@ -57,16 +57,16 @@ Workshop.text_width = function (text, font_size)
 	return ceil(#tostring(text) * font_size * Workshop.GLYPH)
 end
 
--- width of a chip: the dot (26 up to the label), the label, the faction tag (16, when the chip has one) and 10 of padding
-Workshop.CHIP_DOT, Workshop.CHIP_TAG, Workshop.CHIP_PAD = 26, 18, 10
+-- width of a chip: the dot (26 up to the label), the label and 14 of padding
+Workshop.CHIP_DOT, Workshop.CHIP_PAD = 26, 14
 
-Workshop.chip_width = function (label, has_tag)
-	return Workshop.CHIP_DOT + Workshop.text_width(label, Workshop.CHIP_FONT) + (has_tag and Workshop.CHIP_TAG or 0) + Workshop.CHIP_PAD
+Workshop.chip_width = function (label)
+	return Workshop.CHIP_DOT + Workshop.text_width(label, Workshop.CHIP_FONT) + Workshop.CHIP_PAD
 end
 
 -- Where every chip of the shelf goes. `shelf` = Groups.SHELF, `groups` = the catalog (faction, display names). Chips of a group
 -- flow left to right in a band to the right of the group's label and wrap to the next row of that band. Returns
--- { chips = { { group, index, entry, x, y, w, tag } ... }, bands = { { id, y, rows } ... }, height }, x and y inside the
+-- { chips = { { group, index, entry, x, y, w } ... }, bands = { { id, y, rows } ... }, height }, x and y inside the
 -- panel (the panel starts at LEFT_X, SHELF_Y).
 Workshop.shelf_layout = function (shelf, groups)
 	local chips, bands = {}, {}
@@ -80,14 +80,13 @@ Workshop.shelf_layout = function (shelf, groups)
 
 		for i = 1, #group.entries do
 			local entry = group.entries[i]
-			local tag = entry.breed == nil or groups.faction(entry.breed) ~= nil
-			local w = Workshop.chip_width(groups.shelf_label(entry), tag)
+			local w = Workshop.chip_width(groups.shelf_label(entry))
 
 			if x > 0 and x + w > avail then
 				x, row = 0, row + 1
 			end
 
-			chips[#chips + 1] = { group = g, index = i, entry = entry, x = x0 + x, y = y + row * Workshop.CHIP_PITCH, w = w, tag = tag }
+			chips[#chips + 1] = { group = g, index = i, entry = entry, x = x0 + x, y = y + row * Workshop.CHIP_PITCH, w = w }
 			x = x + w + Workshop.CHIP_GAP
 		end
 

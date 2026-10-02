@@ -62,10 +62,10 @@ local BUTTONS = {
 	{ name = "btn_preview", width = 283, cb = "cb_preview_cooldown" },
 	-- "How it spawns": a random group rolls once for the whole wave and keeps its enemy on every repeat (shown when the card has one)
 	{ name = "btn_keep_pick", width = 360, height = 30, font = 17, cb = "cb_keep_pick", pip = true },
-	{ name = "btn_quickface", width = 250, height = 36, font = 20, cb = "cb_face", role = "quiet" },
+	{ name = "btn_quickface", width = 250, height = 36, font = 17, cb = "cb_face", role = "quiet" },
 	-- the Mirror (the card face screen)
 	{ name = "btn_whisper_change", width = 150, cb = "cb_whisper_change" },
-	{ name = "btn_whisper_suit", width = 261, height = 36, font = 20, cb = "cb_whisper_suit", role = "quiet" },
+	{ name = "btn_whisper_suit", width = 261, height = 36, font = 17, cb = "cb_whisper_suit", role = "quiet" },
 	{ name = "btn_look_auto", width = 330, height = 36, font = 19, cb = "cb_look_auto", pip = true },
 	{ name = "btn_reset_face", width = 170, cb = "cb_face_reset", role = "danger" },
 	-- presets (list screen -> presets screen -> one preset)
@@ -381,7 +381,7 @@ RealmsWavesView._create_editor_widgets = function (self)
 		widget.content.hotspot.pressed_callback = callback(self, entry.cb, entry.arg)
 	end
 
-	local chance = self:_create_dynamic_widget("stepper_chance", blueprints.workshop_stepper("stepper_chance", Workshop.RIGHT_W, Workshop.ROW_LABEL_W))
+	local chance = self:_create_dynamic_widget("stepper_chance", blueprints.workshop_stepper("stepper_chance", Workshop.RIGHT_W, Workshop.ROW_LABEL_W, 15, Components.colors.muted))
 
 	chance.content.hotspot_minus.pressed_callback = callback(self, "cb_chance_step", -1)
 	chance.content.hotspot_plus.pressed_callback = callback(self, "cb_chance_step", 1)
@@ -408,7 +408,7 @@ RealmsWavesView._create_editor_widgets = function (self)
 
 	for i = 1, #extra_steppers do
 		local entry = extra_steppers[i]
-		local widget = self:_create_dynamic_widget(entry.name, entry.compact and blueprints.workshop_stepper(entry.name, Workshop.SPAWN_W, 126, 19) or blueprints.setting_stepper(entry.name, entry.width, entry.label_width))
+		local widget = self:_create_dynamic_widget(entry.name, entry.compact and blueprints.workshop_stepper(entry.name, Workshop.SPAWN_W, 142, 18) or blueprints.setting_stepper(entry.name, entry.width, entry.label_width))
 
 		widget.content.hotspot_minus.pressed_callback = callback(self, "cb_" .. entry.cb .. "_step", -entry.step)
 		widget.content.hotspot_plus.pressed_callback = callback(self, "cb_" .. entry.cb .. "_step", entry.step)
@@ -965,7 +965,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		local chance = widgets.stepper_chance.content
 		local share = self:_share_of(wave)
 
-		chance.label = mod:localize("lbl_chance")
+		chance.label = string.upper(mod:localize("lbl_chance"))
 		chance.stepper_value = tostring(math.floor(wave.pct))
 		chance.extra = wave.timer > 0 and mod:localize("extra_timer_wave") or share and mod:localize("extra_share", string.format("%.1f", share)) or mod:localize("extra_not_drawn")
 

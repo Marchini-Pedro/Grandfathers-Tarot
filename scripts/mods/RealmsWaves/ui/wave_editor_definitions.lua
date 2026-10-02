@@ -50,7 +50,7 @@ local scenegraph_definition = {
 	-- Bottom panel: a title line, one row of buttons (y 800) and up to three rows of steppers (858, 910, 962).
 	-- Rows are 52 px apart; the panel ends at 1030 so the last stepper row stays above the input legend.
 	bottom_panel = node(105, 750, 1710, 280, 0),
-	bottom_title = node(125, 758, 900, 34, 2),
+	bottom_title = node(125, 758, 1500, 34, 2),
 	hint_text = node(125, 852, 1660, 120, 2), -- below the button row (800)
 
 	btn_back = node(125, 800, 180, 44, 2),
@@ -371,7 +371,7 @@ local widget_definitions = {
 		{ pass_type = "rect", style = { color = Components.clone_color(colors.panel) } },
 	}, "bottom_panel"),
 
-	bottom_title = plain_text("bottom_title", "bottom_title", 24, colors.gold, 900, 34),
+	bottom_title = plain_text("bottom_title", "bottom_title", 22, colors.gold, 1500, 34),
 	hint_text = plain_text("hint_text", "hint_text", 20, colors.muted, 1660, 120, "left", "top"),
 
 	-- tooltip shown while the pointer is on the "?" corner button

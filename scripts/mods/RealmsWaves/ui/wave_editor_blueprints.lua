@@ -124,13 +124,13 @@ end
 -- The compact stepper of the Workshop (the spawn block and the chance): a label, the plate (Workshop.STEPPER: minus, value, plus,
 -- 40 + 56 + 40 wide) after `label_width`, and a trailing text. The names are the ones of setting_stepper (label, stepper_value,
 -- extra, hotspot_minus / value / plus), content.stepper_value_dim = true dims the plate.
-blueprints.workshop_stepper = function (node_id, width, label_width, font_size)
+blueprints.workshop_stepper = function (node_id, width, label_width, font_size, label_color)
 	local passes = {}
 	local S = Workshop.STEPPER
 	local x0 = label_width
 	local after = x0 + 2 * S.button + S.value + 12
 
-	Components.text_pass(passes, "label", "label", { 0, 0, 2 }, { x0, 48 }, font_size or 20, colors.text)
+	Components.text_pass(passes, "label", "label", { 0, 0, 2 }, { x0, 48 }, font_size or 20, label_color or colors.text)
 	Components.stepper_passes(passes, {
 		minus_offset = { x0, 4, 2 },
 		value_offset = { x0 + S.button, 4, 2 },
