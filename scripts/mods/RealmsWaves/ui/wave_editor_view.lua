@@ -4,8 +4,9 @@
 -- Everything is written straight to DMF settings (see catalog/events.lua), so
 -- changes take effect on the host's next draw; nothing needs saving.
 --
--- Screens (self._screen): "list" (the Deck: the cards as tiles, ui/wave_editor_deck.lua) -> "detail" (one card) ->
--- "picker" (add an enemy).
+-- Screens (self._screen): "list" (the Deck: the cards as tiles, ui/wave_editor_deck.lua) -> "detail" (one card: the Cauldron,
+-- ui/wave_editor_workshop.lua) <-> "face" (its face: the Mirror, ui/wave_editor_face.lua and the same file) and "picker" (add an
+-- enemy), "mods", "tune" (the custom mods of a group); "settings" and "presets" from the Deck.
 -- Structure and vanilla widget usage follow RealmsEvent's editor view.
 local mod = get_mod("RealmsWaves")
 

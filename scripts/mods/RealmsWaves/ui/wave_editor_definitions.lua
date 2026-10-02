@@ -1,7 +1,7 @@
--- Scenegraph and static widgets of the wave editor (1920x1080 canvas).
--- Layout follows RealmsEvent's editor: title, list panel with a scrolling row
--- pool, bottom panel with actions. One row blueprint serves three screens
--- (wave list, wave detail, enemy picker); see wave_editor_view.lua.
+-- Scenegraph and static widgets of the wave editor (1920x1080 canvas, one layout for every resolution: the engine scales it).
+-- The Deck (list), the settings, the presets, the picker, Mods and Custom use a title, a table panel with a scrolling row pool
+-- and a bottom panel; one row blueprint serves them. A card's own screens, the Cauldron (detail) and the Mirror (face), have
+-- their own nodes and widgets (ui/workshop.lua for where things sit, docs/08-workshop-redesign.md); see wave_editor_view.lua.
 local mod = get_mod("RealmsWaves")
 
 local UIWidget = require("scripts/managers/ui/ui_widget")
