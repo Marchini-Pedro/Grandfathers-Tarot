@@ -1,0 +1,327 @@
+-- Widget definitions of the Workshop (docs/08-workshop-redesign.md): the enemy row of the Cauldron, the panel and the chips of
+-- the shelf, the stage plate, the suit tile and the threat control of the quick face, and the compact stepper. Everything is a
+-- rect, a circle, a triangle, a rotated rect or text, like the Deck's tiles. Where things sit comes from ui/workshop.lua.
+local mod = get_mod("RealmsWaves")
+
+local UIWidget = require("scripts/managers/ui/ui_widget")
+
+local BASE = "RealmsWaves/scripts/mods/RealmsWaves"
+local Components = mod:io_dofile(BASE .. "/ui/wave_editor_components")
+local Workshop = mod:io_dofile(BASE .. "/ui/workshop")
+local Spread = mod:io_dofile(BASE .. "/ui/spread")
+
+local WB = {}
+
+local put_rgb, put_mix, state_of = Components.put_rgb, Components.put_mix, Components.state_of
+local R = Components.rgb
+local STATE = Components.STATE
+
+-- constants of the colour functions (a literal table in a change function would be allocated every frame)
+local GROUND = { 10, 12, 7 }
+local PANEL = { 18, 22, 12 }
+
+local function shape_color()
+	return { 255, 255, 255, 255 }
+end
+
+local function rect(passes, id, x, y, w, h, z, change, visible)
+	passes[#passes + 1] = {
+		pass_type = "rect",
+		style_id = id,
+		style = { offset = { x, y, z }, size = { w, h }, color = shape_color() },
+		change_function = change,
+		visibility_function = visible,
+	}
+end
+
+local function text(passes, id, x, y, w, h, z, size, align, valign, change)
+	passes[#passes + 1] = {
+		pass_type = "text",
+		style_id = id,
+		value_id = id,
+		value = "",
+		style = {
+			font_type = "proxima_nova_bold",
+			font_size = size,
+			text_color = shape_color(),
+			text_horizontal_alignment = align or "left",
+			text_vertical_alignment = valign or "center",
+			offset = { x, y, z },
+			size = { w, h },
+		},
+		change_function = change,
+	}
+end
+
+-- ------------------------------------------------------------------------------------------------- the enemy row
+-- One enemy group of a card (Cauldron): a coloured edge, the name in the enemy's colour with the modifiers under it, the
+-- weight and the repeat steppers, the Same diamond, and the chips Mods, Custom and Remove. The content keys are the ones of
+-- the old row (row_name, info, stepper_value, rep_value, same_selected, hotspot_*), so the same callbacks serve both.
+-- content.edge_rgb = { r, g, b } is the enemy's colour (set by the view).
+WB.enemy_row = function (node_id)
+	local passes = {}
+	local C = Workshop.COL
+	local S = Workshop.STEPPER
+	local W, H = Workshop.LEFT_W, Workshop.ROW_H
+
+	rect(passes, "row_frame", 0, 0, W, H, 0, function (content, style)
+		put_rgb(style.color, 200, R.frame)
+	end)
+	rect(passes, "row_background", 1, 1, W - 2, H - 2, 0.5, function (content, style)
+		if content.hotspot_name.is_hover then
+			put_mix(style.color, 255, PANEL, Components.accent, 0.10)
+		else
+			put_rgb(style.color, 255, PANEL)
+		end
+	end)
+	rect(passes, "row_edge", 1, 1, 5, H - 2, 1, function (content, style)
+		put_rgb(style.color, 255, content.edge_rgb or R.muted)
+	end)
+
+	text(passes, "row_name", C.name, 1, C.name_w, 30, 2, 26, "left", "center")
+	text(passes, "info", C.name, 29, C.name_w + 20, 17, 2, 15, "left", "center", function (content, style)
+		put_rgb(style.text_color, 255, R.muted)
+	end)
+	Components.hotspot_pass(passes, "hotspot_name", { 0, 0, 3 }, { C.weight - 10, H })
+
+	local function stepper_layout(x)
+		return {
+			minus_offset = { x, 4, 2 },
+			value_offset = { x + S.button, 4, 2 },
+			value_size = { S.value, S.height },
+			plus_offset = { x + S.button + S.value, 4, 2 },
+			button_size = { S.button, S.height },
+		}
+	end
+
+	Components.stepper_passes(passes, stepper_layout(C.weight))
+	Components.stepper_passes(passes, stepper_layout(C.repeat_), nil, { minus = "hotspot_rep_minus", value = "hotspot_rep_value", plus = "hotspot_rep_plus", text = "rep_value" })
+
+	Components.checkbox_passes(passes, { C.same - 14, 10, 1 }, { 28, 28 }, nil, "same", "same_selected", "hotspot_same")
+	Components.hotspot_pass(passes, "hotspot_same", { C.same - 18, 6, 2 }, { 36, 36 })
+
+	Components.button(passes, "hotspot_mods", { C.mods, 6, 2 }, { C.mods_w, 36 }, { font_size = 18, role = "chip", pip = true })
+	Components.button(passes, "hotspot_tune", { C.tune, 6, 2 }, { C.tune_w, 36 }, { font_size = 18, role = "chip", pip = true })
+	Components.button(passes, "hotspot_action", { C.remove, 6, 2 }, { C.remove_w, 36 }, { font_size = 18, role = "danger", brackets = false })
+
+	return UIWidget.create_definition(passes, node_id, {
+		row_name = "",
+		info = "",
+		stepper_value = "",
+		rep_value = "",
+		same_selected = false,
+		edge_rgb = { 135, 135, 135 },
+	}, { W, H })
+end
+
+-- ------------------------------------------------------------------------------------------------- the shelf
+-- The panel under the enemy rows: a frame, the title and hint of its head row, and the labels of the four bands (fodder,
+-- elites, specials, bosses). `layout` = Workshop.shelf_layout. The buttons of the head row (the Dreg / Scab switch and
+-- Search all enemies) are ordinary buttons placed over it.
+WB.shelf_panel = function (node_id, layout)
+	local passes = {}
+	local W, H = Workshop.LEFT_W, layout.height
+
+	rect(passes, "shelf_fill", 0, 0, W, H, 0, function (content, style)
+		put_rgb(style.color, 230, PANEL)
+	end)
+	Components.frame_passes(passes, "shelf_frame", W, H, 1, { rgb = R.frame })
+	text(passes, "shelf_title", Workshop.SHELF_PAD, 12, 220, 24, 2, 15, "left", "center", function (content, style)
+		put_rgb(style.text_color, 255, R.text)
+	end)
+	text(passes, "shelf_hint", 232, 12, 400, 24, 2, 17, "left", "center", function (content, style)
+		put_rgb(style.text_color, 255, R.muted)
+	end)
+	text(passes, "faction_label", 640, 12, 70, 24, 2, 17, "right", "center", function (content, style)
+		put_rgb(style.text_color, 255, R.muted)
+	end)
+
+	for i = 1, #layout.bands do
+		local band = layout.bands[i]
+
+		text(passes, "band_" .. i, Workshop.SHELF_PAD, band.y, Workshop.GROUP_LABEL_W, Workshop.CHIP_H, 2, 14, "left", "center", function (content, style)
+			put_rgb(style.text_color, 255, R.muted)
+		end)
+	end
+
+	local content = { shelf_title = "", shelf_hint = "", faction_label = "" }
+
+	for i = 1, #layout.bands do
+		content["band_" .. i] = ""
+	end
+
+	return UIWidget.create_definition(passes, node_id, content, { W, H })
+end
+
+-- One chip of the shelf, `w` wide (Workshop.chip_width): a dot in the enemy's colour, the label, the faction tag (D or S in the
+-- faction's colour). The button's own flag (hotspot_on) says the card already has this enemy. Content: chip_label, chip_tag,
+-- dot_rgb, tag_rgb.
+WB.shelf_chip = function (node_id, w)
+	local passes = {}
+	local H = Workshop.CHIP_H
+
+	Components.button(passes, "hotspot", { 0, 0, 0 }, { w, H }, { role = "chip", label = "" })
+
+	for i = 1, 2 do
+		local halo = i == 1
+		local r = halo and 5.55 or 5
+
+		passes[#passes + 1] = {
+			pass_type = "circle",
+			style_id = halo and "chip_dot_h" or "chip_dot",
+			style = { offset = { 13 - r, H / 2 - r, halo and 3.5 or 4 }, size = { r * 2, r * 2 }, color = shape_color() },
+			change_function = function (content, style)
+				local rgb = content.dot_rgb or R.muted
+
+				put_rgb(style.color, math.floor((halo and 70 or 255) * (state_of(content.hotspot) == STATE.OFF and 0.4 or 1)), rgb)
+			end,
+		}
+	end
+
+	text(passes, "chip_label", Workshop.CHIP_DOT, 0, w - Workshop.CHIP_DOT - Workshop.CHIP_PAD, H, 4, 16, "left", "center", function (content, style)
+		Components.paint_label(style.text_color, "chip", state_of(content.hotspot), Components.accent, content.hotspot_on)
+	end)
+	passes[#passes + 1] = {
+		pass_type = "text",
+		style_id = "chip_tag",
+		value_id = "chip_tag",
+		value = "",
+		style = {
+			font_type = "proxima_nova_bold",
+			font_size = 14,
+			text_color = shape_color(),
+			text_horizontal_alignment = "center",
+			text_vertical_alignment = "center",
+			offset = { w - Workshop.CHIP_PAD - Workshop.CHIP_TAG + 2, 0, 4 },
+			size = { Workshop.CHIP_TAG, H },
+		},
+		change_function = function (content, style)
+			put_rgb(style.text_color, 255, content.tag_rgb or R.muted)
+		end,
+	}
+
+	return UIWidget.create_definition(passes, node_id, { chip_label = "", chip_tag = "", dot_rgb = { 135, 135, 135 }, tag_rgb = { 143, 204, 112 } }, { w, H })
+end
+
+-- ------------------------------------------------------------------------------------------------- the stage
+-- The plate the card stands on (525 x 440): the card's colour, its frame, and a soft glow of the suit's accent made of stacked
+-- translucent circles (no gradient exists). content.stage = { card, frame, accent } as {r, g, b} (set by the view).
+local GLOW_RINGS = { { 196, 10 }, { 160, 10 }, { 124, 12 }, { 88, 14 } }
+
+WB.stage_plate = function (node_id)
+	local passes = {}
+	local W, H = Workshop.PLATE.w, Workshop.PLATE.h
+	local cx, cy = W / 2, 204
+
+	rect(passes, "plate_fill", 0, 0, W, H, 0, function (content, style)
+		local stage = content.stage
+
+		put_mix(style.color, 255, GROUND, stage.card, 0.55)
+	end)
+
+	for i, ring in ipairs(GLOW_RINGS) do
+		passes[#passes + 1] = {
+			pass_type = "circle",
+			style_id = "plate_glow_" .. i,
+			style = { offset = { cx - ring[1], cy - ring[1], 0.5 }, size = { ring[1] * 2, ring[1] * 2 }, color = shape_color() },
+			change_function = function (content, style)
+				put_rgb(style.color, ring[2], content.stage.accent)
+			end,
+		}
+	end
+
+	local function frame(content, style)
+		put_rgb(style.color, 255, content.stage.frame)
+	end
+
+	rect(passes, "plate_frame_t", 0, 0, W, 1, 1, frame)
+	rect(passes, "plate_frame_b", 0, H - 1, W, 1, 1, frame)
+	rect(passes, "plate_frame_l", 0, 0, 1, H, 1, frame)
+	rect(passes, "plate_frame_r", W - 1, 0, 1, H, 1, frame)
+
+	return UIWidget.create_definition(passes, node_id, { stage = { card = { 30, 36, 19 }, frame = { 58, 68, 33 }, accent = { 183, 194, 58 } } }, { W, H })
+end
+
+-- ------------------------------------------------------------------------------------------------- the quick face
+-- A suit as a tile (80 x 58): the suit's colours, its mark, its name; lit with the suit's accent when it is the card's suit
+-- (and a diamond under it) or under the pointer; a small diamond in the corner when the enemies suggest it. The mark's shapes
+-- use the ids of the card tile (icon_t, icon_th, icon_c, icon_ch) so one routine paints both (wave_editor_deck.lua).
+-- content.suit = { card, hi, frame, text, accent } as {r, g, b}; content.selected, content.suggested.
+WB.suit_tile = function (node_id, tile_ids)
+	local passes = {}
+	local W, H = Workshop.SUIT_W, Workshop.SUIT_H
+
+	Components.hotspot_pass(passes, "hotspot", { 0, 0, 6 }, { W, H })
+
+	local function lit(content)
+		return content.selected == true or state_of(content.hotspot) ~= STATE.REST
+	end
+
+	rect(passes, "suit_frame", 0, 0, W, H, 0, function (content, style)
+		put_rgb(style.color, 255, lit(content) and content.suit.accent or content.suit.frame)
+	end)
+	rect(passes, "suit_fill", 1, 1, W - 2, H - 2, 0.5, function (content, style)
+		put_rgb(style.color, 255, lit(content) and content.suit.hi or content.suit.card)
+	end)
+
+	for i = 1, Spread.ICON_TRIS do
+		passes[#passes + 1] = { pass_type = "triangle", style_id = tile_ids.icon_th[i], style = { offset = { 0, 0, 4 }, color = shape_color(), triangle_corners = { { 0, 0 }, { 0, 0 }, { 0, 0 } }, visible = false } }
+	end
+
+	for i = 1, Spread.ICON_CIRCS do
+		passes[#passes + 1] = { pass_type = "circle", style_id = tile_ids.icon_ch[i], style = { offset = { 0, 0, 4 }, size = { 1, 1 }, color = shape_color(), visible = false } }
+	end
+
+	for i = 1, Spread.ICON_TRIS do
+		passes[#passes + 1] = { pass_type = "triangle", style_id = tile_ids.icon_t[i], style = { offset = { 0, 0, 4 }, color = shape_color(), triangle_corners = { { 0, 0 }, { 0, 0 }, { 0, 0 } }, visible = false } }
+	end
+
+	for i = 1, Spread.ICON_CIRCS do
+		passes[#passes + 1] = { pass_type = "circle", style_id = tile_ids.icon_c[i], style = { offset = { 0, 0, 4 }, size = { 1, 1 }, color = shape_color(), visible = false } }
+	end
+
+	text(passes, "suit_name", 0, 36, W, 18, 5, 12, "center", "center", function (content, style)
+		put_rgb(style.text_color, 255, content.suit.text)
+	end)
+
+	-- the diamond under a chosen suit, and the one in the corner of a suggested suit
+	Components.diamond_passes(passes, "suit_mark", W / 2, H + 8, 6, 3, function (content)
+		return content.selected == true
+	end, function (color, content, halo)
+		put_rgb(color, halo and 80 or 255, content.suit.accent)
+	end)
+	Components.diamond_passes(passes, "suit_hint", W - 9, 9, 5, 3, function (content)
+		return content.suggested == true
+	end, function (color, content, halo)
+		put_rgb(color, halo and 80 or 255, Components.BILE)
+	end)
+
+	return UIWidget.create_definition(passes, node_id, {
+		suit_name = "",
+		selected = false,
+		suggested = false,
+		suit = { card = { 30, 36, 19 }, hi = { 42, 50, 25 }, frame = { 58, 68, 33 }, text = { 230, 223, 195 }, accent = { 183, 194, 58 } },
+	}, { W, H })
+end
+
+-- The threat control: five diamonds in a row (40 apart), each a hit area, coloured by their level up to content.threat, dim
+-- after it, brighter under the pointer. Clicking one sets the threat by hand.
+WB.threat_control = function (node_id)
+	local passes = {}
+	local pitch = Workshop.THREAT_PITCH
+
+	for i = 1, 5 do
+		Components.hotspot_pass(passes, "hotspot_t" .. i, { (i - 1) * pitch, 0, 6 }, { pitch, 44 })
+		Components.diamond_passes(passes, "threat_" .. i, (i - 1) * pitch + pitch / 2, 22, 15, 3, nil, function (color, content, halo)
+			local on = i <= (content.threat or 0)
+			local rgb = on and mod.rw.cards.THREAT_COLORS[i] or R.muted
+			local hover = content["hotspot_t" .. i].is_hover
+
+			put_rgb(color, on and (halo and 70 or 255) or (hover and (halo and 40 or 150) or (halo and 22 or 64)), rgb)
+		end)
+	end
+
+	return UIWidget.create_definition(passes, node_id, { threat = 3 }, { 5 * pitch, 44 })
+end
+
+return WB

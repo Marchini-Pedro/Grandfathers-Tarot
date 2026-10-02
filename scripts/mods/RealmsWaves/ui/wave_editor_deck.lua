@@ -121,6 +121,44 @@ DeckView.install = function (View, h)
 
 	local FEATHER = Spread.alpha(Spread.FEATHER_ALPHA)
 
+	-- The mark of a suit (`icon`: a shape id of Spread.icon) in a `size` box at (ox, oy) of the widget: every triangle and circle
+	-- on its feather (the faint larger copy, Spread.FEATHER). `accent` paints the shapes of the suit's colour, `bg` the ones
+	-- that cut a hole. `tri_col` and `circ_col` (optional tables) get the colour slot of every shape: the cooldown look
+	-- repaints the accent ones. Used by the card tile and by the suit tiles of the quick face.
+	View._paint_suit_mark = function (self, style, icon, size, ox, oy, accent, bg, tri_col, circ_col)
+		local shape = self._tile_shape
+
+		Spread.icon(icon, size, shape)
+
+		for i = 1, Spread.ICON_TRIS do
+			local s, halo = style[IDS.icon_t[i]], style[IDS.icon_th[i]]
+			local rgb = shape.tri[i].col == 2 and bg or accent
+
+			place_tri(s, shape.tri[i], ox, oy, 4)
+			place_tri_halo(halo, shape.tri[i], ox, oy, 4)
+			paint(s, 255, rgb)
+			paint(halo, FEATHER, rgb)
+
+			if tri_col then
+				tri_col[i] = shape.tri[i].col
+			end
+		end
+
+		for i = 1, Spread.ICON_CIRCS do
+			local s, halo = style[IDS.icon_c[i]], style[IDS.icon_ch[i]]
+			local rgb = shape.circ[i].col == 2 and bg or accent
+
+			place_circ(s, shape.circ[i], ox, oy, 4)
+			place_circ_halo(halo, shape.circ[i], ox, oy, 4)
+			paint(s, 255, rgb)
+			paint(halo, FEATHER, rgb)
+
+			if circ_col then
+				circ_col[i] = shape.circ[i].col
+			end
+		end
+	end
+
 	-- How many lines a card's name takes in its box (1 to 3). The game measures it when the editor has a renderer (it knows
 	-- the font; the divider, the composition and the room for enemies follow from it), else (offline tests, a failed
 	-- measurement) it is estimated from the letters, which is a little careful: a name that turns out shorter than guessed
@@ -309,33 +347,8 @@ DeckView.install = function (View, h)
 		style.glow.visible = state ~= "off"
 		paint(style.glow, card.rare and 110 or 70, card.rare and Cards.BASE.pus or accent)
 
-		-- the suit mark (26 units) in the top right corner, each shape on a feather; the suit's name and rarity at the left
-		local shape = self._tile_shape
-		local origin_x, origin_y = T.icon[1], T.icon[2]
-
-		Spread.icon(suit.icon, T.icon[3], shape)
-
-		for i = 1, Spread.ICON_TRIS do
-			local s, halo = style[IDS.icon_t[i]], style[IDS.icon_th[i]]
-			local rgb = shape.tri[i].col == 2 and bg or accent
-
-			place_tri(s, shape.tri[i], origin_x, origin_y, 4)
-			place_tri_halo(halo, shape.tri[i], origin_x, origin_y, 4)
-			paint(s, 255, rgb)
-			paint(halo, FEATHER, rgb)
-			fx.tri_col[i] = shape.tri[i].col
-		end
-
-		for i = 1, Spread.ICON_CIRCS do
-			local s, halo = style[IDS.icon_c[i]], style[IDS.icon_ch[i]]
-			local rgb = shape.circ[i].col == 2 and bg or accent
-
-			place_circ(s, shape.circ[i], origin_x, origin_y, 4)
-			place_circ_halo(halo, shape.circ[i], origin_x, origin_y, 4)
-			paint(s, 255, rgb)
-			paint(halo, FEATHER, rgb)
-			fx.circ_col[i] = shape.circ[i].col
-		end
+		-- the suit mark (26 units at scale 1) in the top right corner, each shape on a feather; the suit's name and rarity at the left
+		self:_paint_suit_mark(style, suit.icon, T.icon[3], T.icon[1], T.icon[2], accent, bg, fx.tri_col, fx.circ_col)
 
 		content.suit_label = string.upper(suit.name .. (card.rare and (" \194\183 " .. mod:localize("tile_rare")) or ""))
 		style.suit_label.visible = true

@@ -18,6 +18,9 @@ local blueprints = mod:io_dofile(BASE .. "/ui/wave_editor_blueprints")
 local DeckView = mod:io_dofile(BASE .. "/ui/wave_editor_deck")
 local FaceView = mod:io_dofile(BASE .. "/ui/wave_editor_face")
 local TuneView = mod:io_dofile(BASE .. "/ui/wave_editor_tune")
+local WorkshopView = mod:io_dofile(BASE .. "/ui/wave_editor_workshop")
+local WB = mod:io_dofile(BASE .. "/ui/workshop_blueprints")
+local Workshop = mod:io_dofile(BASE .. "/ui/workshop")
 
 local Popup = Components.Popup
 local Deck = blueprints.Deck
@@ -29,10 +32,9 @@ local ROW_HEIGHT = definitions.ROW_HEIGHT
 local ROW_NODE_PREFIX = definitions.ROW_NODE_PREFIX
 
 local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_tune", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same" }
-local INFO_DETAIL_WIDTH = 340 -- the info column of an enemy row ends where the repeat stepper starts
-local INFO_MAX_CHARS = 66 -- two lines of it
 local LIST_STEPPERS = { "stepper_tmin", "stepper_tmax" } -- list screen: time between waves
-local DETAIL_STEPPERS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer" }
+-- (the cooldown moved to the card face screen, the chance sits under the card)
+local DETAIL_STEPPERS = { "stepper_chance", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer" }
 local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "stepper_tmin", "stepper_tmax" }
 local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
 -- role: "primary" (the action a screen is for), "danger" (resets and removals), nothing = standard; pip = a toggle (a diamond
@@ -43,20 +45,28 @@ local BUTTONS = {
 	{ name = "btn_stay", width = 380, cb = "cb_toggle_stay", pip = true },
 	{ name = "btn_random", width = 310, cb = "cb_toggle_random", pip = true },
 	{ name = "btn_random_done", width = 290, cb = "cb_random_done", role = "primary" },
-	{ name = "btn_rename", width = 200, cb = "cb_rename" },
-	{ name = "btn_text", width = 250, cb = "cb_edit_text" },
+	{ name = "btn_rename", width = 150, cb = "cb_rename" },
+	{ name = "btn_text", width = 190, cb = "cb_edit_text" },
 	{ name = "btn_add", width = 230, cb = "cb_add", role = "primary" },
-	{ name = "btn_enabled", width = 260, cb = "cb_toggle_enabled", pip = true },
-	{ name = "btn_reset", width = 300, cb = "cb_reset", role = "danger" },
-	{ name = "btn_delete", width = 155, cb = "cb_delete", role = "danger" },
-	{ name = "btn_face", width = 270, cb = "cb_face" },
+	{ name = "btn_enabled", width = 230, cb = "cb_toggle_enabled", pip = true },
+	{ name = "btn_reset", width = 230, cb = "cb_reset", role = "danger" },
+	{ name = "btn_delete", width = 130, cb = "cb_delete", role = "danger" },
+	{ name = "btn_enemies", width = 150, cb = "cb_enemies", role = "tab" },
+	{ name = "btn_face", width = 124, cb = "cb_face", role = "tab" },
+	-- the shelf's Dreg / Scab switch, the quick face's threat switch, the toolbar under the card
+	{ name = "btn_dreg", width = 80, height = 36, font = 19, cb = "cb_faction", arg = "dreg", role = "tab" },
+	{ name = "btn_scab", width = 80, height = 36, font = 19, cb = "cb_faction", arg = "scab", role = "tab" },
+	{ name = "btn_thr_auto", width = 76, height = 36, font = 19, cb = "cb_threat_auto", role = "tab" },
+	{ name = "btn_thr_hand", width = 100, height = 36, font = 19, cb = "cb_threat_hand", role = "tab" },
+	{ name = "btn_preview", width = 283, cb = "cb_preview_cooldown" },
+	{ name = "btn_quickface", width = 250, height = 36, font = 20, cb = "cb_face", role = "quiet" },
 	-- presets (list screen -> presets screen -> one preset)
 	{ name = "btn_presets", width = 290, cb = "cb_presets" },
 	{ name = "btn_settings", width = 270, cb = "cb_settings" },
 	{ name = "btn_wimport", width = 300, cb = "cb_wave_import", role = "primary" },
 	{ name = "btn_default", width = 320, cb = "cb_defaults", role = "danger" },
 	{ name = "btn_help", width = 50, cb = "cb_help" },
-	{ name = "btn_share", width = 280, cb = "cb_wave_share" },
+	{ name = "btn_share", width = 190, cb = "cb_wave_share" },
 	{ name = "btn_pload", width = 250, cb = "cb_preset_load", role = "primary" },
 	{ name = "btn_psave", width = 400, cb = "cb_preset_save" },
 	{ name = "btn_prename", width = 200, cb = "cb_preset_rename" },
@@ -159,6 +169,7 @@ RealmsWavesView.on_enter = function (self)
 	self._offset = 0
 	self._key = nil
 	self._confirm = nil
+	self._faction = mod:get("shelf_faction") == "dreg" and "dreg" or "scab"
 	self._help_pinned = false
 	self._widgets_by_name.help_panel.visible = false
 	self._widgets_by_name.help_text.visible = false
@@ -221,6 +232,10 @@ RealmsWavesView.update = function (self, dt, t, input_service)
 
 	if self._screen == "list" and self._deck then
 		self:_update_deck(dt, t)
+	end
+
+	if self._screen == "detail" then
+		self:_update_cauldron(dt, t)
 	end
 
 	if (self._popup == nil or self._popup.spec.allow_rows) and input_service:get("scroll_axis") then
@@ -349,6 +364,8 @@ RealmsWavesView._create_editor_widgets = function (self)
 	blank.visible = false
 	self:_create_dynamic_widget("rw_strip", blueprints.strip("deck_strip")).visible = false
 
+	self:_create_workshop_widgets(blueprints, WB)
+
 	-- the live preview of the card face screen: a tile nobody can click
 	local preview = self:_create_dynamic_widget("rw_tile_preview", blueprints.tile("rw_tile_preview"))
 
@@ -360,12 +377,12 @@ RealmsWavesView._create_editor_widgets = function (self)
 
 	for i = 1, #BUTTONS do
 		local entry = BUTTONS[i]
-		local widget = self:_create_dynamic_widget(entry.name, blueprints.button(entry.name, entry.width, entry.role, nil, nil, entry.pip))
+		local widget = self:_create_dynamic_widget(entry.name, blueprints.button(entry.name, entry.width, entry.role, entry.height, nil, entry.pip, entry.font))
 
-		widget.content.hotspot.pressed_callback = callback(self, entry.cb)
+		widget.content.hotspot.pressed_callback = callback(self, entry.cb, entry.arg)
 	end
 
-	local chance = self:_create_dynamic_widget("stepper_chance", blueprints.setting_stepper("stepper_chance"))
+	local chance = self:_create_dynamic_widget("stepper_chance", blueprints.workshop_stepper("stepper_chance", Workshop.RIGHT_W, Workshop.ROW_LABEL_W))
 
 	chance.content.hotspot_minus.pressed_callback = callback(self, "cb_chance_step", -1)
 	chance.content.hotspot_plus.pressed_callback = callback(self, "cb_chance_step", 1)
@@ -379,12 +396,12 @@ RealmsWavesView._create_editor_widgets = function (self)
 
 	-- spread radius, repeat every, repeat for
 	local extra_steppers = {
-		{ name = "stepper_spread", width = 480, step = 1, cb = "spread" },
-		{ name = "stepper_every", width = 640, step = 1, cb = "every" },
-		{ name = "stepper_for", width = 515, step = 5, cb = "for" },
-		{ name = "stepper_dmin", width = 540, step = 5, cb = "dmin" },
-		{ name = "stepper_dmax", width = 540, step = 5, cb = "dmax" },
-		{ name = "stepper_timer", width = 580, step = 1, cb = "timer" },
+		{ name = "stepper_spread", compact = true, step = 1, cb = "spread" },
+		{ name = "stepper_every", compact = true, step = 1, cb = "every" },
+		{ name = "stepper_for", compact = true, step = 5, cb = "for" },
+		{ name = "stepper_dmin", compact = true, step = 5, cb = "dmin" },
+		{ name = "stepper_dmax", compact = true, step = 5, cb = "dmax" },
+		{ name = "stepper_timer", compact = true, step = 1, cb = "timer" },
 		-- list screen: the time between waves (long labels, so a wider label column)
 		{ name = "stepper_tmin", width = 700, step = 1, cb = "tmin", label_width = 330 },
 		{ name = "stepper_tmax", width = 700, step = 1, cb = "tmax", label_width = 330 },
@@ -392,7 +409,7 @@ RealmsWavesView._create_editor_widgets = function (self)
 
 	for i = 1, #extra_steppers do
 		local entry = extra_steppers[i]
-		local widget = self:_create_dynamic_widget(entry.name, blueprints.setting_stepper(entry.name, entry.width, entry.label_width))
+		local widget = self:_create_dynamic_widget(entry.name, entry.compact and blueprints.workshop_stepper(entry.name, Workshop.SPAWN_W, 126, 19) or blueprints.setting_stepper(entry.name, entry.width, entry.label_width))
 
 		widget.content.hotspot_minus.pressed_callback = callback(self, "cb_" .. entry.cb .. "_step", -entry.step)
 		widget.content.hotspot_plus.pressed_callback = callback(self, "cb_" .. entry.cb .. "_step", entry.step)
@@ -456,7 +473,7 @@ RealmsWavesView._max_offset = function (self)
 		return Deck.max_offset(count)
 	end
 
-	return math.max(0, count - LIST_CAPACITY)
+	return math.max(0, count - (self._screen == "detail" and Workshop.ROWS or LIST_CAPACITY))
 end
 
 RealmsWavesView._clamp_offset = function (self, offset)
@@ -464,7 +481,7 @@ RealmsWavesView._clamp_offset = function (self, offset)
 		return Deck.clamp_offset(offset, #self:_source())
 	end
 
-	return math.clamp(offset, 0, math.max(0, #self:_source() - LIST_CAPACITY))
+	return math.clamp(offset, 0, math.max(0, #self:_source() - (self._screen == "detail" and Workshop.ROWS or LIST_CAPACITY)))
 end
 
 RealmsWavesView._share_of = function (self, wave)
@@ -812,10 +829,35 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	-- the Deck has no table: its panel, header and range text are hidden and the scroll buttons sit beside the grid
 	local deck_screen = screen == "list"
 
-	widgets.list_panel.visible = not deck_screen
-	widgets.list_header.visible = not deck_screen
-	self:_set_scenegraph_position("scroll_up", deck_screen and 1826 or 1771, deck_screen and Deck.Y0 or 168, 2)
-	self:_set_scenegraph_position("scroll_down", deck_screen and 1826 or 1771, deck_screen and Deck.Y0 + 2 * Deck.TILE_H + Deck.GAP - 36 or 696, 2)
+	local cauldron = screen == "detail"
+	local under = definitions.under_shelf
+
+	widgets.list_panel.visible = not deck_screen and not cauldron
+	widgets.list_header.visible = not deck_screen and not cauldron
+	widgets.bottom_panel.visible = not cauldron
+
+	-- Back is at the foot of every screen of a card (its enemies, the picker, Mods, Custom, its face) in the same place, with the
+	-- picker's buttons beside it; the other screens keep it at 125, 800. Never on a spot where the screen it returns to has a button.
+	local card_screen = CARD_SCREEN_TITLE[screen] ~= nil
+
+	self:_set_scenegraph_position("btn_back", card_screen and Workshop.LEFT_X or 125, card_screen and under.actions_y or 800, 2)
+	self:_set_scenegraph_position("btn_search", screen == "picker" and 297 or 325, screen == "picker" and under.actions_y or 800, 2)
+	self:_set_scenegraph_position("btn_stay", screen == "picker" and 729 or 765, screen == "picker" and under.actions_y or 800, 2)
+	self:_set_scenegraph_position("btn_random", screen == "picker" and 1121 or 1165, screen == "picker" and under.actions_y or 800, 2)
+	self:_set_scenegraph_position("btn_random_done", screen == "picker" and 1443 or 1495, screen == "picker" and under.actions_y or 800, 2)
+
+	if cauldron then
+		-- the summary line under the enemy rows, with the scroll buttons at its right end; the action bar at the foot of the pane
+		self:_set_scenegraph_position("scroll_up", 1148, Workshop.SUMMARY_Y - 1, 2)
+		self:_set_scenegraph_position("scroll_down", 1196, Workshop.SUMMARY_Y - 1, 2)
+		self:_set_scenegraph_position("list_range", 800, Workshop.SUMMARY_Y + 3, 2)
+		self:_set_scenegraph_position("bottom_title", Workshop.LEFT_X, Workshop.SUMMARY_Y, 2)
+	else
+		self:_set_scenegraph_position("scroll_up", deck_screen and 1826 or 1771, deck_screen and Deck.Y0 or 168, 2)
+		self:_set_scenegraph_position("scroll_down", deck_screen and 1826 or 1771, deck_screen and Deck.Y0 + 2 * Deck.TILE_H + Deck.GAP - 36 or 696, 2)
+		self:_set_scenegraph_position("list_range", 1400, 700, 2)
+		self:_set_scenegraph_position("bottom_title", 125, 758, 2)
+	end
 	widgets.btn_default.visible = screen == "list"
 	widgets.btn_default.content.hotspot_text = mod:localize(self._confirm and self._confirm.key == "__defaults" and "btn_sure" or "btn_default")
 	widgets.btn_default.content.hotspot_on = self._confirm ~= nil and self._confirm.key == "__defaults"
@@ -838,8 +880,16 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	end
 
 	widgets.btn_presets.content.hotspot_text = mod:localize("btn_presets")
-	widgets.btn_face.visible = detail
+	widgets.btn_face.visible = detail or screen == "face"
 	widgets.btn_face.content.hotspot_text = mod:localize("btn_face")
+	widgets.btn_face.content.hotspot_on = screen == "face"
+	widgets.btn_enemies.visible = detail or screen == "face"
+	widgets.btn_enemies.content.hotspot_text = mod:localize("tab_enemies")
+	widgets.btn_enemies.content.hotspot_on = detail
+
+	for _, name in ipairs({ "btn_dreg", "btn_scab", "btn_thr_auto", "btn_thr_hand", "btn_preview", "btn_quickface" }) do
+		widgets[name].visible = detail
+	end
 	widgets.face_numbers.visible = screen == "face"
 	widgets.btn_delete.visible = detail
 	widgets.btn_delete.content.hotspot_text = mod:localize(self._confirm and self._wave and self._confirm.key == self._wave.key and "btn_sure" or "btn_delete")
@@ -866,6 +916,9 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	for i = 1, #DETAIL_STEPPERS do
 		widgets[DETAIL_STEPPERS[i]].visible = detail
 	end
+
+	-- (the cooldown stepper of the old card screen: the cooldown is set on the card face screen now)
+	widgets.stepper_cooldown.visible = false
 
 	for i = 1, #LIST_STEPPERS do
 		widgets[LIST_STEPPERS[i]].visible = screen == "list"
@@ -912,6 +965,8 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		every.label = mod:localize("lbl_repeat_every")
 		every.stepper_value = tostring(math.floor(wave.rep_every))
 		every.extra = mod:localize(repeating and "extra_seconds" or "extra_no_repeat")
+		every.stepper_value_dim = not repeating
+		rep_for.stepper_value_dim = not repeating
 		rep_for.label = mod:localize("lbl_repeat_for")
 		rep_for.stepper_value = tostring(math.floor(wave.rep_for))
 		rep_for.extra = mod:localize("extra_seconds_short")
@@ -960,12 +1015,34 @@ RealmsWavesView._refresh_rows = function (self)
 			self._widgets_by_name.list_range.content.list_range = ""
 		end
 
+		self:_hide_cauldron()
 		self:_refresh_deck()
 
 		return
 	end
 
 	self:_hide_deck()
+
+	if screen == "detail" then
+		-- the Cauldron: its own rows, shelf, stage and quick face; the table rows are not used
+		for i = 1, LIST_CAPACITY do
+			local widget = self._widgets_by_name[ROW_NODE_PREFIX .. i]
+
+			if widget then
+				widget.visible = false
+			end
+		end
+
+		self:_refresh_cauldron()
+
+		local parts = #self._parts
+
+		self._widgets_by_name.list_range.content.list_range = parts > 0 and mod:localize("list_range", self._offset + 1, math.min(self._offset + Workshop.ROWS, parts), parts) or ""
+
+		return
+	end
+
+	self:_hide_cauldron()
 
 	for i = 1, LIST_CAPACITY do
 		local widget = self._widgets_by_name[ROW_NODE_PREFIX .. i]
@@ -980,89 +1057,11 @@ RealmsWavesView._refresh_rows = function (self)
 				local content = widget.content
 				local name_color = Components.colors.text
 
-				widget.style.info.size[1] = screen == "detail" and INFO_DETAIL_WIDTH or 640
+				widget.style.info.size[1] = 640
 				content.show_tune = false
 				content.hotspot_mods_on, content.hotspot_tune_on = false, false
 
-				if screen == "detail" then
-					local mods_text = rw.groups.describe_mods(item)
-					local mods_shown = mods_text
-
-					local painter = self:_painter()
-
-					content.row_name = rw.groups.describe_part(item)
-
-					-- a random group colours each enemy of the group, the modifier names get their own colours;
-					-- the modifier text is cut at 40 visible characters WITHOUT losing the colours
-					if painter then
-						if item.one_of then
-							content.row_name = rw.groups.render_segments(rw.groups.paint_part_segments(item, painter, false), nil, painter.markup)
-						end
-
-						local _, modifiers = rw.groups.describe_part_pieces(item)
-						local segments = {}
-
-						for i = 1, #modifiers do
-							if i > 1 then
-								segments[#segments + 1] = { text = ", " }
-							end
-
-							segments[#segments + 1] = { text = modifiers[i].name, rgb = painter.mod(modifiers[i].id) }
-						end
-
-						local shown_len = 0
-
-						for i = 1, #segments do
-							shown_len = shown_len + #segments[i].text
-						end
-
-						mods_shown = rw.groups.render_segments(segments, 40, painter.markup)
-
-						-- then the custom mods, in what is left of the line
-						local tune_text = rw.groups.tune_text(item.tune)
-
-						if tune_text ~= "" then
-							local room = INFO_MAX_CHARS - math.min(shown_len, 40) - 5
-
-							if #tune_text > room then
-								tune_text = tune_text:sub(1, math.max(3, room - 3)) .. "..."
-							end
-
-							mods_shown = mods_shown .. (shown_len > 0 and "  |  " or "") .. tune_text
-						end
-					elseif #mods_text > 40 then
-						mods_shown = mods_text:sub(1, 37) .. "..."
-					end
-
-					-- the custom mods follow the modifiers: "Enraged  |  Health 150%, Size 130%" (cut like the modifiers, never wider than the column)
-					if not painter then
-						local tune_plain = rw.groups.tune_text(item.tune)
-					
-						if tune_plain ~= "" then
-							mods_shown = (mods_text ~= "" and (mods_text .. "  |  ") or "") .. tune_plain
-						end
-					
-						if #mods_shown > INFO_MAX_CHARS then
-							mods_shown = mods_shown:sub(1, INFO_MAX_CHARS - 3) .. "..."
-						end
-					end
-
-					content.row_name = with_faction(rw, item.breed, content.row_name)
-					content.info = mods_shown
-					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = false, true, false, true, true
-					content.show_tune = true
-					content.hotspot_tune_text = mod:localize("btn_tune")
-					content.hotspot_mods_on = item.mods ~= nil and #item.mods > 0
-					content.hotspot_tune_on = rw.groups.tune_text(item.tune) ~= ""
-					content.show_rep = true
-					content.stepper_value = tostring(item.count)
-					content.same_selected = item.rep_same == true
-					-- with "same" ticked the repeat number is the initial count, shown as "="
-					content.rep_value = item.rep_same and "=" or tostring(item.rep or 0)
-					content.hotspot_action_text = mod:localize("btn_remove")
-					content.hotspot_mods_text = mod:localize("btn_mods")
-					name_color = colors and item.breed and colors.argb(item.breed) or name_color
-				elseif screen == "face" then
+				if screen == "face" then
 					name_color = self:_face_row(item, content)
 				elseif screen == "tune" then
 					name_color = self:_tune_row(item, content)
@@ -1200,6 +1199,8 @@ RealmsWavesView._set_interaction_enabled = function (self)
 		blank.content.hotspot.disabled = not (rows_enabled and blank.visible)
 	end
 
+	self:_set_cauldron_interaction(rows_enabled)
+
 	local max_offset = self:_max_offset()
 	local up, down = widgets.rw_scroll_up, widgets.rw_scroll_down
 
@@ -1253,6 +1254,17 @@ TuneView.install(RealmsWavesView, {
 	guarded = guarded,
 	Popup = Popup,
 	Components = Components,
+})
+
+WorkshopView.install(RealmsWavesView, {
+	Workshop = Workshop,
+	Spread = blueprints.Spread,
+	TILE_IDS = blueprints.TILE_IDS,
+	definitions = definitions,
+	guarded = guarded,
+	set_setting = set_setting,
+	Components = Components,
+	with_faction = with_faction,
 })
 
 RealmsWavesView.cb_scroll = guarded(function (self, direction)
@@ -1632,12 +1644,13 @@ RealmsWavesView._add_breed = function (self, breed)
 		Popup.close_keep(self)
 	end
 
-	local added
+	local added, added_index
 
 	for i = 1, #self._parts do
 		if self._parts[i].breed == breed and not self._parts[i].mods and not self._parts[i].tune then
 			self._parts[i].count = math.min(self._parts[i].count + 1, groups.MAX_BREED_COUNT)
 			added = self._parts[i].count
+			added_index = i
 
 			break
 		end
@@ -1646,6 +1659,7 @@ RealmsWavesView._add_breed = function (self, breed)
 	if not added then
 		self._parts[#self._parts + 1] = { breed = breed, count = 1 }
 		added = 1
+		added_index = #self._parts
 	end
 
 	if stay then
@@ -1654,6 +1668,8 @@ RealmsWavesView._add_breed = function (self, breed)
 	else
 		self._screen = "detail"
 		self._picker_note = nil
+		-- the list shows the group that was added (or got one more) as its last row
+		self._offset = math.max(0, added_index - Workshop.ROWS)
 	end
 
 	self:_save()
@@ -1688,6 +1704,7 @@ RealmsWavesView.cb_random_done = guarded(function (self)
 	end
 
 	self._screen = stay and "picker" or "detail"
+	self._offset = stay and self._offset or math.max(0, #self._parts - Workshop.ROWS)
 	self._picker_note = stay and mod:localize("picker_random_added", #pick) or nil
 	self:_save()
 end)

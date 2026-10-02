@@ -4,6 +4,7 @@ local mod = get_mod("RealmsWaves")
 
 local UIWidget = require("scripts/managers/ui/ui_widget")
 local Components = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/wave_editor_components")
+local Workshop = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/workshop")
 
 local blueprints = {}
 local colors = Components.colors
@@ -91,10 +92,10 @@ blueprints.row = function (node_id)
 end
 
 -- role: "standard" (default), "primary", "danger", "quiet", "tab" (see Components.button); pip: a toggle diamond before the label
-blueprints.button = function (node_id, width, role, height, label, pip)
+blueprints.button = function (node_id, width, role, height, label, pip, font_size)
 	local passes = {}
 
-	Components.button(passes, "hotspot", { 0, 0, 0 }, { width, height or 44 }, { font_size = 22, role = role, label = label, pip = pip })
+	Components.button(passes, "hotspot", { 0, 0, 0 }, { width, height or 44 }, { font_size = font_size or 22, role = role, label = label, pip = pip })
 
 	return UIWidget.create_definition(passes, node_id, {}, { width, height or 44 })
 end
@@ -116,6 +117,29 @@ blueprints.setting_stepper = function (node_id, width, label_width)
 		plus_offset = { x0 + 117, 4, 2 },
 	})
 	Components.text_pass(passes, "extra", "extra", { x0 + 178, 0, 2 }, { width - x0 - 188, 48 }, 20, colors.muted)
+
+	return UIWidget.create_definition(passes, node_id, { label = "", stepper_value = "", extra = "" }, { width, 48 })
+end
+
+-- The compact stepper of the Workshop (the spawn block and the chance): a label, the plate (Workshop.STEPPER: minus, value, plus,
+-- 40 + 56 + 40 wide) after `label_width`, and a trailing text. The names are the ones of setting_stepper (label, stepper_value,
+-- extra, hotspot_minus / value / plus), content.stepper_value_dim = true dims the plate.
+blueprints.workshop_stepper = function (node_id, width, label_width, font_size)
+	local passes = {}
+	local S = Workshop.STEPPER
+	local x0 = label_width
+	local after = x0 + 2 * S.button + S.value + 12
+
+	Components.text_pass(passes, "label", "label", { 0, 0, 2 }, { x0, 48 }, font_size or 20, colors.text)
+	Components.stepper_passes(passes, {
+		minus_offset = { x0, 4, 2 },
+		value_offset = { x0 + S.button, 4, 2 },
+		value_size = { S.value, S.height },
+		plus_offset = { x0 + S.button + S.value, 4, 2 },
+		button_size = { S.button, S.height },
+	})
+	-- the trailing text may run a little past the node (the next column starts 26 units later)
+	Components.text_pass(passes, "extra", "extra", { after, 0, 2 }, { width - after + 20, 48 }, 17, colors.muted)
 
 	return UIWidget.create_definition(passes, node_id, { label = "", stepper_value = "", extra = "" }, { width, 48 })
 end

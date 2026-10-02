@@ -347,7 +347,8 @@ end
 
 -- Button (`opts`): label, font_size, flag (the visibility flag of the content), role ("standard" (default), "primary",
 -- "danger", "quiet", "chip", "tab", "icon"), pip (a small diamond before the label, lit with the button's `_on` flag),
--- glyph ("up" or "down": a triangle instead of the label). The label lives in content[content_id .. "_text"], the
+-- glyph ("up" or "down": a triangle instead of the label), brackets = false (no corner brackets: a small button of a role that
+-- has them). The label lives in content[content_id .. "_text"], the
 -- button's own flag in content[content_id .. "_on"].
 function Components.button(passes, content_id, offset, size, opts)
 	opts = opts or {}
@@ -393,7 +394,7 @@ function Components.button(passes, content_id, offset, size, opts)
 		end)
 	end
 
-	if role == "standard" or role == "primary" or role == "danger" then
+	if (role == "standard" or role == "primary" or role == "danger") and opts.brackets ~= false then
 		-- two corner brackets (top left, bottom right), 4 units outside the frame under the pointer, 1 unit when pressed
 		local armed_shows = role == "danger"
 

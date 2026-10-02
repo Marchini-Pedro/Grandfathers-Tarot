@@ -7,6 +7,8 @@ local mod = get_mod("RealmsWaves")
 local UIWidget = require("scripts/managers/ui/ui_widget")
 local UIFontSettings = require("scripts/managers/ui/ui_font_settings")
 local Components = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/wave_editor_components")
+local Workshop = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/workshop")
+local WB = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/workshop_blueprints")
 
 local definitions = {}
 
@@ -122,6 +124,78 @@ end
 
 scenegraph_definition[definitions.TILE_BLANK_NODE] = node(126, 190, 228, 270, 3)
 
+-- ---- the Workshop (docs/08-workshop-redesign.md): the card's own screens. Where everything sits comes from ui/workshop.lua;
+-- the nodes of the buttons that only the Cauldron uses are placed here, the ones other screens share (Back, the scroll
+-- buttons, the summary line) are moved by the view while a screen is shown.
+local shelf = Workshop.shelf_layout(mod.rw.groups.SHELF, mod.rw.groups)
+local under = Workshop.under_shelf(shelf.height)
+local LX, SY, P = Workshop.LEFT_X, Workshop.SHELF_Y, Workshop.PLATE
+
+definitions.shelf_layout, definitions.under_shelf = shelf, under
+definitions.ERROW_NODE_PREFIX, definitions.CHIP_NODE_PREFIX, definitions.SUIT_NODE_PREFIX = "rw_erow_", "rw_chip_", "rw_suit_"
+definitions.STAGE_CARD_NODE = "rw_stage_card"
+
+-- header: the tabs
+scenegraph_definition.btn_enemies = node(1478, 36, 150, 44, 2)
+scenegraph_definition.btn_face = node(1628, 36, 124, 44, 2)
+
+-- left pane: the rows, the shelf, the spawn block, the action bar
+scenegraph_definition.enemy_header = node(LX, Workshop.HEADER_Y, Workshop.LEFT_W, Workshop.HEADER_H, 2)
+
+for i = 1, Workshop.ROWS do
+	scenegraph_definition[definitions.ERROW_NODE_PREFIX .. i] = node(LX, Workshop.row_y(i), Workshop.LEFT_W, Workshop.ROW_H, 1)
+end
+
+scenegraph_definition.shelf_panel = node(LX, SY, Workshop.LEFT_W, shelf.height, 0)
+scenegraph_definition.btn_add = node(LX + 889, SY + 6, 230, 44, 3)
+scenegraph_definition.btn_dreg = node(LX + 712, SY + 10, 80, 36, 3)
+scenegraph_definition.btn_scab = node(LX + 792, SY + 10, 80, 36, 3)
+
+for i = 1, #shelf.chips do
+	local chip = shelf.chips[i]
+
+	scenegraph_definition[definitions.CHIP_NODE_PREFIX .. i] = node(LX + chip.x, SY + chip.y, chip.w, Workshop.CHIP_H, 3)
+end
+
+scenegraph_definition.spawn_label = node(LX, under.label_y, 600, 22, 2)
+
+for i, name in ipairs(Workshop.SPAWN_ORDER) do
+	local x, y = Workshop.spawn_pos(i, under.row_y)
+
+	scenegraph_definition[name] = node(x, y, Workshop.SPAWN_W, 48, 2)
+end
+
+scenegraph_definition.btn_rename = node(297, under.actions_y, 150, 44, 2)
+scenegraph_definition.btn_text = node(459, under.actions_y, 190, 44, 2)
+scenegraph_definition.btn_share = node(661, under.actions_y, 190, 44, 2)
+scenegraph_definition.btn_reset = node(868, under.actions_y, 230, 44, 2)
+scenegraph_definition.btn_delete = node(1110, under.actions_y, 130, 44, 2)
+
+-- right pane: the stage, the toolbar, the quick face
+local card_w, card_h = 228 * Workshop.CARD_SCALE, 270 * Workshop.CARD_SCALE
+local card_x, card_y = Workshop.card_pos(card_w)
+
+scenegraph_definition.stage_caption = node(P.x, Workshop.CAPTION_Y, P.w, 28, 2)
+scenegraph_definition.stage_plate = node(P.x, P.y, P.w, P.h, 0)
+scenegraph_definition[definitions.STAGE_CARD_NODE] = node(card_x, card_y, card_w, card_h, 3)
+scenegraph_definition.stage_stats = node(P.x, Workshop.STATS_Y, P.w, 28, 4)
+scenegraph_definition.btn_enabled = node(P.x, Workshop.TOOLBAR_Y, 230, 44, 2)
+scenegraph_definition.btn_preview = node(P.x + 242, Workshop.TOOLBAR_Y, 283, 44, 2)
+scenegraph_definition.quick_label = node(P.x, Workshop.QUICK_Y, 200, 28, 2)
+scenegraph_definition.btn_quickface = node(P.x + P.w - 250, Workshop.QUICK_Y - 4, 250, 36, 2)
+
+for i = 1, 12 do
+	local x, y = Workshop.suit_pos(i)
+
+	scenegraph_definition[definitions.SUIT_NODE_PREFIX .. i] = node(x, y, Workshop.SUIT_W, Workshop.SUIT_H, 3)
+end
+
+scenegraph_definition.threat_label = node(P.x, Workshop.THREAT_Y, Workshop.ROW_LABEL_W, 44, 2)
+scenegraph_definition.rw_threat = node(Workshop.THREAT_X, Workshop.THREAT_Y, 5 * Workshop.THREAT_PITCH, 44, 2)
+scenegraph_definition.btn_thr_auto = node(Workshop.THREAT_X + 5 * Workshop.THREAT_PITCH + 12, Workshop.THREAT_Y + 4, 76, 36, 2)
+scenegraph_definition.btn_thr_hand = node(Workshop.THREAT_X + 5 * Workshop.THREAT_PITCH + 12 + 76, Workshop.THREAT_Y + 4, 100, 36, 2)
+scenegraph_definition.stepper_chance = node(P.x, Workshop.CHANCE_Y, P.w, 48, 2)
+
 local function header_pass(id, x, w, align)
 	return {
 		value_id = id,
@@ -234,6 +308,21 @@ local widget_definitions = {
 	}, "list_header"),
 
 	list_range = plain_text("list_range", "list_range", 18, colors.muted, 340, 28, "right"),
+
+	-- the Workshop's static widgets (shown by the view only while the Cauldron is)
+	enemy_header = UIWidget.create_definition({
+		header_pass("col_1", Workshop.COL.name, 300),
+		header_pass("col_2", Workshop.COL.weight, 136, "center"),
+		header_pass("col_3", Workshop.COL.repeat_ - 30, 196, "center"),
+		header_pass("col_4", Workshop.COL.same - 40, 80, "center"),
+	}, "enemy_header"),
+	shelf_panel = WB.shelf_panel("shelf_panel", shelf),
+	stage_plate = WB.stage_plate("stage_plate"),
+	stage_caption = plain_text("stage_caption", "stage_caption", 16, colors.text, P.w, 28, "left"),
+	stage_stats = plain_text("stage_stats", "stage_stats", 18, colors.muted, P.w, 28, "center"),
+	quick_label = plain_text("quick_label", "quick_label", 16, colors.text, 200, 28, "left"),
+	threat_label = plain_text("threat_label", "threat_label", 16, colors.muted, Workshop.ROW_LABEL_W, 44, "left"),
+	spawn_label = plain_text("spawn_label", "spawn_label", 16, colors.muted, 600, 22, "left"),
 
 	bottom_panel = UIWidget.create_definition({
 		{ pass_type = "rect", style = { color = Components.clone_color(colors.panel) } },
