@@ -125,7 +125,8 @@ DeckView.install = function (View, h)
 	-- the font; the divider, the composition and the room for enemies follow from it), else (offline tests, a failed
 	-- measurement) it is estimated from the letters, which is a little careful: a name that turns out shorter than guessed
 	-- only leaves a gap, a longer one would run into the divider.
-	View._name_lines = function (self, name, style)
+	View._name_lines = function (self, name, style, metrics)
+		local T = metrics or T
 		local renderer = self._ui_renderer
 
 		if renderer then
@@ -145,7 +146,7 @@ DeckView.install = function (View, h)
 			end
 		end
 
-		return Spread.wrap_lines(name, T.name[3], NAME_FONT, NAME_GLYPH)
+		return Spread.wrap_lines(name, T.name[3], NAME_FONT * (T.k or 1), NAME_GLYPH)
 	end
 
 	-- A card is in the draw when it is enabled, has enemies, a weight and no fixed timer (the same rule the director uses).
@@ -267,6 +268,9 @@ DeckView.install = function (View, h)
 		local rw = mod.rw
 		local Cards, groups, colors = rw.cards, rw.groups, rw.colors
 		local style, content = widget.style, widget.content
+		-- the tile's scale: 1 on the Deck, 1.4 on the stage of a card's screens (blueprints.tile_metrics)
+		local T = content.metrics or T
+		local k = T.k or 1
 		local card = Cards.describe(wave, groups, function (breed)
 			return colors and colors.rgb(breed) or Cards.BASE.muted
 		end, self._deck_range)
@@ -342,10 +346,10 @@ DeckView.install = function (View, h)
 		paint(style.name, 255, ink)
 
 		-- the divider and the composition follow the name: a one line name leaves room for five lines of enemies, a two line name for four
-		local layout = Deck.layout(self:_name_lines(card.name, style.name))
+		local layout = Deck.layout(self:_name_lines(card.name, style.name, T))
 
 		style.divider.visible = true
-		style.divider.offset[2] = layout.divider_y
+		style.divider.offset[2] = layout.divider_y * k
 		paint(style.divider, 255, tone(suit.frame))
 
 		local has_parts = wave.parts and #wave.parts > 0
@@ -359,7 +363,7 @@ DeckView.install = function (View, h)
 
 		content.comp = table.concat(lines, "\n")
 		style.comp.visible = true
-		style.comp.offset[2], style.comp.size[2] = layout.comp_y, layout.comp_h
+		style.comp.offset[2], style.comp.size[2] = layout.comp_y * k, layout.comp_h * k
 		paint(style.comp, 255, tone(Cards.BASE.muted))
 
 		-- the modifiers, each in its Improved Havoc Tags colour (the mod's own setting when it is installed, else its default
@@ -386,14 +390,14 @@ DeckView.install = function (View, h)
 		local threat_rgb = Cards.THREAT_COLORS[card.threat]
 
 		for i = 1, 5 do
-			local cx = T.diamonds_x + (i - 1) * Spread.THREAT_PITCH
+			local cx = T.diamonds_x + (i - 1) * Spread.THREAT_PITCH * k
 			local outer, halo = style[IDS.th_o[i]], style[IDS.th_h[i]]
 			local filled = i <= card.threat
 			local rgb = tone(filled and threat_rgb or Cards.BASE.muted)
 
 			outer.visible, halo.visible = true, true
-			outer.offset[1], outer.offset[2] = cx - 4, T.row_y - 4
-			halo.offset[1], halo.offset[2] = cx - 4.7, T.row_y - 4.7
+			outer.offset[1], outer.offset[2] = cx - 4 * k, T.row_y - 4 * k
+			halo.offset[1], halo.offset[2] = cx - 4.7 * k, T.row_y - 4.7 * k
 			paint(outer, filled and 255 or 64, rgb)
 			paint(halo, filled and 70 or 22, rgb)
 		end
@@ -408,12 +412,12 @@ DeckView.install = function (View, h)
 			dot.visible, halo.visible = i <= count, i <= count
 
 			if i <= count then
-				local x, y = T.dots_right - 9 - (count - i) * 13, T.row_y - 4.5
+				local x, y = T.dots_right - 9 * k - (count - i) * 13 * k, T.row_y - 4.5 * k
 
 				dot.offset[1], dot.offset[2] = x, y
-				dot.size[1], dot.size[2] = 9, 9
-				halo.offset[1], halo.offset[2] = x - 0.6, y - 0.6
-				halo.size[1], halo.size[2] = 10.2, 10.2
+				dot.size[1], dot.size[2] = 9 * k, 9 * k
+				halo.offset[1], halo.offset[2] = x - 0.6 * k, y - 0.6 * k
+				halo.size[1], halo.size[2] = 10.2 * k, 10.2 * k
 				paint(dot, 255, tone(dots[i]))
 				paint(halo, 70, tone(dots[i]))
 			end
@@ -547,23 +551,25 @@ DeckView.install = function (View, h)
 	View._animate_vial = function (self, widget, fx, p, time)
 		local style = widget.style
 		local Cards = mod.rw.cards
-		local fill = (Deck.TILE_H) * p
+		local T = widget.content.metrics or T
+		local k = T.k or 1
+		local fill = T.h * p
 
 		fx.p = p
 		style.vial.visible = fill > 0.5
-		style.vial.offset[2], style.vial.size[2] = Deck.TILE_H - fill, fill
+		style.vial.offset[2], style.vial.size[2] = T.h - fill, fill
 		paint(style.vial, 70, Cards.BASE.pus)
 		style.vial_line.visible = fill > 0.5
-		style.vial_line.offset[2] = Deck.TILE_H - fill
+		style.vial_line.offset[2] = T.h - fill
 		paint(style.vial_line, 230, Cards.BASE.pus)
 
 		for i = 1, #IDS.bubble do
 			local bubble = style[IDS.bubble[i]]
 			local rise = ((time or 0) * 0.38 + (i - 1) / 3) % 1
 
-			bubble.visible = fill > 24
-			bubble.offset[1], bubble.offset[2] = 28 + (i - 1) * 84, Deck.TILE_H - 10 - rise * (fill - 10)
-			bubble.size[1], bubble.size[2] = 6, 6
+			bubble.visible = fill > 24 * k
+			bubble.offset[1], bubble.offset[2] = (28 + (i - 1) * 84) * k, T.h - 10 * k - rise * (fill - 10 * k)
+			bubble.size[1], bubble.size[2] = 6 * k, 6 * k
 			paint(bubble, math.floor(150 * (1 - rise)), Cards.BASE.pus)
 		end
 	end
@@ -599,9 +605,10 @@ DeckView.install = function (View, h)
 			return
 		end
 
+		local T = widget.content.metrics or T
 		local scale = 0.96 + 0.16 * u
-		local w, h = Deck.TILE_W * scale, Deck.TILE_H * scale
-		local x0, y0 = (Deck.TILE_W - w) / 2, (Deck.TILE_H - h) / 2
+		local w, h = T.w * scale, T.h * scale
+		local x0, y0 = (T.w - w) / 2, (T.h - h) / 2
 		local alpha = math.floor(230 * (1 - u))
 
 		for i = 1, #IDS.ping do

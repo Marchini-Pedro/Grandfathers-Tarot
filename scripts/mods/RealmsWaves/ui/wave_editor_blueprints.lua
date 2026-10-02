@@ -149,31 +149,51 @@ blueprints.Deck, blueprints.Spread = Deck, Spread
 local TILE_W, TILE_H = Deck.TILE_W, Deck.TILE_H
 local DISPLAY_FONT = "itc_novarese_bold"
 
-blueprints.TILE = {
-	-- boxes (x, y, w, h) inside the tile
-	suit_label = { 14, 12, 150, 20 },
-	icon = { 188, 8, 26, 26 },
-	name = { 14, Deck.NAME_Y, 200, 3 * Deck.NAME_LINE },
-	-- the divider and the composition sit under the name, wherever Deck.layout puts them (these are the one-line values)
-	divider = { 14, 64, 200, 1 },
-	comp = { 14, 71, 200, 85 },
-	mods = { 14, 166, 200, 16 },
-	whisper = { 14, 184, 200, 32 },
-	row_y = 226, -- centre of the bottom row (threat diamonds left, dots right)
-	diamonds_x = 14 + 4, -- centre of the first diamond
-	dots_right = 214,
-	pips_y = 238,
-	pips_x = 14,
-	pip = { 16, 7, 4 }, -- width, height, gap
-	pip_hit_y = 235,
-	pip_hit_h = 14,
-	state_left = { 14, 250, 100, 16 },
-	state_clock = { 100, 250, 62, 16 },
-	edit = { 168, 250, 46, 16 }, -- the pill: lit while the pointer is on it, and exactly its click area
-	hot_top = { 0, 0, TILE_W, 235 },
-	hot_state = { 0, 249, 166, 21 },
-	hot_edit = { 168, 250, 46, 16 },
-}
+-- The boxes of a tile at scale k (x, y, w, h in the tile's units times k): 1 is the Deck's tile (228 x 270), the card on the
+-- stage of a card's screens is 1.4. Fonts, shapes and hit areas scale with it, the 1 unit lines do not (docs/08).
+blueprints.tile_metrics = function (k)
+	k = k or 1
+
+	local function box(x, y, w, h)
+		return { x * k, y * k, w * k, h * k }
+	end
+
+	local metrics = {
+		k = k,
+		w = TILE_W * k,
+		h = TILE_H * k,
+		-- boxes (x, y, w, h) inside the tile
+		suit_label = box(14, 12, 150, 20),
+		icon = box(188, 8, 26, 26),
+		name = box(14, Deck.NAME_Y, 200, 3 * Deck.NAME_LINE),
+		-- the divider and the composition sit under the name, wherever Deck.layout puts them (these are the one-line values)
+		divider = box(14, 64, 200, 1),
+		comp = box(14, 71, 200, 85),
+		mods = box(14, 166, 200, 16),
+		whisper = box(14, 184, 200, 32),
+		row_y = 226 * k, -- centre of the bottom row (threat diamonds left, dots right)
+		diamonds_x = (14 + 4) * k, -- centre of the first diamond
+		dots_right = 214 * k,
+		pips_y = 238 * k,
+		pips_x = 14 * k,
+		pip = { 16 * k, 7 * k, 4 * k }, -- width, height, gap
+		pip_hit_y = 235 * k,
+		pip_hit_h = 14 * k,
+		state_left = box(14, 250, 100, 16),
+		state_clock = box(100, 250, 62, 16),
+		edit = box(168, 250, 46, 16), -- the pill: lit while the pointer is on it, and exactly its click area
+		hot_top = box(0, 0, TILE_W, 235),
+		hot_state = box(0, 249, 166, 21),
+		hot_edit = box(168, 250, 46, 16),
+	}
+
+	metrics.divider[4] = 1 -- a line stays 1 unit thick
+
+	return metrics
+end
+
+-- the Deck's own tile
+blueprints.TILE = blueprints.tile_metrics(1)
 
 local function shape_color()
 	return { 255, 255, 255, 255 }
@@ -255,31 +275,39 @@ for i = 1, Deck.PIPS do
 end
 
 -- The click area of pip i: its width plus half the gap on each side; the first and the last reach the edge of the tile, so
--- there is no dead strip beside the pips.
-blueprints.pip_hit = function (i)
-	local T = blueprints.TILE
+-- there is no dead strip beside the pips. `T` = the tile's metrics (default: the Deck's).
+blueprints.pip_hit = function (i, T)
+	T = T or blueprints.TILE
+
 	local pitch = T.pip[1] + T.pip[3]
 	local left = i == 1 and 0 or T.pips_x + (i - 1) * pitch - T.pip[3] / 2
-	local right = i == Deck.PIPS and TILE_W or T.pips_x + i * pitch - T.pip[3] / 2
+	local right = i == Deck.PIPS and T.w or T.pips_x + i * pitch - T.pip[3] / 2
 
 	return left, T.pip_hit_y, right - left, T.pip_hit_h
 end
 
-blueprints.tile = function (node_id)
+-- A card tile at scale `k` (default 1: 228 x 270, the Deck's; the stage of a card's screens uses 1.4). Its metrics are in
+-- content.metrics, which the painting reads (ui/wave_editor_deck.lua).
+blueprints.tile = function (node_id, k)
 	local passes = {}
-	local T = blueprints.TILE
+	local T = (k == nil or k == 1) and blueprints.TILE or blueprints.tile_metrics(k)
+	local W, H = T.w, T.h
+
+	local function font(size)
+		return math.floor(size * T.k + 0.5)
+	end
 
 	-- the glow (the stock frame texture) and the face
 	passes[#passes + 1] = {
 		pass_type = "texture",
 		style_id = "glow",
 		value = "content/ui/materials/frames/frame_glow_01",
-		style = { scale_to_material = true, offset = { -12, -12, 0 }, size = { TILE_W + 24, TILE_H + 24 }, color = shape_color(), visible = false },
+		style = { scale_to_material = true, offset = { -12 * T.k, -12 * T.k, 0 }, size = { W + 24 * T.k, H + 24 * T.k }, color = shape_color(), visible = false },
 	}
 	passes[#passes + 1] = {
 		pass_type = "rect",
 		style_id = "bg",
-		style = { offset = { 0, 0, 1 }, size = { TILE_W, TILE_H }, color = shape_color() },
+		style = { offset = { 0, 0, 1 }, size = { W, H }, color = shape_color() },
 		-- the face takes the suit's lighter colour while the pointer is on the tile
 		change_function = function (content, style)
 			local hover = content.hotspot_top.is_hover or content.hotspot_state.is_hover or content.hotspot_edit.is_hover or content.strip_hover
@@ -301,17 +329,17 @@ blueprints.tile = function (node_id)
 	}
 
 	-- "the vial fills": a liquid rising from the bottom of the card, with a bright top line and bubbles
-	rect_pass(passes, "vial", 0, TILE_H, TILE_W, 0, 2)
-	rect_pass(passes, "vial_line", 0, TILE_H, TILE_W, 2, 2)
+	rect_pass(passes, "vial", 0, H, W, 0, 2)
+	rect_pass(passes, "vial_line", 0, H, W, 2, 2)
 
 	for i = 1, 3 do
 		circle_pass(passes, blueprints.TILE_IDS.bubble[i], 3)
 	end
 
-	rect_pass(passes, "border_t", 0, 0, TILE_W, 1, 2)
-	rect_pass(passes, "border_b", 0, TILE_H - 1, TILE_W, 1, 2)
-	rect_pass(passes, "border_l", 0, 0, 1, TILE_H, 2)
-	rect_pass(passes, "border_r", TILE_W - 1, 0, 1, TILE_H, 2)
+	rect_pass(passes, "border_t", 0, 0, W, 1, 2)
+	rect_pass(passes, "border_b", 0, H - 1, W, 1, 2)
+	rect_pass(passes, "border_l", 0, 0, 1, H, 2)
+	rect_pass(passes, "border_r", W - 1, 0, 1, H, 2)
 
 	-- the suit mark: every triangle and circle has a faint, slightly larger copy under it (the UI draws shapes without
 	-- anti-aliasing, the copy softens the stair-stepped edge, see Spread.FEATHER)
@@ -331,21 +359,21 @@ blueprints.tile = function (node_id)
 		circle_pass(passes, blueprints.TILE_IDS.icon_c[i], 4)
 	end
 
-	tile_text(passes, "suit_label", T.suit_label, "proxima_nova_bold", 12, "left", "center", 4)
-	tile_text(passes, "name", T.name, DISPLAY_FONT, 20, "left", "top", 5)
+	tile_text(passes, "suit_label", T.suit_label, "proxima_nova_bold", font(12), "left", "center", 4)
+	tile_text(passes, "name", T.name, DISPLAY_FONT, font(20), "left", "top", 5)
 	rect_pass(passes, "divider", T.divider[1], T.divider[2], T.divider[3], T.divider[4], 3)
-	tile_text(passes, "comp", T.comp, "proxima_nova_bold", 13, "left", "top", 4)
-	tile_text(passes, "mods", T.mods, "proxima_nova_bold", 12, "left", "center", 4)
-	tile_text(passes, "whisper", T.whisper, "proxima_nova_bold", 13, "left", "top", 4)
+	tile_text(passes, "comp", T.comp, "proxima_nova_bold", font(13), "left", "top", 4)
+	tile_text(passes, "mods", T.mods, "proxima_nova_bold", font(12), "left", "center", 4)
+	tile_text(passes, "whisper", T.whisper, "proxima_nova_bold", font(13), "left", "top", 4)
 
 	-- threat: filled diamonds up to the level, the rest the same diamonds dimmed (never an outline: two rotated squares
 	-- make an uneven one with gaps); the faint copy under each is its anti-aliasing
 	for i = 1, 5 do
-		diamond_pass(passes, blueprints.TILE_IDS.th_h[i], 3.8, 9.4)
+		diamond_pass(passes, blueprints.TILE_IDS.th_h[i], 3.8, 9.4 * T.k)
 	end
 
 	for i = 1, 5 do
-		diamond_pass(passes, blueprints.TILE_IDS.th_o[i], 4, 8)
+		diamond_pass(passes, blueprints.TILE_IDS.th_o[i], 4, 8 * T.k)
 	end
 
 	for i = 1, 6 do
@@ -361,23 +389,23 @@ blueprints.tile = function (node_id)
 	end
 
 	-- the state line: what the card is doing, the cooldown clock, and the Edit pill
-	tile_text(passes, "state_left", T.state_left, "proxima_nova_bold", 12, "left", "center", 4)
-	tile_text(passes, "state_clock", T.state_clock, "proxima_nova_bold", 12, "right", "center", 4)
+	tile_text(passes, "state_left", T.state_left, "proxima_nova_bold", font(12), "left", "center", 4)
+	tile_text(passes, "state_clock", T.state_clock, "proxima_nova_bold", font(12), "right", "center", 4)
 	rect_pass(passes, "edit_bg", T.edit[1], T.edit[2], T.edit[3], T.edit[4], 3)
-	tile_text(passes, "edit_label", T.edit, "proxima_nova_bold", 12, "center", "center", 5)
+	tile_text(passes, "edit_label", T.edit, "proxima_nova_bold", font(12), "center", "center", 5)
 
 	-- the ready ping: a ring that leaves the card and fades, when its cooldown ends
-	rect_pass(passes, "ping_t", 0, 0, TILE_W, 2, 7)
-	rect_pass(passes, "ping_b", 0, 0, TILE_W, 2, 7)
-	rect_pass(passes, "ping_l", 0, 0, 2, TILE_H, 7)
-	rect_pass(passes, "ping_r", 0, 0, 2, TILE_H, 7)
+	rect_pass(passes, "ping_t", 0, 0, W, 2, 7)
+	rect_pass(passes, "ping_b", 0, 0, W, 2, 7)
+	rect_pass(passes, "ping_l", 0, 0, 2, H, 7)
+	rect_pass(passes, "ping_r", 0, 0, 2, H, 7)
 
 	Components.hotspot_pass(passes, "hotspot_top", { T.hot_top[1], T.hot_top[2], 6 }, { T.hot_top[3], T.hot_top[4] })
 	Components.hotspot_pass(passes, "hotspot_state", { T.hot_state[1], T.hot_state[2], 6 }, { T.hot_state[3], T.hot_state[4] })
 	Components.hotspot_pass(passes, "hotspot_edit", { T.hot_edit[1], T.hot_edit[2], 6 }, { T.hot_edit[3], T.hot_edit[4] })
 
 	for i = 1, Deck.PIPS do
-		local x, y, w, h = blueprints.pip_hit(i)
+		local x, y, w, h = blueprints.pip_hit(i, T)
 
 		Components.hotspot_pass(passes, blueprints.TILE_IDS.hotspot_pip[i], { x, y, 6 }, { w, h }, nil, true)
 	end
@@ -386,7 +414,8 @@ blueprints.tile = function (node_id)
 		bg_rgb = { 30, 36, 19 },
 		bg_hi = { 42, 50, 25 },
 		card_visible = false,
-	}, { TILE_W, TILE_H })
+		metrics = T,
+	}, { W, H })
 end
 
 -- The blank tile at the end of the deck: a dashed outline, a plus and two lines. Clicking it creates a new card.
