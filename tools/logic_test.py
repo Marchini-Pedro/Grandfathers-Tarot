@@ -1347,7 +1347,9 @@ do
   check("tuning: a stat the buff system rewrote gets the factor again (1.2 x 1.5 = 1.8)", math.abs(c.buffs.stats.melee_attack_speed - 1.8) < 1e-9 and c.buffs.stats.ranged_attack_speed == 2)
   Tuning.update(0.3); Tuning.update(0.3)
   check("tuning: ...and is not multiplied again while nothing changes", math.abs(c.buffs.stats.melee_attack_speed - 1.8) < 1e-9)
-  check("tuning: the new sizes are sent to the other players in one batch: [network id, percent]", #sent_scales >= 1 and sent_scales[1].recipient == nil and #sent_scales[1].list == 2 and sent_scales[1].list[1][1] == c.gid and sent_scales[1].list[1][2] == 130)
+  local sent_ids, sent_count = {}, 0
+  for _, batch in ipairs(sent_scales) do if batch.recipient == nil then for _, e in ipairs(batch.list) do sent_ids[e[1]] = e[2]; sent_count = sent_count + 1 end end end
+  check("tuning: the new sizes are sent to the other players, [network id, percent] for every tuned unit (the batches depend on how the spawns fall into the frames)", #sent_scales >= 1 and sent_scales[1].recipient == nil and sent_count == 2 and sent_ids[crushers[1].gid] == 130 and sent_ids[crushers[2].gid] == 130)
   local sends = #sent_scales
   Tuning.update(0.3)
   check("tuning: a size is sent once", #sent_scales == sends)
@@ -1682,6 +1684,25 @@ do
   -- a text with an unknown key still imports (the key is only the exporter's)
   local fk = Presets.decode_wave(Presets.seal("RWW1|future_wave~F~1~10~60~3~10~60~3 hounds~0~0"), Events, Groups)
   check("wave share: the exporter's key does not matter (unknown keys are fine)", fk and fk.key == "future_wave")
+  -- the roll switch (rk_): default on, travels with the card
+  local rk = {}
+  local function rg(id) return rk[id] end
+  local function rs(id, v) rk[id] = v end
+  check("roll switch: a card keeps the roll of its random groups by default, and the definition for the spawner says so", Events.get("custom_1", rg, Groups).keep_pick == true and Events.spawn_def(Events.get("custom_1", rg, Groups)).keep_pick == true)
+  rk.rk_custom_1 = false
+  check("roll switch: turned off it reads as off and reaches the spawner; Reset puts it back on", Events.get("custom_1", rg, Groups).keep_pick == false and Events.spawn_def(Events.get("custom_1", rg, Groups)).keep_pick == false and (function() Events.reset(rs, "custom_1"); return Events.get("custom_1", rg, Groups).keep_pick == true end)())
+  Events.set_def(rs, "custom_5", "Roll", Groups.parse("1 hound|mutant@2"), Groups); rk.on_custom_5 = true; rk.rk_custom_5 = false
+  local rsnap = Presets.capture_wave(rg, "custom_5", Events, Groups)
+  check("roll switch: it is part of a shared card (RWW1 text) and the card is 'changed' because of it", rsnap.keep == false and Presets.decode_wave(Presets.encode_wave(rsnap), Events, Groups).keep == false)
+  local on_snap = Presets.capture_wave(function(id) if id == "rk_custom_5" then return nil end return rk[id] end, "custom_5", Events, Groups)
+  check("roll switch: a card with the switch on round trips as on", on_snap.keep == true and Presets.decode_wave(Presets.encode_wave(on_snap), Events, Groups).keep == true)
+  local old17 = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~0~0~rage~2~Hi~vial"), Events, Groups)
+  check("roll switch: a card text from before the switch (17 fields) imports with it on", old17 and old17.keep == true and old17.suit == "rage")
+  local target = {}
+  Presets.apply_wave(Presets.decode_wave(Presets.encode_wave(rsnap), Events, Groups), "custom_2", function(id, v) target[id] = v end, Events, Groups)
+  check("roll switch: applying a card writes rk_ to the slot", target.rk_custom_2 == false)
+  local pool = Presets.pool_waves({ waves = { Presets.decode_wave(Presets.encode_wave(rsnap), Events, Groups) } }, "peer_z", Events, Groups)
+  check("roll switch: a friend's card in the draw keeps its switch", pool[1] and pool[1].keep_pick == false)
 end
 -- enemy name colours without Spidey Sense: the palette asked for ------------------------------------------------------
 do
@@ -1995,6 +2016,47 @@ check("repeat: +2 after the first tick (10 s)", count_at(tl, 13) == 7, count_at(
 check("repeat: +2 after the second tick (20 s)", count_at(tl, 23) == 9, count_at(tl, 23))
 check("repeat: +2 after the third tick (30 s), none after 'for' ends (35 s)", count_at(tl, 33) == 11 and count_at(tl, 44) == 11, count_at(tl, 33) .. "/" .. count_at(tl, 44))
 check("repeat: finished job is removed", Execute.status().jobs == 0, Execute.status().jobs)
+
+-- a random group rolls ONCE and keeps its enemy on every repeat (the card's switch, default on); with the switch off every unit rolls
+do
+  local function breeds_of_wave(def)
+    run_timed(def, 45, 0.25)
+    local seen, n = {}, 0
+    for _, u in ipairs(spawned) do if not seen[u.breed] then seen[u.breed] = true; n = n + 1 end end
+    return n, #spawned, seen
+  end
+  local random_parts = function() return Groups.parse("2 hound|mutant|trapper@3") end
+  local always_one, total_ok, variety = true, true, {}
+  for _ = 1, 40 do
+    local n, units, seen = breeds_of_wave({ name = "t", parts = random_parts(), rep_every = 10, rep_for = 35, keep_pick = true })
+    if n ~= 1 then always_one = false end
+    if units ~= 2 + 3 * 3 then total_ok = false end
+    for b in pairs(seen) do variety[b] = true end
+  end
+  local kinds = 0; for _ in pairs(variety) do kinds = kinds + 1 end
+  check("roll once: with the switch on a random group is ONE enemy in the first spawn and in every repeat (40 waves of 11 units)", always_one and total_ok)
+  check("roll once: ...and the roll still varies from wave to wave (all three enemies came up)", kinds == 3, kinds)
+  local mixed = 0
+  for _ = 1, 40 do
+    local n = breeds_of_wave({ name = "t", parts = random_parts(), rep_every = 10, rep_for = 35, keep_pick = false })
+    if n > 1 then mixed = mixed + 1 end
+  end
+  check("roll once: with the switch off every unit rolls (a wave of 11 units almost always has more than one enemy)", mixed >= 35, mixed)
+  local n_default = breeds_of_wave({ name = "t", parts = random_parts(), rep_every = 10, rep_for = 35 })
+  check("roll once: a definition without the switch (an older caller) keeps the roll too", n_default == 1, n_default)
+  -- two random groups roll separately; a plain group is untouched
+  local parts = Groups.parse("1 hound|mutant@2, 1 sniper|trapper@2, 2 crusher@1")
+  run_timed({ name = "t", parts = parts, rep_every = 10, rep_for = 25, keep_pick = true }, 40, 0.25)
+  local groups_seen = { a = {}, b = {}, plain = 0 }
+  for _, u in ipairs(spawned) do
+    if u.breed == "chaos_hound" or u.breed == "cultist_mutant" then groups_seen.a[u.breed] = true
+    elseif u.breed == "renegade_sniper" or u.breed == "chaos_poxwalker_bomber" or u.breed == "renegade_netgunner" or u.breed == "cultist_trapper" then groups_seen.b[u.breed] = true
+    else groups_seen.plain = groups_seen.plain + 1 end
+  end
+  local na, nb = 0, 0; for _ in pairs(groups_seen.a) do na = na + 1 end; for _ in pairs(groups_seen.b) do nb = nb + 1 end
+  check("roll once: each random group keeps its own roll (one enemy each), the plain group is spawned as written", na == 1 and nb == 1 and groups_seen.plain == 2 + 2 * 1, tostring(na) .. "/" .. tostring(nb) .. "/" .. tostring(groups_seen.plain))
+  Execute.reset()
+end
 
 local _, _, tl2 = run_timed({ name = "t", parts = Groups.parse("0 hounds@3, 2 snipers"), rep_every = 5, rep_for = 10 }, 20, 0.25)
 check("repeat: only-repeat group starts at 0 and repeats (2 snipers + 2 ticks x 3 hounds)", count_at(tl2, 3) == 2 and count_at(tl2, 20) == 8, count_at(tl2, 3) .. "/" .. count_at(tl2, 20))

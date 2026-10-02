@@ -141,7 +141,7 @@ local function recipe_of(wave, Groups)
 end
 
 local function same_wave(a, b)
-	return a.name == b.name and a.recipe == b.recipe and a.enabled == b.enabled and a.pct == b.pct and a.cd == b.cd and a.sp == b.sp and a.re == b.re and a.rf == b.rf and a.dmin == b.dmin and a.dmax == b.dmax and a.timer == b.timer and a.deleted == b.deleted and a.suit == b.suit and a.thr == b.thr and a.whisper == b.whisper and a.look == b.look
+	return a.name == b.name and a.recipe == b.recipe and a.enabled == b.enabled and a.pct == b.pct and a.cd == b.cd and a.sp == b.sp and a.re == b.re and a.rf == b.rf and a.dmin == b.dmin and a.dmax == b.dmax and a.timer == b.timer and a.deleted == b.deleted and a.suit == b.suit and a.thr == b.thr and a.whisper == b.whisper and a.look == b.look and a.keep == b.keep
 end
 
 -- A wave as stored in a preset.
@@ -164,6 +164,7 @@ local function snapshot(key, wave, Groups)
 		thr = math.max(0, math.min(5, whole(wave.threat_override))),
 		whisper = clean_whisper(wave.whisper),
 		look = LOOKS[wave.look] and wave.look or "",
+		keep = wave.keep_pick ~= false,
 	}
 end
 
@@ -221,6 +222,7 @@ Presets.apply_wave = function (wave, key, set_setting, Events, Groups)
 	set_setting("th_" .. key, wave.thr or 0)
 	set_setting("wh_" .. key, wave.whisper or "")
 	set_setting("cl_" .. key, wave.look or "")
+	set_setting("rk_" .. key, wave.keep ~= false)
 end
 
 -- Writes a preset over the current setup: every wave goes back to its default first.
@@ -303,6 +305,7 @@ Presets.pool_waves = function (preset, owner, Events, Groups, limit)
 				threat_override = wave.thr or 0,
 				whisper = wave.whisper or (standard and standard.whisper) or "",
 				look = wave.look or "",
+				keep_pick = wave.keep ~= false,
 				owner = owner,
 			}
 		end
@@ -331,6 +334,7 @@ local function wave_text(wave)
 		tostring(wave.thr or 0),
 		escape(wave.whisper or ""),
 		wave.look or "",
+		wave.keep == false and "0" or "1",
 	}, "~")
 end
 
@@ -339,7 +343,7 @@ end
 local function parse_wave(text, Groups)
 	local parts = split(text, "~")
 
-	if #parts ~= 9 and #parts ~= 11 and #parts ~= 12 and #parts ~= 13 and #parts ~= 17 then
+	if #parts ~= 9 and #parts ~= 11 and #parts ~= 12 and #parts ~= 13 and #parts ~= 17 and #parts ~= 18 then
 		return nil, "a wave in the text is damaged"
 	end
 
@@ -391,6 +395,8 @@ local function parse_wave(text, Groups)
 		thr = math.max(0, math.min(5, whole(tonumber(parts[15]) or 0))),
 		whisper = clean_whisper(unescape(parts[16] or "")),
 		look = LOOKS[parts[17]] and parts[17] or "",
+		-- 18 fields = with the roll switch; texts without it keep the default (on)
+		keep = parts[18] ~= "0",
 	}
 end
 

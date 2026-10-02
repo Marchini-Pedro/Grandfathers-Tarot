@@ -1015,6 +1015,17 @@ Groups.has_repeat = function (parts)
 	return false
 end
 
+-- true when at least one enemy group is random ("a|b|c")
+Groups.has_random = function (parts)
+	for i = 1, #(parts or {}) do
+		if parts[i].one_of then
+			return true
+		end
+	end
+
+	return false
+end
+
 Groups.total_count = function (parts)
 	local total = 0
 

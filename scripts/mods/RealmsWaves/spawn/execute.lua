@@ -264,21 +264,44 @@ end
 
 Execute.scaled_amount = scaled_amount
 
+-- The enemy of one unit of a group. A random group ("a|b|c") rolls for every unit, unless `picks` is given (the card keeps its first
+-- roll, see def.keep_pick): then the group rolls ONCE, the first time a unit of it is needed, and every unit of it, in the first
+-- batch and in every repeat tick, is that enemy.
+local function breed_of(part, picks)
+	local one_of = part.one_of
+
+	if not one_of then
+		return part.breed
+	end
+
+	if picks then
+		local chosen = picks[part]
+
+		if not chosen then
+			chosen = one_of[math.random(1, #one_of)]
+			picks[part] = chosen
+		end
+
+		return chosen
+	end
+
+	return one_of[math.random(1, #one_of)]
+end
+
 -- Units for one batch: `field` is "count" (the initial spawn) or "rep" (one repeat tick).
 -- Each group's number is scaled by its type's multiplier (rounded down, see scaled_amount),
 -- so 0 removes that type from the wave and 500 gives five times as many.
-local function expand(parts, field)
+local function expand(parts, field, picks)
 	local queue = {}
 	local cap = number_setting("max_per_wave", 80)
 
 	for i = 1, #parts do
 		local part = parts[i]
-		local one_of = part.one_of
 		local base = field == "rep" and Groups.repeat_amount(part) or (part[field] or 0)
 		local amount = scaled_amount(base, percent_for(part))
 
 		for _ = 1, amount do
-			queue[#queue + 1] = { breed = one_of and one_of[math.random(1, #one_of)] or part.breed, mods = part.mods, tune = part.tune }
+			queue[#queue + 1] = { breed = breed_of(part, picks), mods = part.mods, tune = part.tune }
 		end
 	end
 
@@ -304,7 +327,9 @@ Execute.start_wave = function (def)
 		return false, string.format("the Lua memory guard refused this wave (heap %.0f MB is above the %d MB guard)", heap_mb(), number_setting("heap_guard_mb", 800))
 	end
 
-	local queue = expand(def.parts, "count")
+	-- a card keeps the first roll of its random groups unless it says not to (def.keep_pick == false)
+	local picks = def.keep_pick ~= false and {} or nil
+	local queue = expand(def.parts, "count", picks)
 	local every = tonumber(def.rep_every) or 0
 	local rep_for = tonumber(def.rep_for) or 0
 	local has_repeat = Groups.has_repeat(def.parts) and every > 0 and rep_for > 0
@@ -317,7 +342,7 @@ Execute.start_wave = function (def)
 	local rep
 
 	if has_repeat then
-		rep = { parts = def.parts, every = every, total = rep_for, clock = 0, next = every, done = every > rep_for }
+		rep = { parts = def.parts, picks = picks, every = every, total = rep_for, clock = 0, next = every, done = every > rep_for }
 	end
 
 	jobs[#jobs + 1] = {
@@ -349,7 +374,7 @@ local function run_repeats(job, dt)
 
 	while rep.next <= rep.total and rep.clock >= rep.next do
 		if #job.queue <= MAX_QUEUE then
-			local batch = expand(rep.parts, "rep")
+			local batch = expand(rep.parts, "rep", rep.picks)
 
 			for i = 1, #batch do
 				table.insert(job.queue, 1, batch[i])

@@ -14,7 +14,7 @@ MODROOT = os.path.abspath(os.path.join(HERE, "..")).replace("\\", "/")
 lua = LuaRuntime(unpack_returned_tuples=True)
 
 harness = r'''
-local MODROOT, DUMP, UI_DIR = ...
+local MODROOT, DUMP, UI_DIR, UI_REAL = ...
 local BASE = MODROOT .. "/scripts/mods/RealmsWaves"
 
 -- ---- engine stubs ---------------------------------------------------------
@@ -2375,6 +2375,23 @@ do
   click("stepper_chance", "hotspot_minus")
   check("chance: 0 is the least (never drawn): minus at 0 stays at 0", settings.pct_custom_1 == 0 and W.stepper_chance.content.stepper_value == "0", tostring(settings.pct_custom_1))
   settings.pct_custom_1 = pct; view:_reload(); view:_apply_screen()
+
+  -- the roll switch: only a card with a random group shows it
+  check("roll switch: a card without a random group does not show it", not W.btn_keep_pick.visible)
+  local saved_def = settings.wave_def_custom_1
+  settings.wave_def_custom_1 = "The Magician	3 trapper, 1 hound|mutant@2"
+  view:_open_detail("custom_1")
+  check("roll switch: with a random group it shows, on by default, with its label", W.btn_keep_pick.visible and W.btn_keep_pick.content.hotspot_on == true and W.btn_keep_pick.content.hotspot_text == "btn_keep_pick_on")
+  W.btn_keep_pick.content.hotspot.pressed_callback()
+  check("roll switch: a click turns it off (rk_ false), the label follows", settings.rk_custom_1 == false and W.btn_keep_pick.content.hotspot_on == false and W.btn_keep_pick.content.hotspot_text == "btn_keep_pick_off")
+  W.btn_keep_pick.content.hotspot.pressed_callback()
+  check("roll switch: and on again", settings.rk_custom_1 == true and W.btn_keep_pick.content.hotspot_on == true)
+  check("roll switch: it sits on the line of 'How it spawns', inside the pane, clear of the steppers", (function()
+    local n = view._definitions.scenegraph_definition.btn_keep_pick.position
+    return n[1] + 360 <= WK.LEFT_X + WK.LEFT_W and n[2] + 30 <= view._definitions.under_shelf.row_y[1] and n[2] >= view._definitions.under_shelf.label_y - 12
+  end)())
+  settings.wave_def_custom_1 = saved_def; settings.rk_custom_1 = nil
+  view:_open_detail("custom_1")
   click("btn_enabled")
   check("toolbar: In the draw switches the card out of the draw: the stage card dims, the line says so; and back", settings.on_custom_1 == false and stage.alpha_multiplier == 0.55 and W.btn_enabled.content.hotspot_text == "btn_enabled_off" and W.stage_stats.content.stage_stats == "stage_stats_off")
   click("btn_enabled")
@@ -2490,6 +2507,17 @@ end
 -- UI_DUMP_DIR=<dir>: write every screen of the editor as JSON (tools/ui_preview.py draws them into PNGs)
 if UI_DIR and UI_DIR ~= "" then
   local DEFS = dofile(BASE .. "/ui/wave_editor_definitions.lua")
+  -- UI_REAL_TEXT=1: the screens are drawn with the real English strings of the localization file (the tests use the ids), so the
+  -- widths of the texts are the ones the player sees
+  if UI_REAL and UI_REAL ~= "" then
+    local LOC = dofile(BASE .. "/RealmsWaves_localization.lua")
+    mod.localize = function(self, id, ...)
+      local entry = LOC[id]
+      local text = entry and entry.en or id
+      local ok, result = pcall(string.format, text, ...)
+      return ok and result or text
+    end
+  end
   local function esc(s) return (tostring(s):gsub("[%c\"\\]", function(c) if c == "\n" then return "\\n" elseif c == "\"" then return "\\\"" elseif c == "\\" then return "\\\\" else return "" end end)) end
   local function ser(v)
     if type(v) == "table" then
@@ -2595,7 +2623,7 @@ end
 
 return table.concat(results, "\n")
 '''
-out = lua.execute(harness, MODROOT, os.environ.get("DECK_DUMP", ""), os.environ.get("UI_DUMP_DIR", "").replace("\\", "/"))
+out = lua.execute(harness, MODROOT, os.environ.get("DECK_DUMP", ""), os.environ.get("UI_DUMP_DIR", "").replace("\\", "/"), os.environ.get("UI_REAL_TEXT", ""))
 print(out)
 fails = [l for l in out.split("\n") if l.startswith("FAIL")]
 print("\nPASS:", len([l for l in out.split("\n") if l.startswith("PASS")]), "FAIL:", len(fails))

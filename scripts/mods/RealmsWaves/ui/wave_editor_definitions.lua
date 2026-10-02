@@ -156,6 +156,7 @@ for i = 1, #shelf.chips do
 end
 
 scenegraph_definition.spawn_label = node(LX, under.label_y, 600, 22, 2)
+scenegraph_definition.btn_keep_pick = node(LX + Workshop.LEFT_W - 360, under.label_y - 10, 360, 30, 2)
 
 for i, name in ipairs(Workshop.SPAWN_ORDER) do
 	local x, y = Workshop.spawn_pos(i, under.row_y)

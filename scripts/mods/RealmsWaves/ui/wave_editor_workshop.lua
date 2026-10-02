@@ -812,6 +812,14 @@ WorkshopView.install = function (View, h)
 		end
 	end)
 
+	-- the roll switch of the spawn block: random groups roll once and keep their enemy on every repeat (default), or roll for every unit
+	View.cb_keep_pick = guarded(function (self)
+		if self._screen == "detail" and self._wave then
+			set_setting("rk_" .. self._key, self._wave.keep_pick == false)
+			changed(self)
+		end
+	end)
+
 	-- the Enemies tab (on the card's face screen it goes back to the Cauldron)
 	View.cb_enemies = guarded(function (self)
 		if self._screen == "face" then

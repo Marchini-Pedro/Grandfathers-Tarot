@@ -183,6 +183,8 @@ return {
 	col_wave = { en = "Wave" },
 	col_composition = { en = "Composition" },
 	col_chance = { en = "Chance" },
+	btn_keep_pick_on = { en = "Random groups: one roll per wave" },
+	btn_keep_pick_off = { en = "Random groups: a roll for every unit" },
 	col_share = { en = "Share" },
 	col_enemy = { en = "Enemy" },
 	col_count = { en = "Brood" },

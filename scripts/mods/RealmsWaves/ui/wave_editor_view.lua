@@ -60,6 +60,8 @@ local BUTTONS = {
 	{ name = "btn_thr_auto", width = 76, height = 36, font = 19, cb = "cb_threat_auto", role = "tab" },
 	{ name = "btn_thr_hand", width = 100, height = 36, font = 19, cb = "cb_threat_hand", role = "tab" },
 	{ name = "btn_preview", width = 283, cb = "cb_preview_cooldown" },
+	-- "How it spawns": a random group rolls once for the whole wave and keeps its enemy on every repeat (shown when the card has one)
+	{ name = "btn_keep_pick", width = 360, height = 30, font = 17, cb = "cb_keep_pick", pip = true },
 	{ name = "btn_quickface", width = 250, height = 36, font = 20, cb = "cb_face", role = "quiet" },
 	-- the Mirror (the card face screen)
 	{ name = "btn_whisper_change", width = 150, cb = "cb_whisper_change" },
@@ -928,6 +930,9 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.btn_random.content.hotspot_on = self._random_mode == true
 	widgets.btn_random_done.content.hotspot_text = mod:localize("btn_random_done", #(self._random_pick or {}))
 	widgets.btn_rename.visible = detail
+	widgets.btn_keep_pick.visible = detail and rw.groups.has_random(self._parts)
+	widgets.btn_keep_pick.content.hotspot_text = mod:localize(self._wave and self._wave.keep_pick == false and "btn_keep_pick_off" or "btn_keep_pick_on")
+	widgets.btn_keep_pick.content.hotspot_on = self._wave ~= nil and self._wave.keep_pick ~= false
 	widgets.btn_text.visible = detail
 	widgets.btn_add.visible = detail
 	widgets.btn_reset.visible = detail

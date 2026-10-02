@@ -169,6 +169,8 @@ Events.LOOKS = { rot = true, whisper = true, vial = true }
 --   sp_<key>        number              spawn spread radius in metres (0 = all at the spawn point)
 --   re_<key>        number              repeat every N seconds  (only used by groups with "@rep")
 --   rf_<key>        number              keep repeating for N seconds
+--   rk_<key>        boolean             a random group ("a|b") rolls once and keeps its enemy on every repeat (default on; false = a new
+--                                       roll for every unit)
 --   dmin_<key>      number              minimum spawn distance in metres for this wave (0 = use the options)
 --   dmax_<key>      number              maximum spawn distance in metres for this wave (0 = use the options)
 --   del_<key>       boolean             a STANDARD wave the player deleted: hidden in the editor, never drawn or timed.
@@ -276,6 +278,7 @@ Events.get = function (key, get_setting, Groups)
 	wave.spread = tonumber(get_setting("sp_" .. key)) or Events.DEFAULT_SPREAD
 	wave.rep_every = tonumber(get_setting("re_" .. key)) or Events.DEFAULT_REPEAT_EVERY
 	wave.rep_for = tonumber(get_setting("rf_" .. key)) or Events.DEFAULT_REPEAT_FOR
+	wave.keep_pick = get_setting("rk_" .. key) ~= false
 	wave.dmin = math.max(0, tonumber(get_setting("dmin_" .. key)) or 0)
 	wave.dmax = math.max(0, tonumber(get_setting("dmax_" .. key)) or 0)
 
@@ -415,6 +418,7 @@ Events.reset = function (set_setting, key)
 	set_setting("sp_" .. key, Events.DEFAULT_SPREAD)
 	set_setting("re_" .. key, Events.DEFAULT_REPEAT_EVERY)
 	set_setting("rf_" .. key, Events.DEFAULT_REPEAT_FOR)
+	set_setting("rk_" .. key, true)
 	set_setting("dmin_" .. key, 0)
 	set_setting("dmax_" .. key, 0)
 	set_setting("su_" .. key, "")
@@ -449,6 +453,7 @@ Events.spawn_def = function (wave)
 		spread = wave.spread,
 		rep_every = wave.rep_every,
 		rep_for = wave.rep_for,
+		keep_pick = wave.keep_pick,
 		dmin = wave.dmin,
 		dmax = wave.dmax,
 		timer = wave.timer,
