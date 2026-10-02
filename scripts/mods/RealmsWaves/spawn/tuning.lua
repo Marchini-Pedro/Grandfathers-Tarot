@@ -14,9 +14,14 @@
 --           `melee_attack_speed` is only to cut the END of a melee attack short (it ends at duration / speed, never
 --           before the last hit plus 0.27 s); it does not speed the animation, and for a chained sweep attack (Plague
 --           Ogryn, Chaos Spawn) it measured the first hit instead of the last, so a high value dropped the rest of the
---           chain. `fix_attack_end` below repairs that for our units. The buff system rewrites a stat when a buff that touches it
---           changes (a bleed or a brittleness debuff from a player, the Enraged modifier), so the written value is
---           checked a few times a second and put back on top (`reassert`).
+--           chain. `fix_attack_end` below repairs that for our units. The buff system recomputes a stat every frame while a
+--           buff that touches it is on the unit (a mission's Havoc modifier, the Enraged modifier, a debuff of a player):
+--           it first resets the stats listed in `stat_buffs._modified_stats` to their base value, then adds every buff. So
+--           the value is written WITH its key in `_modified_stats` (otherwise the next recompute adds the buff on top of our
+--           value and our factor is applied twice or lost), and is put back on top right after every recompute by a hook on
+--           `_update_stat_buffs_and_keywords` of BuffExtensionBase AND of MinionBuffExtension (the game's `class()` copies the
+--           parent's methods into a subclass when it is created, so a hook on the parent does not reach the subclass), and
+--           by a check a few times a second (`reassert`) as a fallback.
 --   size    `Unit.set_local_scale(unit, 1, ...)`, what the game's own Rampaging buff does. The game only runs it on every
 --           player's machine because that buff is synced; ours is not, so the host also sends the unit's network id and
 --           the size to the other players (RPC rw_scale) and each machine that has this mod applies it when the unit
@@ -149,6 +154,18 @@ local function network_id(unit)
 	return ok and tonumber(id) or nil
 end
 
+-- Writes a stat of a unit and lists it among the stats the buff system resets before each recompute (see the header):
+-- without that entry the next recompute would add the buffs on top of our value instead of on top of the base value.
+local function write_stat(stat_buffs, key, value)
+	stat_buffs[key] = value
+
+	local modified = stat_buffs._modified_stats
+
+	if type(modified) == "table" then
+		modified[key] = true
+	end
+end
+
 -- ------------------------------------------------------------------------------------------ the host
 -- The health of the unit is not set here: it is a spawn parameter, see Tuning.health_modifier.
 Tuning.health_modifier = function (tune)
@@ -225,7 +242,7 @@ Tuning.apply = function (unit, tune, breed_name)
 				for k = 1, #keys do
 					local value = (stat_buffs[keys[k]] or 1) * factor
 
-					stat_buffs[keys[k]] = value
+					write_stat(stat_buffs, keys[k], value)
 					record.mult[keys[k]] = factor
 					record.last[keys[k]] = value
 				end
@@ -290,7 +307,7 @@ local function reassert_record(record, buffs)
 		if now ~= record.last[key] then
 			local value = now * factor
 
-			stat_buffs[key] = value
+			write_stat(stat_buffs, key, value)
 			record.last[key] = value
 		end
 	end
@@ -488,7 +505,11 @@ Tuning.install = function ()
 		Tuning.fix_attack_end(...)
 	end)
 
-	mod:hook_safe("BuffExtensionBase", "_update_stat_buffs_and_keywords", function (self)
+	-- the unit's own class is the one that matters: the game's class() copies the methods of the parent into the subclass
+	-- when it is created, so MinionBuffExtension keeps calling its own copy and the hook on BuffExtensionBase may never
+	-- see a minion (the console log of 2026-10-02 showed exactly that: the factor was gone at every burst under Havoc).
+	-- Both are hooked; putting the factor back is idempotent, so a unit that reaches both is not touched twice.
+	local function after_recompute(self)
 		if Tuning.dead then
 			return
 		end
@@ -498,7 +519,10 @@ Tuning.install = function ()
 		if record then
 			reassert_record(record, self)
 		end
-	end)
+	end
+
+	mod:hook_safe("BuffExtensionBase", "_update_stat_buffs_and_keywords", after_recompute)
+	mod:hook_safe("MinionBuffExtension", "_update_stat_buffs_and_keywords", after_recompute)
 end
 
 Tuning.retire = function ()

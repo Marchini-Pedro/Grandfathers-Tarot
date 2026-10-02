@@ -1280,6 +1280,66 @@ do
   stat_hook({ stat_buffs = function() return {} end }, 5)
   check("tuning: the hook ignores units that are not tuned", true)
 
+  -- the game's real recompute (buff_extension_base.lua:318-354, buff.lua:689-733), reduced: the stats listed in
+  -- _modified_stats go back to their base value, then every buff is added (additive: +, multiplicative: *).
+  -- The user's console log of 2026-10-02: under Havoc the gunner read speed 1.3 and 2.25 shots, never our factor.
+  local BASE_STAT = { ranged_attack_speed = 1, minion_num_shots_modifier = 1, melee_attack_speed = 1 }
+  local MULTIPLICATIVE = { minion_num_shots_modifier = true }
+  local function sim_unit(buff_list)
+    local ext = { buff_list = buff_list, recomputes = 0 }
+    local stats = setmetatable({ _modified_stats = {} }, { __index = function(s, k) local v = BASE_STAT[k]; s[k] = v; return v end })
+    ext.stat_buffs = function(self) return stats end
+    ext.recompute = function(self)
+      self.recomputes = self.recomputes + 1
+      for key in pairs(stats._modified_stats) do stats[key] = BASE_STAT[key] end
+      for key in pairs(stats._modified_stats) do stats._modified_stats[key] = nil end
+      for _, buff in ipairs(self.buff_list) do
+        for key, value in pairs(buff) do
+          if MULTIPLICATIVE[key] then stats[key] = stats[key] * value else stats[key] = stats[key] + value end
+          stats._modified_stats[key] = true
+        end
+      end
+    end
+    return { buffs = ext }, ext, stats
+  end
+  local HAVOC_RANGED = { ranged_attack_speed = 0.3, minion_num_shots_modifier = 2.25 } -- havoc_ranged_attack_speed_05
+  local minion_hook = hooks["MinionBuffExtension._update_stat_buffs_and_keywords!"]
+  check("recompute: the subclass MinionBuffExtension is hooked too (the game's class() copies the parent's methods into it)", minion_hook ~= nil)
+
+  local g_unit, g_ext, g_stats = sim_unit({ HAVOC_RANGED })
+  g_ext:recompute()
+  check("recompute: the model reproduces the log (a Havoc unit reads 1.3 and 2.25)", math.abs(g_stats.ranged_attack_speed - 1.3) < 1e-9 and math.abs(g_stats.minion_num_shots_modifier - 2.25) < 1e-9)
+  Tuning.apply(g_unit, { fire = 25, burst = 500 }, "renegade_gunner")
+  g_ext:recompute()
+  check("recompute: without the hook the factor is lost at once (what the user saw)", math.abs(g_stats.ranged_attack_speed - 1.3) < 1e-9)
+  minion_hook(g_ext, 5)
+  check("recompute: right after the hook the unit reads Havoc x ours (1.3 x 0.25, 2.25 x 5)", math.abs(g_stats.ranged_attack_speed - 0.325) < 1e-9 and math.abs(g_stats.minion_num_shots_modifier - 11.25) < 1e-9, tostring(g_stats.ranged_attack_speed) .. "/" .. tostring(g_stats.minion_num_shots_modifier))
+  for _ = 1, 5 do g_ext:recompute(); minion_hook(g_ext, 5) end
+  check("recompute: every frame for a while gives the same value, nothing compounds", math.abs(g_stats.ranged_attack_speed - 0.325) < 1e-9 and math.abs(g_stats.minion_num_shots_modifier - 11.25) < 1e-9)
+  stat_hook(g_ext, 5)
+  minion_hook(g_ext, 5)
+  check("recompute: both hooks in a row (a unit that reaches both) change nothing the second time", math.abs(g_stats.ranged_attack_speed - 0.325) < 1e-9 and math.abs(g_stats.minion_num_shots_modifier - 11.25) < 1e-9)
+  g_ext.buff_list = {}
+  g_ext:recompute(); minion_hook(g_ext, 5)
+  check("recompute: the Havoc buff leaving the unit leaves our factor on the base value", math.abs(g_stats.ranged_attack_speed - 0.25) < 1e-9 and math.abs(g_stats.minion_num_shots_modifier - 5) < 1e-9, tostring(g_stats.ranged_attack_speed))
+
+  -- a buff that arrives AFTER the stats were written (a debuff from a player, an Enraged modifier): the key was listed as
+  -- modified, so the recompute starts from the base value and the factor is applied once, not on top of a buff twice
+  local late_unit, late_ext, late_stats = sim_unit({})
+  Tuning.apply(late_unit, { fire = 200, burst = 300 }, "renegade_gunner")
+  check("recompute: written on a unit with no buff, the stats read x2 and x3", late_stats.ranged_attack_speed == 2 and late_stats.minion_num_shots_modifier == 3)
+  late_ext.buff_list = { HAVOC_RANGED }
+  late_ext:recompute(); minion_hook(late_ext, 5)
+  check("recompute: a buff that arrives later is added to the base, then the factor once (1.3 x 2, 2.25 x 3)", math.abs(late_stats.ranged_attack_speed - 2.6) < 1e-9 and math.abs(late_stats.minion_num_shots_modifier - 6.75) < 1e-9, tostring(late_stats.ranged_attack_speed) .. "/" .. tostring(late_stats.minion_num_shots_modifier))
+  Tuning.update(0.3)
+  check("recompute: the fallback timer leaves a correct value alone", math.abs(late_stats.ranged_attack_speed - 2.6) < 1e-9)
+
+  -- a stat table without _modified_stats (a stub, or a game that changes) is still written
+  local plain_unit = { buffs = { stats = {} } }
+  plain_unit.buffs.stat_buffs = function(self) return self.stats end
+  Tuning.apply(plain_unit, { fire = 50 }, "renegade_gunner")
+  check("recompute: a stat table without _modified_stats is written all the same", plain_unit.buffs.stats.ranged_attack_speed == 0.5)
+
   -- the factor a custom mod writes: a TIME (gap) is inverted into the game's speed, the others are plain percents
   check("tuning: factor_for, gap is a time (40 -> x2.5, 200 -> x0.5), the others a share, 100 or nonsense is nothing", Tuning.factor_for("gap", 40) == 2.5 and Tuning.factor_for("gap", 200) == 0.5 and Tuning.factor_for("gap", 100) == nil and Tuning.factor_for("gap", 0) == nil and Tuning.factor_for("gap", "x") == nil and Tuning.factor_for("fire", 200) == 2 and Tuning.factor_for("explosion", 0) == 0 and Tuning.factor_for("dot", nil) == nil)
 
