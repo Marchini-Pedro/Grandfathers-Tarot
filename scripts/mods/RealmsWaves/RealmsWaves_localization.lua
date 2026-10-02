@@ -126,7 +126,7 @@ return {
 	tune_health = { en = "Health" },
 	tune_health_info = { en = "Maximum health. 200 = twice as much. %d to %d." },
 	tune_size = { en = "Size" },
-	tune_size_info = { en = "Model size, %d to %d. Others see it only if they have this mod. Hit areas may not grow." },
+	tune_size_info = { en = "Model size, %d to %d. A burster's blast grows with it. Others see it only if they have this mod. Hit areas may not grow." },
 	tune_speed = { en = "Run speed" },
 	tune_speed_info = { en = "How fast it walks and runs after you. %d to %d." },
 	tune_gap = { en = "Time between attacks" },

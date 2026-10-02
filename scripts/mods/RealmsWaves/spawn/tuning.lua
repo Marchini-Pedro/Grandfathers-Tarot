@@ -54,6 +54,10 @@ Tuning.dead = false
 
 local tuned = {} -- host: { unit, mult = { [stat] = factor }, last = { [stat] = value written } }
 local scaled = {} -- host: network id -> { unit, pct }
+local sized = {} -- host: unit -> size in percent (what the explosion of a burster reads, see explosion_enter)
+local last_shot = setmetatable({}, { __mode = "k" }) -- host: unit -> what its last shooting start read (see /rw_tune)
+local shoot_logged = {} -- breed name -> how many shooting starts were written to the log
+local apply_logged = {} -- breed name -> how many tuned units were written to the log
 local outbox = {} -- host: sizes not sent yet, { id, pct }
 local inbox = {} -- client: sizes waiting for their unit, { id, pct, age }
 local timer, send_timer = 0, 0
@@ -117,6 +121,16 @@ end
 Tuning.factor_for = factor_for
 
 -- ------------------------------------------------------------------------------------------------- size
+local function factor_for_size(factor)
+	factor = tonumber(factor)
+
+	if not factor or factor ~= factor or factor <= 0 then
+		return 1
+	end
+
+	return factor
+end
+
 local function set_scale(unit, pct)
 	local factor = pct / 100
 
@@ -227,6 +241,20 @@ Tuning.apply = function (unit, tune, breed_name)
 
 	if record then
 		tuned[#tuned + 1] = record
+
+		-- the first three units of a breed are written to the log: what was written and what the stats say right after
+		if (apply_logged[label] or 0) < 3 and mod.info then
+			apply_logged[label] = (apply_logged[label] or 0) + 1
+
+			local parts = {}
+
+			for key, factor in pairs(record.mult) do
+				parts[#parts + 1] = string.format("%s x%.2f (stat now %s)", key, factor, tostring(record.ext:stat_buffs()[key]))
+			end
+
+			table.sort(parts)
+			pcall(mod.info, mod, "RealmsWaves: custom stats written on %s: %s", label, table.concat(parts, ", "))
+		end
 	end
 
 	-- size
@@ -235,6 +263,8 @@ Tuning.apply = function (unit, tune, breed_name)
 	if size and size ~= 100 and size == size then
 		local ok, err = pcall(function ()
 			set_scale(unit, size)
+
+			sized[unit] = size
 
 			local id = network_id(unit)
 
@@ -321,12 +351,138 @@ Tuning.fix_attack_end = function (self, unit, breed, target_unit, t, spawn_compo
 	end
 end
 
+-- The explosion of a burster. The game builds it from fixed templates (radius 6 m, 3 m close), so a bigger model got the
+-- bigger danger zone (the model's own effect scales with it) but the same blast. For a unit with a custom size the
+-- templates of the action are swapped for copies with every radius multiplied by the size, for the one call that makes
+-- the explosion (it is synchronous: Explosion.create_explosion runs inside enter), and put back at once.
+-- the name of the breed of a unit ("?" when it cannot be read)
+local function breed_name(unit)
+	local ok, name = pcall(function ()
+		local data = ScriptUnit.has_extension(unit, "unit_data_system")
+		local breed = data and data:breed()
+
+		return breed and breed.name
+	end)
+
+	return ok and name or "?"
+end
+
+local RADIUS_KEYS = { "radius", "min_radius", "close_radius", "min_close_radius" }
+
+local function scaled_template(template, factor)
+	if type(template) ~= "table" then
+		return template
+	end
+
+	local copy = {}
+
+	for key, value in pairs(template) do
+		copy[key] = value
+	end
+
+	for i = 1, #RADIUS_KEYS do
+		local key = RADIUS_KEYS[i]
+		local value = template[key]
+
+		if type(value) == "number" then
+			copy[key] = value * factor_for_size(factor)
+		elseif type(value) == "table" then
+			local list = {}
+
+			for index, entry in pairs(value) do
+				list[index] = type(entry) == "number" and entry * factor_for_size(factor) or entry
+			end
+
+			copy[key] = list
+		end
+	end
+
+	return copy
+end
+
+Tuning.scaled_template = scaled_template
+
+Tuning.explosion_enter = function (func, self, unit, breed, blackboard, scratchpad, action_data, t)
+	local pct = not Tuning.dead and unit ~= nil and sized[unit] or nil
+
+	if not pct or type(action_data) ~= "table" then
+		return func(self, unit, breed, blackboard, scratchpad, action_data, t)
+	end
+
+	local normal, mild = action_data.explosion_template, action_data.explosion_template_mild
+	local ok, err = pcall(function ()
+		action_data.explosion_template = scaled_template(normal, pct / 100)
+		action_data.explosion_template_mild = scaled_template(mild, pct / 100)
+	end)
+
+	if not ok then
+		action_data.explosion_template, action_data.explosion_template_mild = normal, mild
+		warn_once(string.format("the explosion could not be scaled: %s", tostring(err)))
+
+		return func(self, unit, breed, blackboard, scratchpad, action_data, t)
+	end
+
+	local done, result = pcall(func, self, unit, breed, blackboard, scratchpad, action_data, t)
+
+	action_data.explosion_template, action_data.explosion_template_mild = normal, mild
+
+	if not done then
+		error(result, 0)
+	end
+
+	return result
+end
+
+-- What a tuned unit read when it started shooting (MinionAttack.start_shooting, after it ran): the first three of every
+-- breed go to the log, the last of each unit is kept for /rw_tune.
+Tuning.on_start_shooting = function (unit, scratchpad, t, action_data)
+	if Tuning.dead or type(scratchpad) ~= "table" then
+		return
+	end
+
+	pcall(function ()
+		local record = record_of(unit)
+
+		if not record then
+			return
+		end
+
+		local wait = type(scratchpad.next_shoot_timing) == "number" and type(t) == "number" and scratchpad.next_shoot_timing - t or nil
+
+		last_shot[unit] = { speed = scratchpad.shoot_attack_speed, shots = scratchpad.num_shots, wait = wait }
+
+		local name = breed_name(unit)
+
+		if (shoot_logged[name] or 0) < 3 then
+			shoot_logged[name] = (shoot_logged[name] or 0) + 1
+
+			if mod.info then
+				mod:info("RealmsWaves: %s started shooting: speed x%s, %s shots, first shot in %s s", name, tostring(scratchpad.shoot_attack_speed), tostring(scratchpad.num_shots), tostring(wait))
+			end
+		end
+	end)
+end
+
 Tuning.install = function ()
 	if installed or not mod.hook_safe then
 		return
 	end
 
 	installed = true
+
+	if mod.hook then
+		mod:hook("BtChaosPoxwalkerExplodeAction", "enter", function (func, ...)
+			return Tuning.explosion_enter(func, ...)
+		end)
+	end
+
+	if mod.hook_require then
+		mod:hook_require("scripts/utilities/minion_attack", function (MinionAttack)
+			mod:hook_safe(MinionAttack, "start_shooting", function (...)
+				Tuning.on_start_shooting(...)
+			end)
+		end)
+	end
 
 	mod:hook_safe("BtMeleeAttackAction", "_start_attack_anim", function (...)
 		Tuning.fix_attack_end(...)
@@ -374,6 +530,12 @@ local function reassert()
 			scaled[id] = nil
 		end
 	end
+
+	for unit in pairs(sized) do
+		if not alive(unit) then
+			sized[unit] = nil
+		end
+	end
 end
 
 local function send_batches(list, recipient)
@@ -411,7 +573,7 @@ Tuning.update = function (dt)
 	if timer >= UPDATE_INTERVAL then
 		timer = 0
 
-		if #tuned > 0 or next(scaled) ~= nil then
+		if #tuned > 0 or next(scaled) ~= nil or next(sized) ~= nil then
 			reassert()
 		end
 	end
@@ -505,18 +667,6 @@ Tuning.ANIM_CANDIDATES = {
 
 local ENGINE_WORDS = { "anim", "speed", "time", "scale", "rate" }
 
--- the name of the breed of a unit ("?" when it cannot be read)
-local function breed_name(unit)
-	local ok, name = pcall(function ()
-		local data = ScriptUnit.has_extension(unit, "unit_data_system")
-		local breed = data and data:breed()
-
-		return breed and breed.name
-	end)
-
-	return ok and name or "?"
-end
-
 -- Returns a list of text lines: the functions of the engine's Unit table that mention animation, speed, time, scale or
 -- rate, then for each given unit (one per breed) which of the candidate variables its animation state machine has.
 Tuning.probe = function (units)
@@ -587,12 +737,49 @@ Tuning.probe = function (units)
 	return lines
 end
 
+-- Lines for /rw_tune: every living tuned unit (one per breed), what was written and what its stats say now.
+Tuning.describe = function ()
+	local lines = {}
+	local seen = {}
+
+	for i = 1, #tuned do
+		local record = tuned[i]
+		local unit = record.unit
+		local name = breed_name(unit)
+
+		if not seen[name] and alive(unit) then
+			seen[name] = true
+
+			local parts = {}
+			local buffs = ScriptUnit.has_extension(unit, "buff_system")
+			local stats = buffs and buffs.stat_buffs and buffs:stat_buffs() or {}
+
+			for key, factor in pairs(record.mult) do
+				parts[#parts + 1] = string.format("%s written x%.2f, now %s", key, factor, tostring(stats[key]))
+			end
+
+			table.sort(parts)
+
+			local shot = last_shot[unit]
+
+			lines[#lines + 1] = string.format("%s: %s%s", name, table.concat(parts, "; "), shot and string.format("; last shooting start: speed x%s, %s shots, first shot in %s s", tostring(shot.speed), tostring(shot.shots), tostring(shot.wait)) or "; has not started shooting")
+		end
+	end
+
+	if #lines == 0 then
+		lines[1] = "No living unit with a custom stat (time between attacks, fire rate, burst, explosion, damage over time) right now."
+	end
+
+	return lines
+end
+
 Tuning.status = function ()
 	return { tuned = #tuned, sizes_known = (function () local n = 0 for _ in pairs(scaled) do n = n + 1 end return n end)(), unsent = #outbox, pending = #inbox }
 end
 
 Tuning.reset = function ()
 	tuned, scaled, outbox, inbox = {}, {}, {}, {}
+	sized = {}
 	tuned_by_extension = {}
 	timer, send_timer = 0, 0
 end

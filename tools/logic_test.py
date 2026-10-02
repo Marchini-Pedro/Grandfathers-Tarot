@@ -1069,7 +1069,9 @@ mission_name = "coop_complete_objective"
 -- budget bypass hooks -------------------------------------------------------
 local hooks = {}
 mod.hook = function(self, cls, method, fn) hooks[cls .. "." .. method] = fn end
-mod.hook_safe = function(self, cls, method, fn) hooks[cls .. "." .. method .. "!"] = fn end
+mod.hook_safe = function(self, cls, method, fn) hooks[(type(cls) == "table" and (cls._name or "table") or cls) .. "." .. method .. "!"] = fn end
+local hook_requires = {}
+mod.hook_require = function(self, path, fn) hook_requires[path] = fn end
 local events = {}
 Managers.event = { trigger = function(self, name, unit) events[#events+1] = name .. ":" .. tostring(unit) end }
 ALIVE = {}
@@ -1225,6 +1227,7 @@ do
     unit.ext = {
       health_system = { mass = 2, hit_mass = function(self) return self.mass end, set_hit_mass = function(self, v) self.mass = v end },
       navigation_system = { mods = {}, add_movement_modifier = function(self, m) self.mods[#self.mods + 1] = m; return #self.mods end },
+      unit_data_system = { breed = function() return { name = breed } end },
     }
     if breed == "chaos_hound" then unit.ext.navigation_system = nil end -- a unit without navigation: that step fails alone
     return unit
@@ -1362,6 +1365,117 @@ do
   local logged = 0; for i = before + 1, #echoes do if echoes[i]:find("run speed of chaos_hound was not changed", 1, true) then logged = logged + 1 end end
   check("tuning: a missing extension only skips that step (hit mass still changed) and is logged once", #spawned == 2 and spawned[1].ext.health_system.mass == 4 and logged == 1, logged)
   check("tuning: health_modifier is nil for 100 or nothing", Tuning.health_modifier({ health = 100 }) == nil and Tuning.health_modifier(nil) == nil and Tuning.health_modifier({ health = 250 }) == 2.5)
+
+  -- ----------------------------------------------------------------------------- the burster's explosion follows its size
+  do
+    local normal_template = { name = "poxwalker_bomber", radius = 6, min_radius = 3, close_radius = 3, min_close_radius = 1, damage_profile = { id = "profile" }, vfx = { "fx" }, scalable_radius = true }
+    local mild_template = { name = "poxwalker_bomber_mild", radius = 3, min_radius = 1.5, close_radius = 1.5, min_close_radius = 0.5, damage_profile = { id = "mild" } }
+    local function burster_action() return { explode_position_node = "j_spine2", explosion_template = normal_template, explosion_template_mild = mild_template } end
+    local seen
+    local function original(self, unit, breed, blackboard, scratchpad, action_data, t)
+      seen = { normal = action_data.explosion_template, mild = action_data.explosion_template_mild, unit = unit, t = t }
+      return "boom"
+    end
+    local enter = hooks["BtChaosPoxwalkerExplodeAction.enter"]
+    check("burster: a hook around the explosion action's enter is installed", enter ~= nil)
+
+    run_wave({ name = "t", parts = Groups.parse("1 burster{size=200}, 1 burster{size=50}, 1 burster, 1 burster{health=150}") })
+    -- which is which: by the size that was put on it (the order the wave spawns them in is not part of what is tested)
+    local big, small, plain_b, healthy
+    for _, u in ipairs(spawned) do
+      if u.breed == "chaos_poxwalker_bomber" then
+        local size
+        for _, s in ipairs(scales_set) do if s.unit == u then size = s.x end end
+        if size == 2 then big = u elseif size == 0.5 then small = u elseif u.health_mod == 1.5 then healthy = u else plain_b = u end
+      end
+    end
+    check("burster: the four bursters were spawned (a size 200 one, a size 50 one, a plain one, a one with only health)", big and small and plain_b and healthy)
+
+    local action = burster_action()
+    local result = enter(original, "node", big, nil, nil, nil, action, 7)
+    check("burster: at size 200 the blast is made with every radius doubled (6 m -> 12, 3 -> 6, close 3 -> 6, 1 -> 2) and the other fields unchanged", result == "boom" and seen.normal.radius == 12 and seen.normal.min_radius == 6 and seen.normal.close_radius == 6 and seen.normal.min_close_radius == 2 and seen.normal.name == "poxwalker_bomber" and seen.normal.damage_profile == normal_template.damage_profile and seen.normal.vfx == normal_template.vfx and seen.normal.scalable_radius == true, seen and seen.normal.radius)
+    check("burster: the mild blast (a burster that dies by itself) is doubled too, and the arguments reach the game's function unchanged", seen.mild.radius == 6 and seen.mild.min_radius == 3 and seen.mild.close_radius == 3 and seen.mild.min_close_radius == 1 and seen.unit == big and seen.t == 7)
+    check("burster: afterwards the action has its own templates back and the shared ones were never touched", action.explosion_template == normal_template and action.explosion_template_mild == mild_template and normal_template.radius == 6 and mild_template.radius == 3)
+    enter(original, "node", small, nil, nil, nil, action, 7)
+    check("burster: at size 50 the blast is half (3 m)", seen.normal.radius == 3 and seen.normal.close_radius == 1.5 and seen.mild.radius == 1.5)
+    enter(original, "node", plain_b, nil, nil, nil, action, 7)
+    check("burster: a burster without a custom size blasts with the game's own templates", seen.normal == normal_template and seen.mild == mild_template)
+    enter(original, "node", healthy, nil, nil, nil, action, 7)
+    check("burster: so does one with only other custom mods", seen.normal == normal_template)
+    enter(original, "node", { name = "not ours" }, nil, nil, nil, action, 7)
+    check("burster: and a unit that is not a wave unit at all", seen.normal == normal_template)
+
+    local raised_ok, raised = pcall(enter, function() error("explosion failed") end, "node", big, nil, nil, nil, action, 7)
+    check("burster: an error inside the game's explosion still reaches the game, and the templates are restored", raised_ok == false and tostring(raised):find("explosion failed", 1, true) ~= nil and action.explosion_template == normal_template and action.explosion_template_mild == mild_template)
+    local nil_ok, nil_result = pcall(enter, function() return "plain" end, "node", big, nil, nil, nil, nil, 7)
+    check("burster: no action data (damaged call) is handed to the game's function as it is, nothing raised by the hook", nil_ok and nil_result == "plain")
+    local lerp_action = { explosion_template = { name = "lerped", radius = { 4, 8 }, min_radius = { 1, 2 }, close_radius = 2, label = "x" }, explosion_template_mild = nil }
+    enter(original, "node", big, nil, nil, nil, lerp_action, 7)
+    check("burster: a radius that is a table of two values (a template that lerps) is scaled entry by entry, a missing mild template stays missing", seen.normal.radius[1] == 8 and seen.normal.radius[2] == 16 and seen.normal.min_radius[2] == 4 and seen.normal.close_radius == 4 and seen.normal.label == "x" and seen.mild == nil and lerp_action.explosion_template.radius[1] == 4)
+    check("burster: scaled_template of nothing or of nonsense returns it as it is", Tuning.scaled_template(nil, 2) == nil and Tuning.scaled_template("x", 2) == "x" and Tuning.scaled_template({ radius = 5 }, "bad").radius == 5 and Tuning.scaled_template({ radius = 5 }, -3).radius == 5 and Tuning.scaled_template({ radius = 5 }, 0).radius == 5)
+
+    dead[big] = true
+    Tuning.update(0.3)
+    enter(original, "node", big, nil, nil, nil, action, 7)
+    check("burster: a unit that is gone is forgotten (no growth over a long mission)", seen.normal == normal_template and Tuning.status().tuned >= 0)
+    Tuning.dead = true
+    enter(original, "node", small, nil, nil, nil, action, 7)
+    check("burster: after a reload (the old instance is retired) the stale hook leaves the game's templates alone", seen.normal == normal_template)
+    Tuning.dead = false
+    Tuning.reset()
+    enter(original, "node", small, nil, nil, nil, action, 7)
+    check("burster: a mission restart forgets every size", seen.normal == normal_template)
+  end
+
+  -- ------------------------------------------------------------------ what a tuned shooter read (/rw_tune and the log)
+  do
+    local infos = {}
+    mod.info = function(self, fmt, ...) infos[#infos + 1] = string.format(fmt, ...) end
+    local install_shooting = hook_requires["scripts/utilities/minion_attack"]
+    check("shooting: a hook on MinionAttack is registered through hook_require (the module may load after the mod)", install_shooting ~= nil)
+    local fake_module = { _name = "MinionAttack" }
+    install_shooting(fake_module)
+    local shooting = hooks["MinionAttack.start_shooting!"]
+    check("shooting: it hooks start_shooting after it ran", shooting ~= nil)
+
+    Tuning.reset()
+    run_wave({ name = "t", parts = Groups.parse("1 rifleman{fire=25 burst=500}, 1 scab{fire=200}, 1 hound") })
+    local rifle, scab, hound
+    for _, u in ipairs(spawned) do
+      if u.breed == "renegade_rifleman" then rifle = u elseif u.breed == "renegade_melee" then scab = u elseif u.breed == "chaos_hound" then hound = u end
+    end
+    check("shooting: the shooters were spawned with their stats written (rifleman fire x0.25, burst x5)", rifle and rifle.buffs.stats.ranged_attack_speed == 0.25 and rifle.buffs.stats.minion_num_shots_modifier == 5, rifle and tostring(rifle.buffs.stats.ranged_attack_speed))
+    local apply_lines = 0
+    for _, l in ipairs(infos) do if l:find("custom stats written on renegade_rifleman: minion_num_shots_modifier x5.00 (stat now 5", 1, true) and l:find("ranged_attack_speed x0.25 (stat now 0.25)", 1, true) then apply_lines = apply_lines + 1 end end
+    check("apply: the units written to the log show what was written and what the stat says right after", apply_lines == 1 and #infos == 2, #infos)
+    infos = {}
+    local hostile_ok = pcall(function ()
+      shooting(rifle, nil, 10, {})
+      shooting(rifle, { shoot_attack_speed = "x" }, nil, nil)
+      shooting(nil, {}, 10, {})
+    end)
+    check("shooting: damaged arguments never raise", hostile_ok)
+    for i = 1, 5 do
+      shooting(rifle, { shoot_attack_speed = 0.25, num_shots = 15, next_shoot_timing = 12 }, 10, {})
+    end
+    check("shooting: only the first three starts of a breed are written to the log", #infos == 3 and infos[3]:find("renegade_rifleman started shooting: speed x0.25, 15 shots, first shot in 2", 1, true) ~= nil, #infos)
+    shooting(hound, { shoot_attack_speed = 1, num_shots = 3, next_shoot_timing = 12 }, 10, {})
+    shooting({ name = "not ours" }, { shoot_attack_speed = 1 }, 10, {})
+    check("shooting: a unit with no custom stats, or one that is not a wave unit, is not logged", #infos == 3)
+    local lines = Tuning.describe()
+    local all = table.concat(lines, " | ")
+    check("describe: one line per tuned breed with what was written, what the stat says now and what the last shot read", all:find("renegade_rifleman: ", 1, true) ~= nil and all:find("ranged_attack_speed written x0.25, now 0.25", 1, true) ~= nil and all:find("minion_num_shots_modifier written x5.00, now 5", 1, true) ~= nil and all:find("last shooting start: speed x0.25, 15 shots, first shot in 2", 1, true) ~= nil, all)
+    check("describe: a tuned unit that has not shot yet says so", (function() for _, l in ipairs(lines) do if l:find("renegade_melee", 1, true) and l:find("has not started shooting", 1, true) then return true end end return false end)(), all)
+    check("describe: a unit with no custom stat (the hound) has no line", not all:find("chaos_hound", 1, true))
+    dead[rifle] = true
+    dead[scab] = true
+    Tuning.update(0.3)
+    check("describe: with nothing alive it says so instead of printing nothing", Tuning.describe()[1]:find("No living unit", 1, true) ~= nil)
+    mod.info = nil
+    local quiet_ok = pcall(shooting, rifle, { shoot_attack_speed = 1 }, 10, {})
+    check("shooting: a game without mod:info (or one that raises) is no problem", quiet_ok)
+    Tuning.reset()
+  end
 
   -- ------------------------------------------------------------------------- what can happen in a real match
   -- (players joining late, a player gone, a mission restarting, a game without the mod, damaged or doubled messages)
