@@ -59,6 +59,16 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 5. Mod options (the last one, `tarot_default_cooldown`, in 2.0.0 step 5; all others were added with their steps)
 - [x] 6. Per-group health and size multipliers, done as "custom mods" on the user's request (health, size, run speed, melee attack speed, gunner fire rate, shots per burst, hit mass, explosion and damage-over-time taken; `spawn/tuning.lua`, `ui/wave_editor_tune.lua`, RPC `rw_scale`). The brief's one-crusher test in the game has NOT been done: matrix rows 91-96.
 
+### 2.1.0: the Workshop redesign (spec: `08-workshop-redesign.md`, branch `feature/workshop-redesign`)
+- [x] 0. Design page, the user's answers, spec and plan (doc 08)
+- [ ] 1. Button family (standard, primary, danger, quiet, chip, stepper, diamond check, tabs, icon), popup buttons and frame, pixel snapping, the suit accent
+- [ ] 2. Titles (Cauldron, Mirror) and the shelf data (Packmaster, vanguards as fodder, Dreg / Scab)
+- [ ] 3. The tile at any scale and the stage plate
+- [ ] 4. The Cauldron: rows, shelf, spawn block, action bar, stage, quick face, tabs
+- [ ] 5. The Mirror: suit plates, threat sum, whisper, cooldown, looks
+- [ ] 6. Preview tool for any screen, tests, docs
+- [ ] In-game verification (matrix rows from 97 in doc 06)
+
 Deviations from the original plan (all deliberate):
 - No separate `handshake.lua`: hello/welcome live in `core/director.lua` (the handshake is just a version check).
 - `rw_state` is ONE JSON argument, and host -> clients uses `"others"` (Realms docs' own example) so there is no loopback to filter.

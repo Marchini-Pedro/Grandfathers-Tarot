@@ -15,6 +15,7 @@ A standalone Darktide mod, compatible with the **Realms Server** mod (LAN / list
 | [05-implementation-plan.md](05-implementation-plan.md) | Ordered checklist with status, reuse map, options list |
 | [06-verification-and-open-issues.md](06-verification-and-open-issues.md) | Test matrix, risks, unverified assumptions, results log |
 | [07-learnings-and-gaps.md](07-learnings-and-gaps.md) | The journal: open gaps with next steps, discoveries, attempts and dead ends, insights |
+| [08-workshop-redesign.md](08-workshop-redesign.md) | The redesign of the card editor: button family, the Cauldron (enemies) and the Mirror (card face), resolution and sharpness, build order |
 | [CHANGELOG.md](CHANGELOG.md) | What changed, per commit. Every .md stays under 100 KB (`python tools/check_docs.py`); at 100 KB it is split into granular files |
 
 ## Current status
@@ -54,6 +55,8 @@ Quick start for testing: disable TwitchVersus and RealmsEvent, keep Realms and R
 **1.13.0 (2026-09-29, last release before 2.0.0, git tag `v1.13.0`):** random-group button in the picker, colours that survive the cut, Ranged Twin / Melee Twin names, blue gunners, editable cooldown column. Editor tests 310. Also a compatibility check against game 1.13.0: no code change needed. Matrix row 65.
 
 **2.0.0 "The Grandfather's Tarot" (2026-10-01, in progress; each step is a commit, see `CHANGELOG.md` and `05`):** step 1 card data model, step 2 tarot draw director, step 3 the Spread HUD (two fix rounds after the first in-game look), step 4 the Deck (4a), cooldown looks (4b), card face builder (4c), polish after the first look (4d), step 5 the options, step 6 (done as) **custom mods per enemy group** (health, size, run speed, melee attack speed, gunner fire rate, shots per burst, hit mass, explosion and damage-over-time taken) plus its first fix round after the in-game test. Current offline tests: logic 0 failures, editor 497, entry 14, hud 179.
+
+**Workshop redesign (2026-10-01, branch `feature/workshop-redesign`, spec and status in `08-workshop-redesign.md`, checklist in `05`):** the user liked the design page and asked for it to be built: a new button family for every screen, the card on the right of the enemies screen ("The Grandfather's Cauldron") with a shelf of enemies and a quick face, and the card face as its own tab ("The Grandfather's Mirror"); one 1920 x 1080 layout for every resolution. Offline only; merged to `main` only after the user confirms it in game.
 
 ## Where the originals are now
 `mods\TwitchVersus` and `mods\RealmsEvent` were purged by the user (empty marker folders). Their files remain in Vortex staging: `C:\Users\ayko4\AppData\Roaming\Vortex\warhammer40kdarktide\mods\<folder>\mods\<mod>\...` (folder names include version/date, e.g. `RealmsEvent 1338 1.1.0 2026-09-23T15-11Z l24cL2qMY`, `DT Twitch Versus realms(crash fix) 1273 5 2026-09-16T16-47Z ndQ1mdFjx(1)`). Read-only reference; do not copy them back into `mods\`.
