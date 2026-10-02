@@ -645,141 +645,214 @@ do
   check("hub: no director at all is the same", tile(3).content.card_state == "in")
 end
 
--- the card face: the card builder (suit, threat, whisper, cooldown look, cooldown) ------------------------------------------
+-- the card face (the Mirror): suit, threat, whisper, cooldown with its look, and the card on its stage ---------------------------
 do
   local W = view._widgets_by_name
   local Cards = mod.rw.cards
+  local WK = dofile(BASE .. "/ui/workshop.lua")
+  local DEFS = dofile(BASE .. "/ui/wave_editor_definitions.lua")
   local inp = { get = function() return nil end, is_null_service = function() return false end }
   local PPf = dofile(BASE .. "/ui/wave_editor_components.lua")
   local function type_in(text) view._widgets_by_name.rw_popup_input.content.input_text = text; view:update(0.01, 0, inp) end
-  local function rgb_of_name(r) return table.concat({ table.unpack(row(r).style.row_name.text_color, 2, 4) }, ",") end
+  local stage = W.rw_stage_card
+  local function plate_of(id) for i, sid in ipairs(Cards.SUIT_ORDER) do if sid == id then return W["rw_plate_" .. i] end end end
+  local function click_plate(id) plate_of(id).content.hotspot.pressed_callback() end
+  local function click_look(kind) for i, k in ipairs({ "rot", "whisper", "vial" }) do if k == kind then W["rw_look_" .. i].content.hotspot.pressed_callback() end end end
+  local function look_of(kind) for i, k in ipairs({ "rot", "whisper", "vial" }) do if k == kind then return W["rw_look_" .. i] end end end
+  local function near(a, b) return math.abs(a - b) < 1e-6 end
 
   view:_open_detail("boss_ambush")
-  check("face: a card's own screen has the Card face button", W.btn_face.visible and W.btn_face.content.hotspot_text == "btn_face" and not W.face_numbers.visible and not W.rw_tile_preview.visible)
+  check("face: a card's own screen has the Face tab, not selected, and no Mirror widgets yet", W.btn_face.visible and W.btn_face.content.hotspot_text == "btn_face" and W.btn_face.content.hotspot_on == false and not W.rw_plate_1.visible and not W.whisper_field.visible and not W.mirror_head_1.visible)
   click("btn_face")
-  check("face: the screen has sixteen rows (threat, whisper, cooldown look, cooldown, then twelve suits; ten show), Back, the numbers text and the preview tile", view._screen == "face" and #view._face_rows == 16 and row(10).visible and W.btn_back.visible and W.face_numbers.visible and W.rw_tile_preview.visible and W.btn_face.visible and W.btn_face.content.hotspot_on == true and W.btn_enemies.visible and W.btn_enemies.content.hotspot_on == false and W.description_text.content.description_text == "view_desc_face:The Devil")
-  check("face: nothing of the Deck or of the card's own screen shows", not tile(1).visible and not W.btn_rename.visible and not W.btn_delete.visible and not W.stepper_chance.visible and not W.rw_strip.visible)
-  check("face: suit rows are named in the suit's own colour and ticked for the card's suit (Fateful)", row(5).content.row_name == "Plague" and rgb_of_name(5) == "183,194,58" and row(10).content.row_name == "Fateful" and rgb_of_name(10) == "230,223,195" and row(10).content.checkbox_selected and not row(5).content.checkbox_selected and row(5).content.show_check and not row(5).content.show_stepper and not row(5).content.show_action)
-  check("face: a boss makes Fateful the suggested suit, said on its row", row(10).content.info:find("face_suggested", 1, true) ~= nil and row(5).content.info:find("face_suggested", 1, true) == nil and row(5).content.info:find("suit_desc_plague", 1, true) ~= nil, row(10).content.info)
-  check("face: the preview is this card's tile as the Deck draws it, not clickable", W.rw_tile_preview.content.name == "The Devil" and W.rw_tile_preview.content.suit_label:find("FATEFUL", 1, true) ~= nil and W.rw_tile_preview.content.hotspot_top.disabled == true and W.rw_tile_preview.content.hotspot_edit.disabled == true and view._definitions.scenegraph_definition.rw_tile_preview.position[1] == 1560 and view._definitions.scenegraph_definition.rw_tile_preview.position[2] == 756)
-  check("face: the preview lies inside the bottom panel and clear of the numbers text and the buttons", (function()
-    local sg = view._definitions.scenegraph_definition
-    local p, n, b = sg.rw_tile_preview, sg.face_numbers, sg.btn_back
-    local function hit(a, c) return a.position[1] < c.position[1] + c.size[1] and c.position[1] < a.position[1] + a.size[1] and a.position[2] < c.position[2] + c.size[2] and c.position[2] < a.position[2] + a.size[2] end
-    return p.position[1] + p.size[1] <= 1815 and p.position[2] + p.size[2] <= 1030 and not hit(p, n) and not hit(p, b) and not hit(p, sg.bottom_title)
-  end)())
-  check("face: the numbers: a boss alone (1 enemy gives 1, a boss +2) is threat 3", W.face_numbers.content.face_numbers:find("^face_numbers:3,1,1") ~= nil and W.face_numbers.content.face_numbers:find("face_boss", 1, true) ~= nil and W.face_numbers.content.face_numbers:find("face_elites", 1, true) == nil, W.face_numbers.content.face_numbers)
+  local plates = 0
+  for i = 1, 12 do if W["rw_plate_" .. i].visible then plates = plates + 1 end end
+  check("face: the Mirror: twelve suit plates, the threat diamonds, the whisper field, the cooldown stepper, three look plates and four headers; Back, the tabs and the stage; nothing of the Cauldron", view._screen == "face" and plates == 12 and W.rw_threat_big.visible and W.whisper_field.visible and W.stepper_cooldown.visible and W.rw_look_1.visible and W.rw_look_3.visible and W.mirror_head_4.visible and W.btn_back.visible and W.btn_face.content.hotspot_on == true and W.btn_enemies.visible and stage.visible and W.stage_plate.visible and not W.shelf_panel.visible and not W.rw_erow_1.visible and not W["rw_chip_1"].visible and not W.rw_suit_1.visible and not W.btn_dreg.visible and not W.rw_threat.visible and not W.list_panel.visible and not W.rw_row_1.visible and not W.bottom_panel.visible)
+  check("face: the buttons of the Mirror and the shared ones: Change, Use the suit's line, Automatic for this suit, Reset face, Auto | By hand, the toolbar; the Cauldron's own buttons are hidden", W.btn_whisper_change.visible and W.btn_whisper_suit.visible and W.btn_look_auto.visible and W.btn_reset_face.visible and W.btn_thr_auto.visible and W.btn_thr_hand.visible and W.btn_enabled.visible and W.btn_preview.visible and not W.btn_rename.visible and not W.btn_delete.visible and not W.btn_add.visible and not W.btn_quickface.visible and not W.rw_scroll_up.visible and not W.stepper_chance.visible and not W.stepper_spread.visible)
+  check("face: the headers and the title", W.title_text.content.title_text == "view_title_mirror" and W.mirror_head_1.content.head_title == "MIRROR_SUIT" and W.mirror_head_2.content.head_title == "MIRROR_THREAT" and W.mirror_head_3.content.head_title == "MIRROR_WHISPER" and W.mirror_head_4.content.head_title == "MIRROR_COOLDOWN" and W.mirror_head_4.content.head_hint == "mirror_cooldown_hint:10" and W.description_text.content.description_text == "view_desc_face:The Devil")
+  check("face: the stage card is this card's tile at 1.4, not clickable, the same widget as on the Cauldron", stage.content.metrics.k == 1.4 and stage.content.name == "The Devil" and stage.content.suit_label == "FATEFUL" and stage.content.hotspot_top.disabled == true)
 
-  -- choose a suit: click the name or the check box
-  click_row(7, "hotspot_name")
-  check("suit: clicking Rage writes su_<key>, ticks it, and the preview follows", settings.su_boss_ambush == "rage" and row(7).content.checkbox_selected and not row(10).content.checkbox_selected and W.rw_tile_preview.content.suit_label:find("RAGE", 1, true) ~= nil)
-  check("suit: the numbers now point at the suggested suit (Fateful) the card no longer has", W.face_numbers.content.face_numbers:find("face_suggest:Fateful", 1, true) ~= nil, W.face_numbers.content.face_numbers)
-  click_row(10, "hotspot_check")
-  check("suit: the check box does the same; back on the suggestion there is nothing more to suggest", settings.su_boss_ambush == "fateful" and row(10).content.checkbox_selected and W.face_numbers.content.face_numbers:find("face_suggest", 1, true) == nil)
+  -- the suits: all twelve at once, each in its own colours, the card's own lit
+  check("suit: twelve plates, each with its name, its line of whisper and its colours; the card's suit (Fateful, a boss) is the selected one, nothing is suggested", plate_of("plague").content.suit_name == "Plague" and plate_of("plague").content.suit_line == "Something is growing." and plate_of("plague").content.suit.accent[1] == 183 and plate_of("warp").content.suit_name == "Warp" and plate_of("warp").content.suit.accent[1] == 0xb1 and plate_of("fateful").content.selected == true and plate_of("rage").content.selected == false and plate_of("fateful").content.sug_label == "" and plate_of("volley").style.icon_c1.visible)
+  check("suit: the description of the card's suit stands under the plates, its name in the suit's colour", W.mirror_desc.content.mirror_desc:find("{#color(230,223,201)}Fateful{#reset()}  suit_desc_fateful", 1, true) ~= nil or W.mirror_desc.content.mirror_desc:find("Fateful{#reset()}  suit_desc_fateful", 1, true) ~= nil, W.mirror_desc.content.mirror_desc)
+  check("suit: the numbers: a boss alone (1 enemy gives 1, a boss +2) is threat 3", W.mirror_numbers.content.mirror_numbers:find("^face_numbers:3,1,1") ~= nil and W.mirror_numbers.content.mirror_numbers:find("face_boss", 1, true) ~= nil, W.mirror_numbers.content.mirror_numbers)
+  click_plate("rage")
+  check("suit: clicking Rage writes su_<key>, selects its plate, and the card on the stage, its plate and the buttons follow", settings.su_boss_ambush == "rage" and plate_of("rage").content.selected and not plate_of("fateful").content.selected and stage.content.suit_label == "RAGE" and mod.rw_accent[1] == 0xc2 and W.stage_plate.content.stage.accent[1] == 0xc2)
+  check("suit: the numbers now point at the suggested suit (Fateful) that the card no longer has, and the Fateful plate says Suggested", W.mirror_numbers.content.mirror_numbers:find("face_suggest:Fateful", 1, true) ~= nil and plate_of("fateful").content.sug_label == "MIRROR_SUGGESTED", plate_of("fateful").content.sug_label)
+  click_plate("fateful")
+  check("suit: back on the suggestion there is nothing more to suggest", settings.su_boss_ambush == "fateful" and W.mirror_numbers.content.mirror_numbers:find("face_suggest", 1, true) == nil and plate_of("fateful").content.sug_label == "")
 
-  -- threat: automatic, or 1 to 5 by hand
-  check("threat: the row shows 'auto' and says it is worked out", row(1).content.show_stepper and row(1).content.stepper_value == "val_auto" and row(1).content.info == "face_threat_auto" and row(1).content.row_name == "face_threat")
-  click_row(1, "hotspot_plus")
-  check("threat: + sets 1 by hand (th_<key>) and the row and the preview follow", settings.th_boss_ambush == 1 and row(1).content.stepper_value == "1" and row(1).content.info == "face_threat_own" and W.rw_tile_preview.style.th_o1.color[1] == 255 and W.rw_tile_preview.style.th_o2.color[1] == 64 and W.rw_tile_preview.style.th_o2.visible)
-  check("threat: the numbers say it is set by hand", W.face_numbers.content.face_numbers:find("face_override:1", 1, true) ~= nil)
-  for _ = 1, 8 do click_row(1, "hotspot_plus") end
-  check("threat: never above 5", settings.th_boss_ambush == 5 and row(1).content.stepper_value == "5" and W.rw_tile_preview.style.th_o5.color[1] == 255)
-  click_row(1, "hotspot_minus"); click_row(1, "hotspot_minus")
-  check("threat: - steps down", settings.th_boss_ambush == 3)
-  for _ = 1, 5 do click_row(1, "hotspot_minus") end
-  check("threat: down to 0 = auto again, never below", settings.th_boss_ambush == 0 and row(1).content.stepper_value == "val_auto" and row(1).content.info == "face_threat_auto")
-  click_row(1, "hotspot_value")
-  check("threat: clicking the value opens a number box (0 to 5)", view._popup ~= nil and view._popup.spec.min == 0 and view._popup.spec.max == 5 and view._popup.spec.integer == true)
-  type_in("9"); PPf.Popup.commit(view)
-  check("threat: 9 is refused", view._popup ~= nil and view._popup.error ~= nil)
-  type_in("4"); PPf.Popup.commit(view)
-  check("threat: 4 is accepted", view._popup == nil and settings.th_boss_ambush == 4 and row(1).content.stepper_value == "4")
-  settings.th_boss_ambush = 0; view:_reload(); view:_apply_screen(true)
+  -- threat
+  check("threat: auto at first: the diamonds show the worked-out value (3), Auto is selected, the numbers do not say by hand", W.rw_threat_big.content.threat == 3 and W.btn_thr_auto.content.hotspot_on == true and W.btn_thr_hand.content.hotspot_on == false and W.mirror_numbers.content.mirror_numbers:find("face_override", 1, true) == nil)
+  W.rw_threat_big.content.hotspot_t1.pressed_callback()
+  check("threat: the first diamond sets 1 by hand (th_<key>); the diamonds, the card and the numbers follow", settings.th_boss_ambush == 1 and W.rw_threat_big.content.threat == 1 and stage.style.th_o2.color[1] == 64 and stage.style.th_o1.color[1] == 255 and W.mirror_numbers.content.mirror_numbers:find("face_override:1", 1, true) ~= nil and W.btn_thr_hand.content.hotspot_on == true)
+  W.rw_threat_big.content.hotspot_t5.pressed_callback()
+  check("threat: the fifth sets 5, never more", settings.th_boss_ambush == 5 and W.rw_threat_big.content.threat == 5 and stage.style.th_o5.color[1] == 255)
+  W.btn_thr_auto.content.hotspot.pressed_callback()
+  check("threat: Auto works it out again (3)", settings.th_boss_ambush == 0 and W.rw_threat_big.content.threat == 3 and W.btn_thr_auto.content.hotspot_on == true)
+  check("threat: the diamonds are big (26) in a row of 54, Auto and By hand sit beside them", W.rw_threat_big.def.size[1] == 270 and view._sg.btn_thr_auto[1] == WK.LEFT_X + 270 + 12 and view._sg.btn_thr_hand[1] == view._sg.btn_thr_auto[1] + 76 and view._sg.btn_thr_auto[2] == WK.MIRROR.threat_y + 10)
 
-  -- whisper: a short line, empty = the suit's own
-  check("whisper: the row has a Change button and shows the card's line in quotes", row(2).content.show_action and row(2).content.hotspot_action_text == "btn_change" and row(2).content.row_name == "face_whisper" and row(2).content.info:sub(1, 1) == "\"", row(2).content.info)
-  click_row(2, "hotspot_action")
-  check("whisper: the Change button opens a text box limited to 40 characters", view._popup ~= nil and view._popup.spec.max_length == 40 and view._popup.spec.label == "popup_whisper_title:The Devil")
+  -- In the hand: the card as the Spread HUD draws it, 1.5 times its size
+  local hand = W.rw_hand_card
+  check("hand: In the hand shows the card as the Spread draws it (1.5 times: 264 wide): the suit's background and bar, the name, the mark, the threat diamonds and the dots", hand.visible and W.hand_caption.visible and W.hand_caption.content.hand_caption == "HAND_CAPTION" and hand.content.hand_name == "The Devil" and near(hand.style.hand_bg.size[1], 264) and hand.style.hand_bg.size[2] >= 114 - 1e-6 and hand.style.hand_bg.size[2] <= WK.HAND.max_h and hand.style.hand_bg.color[2] == 0x17 and hand.style.hand_bar.color[2] == 0xe6 and hand.style.icon_t1.visible and hand.style.th_o3.visible and hand.style.dot_1.visible and not hand.style.dot_2.visible, tostring(hand.style.hand_bg.size[2]))
+  check("hand: threat 3 fills three diamonds (the level's colour), the rest are the same diamonds dimmed; they are 12 wide on a copy of 13.1", hand.style.th_o1.color[1] == 255 and hand.style.th_o3.color[1] == 255 and hand.style.th_o4.color[1] == 64 and near(hand.style.th_o1.size[1], 12) and near(hand.style.th_h1.size[1], 13.1) and near(hand.style.th_o2.offset[1] - hand.style.th_o1.offset[1], 11.2 * 1.5))
+  check("hand: the dots stand at the right edge of the card, inside it and clear of the diamonds", hand.style.dot_1.offset[1] + hand.style.dot_1.size[1] <= 264 and hand.style.dot_1.offset[1] > hand.style.th_o5.offset[1] + 12)
+  check("hand: it is as high as the lines of the name need: a long name makes it higher, never past its node", (function()
+    local short = hand.style.hand_bg.size[2]
+    settings.wave_def_custom_1 = "SUPER JUICYED ARMOR WAVE\t4 mauler, 4 crusher, 3 bulwark"; settings.on_custom_1 = true
+    view:_reload(); view:_open_detail("custom_1"); click("btn_face")
+    local long = hand.style.hand_bg.size[2]
+    local ok = long > short and long <= WK.HAND.max_h and hand.content.hand_name == "SUPER JUICYED ARMOR WAVE" and hand.style.hand_bar.size[2] == long and hand.style.dot_3.visible
+    settings.wave_def_custom_1 = nil; settings.on_custom_1 = nil
+    click("btn_back"); click("btn_back"); view:_reload(); view:_open_detail("boss_ambush"); click("btn_face")
+    return ok
+  end)(), tostring(hand.style.hand_bg.size[2]))
+  click_plate("rage")
+  check("hand: a new suit repaints it (Rage: the bar is rust, the card dark brown); and it is gone when the Cauldron is shown", hand.style.hand_bar.color[2] == 0xc2 and hand.style.hand_bg.color[2] == 0x24)
+  click_plate("fateful")
+  click("btn_enemies")
+  check("hand: ...gone on the Cauldron", not hand.visible and not W.hand_caption.visible)
+  click("btn_face")
+
+  -- whisper
+  check("whisper: the field shows the card's own line in quotes (The Devil has one), Change and Use the suit's line are there", W.whisper_field.content.whisper_text == "\"Something big is listening.\"" and W.whisper_field.content.whisper_own == true and W.btn_whisper_change.content.hotspot_text == "btn_change" and W.btn_whisper_suit.content.hotspot_text == "btn_whisper_suit")
+  W.btn_whisper_change.content.hotspot.pressed_callback()
+  check("whisper: Change opens a text box limited to 40 characters", view._popup ~= nil and view._popup.spec.max_length == 40 and view._popup.spec.label == "popup_whisper_title:The Devil")
+  type_in("Speak")
+  check("whisper: the card on the stage shows what is typed while it is typed (nothing committed yet counts as saved, Cancel puts the old line back)", stage.content.whisper == "\"Speak\"" and settings.wh_boss_ambush == "Speak", stage.content.whisper)
+  PPf.Popup.cancel(view)
+  check("whisper: Cancel restores the old line, on the card and in the settings", stage.content.whisper == "\"Something big is listening.\"" and (settings.wh_boss_ambush == "" or settings.wh_boss_ambush == nil or settings.wh_boss_ambush == "Something big is listening.") and view._popup == nil, stage.content.whisper .. " / " .. tostring(settings.wh_boss_ambush))
+  W.btn_whisper_change.content.hotspot.pressed_callback()
   type_in("  Speak,   friend  "); PPf.Popup.commit(view)
-  check("whisper: the text is cleaned (spaces) and stored as wh_<key>; row and preview show it", settings.wh_boss_ambush == "Speak, friend" and row(2).content.info == "\"Speak, friend\"" and W.rw_tile_preview.content.whisper == "\"Speak, friend\"", tostring(settings.wh_boss_ambush))
-  click_row(2, "hotspot_name")
+  check("whisper: OK keeps it, cleaned (spaces) and stored as wh_<key>; the field and the card show it", settings.wh_boss_ambush == "Speak, friend" and W.whisper_field.content.whisper_text == "\"Speak, friend\"" and stage.content.whisper == "\"Speak, friend\"" and view._popup == nil, tostring(settings.wh_boss_ambush))
+  W.whisper_field.content.hotspot.pressed_callback()
   type_in("This line is far too long to fit on the card, so it is cut"); PPf.Popup.commit(view)
-  check("whisper: a long line is cut at 40 characters (clicking the row name works too)", #settings.wh_boss_ambush <= 40 and #settings.wh_boss_ambush >= 30, tostring(settings.wh_boss_ambush))
-  click_row(2, "hotspot_action"); type_in(""); PPf.Popup.commit(view)
-  check("whisper: empty goes back to the card's built-in line (The Devil has one)", settings.wh_boss_ambush == "" and row(2).content.info == "\"Something big is listening.\"", row(2).content.info)
+  check("whisper: a long line is cut at 40 characters (a click on the field works like Change)", #settings.wh_boss_ambush <= 40 and #settings.wh_boss_ambush >= 30, tostring(settings.wh_boss_ambush))
+  W.btn_whisper_suit.content.hotspot.pressed_callback()
+  check("whisper: Use the suit's line empties it: the card's built-in line is back (The Devil has one)", settings.wh_boss_ambush == "" and W.whisper_field.content.whisper_text == "\"Something big is listening.\"", W.whisper_field.content.whisper_text)
   click("btn_back"); view:_open_detail("wave_medium"); click("btn_face")
-  check("whisper: a card with no line of its own (The Pilgrims) shows the suit's own line, marked as such", row(2).content.info == "face_whisper_suit:" .. Cards.SUITS.swarm.whisper and W.rw_tile_preview.content.whisper == "\"" .. Cards.SUITS.swarm.whisper .. "\"", row(2).content.info)
+  check("whisper: a card with no line of its own (The Pilgrims) shows the suit's line, dimmer (not its own)", W.whisper_field.content.whisper_text == "\"" .. Cards.SUITS.swarm.whisper .. "\"" and W.whisper_field.content.whisper_own == false and stage.content.whisper == "\"" .. Cards.SUITS.swarm.whisper .. "\"")
   click("btn_back"); view:_open_detail("boss_ambush"); click("btn_face")
 
-  -- cooldown look: automatic -> rot -> whisper -> vial -> automatic
-  check("look: automatic by default, and it says what the suit gives (rot for Fateful)", row(3).content.info == "face_look_auto:look_rot" and row(3).content.show_action and row(3).content.hotspot_action_text == "btn_change")
-  click_row(3, "hotspot_action"); local a = settings.cl_boss_ambush
-  click_row(3, "hotspot_action"); local b = settings.cl_boss_ambush
-  click_row(3, "hotspot_action"); local c = settings.cl_boss_ambush
-  check("look: the button steps through rot, whisper and vial", a == "rot" and b == "whisper" and c == "vial" and row(3).content.info == "look_vial", a .. "/" .. b .. "/" .. c)
-  click_row(3, "hotspot_action")
-  check("look: and back to automatic", settings.cl_boss_ambush == "" and row(3).content.info == "face_look_auto:look_rot")
-  click_row(6, "hotspot_check")
-  check("look: ...Murmur card: automatic says the murmur returns", row(3).content.info == "face_look_auto:look_whisper", row(3).content.info)
+  -- the looks of the cooldown
+  check("look: three plates; automatic is on (Rot and renewal for Fateful, marked Automatic), the other two are not chosen; the rot plate's last stripe is the suit's colour", look_of("rot").content.hotspot_on == true and look_of("rot").content.look_auto == "LOOK_AUTOMATIC" and look_of("whisper").content.hotspot_on == false and look_of("vial").content.hotspot_on == false and W.btn_look_auto.content.hotspot_on == true and look_of("rot").content.look_name == "look_rot" and look_of("vial").content.look_desc == "look_vial_desc" and look_of("rot").content.accent_rgb[1] == 0xe6)
+  click_look("vial")
+  check("look: a click on The vial fills chooses it (cl_<key>); Automatic is off, the tag is gone, the card follows", settings.cl_boss_ambush == "vial" and look_of("vial").content.hotspot_on == true and look_of("rot").content.hotspot_on == false and look_of("rot").content.look_auto == "" and W.btn_look_auto.content.hotspot_on == false and stage.content.fx.look == "vial")
+  click_look("whisper")
+  check("look: ...and the murmur returns", settings.cl_boss_ambush == "whisper" and look_of("whisper").content.hotspot_on == true and stage.content.fx.look == "whisper")
+  W.btn_look_auto.content.hotspot.pressed_callback()
+  check("look: Automatic for this suit puts the choice back to the suit", settings.cl_boss_ambush == "" and look_of("rot").content.hotspot_on == true and look_of("rot").content.look_auto == "LOOK_AUTOMATIC" and W.btn_look_auto.content.hotspot_on == true)
+  click_plate("murmur")
+  check("look: ...for a Murmur card automatic is the murmur returns, marked", look_of("whisper").content.hotspot_on == true and look_of("whisper").content.look_auto == "LOOK_AUTOMATIC" and look_of("rot").content.look_auto == "" and look_of("whisper").content.look_sample:find("{#color", 1, true) ~= nil)
   settings.su_boss_ambush = "fateful"; view:_reload(); view:_apply_screen(true)
 
-  -- cooldown: 30 s steps, 30 s up to the longest cooldown option
-  check("cooldown: the row shows the card's cooldown (240 s) and where the limits come from", row(4).content.show_stepper and row(4).content.stepper_value == "240" and row(4).content.info == "face_cooldown_info:10", row(4).content.info)
-  click_row(4, "hotspot_plus")
-  check("cooldown: + adds 30 s and writes cd_<key>", settings.cd_boss_ambush == 270 and row(4).content.stepper_value == "270")
-  for _ = 1, 30 do click_row(4, "hotspot_minus") end
-  check("cooldown: never below 30 s", settings.cd_boss_ambush == 30 and row(4).content.stepper_value == "30")
-  for _ = 1, 40 do click_row(4, "hotspot_plus") end
-  check("cooldown: never above the longest cooldown option (10 minutes by default)", settings.cd_boss_ambush == 600)
+  -- the cooldown: 30 s steps, 30 s up to the longest option
+  check("cooldown: the stepper shows the card's cooldown as a clock (240 s = 4:00) and says it in seconds", W.stepper_cooldown.content.stepper_value == "4:00" and W.stepper_cooldown.content.extra == "mirror_cooldown_extra:240" and W.stepper_cooldown.content.label == "", W.stepper_cooldown.content.stepper_value)
+  click("stepper_cooldown", "hotspot_plus")
+  check("cooldown: + adds 30 s and writes cd_<key>", settings.cd_boss_ambush == 270 and W.stepper_cooldown.content.stepper_value == "4:30")
+  for _ = 1, 30 do click("stepper_cooldown", "hotspot_minus") end
+  check("cooldown: never below 30 s", settings.cd_boss_ambush == 30 and W.stepper_cooldown.content.stepper_value == "0:30")
+  for _ = 1, 40 do click("stepper_cooldown", "hotspot_plus") end
+  check("cooldown: never above the longest cooldown option (10 minutes by default)", settings.cd_boss_ambush == 600 and W.stepper_cooldown.content.stepper_value == "10:00")
   settings.tarot_longest = 4
-  click_row(4, "hotspot_minus"); click_row(4, "hotspot_plus"); click_row(4, "hotspot_plus")
-  check("cooldown: the limit follows the option (4 minutes)", settings.cd_boss_ambush == 240 and row(4).content.info == "face_cooldown_info:4", tostring(settings.cd_boss_ambush))
-  click_row(4, "hotspot_value")
+  click("stepper_cooldown", "hotspot_minus"); click("stepper_cooldown", "hotspot_plus"); click("stepper_cooldown", "hotspot_plus")
+  check("cooldown: the limit follows the option (4 minutes), and the header says so", settings.cd_boss_ambush == 240 and W.mirror_head_4.content.head_hint == "mirror_cooldown_hint:4", tostring(settings.cd_boss_ambush))
+  click("stepper_cooldown", "hotspot_value")
   check("cooldown: clicking the value opens a number box (30 to the longest)", view._popup ~= nil and view._popup.spec.min == 30 and view._popup.spec.max == 240)
   type_in("1000"); PPf.Popup.commit(view)
   check("cooldown: more than the longest is refused", view._popup ~= nil and view._popup.error ~= nil)
   type_in("90"); PPf.Popup.commit(view)
-  check("cooldown: 90 is accepted (it is the same setting as the Cooldown stepper of the card's screen)", view._popup == nil and settings.cd_boss_ambush == 90)
+  check("cooldown: 90 is accepted", view._popup == nil and settings.cd_boss_ambush == 90 and W.stepper_cooldown.content.stepper_value == "1:30")
   settings.tarot_longest = nil
   settings.cd_boss_ambush = 100; view:_reload(); view:_apply_screen(true)
-  click_row(4, "hotspot_plus")
+  click("stepper_cooldown", "hotspot_plus")
   check("cooldown: an old value that is not a multiple of 30 (100 s) is rounded to the grid first (90 + 30)", settings.cd_boss_ambush == 120, tostring(settings.cd_boss_ambush))
-  settings.cd_boss_ambush = nil
+  settings.cd_boss_ambush = nil; view:_reload(); view:_apply_screen(true)
 
-  -- the help text, Back
+  -- the stage works here too: In the draw and Preview cooldown
+  click("btn_enabled")
+  check("toolbar: In the draw switches the card out of the draw on the Mirror too: the stage card dims and the line says so", settings.on_boss_ambush == false and stage.alpha_multiplier == 0.55 and W.stage_stats.content.stage_stats == "stage_stats_off")
+  click("btn_enabled")
+  click("btn_preview")
+  view:update(2.5, 200, inp)
+  check("toolbar: Preview cooldown plays the look on the Mirror too", view._preview ~= nil and stage.content.fx.p > 0.45 and stage.content.fx.p < 0.55)
+  view:update(3, 203, inp)
+  check("toolbar: ...and ends after five seconds", view._preview == nil and stage.content.fx.p == -1)
+
+  -- Reset face: the suit, the threat, the whisper, the look and the cooldown back to their defaults; the enemies stay
+  click_plate("snare"); W.rw_threat_big.content.hotspot_t4.pressed_callback(); click_look("vial"); click("stepper_cooldown", "hotspot_plus")
+  settings.wh_boss_ambush = "Mine"; view:_reload(); view:_apply_screen(true)
+  local parts_before = #view._parts
+  click("btn_reset_face")
+  check("reset: Reset face puts the suit, threat, whisper, look and cooldown back (cooldown to the card's own 240 s); the enemies stay", (settings.su_boss_ambush == "" or settings.su_boss_ambush == nil) and settings.th_boss_ambush == 0 and settings.wh_boss_ambush == "" and settings.cl_boss_ambush == "" and settings.cd_boss_ambush == 240 and #view._parts == parts_before and plate_of("fateful").content.selected and stage.content.suit_label == "FATEFUL" and W.stepper_cooldown.content.stepper_value == "4:00", tostring(settings.cd_boss_ambush))
+
+  -- a popup locks the Mirror, closing it unlocks it
+  click("btn_whisper_change")
+  check("popup: while a box is open the plates, looks, diamonds and the field cannot be clicked", W.rw_plate_1.content.hotspot.disabled == true and W.rw_look_1.content.hotspot.disabled == true and W.rw_threat_big.content.hotspot_t1.disabled == true and W.whisper_field.content.hotspot.disabled == true and W.stepper_cooldown.content.hotspot_plus.disabled == true)
+  PPf.Popup.cancel(view)
+  check("popup: ...and they work again after it", W.rw_plate_1.content.hotspot.disabled == false and W.rw_look_1.content.hotspot.disabled == false and W.rw_threat_big.content.hotspot_t1.disabled == false and W.whisper_field.content.hotspot.disabled == false)
+
+  -- the layout: nothing lies on another, every part is inside the left pane (to x 1240) or the right pane (from 1290), the sections end above the action bar
+  local boxes, problems = {}, {}
+  for _, w in ipairs(view._widgets) do
+    if w.visible ~= false and w.def and w.def.size and w.name ~= "background" then
+      local has_hotspot = false
+      for _, p in ipairs(w.def.passes) do if p.pass_type == "hotspot" then has_hotspot = true end end
+      if has_hotspot then
+        local sg = view._sg and view._sg[w.def.node_id or w.name]
+        local node = DEFS.scenegraph_definition[w.def.node_id or w.name]
+        boxes[#boxes + 1] = { name = w.name, x = (sg or node.position)[1], y = (sg or node.position)[2], w = w.def.size[1], h = w.def.size[2] }
+      end
+    end
+  end
+  for i = 1, #boxes do
+    local a = boxes[i]
+    local header = a.name == "btn_enemies" or a.name == "btn_face" or a.name == "btn_help"
+    local right_pane = a.x >= WK.RIGHT_X - 1 and not header
+    if a.x < 0 or a.y < 0 or a.x + a.w > 1920 or a.y + a.h > WK.BOTTOM then problems[#problems + 1] = a.name .. " off the screen" end
+    if not header and not right_pane and a.x + a.w > WK.LEFT_X + WK.LEFT_W + 0.5 then problems[#problems + 1] = a.name .. " past the left pane" end
+    if right_pane and a.x + a.w > WK.RIGHT_X + WK.RIGHT_W + 0.5 then problems[#problems + 1] = a.name .. " past the right pane" end
+    for j = i + 1, #boxes do
+      local b = boxes[j]
+      if a.x < b.x + b.w - 1e-6 and b.x < a.x + a.w - 1e-6 and a.y < b.y + b.h - 1e-6 and b.y < a.y + a.h - 1e-6 then problems[#problems + 1] = a.name .. "/" .. b.name end
+    end
+  end
+  check("layout: on the Mirror no clickable widget lies on another and everything is inside its pane, above y 1014", #problems == 0 and #boxes > 30, #boxes .. " widgets: " .. table.concat(problems, ", "))
+  check("layout: the sections end above the action bar and Back is where it is on every screen of a card", WK.MIRROR.bottom + 16 <= view._definitions.under_shelf.actions_y and view._sg.btn_back[1] == 105 and view._sg.btn_back[2] == view._definitions.under_shelf.actions_y and WK.MIRROR.head[1] + 28 <= WK.MIRROR.plate.y0 and WK.plate_pos(12) and select(2, WK.plate_pos(12)) + WK.MIRROR.plate.h <= WK.MIRROR.desc_y and WK.MIRROR.desc_y + WK.MIRROR.desc_h <= WK.MIRROR.head[2] and WK.MIRROR.threat_y + WK.MIRROR.threat_h <= WK.MIRROR.head[3] and WK.MIRROR.whisper_y + WK.MIRROR.whisper_h <= WK.MIRROR.head[4] and WK.MIRROR.cooldown_y + 48 <= WK.MIRROR.look.y and WK.MIRROR.look.y + WK.MIRROR.look.h <= WK.MIRROR.auto_y)
+
+  -- the help text, the tabs, Back
   W.btn_help.content.hotspot.is_hover = true; view:update(0.01, 0, inp)
   check("help: the card face screen has its own help text", W.help_text.content.help_text == "help_face" and dofile(MODROOT .. "/scripts/mods/RealmsWaves/RealmsWaves_localization.lua").help_face ~= nil)
   W.btn_help.content.hotspot.is_hover = false; view:update(0.01, 0, inp)
+  click("btn_enemies")
+  check("tabs: the Enemies tab goes back to the Cauldron, the Mirror is gone", view._screen == "detail" and W.shelf_panel.visible and not W.rw_plate_1.visible and not W.whisper_field.visible and not W.rw_look_1.visible and not W.stepper_cooldown.visible and not W.mirror_head_1.visible)
+  click("btn_face")
   click("btn_back")
-  check("face: Back returns to the card's own screen, the preview is hidden", view._screen == "detail" and not W.rw_tile_preview.visible and not W.face_numbers.visible and W.btn_face.visible)
+  check("face: Back returns to the card's own screen", view._screen == "detail" and not W.rw_plate_1.visible and W.btn_face.content.hotspot_on == false and W.btn_face.visible)
   settings.su_boss_ambush = "rage"
   click("btn_back")
   view:_reload(); view:_apply_screen()
-  check("face: the Deck shows the new face (Rage) on the card's tile", tile(5).content.suit_label:find("RAGE", 1, true) ~= nil and view._screen == "list")
+  check("face: the Deck shows the new face (Rage) on the card's tile and none of the Mirror", tile(5).content.suit_label:find("RAGE", 1, true) ~= nil and view._screen == "list" and not W.rw_stage_card.visible and not W.rw_threat_big.visible and not W.rw_look_1.visible)
   settings.su_boss_ambush = nil; settings.wh_boss_ambush = nil; settings.cl_boss_ambush = nil; settings.th_boss_ambush = nil
   view:_reload(); view:_apply_screen()
 
-  -- the six new suits are on the second page of the face screen
+  -- the suits beyond the first six, and a Daemonhost
   view:_open_detail("boss_ambush"); click("btn_face")
-  check("face: the four settings come first so they are never out of sight; the first page ends at Fateful", row(1).content.row_name == "face_threat" and row(4).content.row_name == "face_cooldown" and row(5).content.row_name == "Plague" and row(10).content.row_name == "Fateful" and view:_max_offset() == 6, tostring(view:_max_offset()))
-  view._offset = 6; view:_refresh_rows(); view:_set_interaction_enabled()
-  check("face: scrolled to the end the page shows Volley, Snare, Brute, Fester, Dusk and Warp in their own colours", row(5).content.row_name == "Volley" and row(6).content.row_name == "Snare" and row(7).content.row_name == "Brute" and row(8).content.row_name == "Fester" and row(9).content.row_name == "Dusk" and row(10).content.row_name == "Warp" and rgb_of_name(10) == "177,132,224" and rgb_of_name(5) == "127,178,194" and row(10).content.show_check and row(10).visible)
-  check("face: each new suit says what it is for", row(5).content.info:find("suit_desc_volley", 1, true) ~= nil and row(10).content.info:find("suit_desc_warp", 1, true) ~= nil)
-  click_row(10, "hotspot_name")
-  check("suit: clicking Warp writes su_<key> and the preview shows it with its mark", settings.su_boss_ambush == "warp" and row(10).content.checkbox_selected and W.rw_tile_preview.content.suit_label:find("WARP", 1, true) ~= nil and W.rw_tile_preview.style.icon_t1.visible)
-  click_row(6, "hotspot_check")
-  check("suit: and Snare by its check box", settings.su_boss_ambush == "snare" and W.rw_tile_preview.content.suit_label:find("SNARE", 1, true) ~= nil)
-  settings.su_boss_ambush = nil; view._offset = 0; view:_reload(); view:_apply_screen()
+  check("suit: the six newer suits (Volley, Snare, Brute, Fester, Dusk, Warp) are on the same screen in their own colours, each with its line", plate_of("volley").content.suit.accent[1] == 0x7f and plate_of("snare").content.suit.accent[1] == 0x5f and plate_of("brute").content.suit.accent[1] == 0xcf and plate_of("fester").content.suit.accent[1] == 0xd4 and plate_of("dusk").content.suit.accent[1] == 0x8e and plate_of("warp").content.suit.accent[1] == 0xb1 and plate_of("dusk").content.suit_line == Cards.SUITS.dusk.whisper)
+  click_plate("warp")
+  check("suit: clicking Warp writes su_<key> and the card shows it with its mark (an eye in a triangle), and says what it is for", settings.su_boss_ambush == "warp" and plate_of("warp").content.selected and stage.content.suit_label == "WARP" and stage.style.icon_t1.visible and W.mirror_desc.content.mirror_desc:find("suit_desc_warp", 1, true) ~= nil)
+  click_plate("snare")
+  check("suit: and Snare", settings.su_boss_ambush == "snare" and stage.content.suit_label == "SNARE" and W.mirror_desc.content.mirror_desc:find("suit_desc_snare", 1, true) ~= nil)
+  settings.su_boss_ambush = nil; view:_reload(); view:_apply_screen(true)
+  click("btn_back"); click("btn_back")
 
-  -- a Daemonhost: Warp is the default suit, and the numbers suggest it once another suit is chosen
   settings.wave_def_custom_1 = "The Host\t1 daemonhost"; settings.on_custom_1 = true
   view:_reload(); view:_apply_screen()
   view:_open_detail("custom_1"); click("btn_face")
-  view._offset = 6; view:_refresh_rows(); view:_set_interaction_enabled()
-  check("face: a card with a Daemonhost starts as a Warp card (its row is ticked, nothing to suggest)", row(10).content.row_name == "Warp" and row(10).content.checkbox_selected and W.face_numbers.content.face_numbers:find("face_suggest", 1, true) == nil and W.rw_tile_preview.content.suit_label == "WARP", tostring(W.rw_tile_preview.content.suit_label))
-  click_row(6, "hotspot_name")
-  check("face: choosing another suit: the numbers suggest Warp and the Warp row says it is suggested", settings.su_custom_1 == "snare" and W.face_numbers.content.face_numbers:find("face_suggest:Warp", 1, true) ~= nil and row(10).content.info:find("face_suggested", 1, true) ~= nil, W.face_numbers.content.face_numbers)
-  settings.wave_def_custom_1 = nil; settings.on_custom_1 = nil; settings.su_custom_1 = nil; view._offset = 0
+  check("face: a card with a Daemonhost starts as a Warp card (its plate is lit, nothing is suggested)", plate_of("warp").content.selected and W.mirror_numbers.content.mirror_numbers:find("face_suggest", 1, true) == nil and stage.content.suit_label == "WARP", tostring(stage.content.suit_label))
+  click_plate("snare")
+  check("face: choosing another suit: the numbers suggest Warp and the Warp plate says Suggested", settings.su_custom_1 == "snare" and W.mirror_numbers.content.mirror_numbers:find("face_suggest:Warp", 1, true) ~= nil and plate_of("warp").content.sug_label == "MIRROR_SUGGESTED", W.mirror_numbers.content.mirror_numbers)
+  settings.wave_def_custom_1 = nil; settings.on_custom_1 = nil; settings.su_custom_1 = nil
+  click("btn_back"); click("btn_back")
   view:_reload(); view:_apply_screen()
 end
 
@@ -796,7 +869,7 @@ check("detail: screen and title", view._screen == "detail" and view._widgets_by_
 check("detail: composition rows (a Scab enemy whose name does not say so gets the faction word, a Chaos unit does not)", plain(row(1).content.row_name) == "8 Poxwalker" and plain(row(4).content.row_name) == "2 Rifleman  Scab" and not row(5).visible, plain(row(1).content.row_name) .. " / " .. plain(row(4).content.row_name))
 check("detail: the enemy rows are the Cauldron's own (rw_erow_1..5): visible, with a weight, a repeat and the three chips", row(1).visible and row(1) == view._widgets_by_name.rw_erow_1 and row(1).content.stepper_value == "8" and row(1).content.rep_value == "0" and row(1).content.hotspot_action_text == "btn_remove" and not view._widgets_by_name.rw_row_1.visible)
 check("detail: buttons visible (the cooldown stepper is not: the cooldown is set on the card face screen)", view._widgets_by_name.btn_rename.visible and view._widgets_by_name.btn_add.visible and not view._widgets_by_name.stepper_cooldown.visible and view._widgets_by_name.stepper_chance.visible and view._widgets_by_name.btn_delete.visible)
-check("detail: steppers show values", view._widgets_by_name.stepper_chance.content.stepper_value == "4" and view._widgets_by_name.stepper_cooldown.content.stepper_value == "120")
+check("detail: the chance stepper shows its value (the cooldown is on the Mirror)", view._widgets_by_name.stepper_chance.content.stepper_value == "4" and not view._widgets_by_name.stepper_cooldown.visible)
 check("detail: the Deck's widgets are hidden", not tile(1).visible and not blank_tile().visible and not D.rw_strip.visible and not D.deck_count.visible and not D.list_panel.visible and not D.list_header.visible and not D.bottom_panel.visible and D.shelf_panel.visible and D.rw_stage_card.visible and D.stage_plate.visible and view._sg.scroll_up[1] == 1148 and view._sg.scroll_up[2] == 427)
 
 -- count stepper writes an override
@@ -1228,8 +1301,6 @@ check("count popup accepts 12", view._popup == nil and view._parts[1].count == 1
 PopupOwner.Popup.cancel(view)
 
 -- chance/cooldown steppers and enabled toggle in detail
-view._widgets_by_name.stepper_cooldown.content.hotspot_plus.pressed_callback()
-check("cooldown +5", settings["cd_wave_small"] == 125 and view._widgets_by_name.stepper_cooldown.content.stepper_value == "125", settings["cd_wave_small"])
 view._widgets_by_name.stepper_chance.content.hotspot_plus.pressed_callback()
 check("chance +1 in detail (the reset above restored 5)", settings["pct_wave_small"] == 6, settings["pct_wave_small"])
 click("btn_enabled")
@@ -1494,7 +1565,7 @@ do
   view._widgets_by_name.rw_popup_input.content.input_text = "3"; view:update(0.01, 0, inp); PPt.Popup.commit(view)
   check("timer: a typed value below 5 becomes 5", settings.ev_wave_small == 5)
   settings.ev_wave_small = 90; view:_reload(); view:_apply_screen(true)
-  check("timer: with a timer the chance row says the wave is not drawn and the cooldown says it is ignored", W.stepper_chance.content.extra == "extra_timer_wave" and W.stepper_cooldown.content.extra == "extra_timer_ignored")
+  check("timer: with a timer the chance row says the wave is not drawn", W.stepper_chance.content.extra == "extra_timer_wave")
   click("btn_back")
   check("timer: a card on a fixed timer leaves the draw (12 of the 13 cards with enemies stay), has no strip segment, its tile is still there", D.deck_count.content.deck_count == "deck_count:12" and #view._strip_segments == 12 and tile(1).visible and view._waves[1].timer == 90, D.deck_count.content.deck_count)
   open_card(1); click("btn_reset"); click("btn_back")
@@ -1509,7 +1580,7 @@ do
   view._offset = 0; view:_reload(); view:_apply_screen()
   settings["cd_wave_small"] = 90; view:_reload(); view:_apply_screen(true)
   open_card(1)
-  check("cooldown: the card's own screen shows its cooldown (the old column of the list is gone)", W.stepper_cooldown.content.stepper_value == "90")
+  check("cooldown: the card's own screen does not show the cooldown stepper (it is on the Mirror; the old column of the list is gone)", not W.stepper_cooldown.visible)
   click("btn_back")
   settings["cd_wave_small"] = nil; view:_reload(); view:_apply_screen(true)
 
@@ -1697,7 +1768,7 @@ do
     -- widgets shown together on one screen must not overlap and must stay inside the bottom panel
     local screens = {
       list = { "btn_wimport", "btn_default", "btn_back", "stepper_tmin", "stepper_tmax" },
-      face = { "face_numbers", "rw_tile_preview" },
+      -- (the Mirror has its own layout test, with the rest of its checks)
       -- (the Cauldron has its own layout test, with the rest of its checks)
       picker = { "btn_back", "btn_search", "btn_stay", "btn_random", "btn_random_done" },
       preset_view = { "btn_back", "btn_pload", "btn_psave", "btn_prename", "btn_pexport", "btn_pimport", "btn_pundo", "btn_pclear" },
@@ -2303,7 +2374,7 @@ do
 
   -- the tabs
   click("btn_face")
-  check("tabs: Face opens the card's face screen (the Mirror) and the Enemies tab is the way back; nothing of the Cauldron stays", view._screen == "face" and W.btn_enemies.visible and W.btn_face.content.hotspot_on == true and not W.rw_stage_card.visible and not W.shelf_panel.visible and not W.rw_erow_1.visible and not W.btn_dreg.visible and not W.btn_preview.visible)
+  check("tabs: Face opens the card's face screen (the Mirror) and the Enemies tab is the way back; nothing of the Cauldron stays", view._screen == "face" and W.btn_enemies.visible and W.btn_face.content.hotspot_on == true and W.rw_stage_card.visible and W.btn_preview.visible and W.rw_plate_1.visible and not W.shelf_panel.visible and not W.rw_erow_1.visible and not W.btn_dreg.visible and not W.rw_threat.visible and not W["rw_chip_1"].visible)
   click("btn_enemies")
   check("tabs: Enemies is back on the Cauldron with everything as it was", view._screen == "detail" and W.shelf_panel.visible and W.rw_stage_card.visible and W.btn_enemies.content.hotspot_on == true and W.rw_erow_1.visible)
   click("btn_quickface")

@@ -215,6 +215,20 @@ do
   check("reset restores spread/repeat defaults", w.spread == 3 and w.rep_every == 10 and w.rep_for == 60)
 end
 
+-- Reset face (the Mirror): only the face goes back, the enemies, the chance and the rest stay
+do
+  local st = {}
+  local g, s = function(id) return st[id] end, function(id, v) st[id] = v end
+  s("wave_def_wave_small", "The Fool\t3 hounds"); s("pct_wave_small", 9); s("su_wave_small", "rage"); s("th_wave_small", 4); s("wh_wave_small", "Mine"); s("cl_wave_small", "vial"); s("cd_wave_small", 300)
+  Events.reset_face(s, "wave_small")
+  local w = Events.get("wave_small", g, Groups)
+  check("reset face: suit, threat, whisper, look and cooldown go back to the card's defaults (The Fool: swarm, 120 s)", w.suit == "swarm" and w.threat_override == 0 and st.wh_wave_small == "" and st.cl_wave_small == "" and w.cooldown == 120, tostring(w.suit) .. "/" .. tostring(w.cooldown))
+  check("reset face: the enemies, the chance and the name stay", st.wave_def_wave_small == "The Fool\t3 hounds" and st.pct_wave_small == 9 and w.name == "The Fool")
+  s("wave_def_custom_1", "Mine\t2 hounds"); s("su_custom_1", "rage"); s("cd_custom_1", 400); s("th_custom_1", 2)
+  Events.reset_face(s, "custom_1")
+  check("reset face: a custom card goes back to plague (or its suggestion) and the default cooldown option; its enemies stay", st.su_custom_1 == "" and st.cd_custom_1 == nil and st.th_custom_1 == 0 and st.wave_def_custom_1 == "Mine\t2 hounds")
+end
+
 -- every breed in every standard wave must be a known breed
 local unknown = {}
 for i = 1, #Events.STANDARD do
