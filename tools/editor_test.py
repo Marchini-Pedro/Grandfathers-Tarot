@@ -2392,6 +2392,56 @@ do
   end)())
   settings.wave_def_custom_1 = saved_def; settings.rk_custom_1 = nil
   view:_open_detail("custom_1")
+
+  -- the card on the stage: its name renames, its line opens the whisper box (and are underlined under the pointer)
+  do
+    local st = view._widgets_by_name.rw_stage_card
+    local hn, hw = st.style.hotspot_name, st.style.hotspot_whisper
+    check("stage: the name and the line in quotes are click areas inside the card, the name above the line, one to three lines of name high", hn.size[1] > 100 and hn.size[2] >= 24 * 1.4 - 1e-6 and hn.size[2] <= 3 * 24 * 1.4 + 1e-6 and hw.size[2] > 20 and hn.offset[2] + hn.size[2] <= hw.offset[2] and hw.offset[2] + hw.size[2] <= st.content.metrics.h)
+    check("stage: the Deck's click areas of the card stay off (it is not a button)", (function() for _, id in ipairs(view.TILE_HOTSPOTS) do if st.content[id].disabled ~= true then return false end end return true end)())
+    st.content.hotspot_name.is_hover = true
+    local ul = pass_by_style(st, "name_ul")
+    check("stage: under the pointer the name is underlined in the suit's accent, the line is not", ul.visibility_function(st.content, st.style.name_ul) == true and pass_by_style(st, "whisper_ul").visibility_function(st.content, st.style.whisper_ul) == false and st.style.name_ul.color[2] == st.style.suit_label.text_color[2])
+    st.content.hotspot_name.is_hover = false
+    st.content.hotspot_name.pressed_callback()
+    check("stage: a click on the name opens the rename box with the card's name", view._popup ~= nil and view._popup.spec.label == "popup_rename_title" and view._popup.spec.value == view._wave.name, tostring(view._popup and view._popup.spec.label))
+    check("stage: while a box is open the name and the line cannot be clicked", st.content.hotspot_name.disabled == true and st.content.hotspot_whisper.disabled == true)
+    view:cb_popup_cancel()
+    check("stage: and they can again afterwards", st.content.hotspot_name.disabled == false and st.content.hotspot_whisper.disabled == false)
+    st.content.hotspot_whisper.pressed_callback()
+    check("stage: a click on the line in quotes opens the whisper box", view._popup ~= nil and view._popup.spec.label:find("popup_whisper_title") == 1, tostring(view._popup and view._popup.spec.label))
+    view:cb_popup_cancel()
+    -- the plate: a ground tinted with the suit, and rings of its accent around the card that get brighter toward the card
+    do
+      local plate = view._widgets_by_name.stage_plate
+      local function colour(id)
+        local pass = pass_by_style(plate, id)
+        pass.change_function(plate.content, plate.style[id])
+        local c = plate.style[id].color
+        return { c[2], c[3], c[4] }, c[1]
+      end
+      local ground = colour("plate_fill")
+      local suit = mod.rw.cards.Cards_unused or mod.rw.cards.SUITS.blight
+      local accent = suit.accent
+      local last, brighter, all_visible = ground, true, true
+      for i = 1, #WK.STAGE_RINGS do
+        local disc = colour("ring_d" .. i)
+        if disc[1] + disc[2] + disc[3] <= last[1] + last[2] + last[3] then brighter = false end
+        last = disc
+      end
+      local _, alpha_l = colour("ring_l1")
+      local line1, line_alpha = colour("ring_l1")
+      local disc1 = colour("ring_d1")
+      check("stage: the plate is tinted with the suit (blight: its frame colour mixed into the ground, not the flat ground)", ground[1] > 10 + 8 and ground[2] > 12 + 8)
+      check("stage: the rings are opaque discs of the suit's accent, each brighter than the one outside it and than the plate", brighter and #WK.STAGE_RINGS >= 4)
+      check("stage: the outer ring has a line of the accent on its edge, brighter than the disc inside it, and a faint copy under it", line1[1] > disc1[1] and line1[2] > disc1[2] and line_alpha == 255 and (function() local _, a = colour("ring_h1"); return a == 90 end)())
+      local big = WK.STAGE_RINGS[1][1]
+      check("stage: the biggest ring stays inside the plate (it is not clipped, the caption above would be drawn over)", (22 + 270 * WK.CARD_SCALE / 2) - big >= 0 and (22 + 270 * WK.CARD_SCALE / 2) + big <= WK.PLATE.h and WK.PLATE.w / 2 - big >= 0)
+    end
+    click("btn_face")
+    check("stage: the same card on the Mirror has the same two click areas", view._widgets_by_name.rw_stage_card.content.hotspot_name.disabled == false and view._widgets_by_name.rw_stage_card.style.hotspot_name.size[1] > 100)
+    click("btn_enemies")
+  end
   click("btn_enabled")
   check("toolbar: In the draw switches the card out of the draw: the stage card dims, the line says so; and back", settings.on_custom_1 == false and stage.alpha_multiplier == 0.55 and W.btn_enabled.content.hotspot_text == "btn_enabled_off" and W.stage_stats.content.stage_stats == "stage_stats_off")
   click("btn_enabled")

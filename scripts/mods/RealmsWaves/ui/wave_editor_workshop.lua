@@ -83,12 +83,16 @@ WorkshopView.install = function (View, h)
 
 		threat.visible = false
 
-		-- the card on its stage: the Deck's tile at 1.4 times its size, nobody can click it
-		local stage = self:_create_dynamic_widget(STAGE, blueprints.tile(STAGE, Workshop.CARD_SCALE))
+		-- the card on its stage: the Deck's tile at 1.4 times its size. The Deck's click areas are off (it is not a button); its name
+		-- and its line are click areas: the name renames the card, the line opens the whisper box
+		local stage = self:_create_dynamic_widget(STAGE, blueprints.tile(STAGE, Workshop.CARD_SCALE, true))
 
 		for _, hotspot in ipairs(self.TILE_HOTSPOTS) do
 			stage.content[hotspot].disabled = true
 		end
+
+		stage.content.hotspot_name.pressed_callback = callback(self, "cb_rename")
+		stage.content.hotspot_whisper.pressed_callback = callback(self, "cb_whisper_change")
 
 		stage.visible = false
 		self:_create_mirror_widgets(WB)
@@ -158,6 +162,18 @@ WorkshopView.install = function (View, h)
 			for k = 1, 5 do
 				threat.content["hotspot_t" .. k].disabled = not (enabled and threat.visible)
 			end
+		end
+
+		self:_set_stage_interaction(enabled)
+	end
+
+	-- the stage card's name and line (shared by the Cauldron and the Mirror)
+	View._set_stage_interaction = function (self, enabled)
+		local stage = self._widgets_by_name[STAGE]
+
+		if stage then
+			stage.content.hotspot_name.disabled = not (enabled and stage.visible)
+			stage.content.hotspot_whisper.disabled = not (enabled and stage.visible)
 		end
 	end
 
@@ -572,6 +588,8 @@ WorkshopView.install = function (View, h)
 				big.content["hotspot_t" .. k].disabled = not (enabled and big.visible)
 			end
 		end
+
+		self:_set_stage_interaction(enabled)
 	end
 
 	-- (Re)paints the Mirror: the four sections and the stage. Called by _refresh_rows for the screen "face".

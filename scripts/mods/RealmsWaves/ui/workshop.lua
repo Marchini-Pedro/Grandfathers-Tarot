@@ -129,6 +129,8 @@ Workshop.CARD_SCALE = 1.4
 Workshop.card_pos = function (card_w)
 	return floor(Workshop.PLATE.x + (Workshop.PLATE.w - card_w) / 2 + 0.5), Workshop.PLATE.y + 22
 end
+-- the rings around the card on its plate (ui/workshop_blueprints.lua): radius, share of the suit's accent in the disc, a line on its edge
+Workshop.STAGE_RINGS = { { 208, 0.09, true }, { 186, 0.13, false }, { 164, 0.18, true }, { 142, 0.23, false }, { 120, 0.29, true } } -- radius, accent share, line on its edge
 Workshop.STATS_Y = Workshop.PLATE.y + Workshop.PLATE.h - 38
 Workshop.TOOLBAR_Y = Workshop.PLATE.y + Workshop.PLATE.h + 8
 Workshop.QUICK_Y = Workshop.TOOLBAR_Y + 44 + 16

@@ -204,28 +204,63 @@ WB.shelf_chip = function (node_id, w)
 end
 
 -- ------------------------------------------------------------------------------------------------- the stage
--- The plate the card stands on (525 x 440): the card's colour, its frame, and a soft glow of the suit's accent made of stacked
--- translucent circles (no gradient exists). content.stage = { card, frame, accent } as {r, g, b} (set by the view).
-local GLOW_RINGS = { { 196, 10 }, { 160, 10 }, { 124, 12 }, { 88, 14 } }
+-- The plate the card stands on (525 x 440): a ground tinted with the suit's frame colour, and rings of the suit's accent around the
+-- card: concentric discs, each a little brighter than the one outside it, with a thin line of the accent on its edge (no gradient
+-- exists, and translucent layers were too faint to see). Every colour is worked out from content.stage = { card, frame, accent }
+-- as {r, g, b} (set by the view). The discs and lines have a faint larger copy under them (the UI draws circles without
+-- anti-aliasing).
+local RINGS = Workshop.STAGE_RINGS
+local PLATE_TINT = 0.30 -- share of the suit's frame colour in the plate
+local BASE = { 0, 0, 0 } -- scratch: the plate's colour (a literal table in a change function would be allocated every frame)
+local LINE = { 0, 0, 0 }
+
+local function plate_base(stage)
+	local frame = stage.frame
+
+	BASE[1] = GROUND[1] + (frame[1] - GROUND[1]) * PLATE_TINT
+	BASE[2] = GROUND[2] + (frame[2] - GROUND[2]) * PLATE_TINT
+	BASE[3] = GROUND[3] + (frame[3] - GROUND[3]) * PLATE_TINT
+
+	return BASE
+end
 
 WB.stage_plate = function (node_id)
 	local passes = {}
 	local W, H = Workshop.PLATE.w, Workshop.PLATE.h
-	local cx, cy = W / 2, 204
+	local cx, cy = W / 2, 22 + 270 * Workshop.CARD_SCALE / 2
 
 	rect(passes, "plate_fill", 0, 0, W, H, 0, function (content, style)
-		local stage = content.stage
-
-		put_mix(style.color, 255, GROUND, stage.card, 0.55)
+		put_rgb(style.color, 255, plate_base(content.stage))
 	end)
 
-	for i, ring in ipairs(GLOW_RINGS) do
+	for i, ring in ipairs(RINGS) do
+		local r = ring[1]
+
+		-- the faint copy (the line colour at a third), the line, then the disc inside it
 		passes[#passes + 1] = {
 			pass_type = "circle",
-			style_id = "plate_glow_" .. i,
-			style = { offset = { cx - ring[1], cy - ring[1], 0.5 }, size = { ring[1] * 2, ring[1] * 2 }, color = shape_color() },
+			style_id = "ring_h" .. i,
+			style = { offset = { cx - r - 0.7, cy - r - 0.7, 0.4 + i * 0.1 }, size = { r * 2 + 1.4, r * 2 + 1.4 }, color = shape_color() },
 			change_function = function (content, style)
-				put_rgb(style.color, ring[2], content.stage.accent)
+				put_mix(LINE, 255, plate_base(content.stage), content.stage.accent, ring[2])
+				put_mix(style.color, 90, LINE, content.stage.accent, ring[3] and 0.35 or 0)
+			end,
+		}
+		passes[#passes + 1] = {
+			pass_type = "circle",
+			style_id = "ring_l" .. i,
+			style = { offset = { cx - r, cy - r, 0.45 + i * 0.1 }, size = { r * 2, r * 2 }, color = shape_color() },
+			change_function = function (content, style)
+				put_mix(LINE, 255, plate_base(content.stage), content.stage.accent, ring[2])
+				put_mix(style.color, 255, LINE, content.stage.accent, ring[3] and 0.35 or 0)
+			end,
+		}
+		passes[#passes + 1] = {
+			pass_type = "circle",
+			style_id = "ring_d" .. i,
+			style = { offset = { cx - r + (ring[3] and 1.6 or 0), cy - r + (ring[3] and 1.6 or 0), 0.5 + i * 0.1 }, size = { r * 2 - (ring[3] and 3.2 or 0), r * 2 - (ring[3] and 3.2 or 0) }, color = shape_color() },
+			change_function = function (content, style)
+				put_mix(style.color, 255, plate_base(content.stage), content.stage.accent, ring[2])
 			end,
 		}
 	end
@@ -234,10 +269,10 @@ WB.stage_plate = function (node_id)
 		put_rgb(style.color, 255, content.stage.frame)
 	end
 
-	rect(passes, "plate_frame_t", 0, 0, W, 1, 1, frame)
-	rect(passes, "plate_frame_b", 0, H - 1, W, 1, 1, frame)
-	rect(passes, "plate_frame_l", 0, 0, 1, H, 1, frame)
-	rect(passes, "plate_frame_r", W - 1, 0, 1, H, 1, frame)
+	rect(passes, "plate_frame_t", 0, 0, W, 1, 3, frame)
+	rect(passes, "plate_frame_b", 0, H - 1, W, 1, 3, frame)
+	rect(passes, "plate_frame_l", 0, 0, 1, H, 3, frame)
+	rect(passes, "plate_frame_r", W - 1, 0, 1, H, 3, frame)
 
 	return UIWidget.create_definition(passes, node_id, { stage = { card = { 30, 36, 19 }, frame = { 58, 68, 33 }, accent = { 183, 194, 58 } } }, { W, H })
 end

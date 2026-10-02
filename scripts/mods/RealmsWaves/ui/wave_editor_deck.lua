@@ -363,7 +363,8 @@ DeckView.install = function (View, h)
 		paint(style.name, 255, ink)
 
 		-- the divider and the composition follow the name: a one line name leaves room for five lines of enemies, a two line name for four
-		local layout = Deck.layout(self:_name_lines(card.name, style.name, T))
+		local name_lines = self:_name_lines(card.name, style.name, T)
+		local layout = Deck.layout(name_lines)
 
 		style.divider.visible = true
 		style.divider.offset[2] = layout.divider_y * k
@@ -402,6 +403,19 @@ DeckView.install = function (View, h)
 		content.whisper = "\"" .. card.whisper .. "\""
 		style.whisper.visible = true
 		paint(style.whisper, 255, tone(card.suit == "murmur" and Cards.BASE.whisper or Cards.BASE.muted))
+
+		-- the stage card: its name and its line are click areas, underlined under the pointer (blueprints.tile, `interactive`)
+		if style.hotspot_name then
+			local name_h = math.max(1, math.min(3, name_lines)) * Deck.NAME_LINE * k
+			local whisper_bottom = T.whisper[2] + T.whisper[4]
+
+			style.hotspot_name.offset[1], style.hotspot_name.offset[2], style.hotspot_name.size[1], style.hotspot_name.size[2] = T.name[1], T.name[2], T.name[3], name_h
+			style.hotspot_whisper.offset[1], style.hotspot_whisper.offset[2], style.hotspot_whisper.size[1], style.hotspot_whisper.size[2] = T.whisper[1], T.whisper[2], T.whisper[3], T.whisper[4]
+			style.name_ul.offset[1], style.name_ul.offset[2], style.name_ul.size[1] = T.name[1], T.name[2] + name_h, T.name[3]
+			style.whisper_ul.offset[1], style.whisper_ul.offset[2], style.whisper_ul.size[1] = T.whisper[1], whisper_bottom, T.whisper[3]
+			paint(style.name_ul, 255, accent)
+			paint(style.whisper_ul, 255, accent)
+		end
 
 		-- threat: filled diamonds up to the level (its colour), the rest the same diamonds dimmed; each on a faint feather
 		local threat_rgb = Cards.THREAT_COLORS[card.threat]

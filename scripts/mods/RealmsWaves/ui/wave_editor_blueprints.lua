@@ -311,8 +311,10 @@ blueprints.pip_hit = function (i, T)
 end
 
 -- A card tile at scale `k` (default 1: 228 x 270, the Deck's; the stage of a card's screens uses 1.4). Its metrics are in
--- content.metrics, which the painting reads (ui/wave_editor_deck.lua).
-blueprints.tile = function (node_id, k)
+-- content.metrics, which the painting reads (ui/wave_editor_deck.lua). `interactive` (the stage card): the name and the line in quotes
+-- are click areas (hotspot_name, hotspot_whisper: rename, change the whisper) that are underlined under the pointer; their
+-- places are set by the painting. The Deck's tiles have none (the whole face there is the toggle).
+blueprints.tile = function (node_id, k, interactive)
 	local passes = {}
 	local T = (k == nil or k == 1) and blueprints.TILE or blueprints.tile_metrics(k)
 	local W, H = T.w, T.h
@@ -432,6 +434,20 @@ blueprints.tile = function (node_id, k)
 		local x, y, w, h = blueprints.pip_hit(i, T)
 
 		Components.hotspot_pass(passes, blueprints.TILE_IDS.hotspot_pip[i], { x, y, 6 }, { w, h }, nil, true)
+	end
+
+	if interactive then
+		for _, id in ipairs({ "name", "whisper" }) do
+			Components.hotspot_pass(passes, "hotspot_" .. id, { 0, 0, 7 }, { 1, 1 })
+			passes[#passes + 1] = {
+				pass_type = "rect",
+				style_id = id .. "_ul",
+				style = { offset = { 0, 0, 6 }, size = { 1, 2 }, color = shape_color() },
+				visibility_function = function (content)
+					return content["hotspot_" .. id].is_hover == true and not content["hotspot_" .. id].disabled
+				end,
+			}
+		end
 	end
 
 	return UIWidget.create_definition(passes, node_id, {
