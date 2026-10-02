@@ -57,7 +57,7 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
   - [x] 4d. Deck polish after the user's first look (2.0.0): relative chance pips and rarity, clickable pips, right click to edit, the Edit pill, anti-aliasing copies, dimmed filled diamonds, coloured modifiers, tighter tile layout, six new suits incl. the purple Warp for the Daemonhost (offline only)
   - [x] 4c. Card builder screen ("Card face"): suit with suggestion, threat auto/override with "Threat N by the numbers", whisper, look, cooldown, live preview (`ui/wave_editor_face.lua`; offline only)
 - [x] 5. Mod options (the last one, `tarot_default_cooldown`, in 2.0.0 step 5; all others were added with their steps)
-- [x] 6. Per-group health and size multipliers, done as "custom mods" on the user's request (health, size, run speed, melee attack speed, gunner fire rate, shots per burst, hit mass, explosion and damage-over-time taken; `spawn/tuning.lua`, `ui/wave_editor_tune.lua`, RPC `rw_scale`). The brief's one-crusher test in the game has NOT been done: matrix rows 91-96.
+- [x] 6. Per-group health and size multipliers, done as "custom mods" on the user's request (health, size, run speed, time between attacks (first called melee attack speed), gunner fire rate, shots per burst, hit mass, explosion and damage-over-time taken; `spawn/tuning.lua`, `ui/wave_editor_tune.lua`, RPC `rw_scale`). Branch `feature/attack-timing` (not merged until the user confirms it in game): the rename to Time between attacks, the chained-attack fix and the `/rw_anim` probe; "Animation attack speed" waits for the probe's answer. The brief's one-crusher test in the game has NOT been done: matrix rows 91-96.
 
 Deviations from the original plan (all deliberate):
 - No separate `handshake.lua`: hello/welcome live in `core/director.lua` (the handshake is just a version check).
@@ -86,7 +86,7 @@ mods\RealmsWaves\
     spawn\positions.lua                  hidden-from-all-players candidate points near players
     spawn\execute.lua                    drip-feed spawner (2 per 0.15 s), direct spawn_minion, caps
     spawn\budget_bypass.lua              tracked-unit set + hooks that hide them from director counters
-    spawn\tuning.lua                     2.0.0: custom mods of a group on spawned units (health, size, speed, attack speeds, burst, hit mass)
+    spawn\tuning.lua                     2.0.0: custom mods of a group on spawned units (health, size, speed, time between attacks, fire rate, burst, hit mass, explosion and damage taken)
     ui\hud_element_waves.lua (+ _definitions)   synced HUD: the old text panel (legacy modes) and, in 2.0.0, The Spread
     ui\spread.lua                        2.0.0: the arithmetic of the Spread (layout, timeline, roulette, eye, icons, rot), pure Lua
     ui\wave_editor_face.lua              2.0.0: the card face screen (the card builder): suit, threat, whisper, look, cooldown, preview
