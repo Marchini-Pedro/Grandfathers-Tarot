@@ -14,7 +14,7 @@ MODROOT = os.path.abspath(os.path.join(HERE, "..")).replace("\\", "/")
 lua = LuaRuntime(unpack_returned_tuples=True)
 
 harness = r'''
-local MODROOT, DUMP = ...
+local MODROOT, DUMP, UI_DIR = ...
 local BASE = MODROOT .. "/scripts/mods/RealmsWaves"
 
 -- ---- engine stubs ---------------------------------------------------------
@@ -28,7 +28,7 @@ unpack = unpack or table.unpack
 
 local UIWidget = {}
 UIWidget.create_definition = function(passes, node_id, content, size)
-  local def = { passes = passes, node_id = node_id, content = {}, style = {} }
+  local def = { passes = passes, node_id = node_id, content = {}, style = {}, size = size }
   for _, pass in ipairs(passes) do
     if pass.content_id then def.content[pass.content_id] = table.clone(pass.content or {}) end
     if pass.value_id then def.content[pass.value_id] = pass.value or "" end
@@ -68,6 +68,7 @@ BaseView.init = function(self, defs, settings)
   self._definitions = defs
   self._settings = settings
   self._widgets, self._widgets_by_name = {}, {}
+  self._render_settings = {} -- the real BaseView.init makes it too (base_view.lua:31)
 end
 BaseView._create_widgets = function(self, definitions, widgets, widgets_by_name)
   widgets, widgets_by_name = widgets or {}, widgets_by_name or {}
@@ -844,7 +845,7 @@ view:update(0.01, 0, input_stub)
 check("typing filters the list live", #view._breeds == 2 and row(1).visible and row(2).visible and not row(3).visible and row(1).content.row_name == "Melee Twin" and row(2).content.row_name == "Ranged Twin", #view._breeds)
 check("status text shows the match count and the filter", view._widgets_by_name.description_text.content.description_text:find("picker_status_filtered:2,") ~= nil and view._widgets_by_name.description_text.content.description_text:find("twin") ~= nil)
 check("search box open: enemy rows stay clickable, other buttons are locked", row(1).content.hotspot_name.disabled == false and row(1).content.hotspot_action.disabled == false and view._widgets_by_name.btn_back.content.hotspot.disabled == true and view._widgets_by_name.btn_search.content.hotspot.disabled == true and view._widgets_by_name.rw_scroll_down.content.hotspot.disabled == (view._offset >= math.max(0, #view._breeds - 10)), tostring(row(1).content.hotspot_name.disabled))
-check("popup buttons are wide enough for the vanilla ornamental frame (240x56 each, no overlap)", view._sg.rw_popup_confirm[1] == 600 and view._sg.rw_popup_cancel[1] == 870 and view._sg.rw_popup_confirm[2] == 900 and view._sg.rw_popup_cancel[2] == 900, view._sg.rw_popup_confirm[2])
+check("popup buttons: the mod's own (200 x 48), Cancel left of OK on the right of the panel, no overlap, inside the panel (560 to 1360)", view._sg.rw_popup_confirm[1] == 1130 and view._sg.rw_popup_cancel[1] == 910 and view._sg.rw_popup_confirm[2] == 896 and view._sg.rw_popup_cancel[2] == 896 and view._sg.rw_popup_cancel[1] + 200 <= view._sg.rw_popup_confirm[1] and view._sg.rw_popup_confirm[1] + 200 <= 1360 - 30, view._sg.rw_popup_confirm[2])
 view._widgets_by_name.rw_popup_input.content.input_text = "beastmaster"
 view:update(0.01, 0, input_stub)
 check("aliases are searched (beastmaster -> Packmaster)", #view._breeds == 1 and row(1).content.row_name == "Packmaster", row(1).content.row_name)
@@ -1790,6 +1791,227 @@ do
   check("presets: detail-only buttons stay hidden on the list", not view._widgets_by_name.btn_add.visible)
   settings.pct_wave_small = 18; settings.on_custom_1 = true
 end
+-- ---- the button family (docs/08-workshop-redesign.md) -----------------------------------------------------------------------
+do
+  local C = dofile(BASE .. "/ui/wave_editor_components.lua") -- another copy of the module: the accent is shared through the mod object
+  local ACC = mod.rw_accent
+  local function mix(a, b, t) return { a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t } end
+  local function near(c, rgb, alpha) return c ~= nil and math.abs(c[2] - rgb[1]) < 0.6 and math.abs(c[3] - rgb[2]) < 0.6 and math.abs(c[4] - rgb[3]) < 0.6 and (alpha == nil or c[1] == alpha) end
+  local R = C.rgb
+  local BILE = { 183, 194, 58 }
+  local RUSTC = R.rust
+  local function mk(builder, content)
+    local passes = {}
+    builder(passes)
+    local def = UIWidget.create_definition(passes, "t", content or {}, { 400, 100 })
+    return { def = def, content = table.clone(def.content), style = table.clone(def.style), visible = true }
+  end
+  local function paint(w)
+    for _, p in ipairs(w.def.passes) do
+      if p.change_function and p.style_id then p.change_function(p.content_id and w.content[p.content_id] or w.content, w.style[p.style_id]) end
+    end
+  end
+  local function shown(w, id)
+    local p = pass_by_style(w, id)
+    if not p then return false end
+    return p.visibility_function == nil or p.visibility_function(w.content, w.style[id]) and true or false
+  end
+  local function types(w) local t = {} for _, p in ipairs(w.def.passes) do t[p.pass_type] = true end return t end
+  local function set(w, state)
+    local h = w.content.hs
+    h.is_hover, h.is_held, h.disabled = state == "hover" or state == "down", state == "down", state == "off"
+    paint(w)
+  end
+  ACC[1], ACC[2], ACC[3] = BILE[1], BILE[2], BILE[3]
+
+  -- standard
+  local b = mk(function(p) C.button(p, "hs", { 10, 20, 2 }, { 200, 44 }, { label = "Rename" }) end)
+  set(b, "rest")
+  check("button: standard at rest: plate fill, dark green frame, bone label, no brackets", near(b.style.hs_fill.color, R.plate, 255) and near(b.style.hs_frame.color, R.frame, 255) and near(b.style.hs_label.text_color, R.text, 255) and not shown(b, "hs_b1") and not shown(b, "hs_b4"))
+  set(b, "hover")
+  check("button: hover mixes 14 percent of the accent into the plate, lights the frame, brightens the label and draws two corner brackets 4 units outside", near(b.style.hs_fill.color, mix(R.plate, BILE, 0.14), 255) and near(b.style.hs_frame.color, BILE, 255) and near(b.style.hs_label.text_color, R.bright, 255) and shown(b, "hs_b1") and shown(b, "hs_b2") and shown(b, "hs_b3") and shown(b, "hs_b4") and b.style.hs_b1.offset[1] == 6 and b.style.hs_b1.offset[2] == 16 and b.style.hs_b3.offset[1] == 10 + 200 + 4 - 9 and b.style.hs_b3.offset[2] == 20 + 44 + 4 - 2)
+  set(b, "down")
+  check("button: pressed pulls the brackets in to 1 unit, darkens the fill and lowers the label 2 units", near(b.style.hs_fill.color, mix(R.plate_down, BILE, 0.07), 255) and b.style.hs_b1.offset[1] == 9 and b.style.hs_b1.offset[2] == 19 and b.style.hs_b3.offset[1] == 10 + 200 + 1 - 9 and b.style.hs_label.offset[2] == 22)
+  set(b, "rest")
+  check("button: back to rest the label is back and the brackets are gone", b.style.hs_label.offset[2] == 20 and not shown(b, "hs_b1"))
+  set(b, "off")
+  check("button: disabled is a dim plate, a dim frame and a muted label, no brackets, whatever the pointer does", near(b.style.hs_fill.color, R.plate_off, 255) and near(b.style.hs_frame.color, R.frame_off, 255) and near(b.style.hs_label.text_color, R.label_off, 255) and not shown(b, "hs_b1"))
+  b.content.hs.is_hover = true; paint(b)
+  check("button: a disabled button under the pointer shows no hover", near(b.style.hs_frame.color, R.frame_off, 255) and not shown(b, "hs_b1"))
+
+  -- the accent is one colour for every copy of the module and every button
+  ACC[1], ACC[2], ACC[3] = 154, 163, 122
+  set(b, "hover")
+  check("accent: the buttons follow the accent that was set on the shared table (swarm: the frame turns ash green)", near(b.style.hs_frame.color, { 154, 163, 122 }, 255) and C.accent == mod.rw_accent)
+  C.set_accent(BILE)
+  check("accent: set_accent changes it in place (bile again)", mod.rw_accent[1] == 183 and mod.rw_accent[2] == 194 and mod.rw_accent[3] == 58)
+  set(b, "hover")
+
+  -- primary
+  local pb = mk(function(p) C.button(p, "hs", { 0, 0, 2 }, { 200, 44 }, { label = "Import card", role = "primary" }) end)
+  set(pb, "rest")
+  check("button: primary is filled with the accent, the label is the ground colour", near(pb.style.hs_fill.color, BILE, 255) and near(pb.style.hs_frame.color, BILE, 255) and near(pb.style.hs_label.text_color, R.ground, 255))
+  set(pb, "hover")
+  local hov = { pb.style.hs_fill.color[2], pb.style.hs_fill.color[3] }
+  set(pb, "down")
+  local dwn = { pb.style.hs_fill.color[2], pb.style.hs_fill.color[3] }
+  check("button: primary is lighter under the pointer and darker when pressed", hov[1] > 183 and hov[2] > 194 and dwn[1] < 183 and dwn[2] < 194 and shown(pb, "hs_b1"))
+  set(pb, "off")
+  check("button: a disabled primary is a dim olive plate", near(pb.style.hs_fill.color, { 43, 48, 23 }, 255))
+
+  -- danger and its armed "Sure?"
+  local db = mk(function(p) C.button(p, "hs", { 0, 0, 2 }, { 200, 44 }, { label = "Delete", role = "danger" }) end)
+  set(db, "rest")
+  check("button: danger at rest has a rust-tinted frame and rust text, no brackets", near(db.style.hs_frame.color, mix(R.frame, RUSTC, 0.5), 255) and near(db.style.hs_label.text_color, { 226, 164, 104 }, 255) and not shown(db, "hs_b1"))
+  set(db, "hover")
+  check("button: danger under the pointer lights the frame in rust (not in the accent) and its brackets are rust", near(db.style.hs_frame.color, RUSTC, 255) and near(db.style.hs_b1.color, RUSTC, 255) and shown(db, "hs_b1"))
+  db.content.hs_on = true
+  set(db, "rest")
+  check("button: an armed danger button (Sure?) is solid rust with the ground colour for the label, and keeps its brackets at rest", near(db.style.hs_fill.color, RUSTC, 255) and near(db.style.hs_label.text_color, R.ground, 255) and shown(db, "hs_b1") and shown(db, "hs_b4"))
+
+  -- quiet
+  local qb = mk(function(p) C.button(p, "hs", { 0, 0, 2 }, { 80, 36 }, { label = "Edit", role = "quiet" }) end)
+  set(qb, "rest")
+  check("button: quiet has no frame: a transparent fill and a 1 unit line under the label in the accent", qb.style.hs_fill.color[1] == 0 and qb.style.hs_frame == nil and qb.style.hs_line.size[2] == 1 and qb.style.hs_line.offset[2] == 35 and near(qb.style.hs_label.text_color, BILE, 255) and not shown(qb, "hs_b1"))
+  set(qb, "hover")
+  check("button: quiet under the pointer washes the accent in (alpha 38) and thickens the line to 2 units", qb.style.hs_fill.color[1] == 38 and qb.style.hs_line.size[2] == 2 and qb.style.hs_line.offset[2] == 34 and near(qb.style.hs_line.color, BILE, 255))
+
+  -- chip with a pip, tab with a bar, icon with a glyph
+  local cb = mk(function(p) C.button(p, "hs", { 0, 0, 2 }, { 104, 40 }, { label = "Mods", role = "chip", pip = true }) end)
+  set(cb, "rest")
+  local dark = cb.style.hs_pip.color[1]
+  cb.content.hs_on = true; set(cb, "rest")
+  check("button: a chip has no brackets; its pip diamond is dim at rest and lit with the accent when the chip is on, and the frame leans toward the accent", dark == 90 and near(cb.style.hs_pip.color, BILE, 255) and cb.style.hs_pip_h.color[1] == 80 and not shown(cb, "hs_b1") and near(cb.style.hs_frame.color, mix(R.frame, BILE, 0.55), 255) and cb.style.hs_pip.angle == math.pi / 4)
+  local tb = mk(function(p) C.button(p, "hs", { 0, 0, 2 }, { 150, 44 }, { label = "Enemies", role = "tab" }) end)
+  set(tb, "rest")
+  local unselected = shown(tb, "hs_bar")
+  tb.content.hs_on = true; set(tb, "rest")
+  check("button: a tab shows a 3 unit accent bar on its lower edge only while it is selected, and a lit plate", not unselected and shown(tb, "hs_bar") and tb.style.hs_bar.size[2] == 3 and tb.style.hs_bar.offset[2] == 41 and near(tb.style.hs_fill.color, mix(R.plate, BILE, 0.16), 255) and near(tb.style.hs_label.text_color, R.bright, 255))
+  local ib = mk(function(p) C.button(p, "hs", { 0, 0, 2 }, { 44, 36 }, { role = "icon", glyph = "up" }) end)
+  set(ib, "hover")
+  local tri = pass_by_style(ib, "hs_glyph")
+  check("button: an icon button draws a triangle (no letter) with a faint larger copy under it", tri ~= nil and tri.pass_type == "triangle" and pass_by_style(ib, "hs_label") == nil and ib.style.hs_glyph_h.triangle_corners[3][2] < ib.style.hs_glyph.triangle_corners[3][2] and ib.style.hs_glyph_h.color[1] == 77 and near(ib.style.hs_glyph.color, R.bright, 255) and ib.style.hs_glyph.triangle_corners[3][2] < ib.style.hs_glyph.triangle_corners[1][2])
+
+  -- a button hidden by its flag has no hover and no hotspot
+  local fb = mk(function(p) C.button(p, "hs", { 0, 0, 2 }, { 100, 40 }, { label = "x", flag = "show_x" }) end, { show_x = false })
+  check("button: the visibility flag hides every part, the hotspot included", not shown(fb, "hs_fill") and not shown(fb, "hs_label") and hotspot_runs(fb, "hs") == false)
+  fb.content.show_x = true
+  check("button: ...and shows them when the flag is on", shown(fb, "hs_fill") and hotspot_runs(fb, "hs"))
+
+  -- diamond check
+  local kb = mk(function(p) C.checkbox_passes(p, { 10, 9, 1 }, nil, "show_check", nil, nil, "hot") end, { show_check = true, hot = { is_hover = false }, checkbox_selected = false })
+  paint(kb)
+  local off_alpha = kb.style.checkbox.color[1]
+  kb.content.hot.is_hover = true; paint(kb)
+  local hover_alpha = kb.style.checkbox.color[1]
+  kb.content.checkbox_selected = true; paint(kb)
+  check("check: a diamond (not a square): dim when off, brighter under the pointer, the accent when on, each on a faint larger copy", off_alpha == 80 and hover_alpha == 150 and near(kb.style.checkbox.color, BILE, 255) and kb.style.checkbox_h.size[1] > kb.style.checkbox.size[1] and kb.style.checkbox_h.offset[3] < kb.style.checkbox.offset[3] and kb.style.checkbox.angle == math.pi / 4 and kb.style.checkbox.offset[1] + kb.style.checkbox.size[1] / 2 == 10 + 14)
+  kb.content.show_check = false
+  check("check: hidden with its flag", not shown(kb, "checkbox"))
+
+  -- stepper: one plate
+  local sb = mk(function(p) C.stepper_passes(p, { minus_offset = { 100, 10, 2 }, value_offset = { 146, 10, 2 }, value_size = { 60, 40 }, plus_offset = { 208, 10, 2 } }) end, { stepper_value = "75" })
+  paint(sb)
+  local plate_ok = sb.style.stepper_value_frame.offset[1] == 100 and sb.style.stepper_value_frame.size[1] == 152 and sb.style.stepper_value_frame.size[2] == 40
+  check("stepper: ONE plate from the minus to the plus (frame, fill, two dividers), the three hotspots keep their names", plate_ok and pass_by_style(sb, "stepper_value_div1") ~= nil and pass_by_style(sb, "stepper_value_div2") ~= nil and hotspot_runs(sb, "hotspot_minus") and hotspot_runs(sb, "hotspot_value") and hotspot_runs(sb, "hotspot_plus"))
+  check("stepper: the minus is a bar and the plus is two bars (rects, no letters), the value is in the accent", sb.style.stepper_value_minus.size[1] == 14 and sb.style.stepper_value_minus.size[2] == 2 and sb.style.stepper_value_plus_h.size[1] == 14 and sb.style.stepper_value_plus_v.size[2] == 14 and near(sb.style.stepper_value.text_color, BILE, 255))
+  check("stepper: nothing lights at rest (cells, underline)", not shown(sb, "stepper_value_hl1") and not shown(sb, "stepper_value_hl2") and not shown(sb, "stepper_value_underline"))
+  sb.content.hotspot_plus.is_hover = true; paint(sb)
+  check("stepper: the plus cell lights up under the pointer and its sign takes the accent; the minus cell stays dark", shown(sb, "stepper_value_hl2") and not shown(sb, "stepper_value_hl1") and near(sb.style.stepper_value_plus_h.color, BILE, 255) and near(sb.style.stepper_value_minus.color, R.text, 255))
+  sb.content.hotspot_plus.is_hover = false; sb.content.hotspot_value.is_hover = true; paint(sb)
+  check("stepper: a line under the value while the pointer is on it (a click opens the number box)", shown(sb, "stepper_value_underline"))
+  sb.content.hotspot_value.is_hover = false; sb.content.stepper_value_dim = true; paint(sb)
+  check("stepper: a dimmed stepper (a value that is not used) has a dim plate and value and lights nothing", near(sb.style.stepper_value_plate.color, R.plate_off, 255) and near(sb.style.stepper_value.text_color, R.label_off, 255) and near(sb.style.stepper_value_minus.color, R.label_off, 255))
+  local sb2 = mk(function(p) C.stepper_passes(p, { minus_offset = { 0, 0, 2 }, value_offset = { 46, 0, 2 }, value_size = { 60, 40 }, plus_offset = { 108, 0, 2 } }, nil, { minus = "hotspot_rep_minus", value = "hotspot_rep_value", plus = "hotspot_rep_plus", text = "rep_value" }) end)
+  check("stepper: a second stepper in one widget has its own names (rep_value, hotspot_rep_*)", pass_by_style(sb2, "rep_value_frame") ~= nil and hotspot_runs(sb2, "hotspot_rep_plus") and pass_by_style(sb2, "rep_value") ~= nil)
+
+  -- frames
+  local fr = mk(function(p) C.frame_passes(p, "frame", 800, 260, 1, { brackets = true }) end)
+  paint(fr)
+  check("frame: four 1 unit rects around the box in the accent, plus two corner brackets (14 x 3) outside it", fr.style.frame_t.size[1] == 800 and fr.style.frame_t.size[2] == 1 and fr.style.frame_r.offset[1] == 799 and fr.style.frame_k1.offset[1] == -5 and fr.style.frame_k4.offset[1] == 800 + 5 - 3 and near(fr.style.frame_t.color, BILE, 255))
+
+  -- no bitmaps: every button and stepper widget is made of rects, triangles, rotated rects, text and hotspots
+  local flat, bad_types = true, {}
+  for name, w in pairs(view._widgets_by_name) do
+    if w.def and (name:find("^btn_") or name:find("^stepper_") or name:find("^rw_scroll") or name:find("^rw_popup_c") or name:find("^rw_row_")) then
+      for t in pairs(types(w)) do
+        if not ({ rect = true, text = true, hotspot = true, triangle = true, rotated_rect = true })[t] then flat = false; bad_types[#bad_types + 1] = name .. ":" .. t end
+      end
+    end
+  end
+  check("every button, stepper, row and popup button is drawn from rects, triangles, rotated rects and text (no bitmap: nothing blurs at another resolution)", flat, table.concat(bad_types, ","))
+
+  -- every button of the editor lies inside 1920 x 1080 (brackets 4 units outside included)
+  local DEFS = dofile(BASE .. "/ui/wave_editor_definitions.lua")
+  local outside = {}
+  for name, w in pairs(view._widgets_by_name) do
+    if w.def and name:find("^btn_") then
+      local node = DEFS.scenegraph_definition[name]
+      local size = node and node.size
+      if not node or node.position[1] - 5 < 0 or node.position[2] - 5 < 0 or node.position[1] + size[1] + 5 > 1920 or node.position[2] + size[2] + 5 > 1080 then outside[#outside + 1] = name end
+    end
+  end
+  check("every button node lies inside the 1920 x 1080 screen with room for its brackets", #outside == 0, table.concat(outside, ","))
+  local mismatch = {}
+  for name, w in pairs(view._widgets_by_name) do
+    local node = w.def and name:find("^btn_") and DEFS.scenegraph_definition[name]
+    if node and w.def.size and (w.def.size[1] ~= node.size[1] or w.def.size[2] ~= node.size[2]) then mismatch[#mismatch + 1] = name .. " " .. w.def.size[1] .. "x" .. w.def.size[2] .. " vs node " .. node.size[1] .. "x" .. node.size[2] end
+  end
+  check("every button is drawn exactly as big as its node (a wider button would cover its neighbour, as More options covered the help icon)", #mismatch == 0, table.concat(mismatch, " | "))
+end
+
+-- titles, the accent of a card's screens, and the lit buttons of the screens
+do
+  local W = view._widgets_by_name
+  local function title() return W.title_text.content.title_text end
+  view._screen = "list"; view._key = nil; view:_reload(); view:_apply_screen()
+  check("title: the Deck keeps The Grandfather's Tarot, and the accent is bile", title() == "view_title" and mod.rw_accent[1] == 183 and mod.rw_accent[2] == 194 and mod.rw_accent[3] == 58)
+  click("btn_settings")
+  check("title: the options screen keeps the Tarot title", title() == "view_title" and mod.rw_accent[1] == 183)
+  view:cb_back()
+  click("btn_presets")
+  check("title: the Spreads screen keeps the Tarot title", title() == "view_title")
+  view:cb_back()
+  open_card(1)
+  local fool = mod.rw.cards.suit(view._wave.suit).accent
+  check("title: a card's own screen is The Grandfather's Cauldron, and the buttons take the card's suit as the accent (The Fool: swarm)", title() == "view_title_cauldron" and mod.rw_accent[1] == fool[1] and mod.rw_accent[2] == fool[2] and mod.rw_accent[3] == fool[3] and fool[1] ~= 183)
+  click("btn_add")
+  check("title: the enemy picker belongs to the Cauldron, with the suit accent", view._screen == "picker" and title() == "view_title_cauldron" and mod.rw_accent[1] == fool[1])
+  view:cb_back()
+  click_row(1, "hotspot_mods")
+  check("title: the Mods screen is the Cauldron too", view._screen == "mods" and title() == "view_title_cauldron")
+  view:cb_back()
+  click_row(1, "hotspot_tune")
+  check("title: and the Custom screen", view._screen == "tune" and title() == "view_title_cauldron")
+  view:cb_back()
+  click("btn_face")
+  check("title: the card face is The Grandfather's Mirror, with the suit accent", view._screen == "face" and title() == "view_title_mirror" and mod.rw_accent[1] == fool[1])
+  view:cb_back()
+  view:cb_back()
+  check("title: back on the Deck the title and the bile accent are back", title() == "view_title" and mod.rw_accent[1] == 183 and mod.rw_accent[2] == 194)
+
+  -- the chips of an enemy row light up when the group has modifiers or custom mods; toggles and the armed Delete
+  settings.wave_def_custom_1 = "Chips\t3 crusher[enraged]{health=150}, 2 hound"; settings.on_custom_1 = true
+  view:_reload(); view:_apply_screen()
+  view:_open_detail("custom_1")
+  check("chips: Mods is lit on a group with modifiers, Custom on a group with custom mods, neither on a plain group", row(1).content.hotspot_mods_on == true and row(1).content.hotspot_tune_on == true and row(2).content.hotspot_mods_on == false and row(2).content.hotspot_tune_on == false)
+  check("toggle: Enabled is lit while the card is enabled", W.btn_enabled.content.hotspot_on == true)
+  click("btn_enabled")
+  check("toggle: ...and dark when it is not", W.btn_enabled.content.hotspot_on == false and W.btn_enabled.content.hotspot_text == "btn_enabled_off")
+  click("btn_enabled")
+  click("btn_delete")
+  check("danger: the first click on Delete arms it (Sure?, lit)", W.btn_delete.content.hotspot_on == true and W.btn_delete.content.hotspot_text == "btn_sure")
+  view:update(0.01, 10, { get = function() return nil end, is_null_service = function() return false end })
+  check("danger: ...and it disarms by itself after a few seconds", W.btn_delete.content.hotspot_on == false and W.btn_delete.content.hotspot_text == "btn_delete")
+  view:_open_detail("custom_1")
+  click("btn_add")
+  check("toggle: the picker's Stay toggle is lit when it is on", W.btn_stay.content.hotspot_on == (settings.picker_stay == true))
+  view._screen = "list"; view._key = nil
+  settings.wave_def_custom_1 = nil; settings.on_custom_1 = nil
+  view:_reload(); view:_apply_screen()
+  check("pixel snapping is switched on for the editor (the renderer snaps rects, bitmaps and text to whole device pixels)", view._render_settings.snap_pixel_positions == true)
+end
+
 -- last: closing the whole editor while a popup is open must release the keybinds
 do
   local PP = dofile(BASE .. "/ui/wave_editor_components.lua")
@@ -1856,9 +2078,115 @@ if DUMP and DUMP ~= "" then
   f:close()
 end
 
+-- UI_DUMP_DIR=<dir>: write every screen of the editor as JSON (tools/ui_preview.py draws them into PNGs)
+if UI_DIR and UI_DIR ~= "" then
+  local DEFS = dofile(BASE .. "/ui/wave_editor_definitions.lua")
+  local function esc(s) return (tostring(s):gsub("[%c\"\\]", function(c) if c == "\n" then return "\\n" elseif c == "\"" then return "\\\"" elseif c == "\\" then return "\\\\" else return "" end end)) end
+  local function ser(v)
+    if type(v) == "table" then
+      local parts = {}
+      if #v > 0 or next(v) == nil then
+        for i = 1, #v do parts[#parts + 1] = ser(v[i]) end
+        return "[" .. table.concat(parts, ",") .. "]"
+      end
+      for k, x in pairs(v) do if type(x) ~= "function" and k ~= "parent" then parts[#parts + 1] = "\"" .. esc(k) .. "\":" .. ser(x) end end
+      return "{" .. table.concat(parts, ",") .. "}"
+    elseif type(v) == "string" then return "\"" .. esc(v) .. "\""
+    elseif type(v) == "number" then return string.format("%.4f", v)
+    elseif type(v) == "boolean" then return tostring(v) end
+    return "null"
+  end
+  local function dump_screen(name)
+    local widgets = {}
+    for _, w in ipairs(view._widgets) do
+      if w.visible ~= false and w.def and w.name ~= "background" then
+        local node_id = w.def.node_id or w.name
+        local node = DEFS.scenegraph_definition[node_id]
+        local pos = view._sg and view._sg[node_id] or (node and node.position) or { 0, 0, 0 }
+        local nsize = node and node.size or { 1920, 1080 }
+        local passes = {}
+        for _, p in ipairs(w.def.passes) do
+          local st = p.style_id and w.style[p.style_id] or p.style -- a pass without a style id uses its own style
+          local vis = true
+          if p.visibility_function then
+            local pc = p.content_id and w.content[p.content_id] or w.content
+            if p.content_id and not pc.parent then pc.parent = w.content end
+            local ok, res = pcall(p.visibility_function, pc, st or {})
+            vis = ok and res and true or false
+          end
+          if vis and p.pass_type ~= "hotspot" and st and st.visible ~= false then
+            if p.change_function then
+              local pc = p.content_id and w.content[p.content_id] or w.content
+              pcall(p.change_function, pc, st)
+            end
+            local copy = {}
+            for k, v in pairs(st) do copy[k] = v end
+            if not copy.size then copy.size = { nsize[1], nsize[2] } end
+            if p.pass_type == "text" and not copy.font_size then
+              -- the stub of UIFontSettings has no header styles: the title is big, the line under it smaller
+              copy.font_size = w.name == "title_text" and 54 or 22
+              copy.font_type = w.name == "title_text" and "itc_novarese_bold" or "proxima_nova_bold"
+              copy.text_vertical_alignment = "center"
+            end
+            passes[#passes + 1] = { type = p.pass_type, id = p.style_id, style = copy, text = p.value_id and w.content[p.value_id] or nil, value = p.value }
+          end
+        end
+        -- every node is a child of the screen node (z 80): its layer is added to that
+        widgets[#widgets + 1] = { name = w.name, x = pos[1], y = pos[2], z = 80 + (pos[3] or 0), alpha = w.alpha_multiplier or 1, passes = passes }
+      end
+    end
+    local f = io.open(UI_DIR .. "/" .. name .. ".json", "w")
+    f:write(ser({ name = name, widgets = widgets }))
+    f:close()
+  end
+  local function hover(widget_name, hotspot_id, on) view._widgets_by_name[widget_name].content[hotspot_id or "hotspot"].is_hover = on end
+  local sys_inp = { get = function() return nil end, is_null_service = function() return false end }
+
+  for i = 1, 20 do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil end
+  settings.on_wave_medium = true; settings.pct_boss_ambush = 2; settings.pct_wave_small = 5; settings.pct_wave_huge = 4
+  settings.wave_def_custom_1 = "The Magician\t3 trapper, 2 flamer, 2 mutant, 2 tox flamer"; settings.on_custom_1 = true; settings.su_custom_1 = "blight"; settings.pct_custom_1 = 6
+  settings.wave_def_custom_2 = "Chips\t3 crusher[enraged]{health=150}, 2 hound, 12 poxwalker@3, 4 shocktrooper, 1 plague ogryn"; settings.on_custom_2 = true; settings.su_custom_2 = "rage"
+  mod.rw.director = { cooldown_remaining = function() return 0 end }
+  view._screen = "list"; view._key = nil; view._offset = 0; view:_reload(); view:_apply_screen()
+  hover("btn_presets", "hotspot", true)
+  dump_screen("deck")
+  hover("btn_presets", "hotspot", false)
+  view:_open_detail("custom_1")
+  hover("btn_add", "hotspot", true)
+  row(1).content.hotspot_name.is_hover = true
+  dump_screen("detail")
+  hover("btn_add", "hotspot", false); row(1).content.hotspot_name.is_hover = false
+  view:_open_detail("custom_2")
+  W2 = view._widgets_by_name
+  W2.btn_delete.content.hotspot.is_hover = true; W2.btn_delete.content.hotspot.is_held = true
+  row(2).content.hotspot_plus.is_hover = true
+  dump_screen("detail2")
+  W2.btn_delete.content.hotspot.is_hover = false; W2.btn_delete.content.hotspot.is_held = false; row(2).content.hotspot_plus.is_hover = false
+  click("btn_add")
+  dump_screen("picker")
+  view:cb_back()
+  click_row(1, "hotspot_mods")
+  dump_screen("mods")
+  view:cb_back()
+  click("btn_face")
+  dump_screen("face")
+  view:cb_back()
+  Popup_ = dofile(BASE .. "/ui/wave_editor_components.lua").Popup
+  click("btn_rename")
+  dump_screen("popup")
+  Popup_.cancel(view)
+  view:cb_back()
+  click("btn_settings")
+  dump_screen("settings")
+  view:cb_back()
+  click("btn_presets")
+  dump_screen("presets")
+  view:cb_back()
+end
+
 return table.concat(results, "\n")
 '''
-out = lua.execute(harness, MODROOT, os.environ.get("DECK_DUMP", ""))
+out = lua.execute(harness, MODROOT, os.environ.get("DECK_DUMP", ""), os.environ.get("UI_DUMP_DIR", "").replace("\\", "/"))
 print(out)
 fails = [l for l in out.split("\n") if l.startswith("FAIL")]
 print("\nPASS:", len([l for l in out.split("\n") if l.startswith("PASS")]), "FAIL:", len(fails))
