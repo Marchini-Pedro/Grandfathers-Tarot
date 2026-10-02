@@ -460,6 +460,7 @@ RealmsWavesView._reload = function (self)
 	self._total_pct = total
 	self._deleted_count = deleted
 	self:_build_deck()
+	self:_count_ready()
 end
 
 -- how many items a page holds, where a page can start, and how far a scroll step goes (the Deck pages by rows of cards)
@@ -481,9 +482,13 @@ RealmsWavesView._clamp_offset = function (self, offset)
 	return math.clamp(offset, 0, math.max(0, #self:_source() - (self._screen == "detail" and Workshop.ROWS or LIST_CAPACITY)))
 end
 
+-- Percent of the draw a card gets: its chance over the chances of the cards that can be dealt now (the cards that rest after a pick
+-- are out of the draw, so the others are likelier). A resting card is counted with them: the share it has when it is back.
 RealmsWavesView._share_of = function (self, wave)
-	if wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 and not (wave.timer > 0) and (self._total_pct or 0) > 0 then
-		return wave.pct / self._total_pct * 100
+	if wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 and not (wave.timer > 0) then
+		local total = (self._ready_pct or self._total_pct or 0) + ((self._resting and self._resting[wave.key]) and wave.pct or 0)
+
+		return mod.rw.cards.share(wave.pct, total)
 	end
 
 	return nil
@@ -1885,7 +1890,7 @@ RealmsWavesView.cb_reset = guarded(function (self)
 end)
 
 RealmsWavesView.cb_chance_step = guarded(function (self, delta)
-	set_setting("pct_" .. self._key, math.clamp(math.floor(self._wave.pct) + delta, 0, 1000))
+	set_setting("pct_" .. self._key, math.clamp(math.floor(self._wave.pct) + delta, 0, mod.rw.events.MAX_PCT))
 	self:_reload()
 	self:_apply_screen(true)
 end)
@@ -1894,7 +1899,7 @@ RealmsWavesView.cb_chance_input = guarded(function (self)
 	Popup.open(self, {
 		label = mod:localize("popup_chance_title", self._wave.name),
 		value = tostring(math.floor(self._wave.pct)),
-		numeric = true, min = 0, max = 1000, integer = true,
+		numeric = true, min = 0, max = mod.rw.events.MAX_PCT, integer = true,
 		set = function (value)
 			set_setting("pct_" .. self._key, value)
 			self:_reload()

@@ -166,7 +166,7 @@ check("deck: the grid and the scroll buttons stay on the screen and above the bo
 check("deck: first tile is The Fool, a swarm card, 8 Poxwalker on its first line", tile(1).content.name == "The Fool" and tile(1).content.suit_label == "SWARM" and plain(tile(1).content.comp):find("^8 Poxwalker") ~= nil, plain(tile(1).content.comp))
 check("deck: the whisper of the suit stands under the composition, in quotes", tile(1).content.whisper == "\"Too many to count.\"")
 check("deck: the swarm mark (four dots) is drawn, no triangles", tile(1).style.icon_c1.visible and tile(1).style.icon_c4.visible and not tile(1).style.icon_t1.visible)
-check("deck: ten chance pips: the heaviest card (The Fool, weight 5 of 2 to 5) has all ten (accent, opaque), the lightest (Strength) one, the rest faint (frame)", tile(1).style.pip_10.color[1] == 255 and tile(12).style.pip_1.color[1] == 255 and tile(12).style.pip_2.color[1] == 130 and tile(12).style.pip_10.visible)
+check("deck: ten chance pips, filled up to the card's chance (The Fool 5: five in the accent, opaque, the rest faint in the frame colour; Strength 2: two)", tile(1).style.pip_5.color[1] == 255 and tile(1).style.pip_6.color[1] == 130 and tile(12).style.pip_2.color[1] == 255 and tile(12).style.pip_3.color[1] == 130 and tile(12).style.pip_10.visible)
 check("deck: the state line says the card is in the draw, with a glow and its Edit corner", tile(1).content.state_left == "tile_in" and tile(1).content.state_clock == "" and tile(1).style.glow.visible and tile(1).content.edit_label == "tile_edit" and tile(1).alpha_multiplier == 1)
 check("deck: threat diamonds (filled to the level, the rest the same diamonds dimmed, never an outline) and one dot per enemy colour", tile(1).style.th_o1.visible and tile(1).style.th_o1.color[1] == 255 and tile(1).style.th_o5.visible and tile(1).style.th_o5.color[1] == 64 and tile(1).style.th_i1 == nil and tile(1).style.dot_1.visible)
 check("deck: every shape has a larger faint copy under it (anti-aliasing): the suit mark, the diamonds, the dots", tile(1).style.icon_ch1.visible and tile(1).style.icon_ch1.size[1] > tile(1).style.icon_c1.size[1] and tile(1).style.icon_ch1.color[1] == 77 and tile(1).style.icon_ch1.offset[3] < tile(1).style.icon_c1.offset[3] and tile(1).style.th_h1.visible and tile(1).style.th_h1.size[1] > tile(1).style.th_o1.size[1] and tile(1).style.dot_h1.visible and tile(1).style.dot_h1.size[1] > tile(1).style.dot_1.size[1] and not tile(1).style.dot_h6.visible)
@@ -370,7 +370,7 @@ check("rare: a card with weight 2 or less has the pus-yellow outline and says ra
 settings.pct_boss_ambush = nil
 view:_reload(); view:_apply_screen()
 
--- the chance pips: relative to the cards in the draw, clickable -------------------------------------------------------------
+-- the chance pips: the chance itself (1 to 10), clickable -------------------------------------------------------------
 do
   local inp = { get = function() return nil end, is_null_service = function() return false end }
   local function upd() view:update(0.01, 0, inp) end
@@ -378,24 +378,32 @@ do
   local function filled(w) local n = 0; for k = 1, 10 do if w.style["pip_" .. k].color[1] == 255 then n = n + 1 end end return n end
   local keys = { "wave_small", "wave_medium", "wave_large", "wave_huge", "boss_ambush", "bomber_frenzy", "hound_frenzy", "grenade_legion", "sniper_elite", "elite_squad", "special_pack", "ogryn_brutes" }
 
-  check("pips: the range of the draw is its lightest and its heaviest weight (2 and 5 with the default weights)", view._deck_range.lo == 2 and view._deck_range.hi == 5, tostring(view._deck_range.lo) .. "-" .. tostring(view._deck_range.hi))
-  check("pips: relative: weight 5 = all ten pips, weight 2 (the lightest) one pip, weight 4 seven, weight 3 four", filled(tile(1)) == 10 and filled(tile(12)) == 1 and filled(tile(3)) == 7 and filled(tile(4)) == 4, filled(tile(1)) .. "/" .. filled(tile(12)) .. "/" .. filled(tile(3)) .. "/" .. filled(tile(4)))
-  check("rare: relative too: only the lightest card (Strength) says rare and has the pus-yellow outline", tile(12).content.suit_label:find("TILE_RARE", 1, true) ~= nil and tile(1).content.suit_label:find("TILE_RARE", 1, true) == nil and tile(4).content.suit_label:find("TILE_RARE", 1, true) == nil)
+  check("pips: a card shows its chance as pips: The Fool (chance 5) five, Strength (2) two, The Procession (4) four, The Throng (3) three", filled(tile(1)) == 5 and filled(tile(12)) == 2 and filled(tile(3)) == 4 and filled(tile(4)) == 3, filled(tile(1)) .. "/" .. filled(tile(12)) .. "/" .. filled(tile(3)) .. "/" .. filled(tile(4)))
+  check("rare: a chance of 1 or 2 says rare and has the pus-yellow outline: only Strength (2)", tile(12).content.suit_label:find("TILE_RARE", 1, true) ~= nil and tile(1).content.suit_label:find("TILE_RARE", 1, true) == nil and tile(4).content.suit_label:find("TILE_RARE", 1, true) == nil)
 
-  -- when every card weighs the same all are the likeliest: ten pips, nobody rare
+  -- every chance from 1 to 10 shows exactly that many pips (chance 2 used to show one, 3 two, 4 three, 5 four), and more than 10 is 10
+  local exact = true
+  for n = 1, 10 do
+    settings.pct_wave_large = n; reload()
+    if filled(tile(3)) ~= n then exact = false end
+  end
+  check("pips: chance 1, 2, 3 ... 10 show 1, 2, 3 ... 10 pips, whatever the other cards have", exact)
+  settings.pct_wave_large = 400; reload()
+  check("pips: a stored chance above 10 counts as 10 (ten pips)", filled(tile(3)) == 10)
+  settings.pct_wave_large = nil
+
+  -- when every card has the same chance all show it; 1 and 2 are rare
   for _, k in ipairs(keys) do settings["pct_" .. k] = 7 end
   reload()
-  local all_ten, none_rare = true, true
+  local all_seven, none_rare = true, true
   for i = 1, 12 do
-    if filled(tile(i)) ~= 10 then all_ten = false end
+    if filled(tile(i)) ~= 7 then all_seven = false end
     if tile(i).content.suit_label:find("TILE_RARE", 1, true) then none_rare = false end
   end
-  check("pips: cards that all weigh the same all have ten pips and none is rare (a weight of 1 or 2 is not 'rare' by itself any more)", all_ten and none_rare)
-  for _, k in ipairs(keys) do settings["pct_" .. k] = nil end
-  settings.pct_wave_small = 1; settings.pct_wave_medium = 1
-  for _, k in ipairs({ "wave_large", "wave_huge", "boss_ambush", "bomber_frenzy", "hound_frenzy", "grenade_legion", "sniper_elite", "elite_squad", "special_pack", "ogryn_brutes" }) do settings["pct_" .. k] = 1 end
+  check("pips: cards that all have chance 7 all show seven pips and none is rare", all_seven and none_rare)
+  for _, k in ipairs(keys) do settings["pct_" .. k] = 1 end
   reload()
-  check("pips: ...also when they all weigh 1", filled(tile(5)) == 10 and tile(5).content.suit_label:find("TILE_RARE", 1, true) == nil)
+  check("pips: ...and at chance 1 all of them show one pip and are rare (the number decides, not a comparison)", filled(tile(5)) == 1 and tile(5).content.suit_label:find("TILE_RARE", 1, true) ~= nil)
   for _, k in ipairs(keys) do settings["pct_" .. k] = nil end
   reload()
 
@@ -408,37 +416,54 @@ do
     return tile(3).style.bg.color[2] == tile(3).content.bg_hi[1]
   end)())
   tile(3).content.hotspot_pip4.is_hover = false; tile(3).content.hotspot_pip10.is_hover = true; upd()
-  check("pips: pips past the card's own seven that a click would add are lighter than the ones it has", filled(tile(3)) == 10 and tile(3).style.pip_8.color[2] ~= tile(3).style.pip_7.color[2] and tile(3).style.pip_10.color[2] == tile(3).style.pip_8.color[2])
+  check("pips: pips past the card's own four that a click would add are lighter than the ones it has", filled(tile(3)) == 10 and tile(3).style.pip_5.color[2] ~= tile(3).style.pip_4.color[2] and tile(3).style.pip_10.color[2] == tile(3).style.pip_5.color[2])
   tile(3).content.hotspot_pip10.is_hover = false; upd()
-  check("pips: leaving them brings back the card's own pips and the name over the strip goes away", filled(tile(3)) == 7 and tile(3).content.fx.hover_level == nil and D.deck_hover.content.deck_hover == "" and tile(3).style.pip_8.color[1] == 130)
+  check("pips: leaving them brings back the card's own pips and the name over the strip goes away", filled(tile(3)) == 4 and tile(3).content.fx.hover_level == nil and D.deck_hover.content.deck_hover == "" and tile(3).style.pip_8.color[1] == 130)
   tile(3).content.hotspot_pip6.is_hover = true; upd(); tile(3).content.hotspot_pip6.is_hover = false; tile(3).content.hotspot_top.is_hover = true; upd()
-  check("pips: moving from a pip to the face keeps the card's name in the caption, pips back to normal", D.deck_hover.content.deck_hover == tile(3).content.name and filled(tile(3)) == 7)
+  check("pips: moving from a pip to the face keeps the card's name in the caption, pips back to normal", D.deck_hover.content.deck_hover == tile(3).content.name and filled(tile(3)) == 4)
   tile(3).content.hotspot_top.is_hover = false; upd()
 
-  -- clicking a pip sets the card's weight: the level shows among the other cards (weights 2..5)
+  -- clicking a pip sets the card's chance to that number
   tile(3).content.hotspot_pip10.pressed_callback()
-  check("pips: a click on pip 10 gives the card the weight of the heaviest other card (5) and it shows all ten", settings.pct_wave_large == 5 and filled(tile(3)) == 10, tostring(settings.pct_wave_large))
+  check("pips: a click on pip 10 gives the card chance 10 and it shows all ten", settings.pct_wave_large == 10 and filled(tile(3)) == 10, tostring(settings.pct_wave_large))
   tile(3).content.hotspot_pip1.pressed_callback()
-  check("pips: pip 1 gives it the weight of the lightest other card (2) and it shows one pip", settings.pct_wave_large == 2 and filled(tile(3)) == 1, tostring(settings.pct_wave_large))
+  check("pips: pip 1 gives it chance 1 and it shows one pip", settings.pct_wave_large == 1 and filled(tile(3)) == 1, tostring(settings.pct_wave_large))
   tile(3).content.hotspot_pip7.pressed_callback()
-  check("pips: pip 7 gives it weight 4, which shows seven pips", settings.pct_wave_large == 4 and filled(tile(3)) == 7, tostring(settings.pct_wave_large))
-  check("pips: the strip follows (the card's segment is about 4/47 of the strip)", (function() for _, s in ipairs(view._strip_segments) do if s.key == "wave_large" then return math.abs(s.w / 1710 - 4 / 47) < 0.01 end end return false end)())
+  check("pips: pip 7 gives it chance 7, which shows seven pips", settings.pct_wave_large == 7 and filled(tile(3)) == 7, tostring(settings.pct_wave_large))
+  check("pips: the strip follows (the card's segment is 7 of the 50 the cards add up to)", (function() for _, s in ipairs(view._strip_segments) do if s.key == "wave_large" then return math.abs(s.w / 1710 - 7 / 50) < 0.01 end end return false end)())
   check("pips: ...and the caption of the draw still counts every card (12 in the draw)", D.deck_count.content.deck_count == "deck_count:12")
 
   -- a card out of the draw can have its chance set too, and stays out
   settings.on_wave_huge = false; reload()
   tile(4).content.hotspot_pip10.pressed_callback()
-  check("pips: a click on a card that is out of the draw sets its weight but leaves it out", settings.pct_wave_huge == 5 and settings.on_wave_huge == false and tile(4).content.card_state == "off")
+  check("pips: a click on a card that is out of the draw sets its chance but leaves it out", settings.pct_wave_huge == 10 and settings.on_wave_huge == false and tile(4).content.card_state == "off")
   settings.on_wave_huge = nil; settings.pct_wave_huge = nil; settings.pct_wave_large = nil; reload()
 
-  -- a card alone in the draw: the pip is the weight itself (1 to 10)
+  -- a card alone in the draw: the pip is the chance as well
   for _, k in ipairs(keys) do if k ~= "wave_small" then settings["on_" .. k] = false end end
   reload()
   tile(1).content.hotspot_pip3.pressed_callback()
-  check("pips: a lone card has nothing to compare with, the pip is the weight (pip 3 = weight 3)", settings.pct_wave_small == 3, tostring(settings.pct_wave_small))
-  check("pips: ...and it shows all ten (it is the only one, so the likeliest)", filled(tile(1)) == 10)
+  check("pips: a lone card is no different: pip 3 = chance 3 and three pips", settings.pct_wave_small == 3 and filled(tile(1)) == 3, tostring(settings.pct_wave_small))
   for _, k in ipairs(keys) do settings["on_" .. k] = nil end
   settings.pct_wave_small = nil; reload()
+
+  -- the cards that rest are out of the draw: the share of the others grows (The Fool 5 of 47 = 10.6 percent; with The Pilgrims, The Throng
+  -- and The Tower resting (5, 3 and 5) it is 5 of 34 = 14.7 percent), and the strip leaves them out
+  view._screen = "list"; reload()
+  local fool = view._waves[1]
+  local before = view:_share_of(fool)
+  mod.rw.director = { cooldown_remaining = function(key) return (key == "wave_medium" or key == "wave_huge" or key == "bomber_frenzy") and 60 or 0 end }
+  reload()
+  local after = view:_share_of(fool)
+  local strip_keys = {}; for _, s in ipairs(view._strip_segments) do strip_keys[s.key] = true end
+  check("resting: The Fool has 5 of 47 (10.6 percent) while every card can be drawn", before ~= nil and math.abs(before - 5 / 47 * 100) < 1e-6, tostring(before))
+  check("resting: with three cards resting (5, 3 and 5) the others are likelier: 5 of 34 (14.7 percent)", after ~= nil and math.abs(after - 5 / 34 * 100) < 1e-6, tostring(after))
+  check("resting: a resting card's share is what it will have when it is back (5 of 39 = 12.8), and the strip leaves it out", math.abs(view:_share_of(view._waves[2]) - 5 / 39 * 100) < 1e-6 and not strip_keys.wave_medium and not strip_keys.wave_huge and strip_keys.wave_small, tostring(view:_share_of(view._waves[2])))
+  mod.rw.director = { cooldown_remaining = function() return 0 end }
+  reload()
+  check("resting: when they are back the shares return", math.abs(view:_share_of(fool) - before) < 1e-6)
+  mod.rw.director = nil
+  reload()
 
   -- a right click anywhere on the tile opens the card; the pips and the pill repeat their action on a fast second click, the toggles do not
   for _, hs in ipairs({ "hotspot_top", "hotspot_state", "hotspot_edit", "hotspot_pip1", "hotspot_pip5", "hotspot_pip10" }) do
@@ -1670,7 +1695,7 @@ do
   check("share: Share only in the detail screen, Import wave only on the list", W.btn_wimport.visible and not W.btn_share.visible)
   -- a custom wave to share
   settings["wave_def_custom_4"] = "Pack Attack\t4 hounds, 2 scab rager[enraged]"; settings["on_custom_4"] = true
-  settings["pct_custom_4"] = 33; settings["dmin_custom_4"] = 40; settings["dmax_custom_4"] = 90
+  settings["pct_custom_4"] = 7; settings["dmin_custom_4"] = 40; settings["dmax_custom_4"] = 90
   view:_reload(); view._offset = 0; view:_refresh_rows()
   view:_open_detail("custom_4")
   check("share: custom_4 detail open", view._screen == "detail" and view._key == "custom_4" and W.btn_share.visible, tostring(view._key))
@@ -1678,15 +1703,15 @@ do
   local shared = view._widgets_by_name.rw_popup_input.content.input_text
   check("share: the popup shows the wave text and copies it", view._popup ~= nil and shared:sub(1, 5) == "RWW1|" and clip_text == shared and view._popup.spec.hint == "popup_share_hint_copied")
   local decoded = P.decode_wave(shared, mod.rw.events, mod.rw.groups)
-  check("share: the text decodes to this wave", decoded and decoded.name == "Pack Attack" and decoded.pct == 33 and decoded.dmin == 40 and decoded.dmax == 90 and decoded.recipe:find("hound") ~= nil)
+  check("share: the text decodes to this wave", decoded and decoded.name == "Pack Attack" and decoded.pct == 7 and decoded.dmin == 40 and decoded.dmax == 90 and decoded.recipe:find("hound") ~= nil)
   PPw.Popup.cancel(view)
 
   -- import over this wave: paste a different wave over the text
-  local other = P.encode_wave({ key = "custom_9", name = "Friend Wave", recipe = "6 mutants", enabled = true, pct = 12, cd = 75, sp = 6, re = 10, rf = 60, dmin = 0, dmax = 70 })
+  local other = P.encode_wave({ key = "custom_9", name = "Friend Wave", recipe = "6 mutants", enabled = true, pct = 6, cd = 75, sp = 6, re = 10, rf = 60, dmin = 0, dmax = 70 })
   click("btn_share")
   type_into(other)
   PPw.Popup.commit(view)
-  check("share: pasting a friend's wave over the text replaces this wave", view._popup == nil and view._wave.name == "Friend Wave" and settings["pct_custom_4"] == 12 and settings["dmax_custom_4"] == 70 and settings["dmin_custom_4"] == 0 and #view._parts == 1 and view._parts[1].breed == "cultist_mutant" and view._parts[1].count == 6, tostring(view._wave.name))
+  check("share: pasting a friend's wave over the text replaces this wave", view._popup == nil and view._wave.name == "Friend Wave" and settings["pct_custom_4"] == 6 and settings["dmax_custom_4"] == 70 and settings["dmin_custom_4"] == 0 and #view._parts == 1 and view._parts[1].breed == "cultist_mutant" and view._parts[1].count == 6, tostring(view._wave.name))
   click("btn_share"); type_into("RW1|a preset|0|0000"); PPw.Popup.commit(view)
   check("share: a whole preset pasted here is refused with a pointer to the Presets screen", view._popup ~= nil and tostring(view._popup.error):find("Presets screen") ~= nil, tostring(view._popup and view._popup.error))
   PPw.Popup.cancel(view)
@@ -1808,7 +1833,7 @@ do
   click("btn_prename"); check("presets: renaming an empty slot asks to save first", view._popup == nil and note() == "preset_save_first")
 
   -- save the current setup (custom_1 has one enemy and is enabled; make one more visible change)
-  settings["pct_wave_small"] = 33
+  settings["pct_wave_small"] = 6
   click("btn_psave")
   local saved = P.read(getter, "preset_2", mod.rw.events, mod.rw.groups)
   check("presets: save stores the changed waves under the default name", saved and saved.name == "Preset 2" and #saved.waves == 2 and note():find("preset_saved:Preset 2,2") ~= nil, saved and #saved.waves)
@@ -1823,7 +1848,7 @@ do
   -- overwrite the setup, then load the preset: everything comes back, and Undo returns the overwritten setup
   settings["pct_wave_small"] = 1; settings["on_custom_1"] = false
   click("btn_pload")
-  check("presets: load restores the saved setup", settings["pct_wave_small"] == 33 and settings["on_custom_1"] == true and note():find("preset_loaded:Boss Rush,2") ~= nil, tostring(settings["pct_wave_small"]))
+  check("presets: load restores the saved setup", settings["pct_wave_small"] == 6 and settings["on_custom_1"] == true and note():find("preset_loaded:Boss Rush,2") ~= nil, tostring(settings["pct_wave_small"]))
   check("presets: load kept the replaced setup for undo, and the Undo button appears", settings.preset_undo ~= nil and settings.preset_undo ~= "" and view._widgets_by_name.btn_pundo.visible)
   click("btn_pundo")
   check("presets: undo brings the replaced setup back and consumes the backup", settings["pct_wave_small"] == 1 and settings["on_custom_1"] == false and settings.preset_undo == "" and not view._widgets_by_name.btn_pundo.visible and note() == "preset_undone")
@@ -2341,8 +2366,15 @@ do
 
   -- the chance and the toolbar
   local pct = settings.pct_custom_1
+  click("stepper_chance", "hotspot_minus")
+  check("chance: the stepper under the card changes the chance by one and the line under the card says the share", settings.pct_custom_1 == pct - 1 and W.stepper_chance.content.stepper_value == tostring(pct - 1) and W.stepper_chance.content.extra:find("^extra_share:") ~= nil)
   click("stepper_chance", "hotspot_plus")
-  check("chance: the stepper under the card changes the weight by one and the line under the card says the share", settings.pct_custom_1 == pct + 1 and W.stepper_chance.content.stepper_value == tostring(pct + 1) and W.stepper_chance.content.extra:find("^extra_share:") ~= nil)
+  click("stepper_chance", "hotspot_plus")
+  check("chance: 10 is the most: plus at 10 stays at 10 (the setting and the number shown)", settings.pct_custom_1 == 10 and W.stepper_chance.content.stepper_value == "10", tostring(settings.pct_custom_1))
+  settings.pct_custom_1 = 0; view:_reload(); view:_apply_screen()
+  click("stepper_chance", "hotspot_minus")
+  check("chance: 0 is the least (never drawn): minus at 0 stays at 0", settings.pct_custom_1 == 0 and W.stepper_chance.content.stepper_value == "0", tostring(settings.pct_custom_1))
+  settings.pct_custom_1 = pct; view:_reload(); view:_apply_screen()
   click("btn_enabled")
   check("toolbar: In the draw switches the card out of the draw: the stage card dims, the line says so; and back", settings.on_custom_1 == false and stage.alpha_multiplier == 0.55 and W.btn_enabled.content.hotspot_text == "btn_enabled_off" and W.stage_stats.content.stage_stats == "stage_stats_off")
   click("btn_enabled")

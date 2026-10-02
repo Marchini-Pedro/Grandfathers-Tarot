@@ -1,7 +1,6 @@
 -- The Deck: the home screen of the wave editor (screen "list"). Every card is a tile (blueprints.tile) in a grid of 7
 -- columns and 2 rows, with a strip above that shows how likely each card is to be dealt into a hand. Clicking a tile
--- puts the card in or out of the draw, clicking one of its ten pips sets its chance (relative to the other cards of the
--- draw), its Edit pill or a right click opens it, the blank tile at the end makes a new card.
+-- puts the card in or out of the draw, clicking one of its ten pips sets its chance (1 to 10), its Edit pill or a right click opens it, the blank tile at the end makes a new card.
 -- The arithmetic and the texts are in ui/deck.lua; the shapes (suit marks) are drawn like the Spread HUD draws them
 -- (ui/spread.lua). Installed on the view with `install` (see wave_editor_view.lua); nothing here is drawn per frame
 -- except the hover.
@@ -215,27 +214,31 @@ DeckView.install = function (View, h)
 		end
 
 		self._deck = deck
-
-		-- the lightest and the heaviest weight of the draw: the chance pips and "rare" are relative to them
-		local lo, hi = self:_draw_range(nil)
-
-		self._deck_range = { lo = lo, hi = hi }
 	end
 
-	-- The lightest and the heaviest weight among the cards in the draw, leaving out the card `except` (a key, or nil).
-	View._draw_range = function (self, except)
-		local lo, hi
+	-- Seconds a card still rests (0 when it does not, or when no mission runs)
+	View._cooldown_left = function (self, key, length)
+		return cooldown_left(key, length)
+	end
 
-		for i = 1, #self._deck do
-			local wave = self._deck[i]
+	-- The cards of the draw that rest after a pick leave it, so the others become likelier: the share of a card is its chance over
+	-- the chances of the cards that can be dealt NOW. Called by _reload, and again when a card comes back.
+	View._count_ready = function (self)
+		local ready, resting = 0, {}
 
-			if not wave.blank and wave.key ~= except and in_draw(wave) then
-				lo = lo and math.min(lo, wave.pct) or wave.pct
-				hi = hi and math.max(hi, wave.pct) or wave.pct
+		for i = 1, #(self._waves or {}) do
+			local wave = self._waves[i]
+
+			if in_draw(wave) then
+				if self:_cooldown_left(wave.key, wave.cooldown) > 0 then
+					resting[wave.key] = true
+				else
+					ready = ready + wave.pct
+				end
 			end
 		end
 
-		return lo, hi
+		self._ready_pct, self._resting = ready, resting
 	end
 
 	View._deck_in_draw = function (self)
@@ -251,7 +254,8 @@ DeckView.install = function (View, h)
 	end
 
 	-- --------------------------------------------------------------------------------------- painting
-	-- The strip of the draw: a segment per card in the draw, as wide as its weight; the card under the pointer is taller.
+	-- The strip of the draw: a segment per card that can be dealt now (a resting card is out of the draw), as wide as its chance; the
+	-- card under the pointer is taller.
 	View._paint_strip = function (self)
 		local widget = self._widgets_by_name.rw_strip
 
@@ -266,7 +270,7 @@ DeckView.install = function (View, h)
 		for i = 1, #self._deck do
 			local wave = self._deck[i]
 
-			if not wave.blank and in_draw(wave) and #items < Deck.STRIP_MAX then
+			if not wave.blank and in_draw(wave) and not (self._resting and self._resting[wave.key]) and #items < Deck.STRIP_MAX then
 				items[#items + 1] = { weight = wave.pct, key = wave.key, rgb = Cards.suit(wave.suit).accent }
 			end
 		end
@@ -311,7 +315,7 @@ DeckView.install = function (View, h)
 		local k = T.k or 1
 		local card = Cards.describe(wave, groups, function (breed)
 			return colors and colors.rgb(breed) or Cards.BASE.muted
-		end, self._deck_range)
+		end)
 		local suit = Cards.suit(card.suit)
 		local remaining = cooldown_left(wave.key, card.cooldown)
 		local state = Deck.state(card, remaining)
@@ -797,6 +801,8 @@ DeckView.install = function (View, h)
 				local remaining = cooldown_left(fx.key, fx.cooldown)
 
 				if remaining <= 0 then
+					self:_count_ready()
+					self:_paint_strip()
 					self:_paint_tile(widget, fx.wave)
 
 					if ping_on then
@@ -868,15 +874,12 @@ DeckView.install = function (View, h)
 		end
 	end)
 
-	-- a click on pip `level` of a tile: the card's chance becomes that level among the other cards of the draw (the weight
-	-- that shows it, see Cards.weight_for_level)
+	-- a click on pip `level` of a tile: the card's chance becomes that number (1 to 10)
 	View.cb_tile_pip = guarded(function (self, slot, level)
 		local wave = self._deck[self._offset + slot]
 
 		if wave and not wave.blank then
-			local lo, hi = self:_draw_range(wave.key)
-
-			set_setting("pct_" .. wave.key, mod.rw.cards.weight_for_level(level, lo, hi))
+			set_setting("pct_" .. wave.key, mod.rw.cards.weight_for_level(level))
 			self:_reload()
 			self:_apply_screen(true)
 		end

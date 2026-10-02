@@ -6,7 +6,7 @@
 -- part = { breed = "name", count = n }  or  { one_of = { "a", "b" }, count = n }
 -- monster = true uses the monster distance range.
 -- The standard waves are tarot cards (names, suits and whispers: catalog/cards.lua); their keys never change, so saved
--- settings keep working. default_pct is the card's draw weight on the 1-10 scale of the editor's weight pips.
+-- settings keep working. default_pct is the card's chance on the 1-10 scale of the editor's chance pips.
 local Events = {}
 
 Events.CUSTOM_SLOTS = 20
@@ -139,6 +139,7 @@ Events.keys = function ()
 end
 
 Events.DEFAULT_CUSTOM_PCT = 10
+Events.MAX_PCT = 10 -- the most a card's chance can be (older settings above it count as 10)
 Events.DEFAULT_CUSTOM_COOLDOWN = 120
 
 -- The cooldown of a card of your own that has none set: the option "Default card cooldown" (default 120 s), in 30 s
@@ -163,7 +164,7 @@ Events.LOOKS = { rot = true, whisper = true, vial = true }
 -- Settings per wave (all plain values so DMF can persist them):
 --   wave_def_<key>  "name<TAB>recipe"   overrides name/composition ("" = default)
 --   on_<key>        boolean             enabled (default: standard on, custom off)
---   pct_<key>       number              relative chance weight
+--   pct_<key>       number              chance of the card, 0 to 10 (the ten pips; shown as a share of the cards that can be drawn)
 --   cd_<key>        number              cooldown seconds
 --   sp_<key>        number              spawn spread radius in metres (0 = all at the spawn point)
 --   re_<key>        number              repeat every N seconds  (only used by groups with "@rep")
@@ -270,7 +271,7 @@ Events.get = function (key, get_setting, Groups)
 	if wave.deleted then
 		wave.enabled = false
 	end
-	wave.pct = tonumber(get_setting("pct_" .. key)) or (std and std.default_pct) or Events.DEFAULT_CUSTOM_PCT
+	wave.pct = math.max(0, math.min(Events.MAX_PCT, tonumber(get_setting("pct_" .. key)) or (std and std.default_pct) or Events.DEFAULT_CUSTOM_PCT))
 	wave.cooldown = tonumber(get_setting("cd_" .. key)) or (std and std.cooldown) or Events.default_cooldown(get_setting)
 	wave.spread = tonumber(get_setting("sp_" .. key)) or Events.DEFAULT_SPREAD
 	wave.rep_every = tonumber(get_setting("re_" .. key)) or Events.DEFAULT_REPEAT_EVERY
@@ -524,8 +525,10 @@ Events.build_pool = function (get_setting, Groups, extra)
 						name = string.format("%s (%d)", name, used + 1)
 					end
 
-					pool[#pool + 1] = { key = wave.key, name = name, def = Events.spawn_def(wave), raw = wave.pct, cooldown = wave.cooldown, owner = wave.owner }
-					total = total + wave.pct
+					local raw = math.min(Events.MAX_PCT, wave.pct)
+
+					pool[#pool + 1] = { key = wave.key, name = name, def = Events.spawn_def(wave), raw = raw, cooldown = wave.cooldown, owner = wave.owner }
+					total = total + raw
 				end
 			end
 		end

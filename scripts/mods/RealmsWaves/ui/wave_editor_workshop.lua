@@ -391,7 +391,7 @@ WorkshopView.install = function (View, h)
 		local colors = rw.colors
 		local card = Cards.describe(wave, groups, function (breed)
 			return colors and colors.rgb(breed) or Cards.BASE.muted
-		end, self._deck_range)
+		end)
 		local share = self:_share_of(wave)
 
 		widgets.stage_caption.content.stage_caption = string.upper(mod:localize("stage_caption"))

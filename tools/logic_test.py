@@ -497,7 +497,7 @@ do
   check("pool: a friend's wave with an already used name gets '(2)'", suffixed == "The Fool (2)", tostring(suffixed))
   -- the spawn definition of a friend's wave is complete
   local friend; for _, e in ipairs(pool) do if e.name == "Friend Special" then friend = e end end
-  check("pool: the friend's wave carries a full spawn definition", friend and friend.def.parts and friend.def.parts[1].breed == "chaos_hound" and friend.def.parts[1].count == 4 and friend.def.cooldown == 0 and friend.def.spread == 3 and friend.raw == 500)
+  check("pool: the friend's wave carries a full spawn definition (its chance of 500 counts as the most a chance can be, 10)", friend and friend.def.parts and friend.def.parts[1].breed == "chaos_hound" and friend.def.parts[1].count == 4 and friend.def.cooldown == 0 and friend.def.spread == 3 and friend.raw == 10)
 
   -- a full cycle where only the friend's wave exists: it is drawn and spawned
   disable_all_host_waves()
@@ -971,6 +971,31 @@ do
   Director.update(95)
   check("cooldown: ...so the card is still out when the countdown resumes and dealt again only after its cooldown", Director.view().hand == nil or Director.view().empty or Director.view().drawn == true)
 
+  -- the cards that rest leave the draw, so the others become likelier: a card is dealt by its chance over the chances of the cards
+  -- that can be dealt now (hands of ONE card here: three cards with chances 8, 2 and 2 that rest for ages after their pick)
+  settings.tarot_cards = 1; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100
+  only({ { "wave_small", 8, 100000 }, { "wave_medium", 2, 100000 }, { "wave_large", 2, 100000 } })
+  do
+    local first_a, then_b, first_b, then_a = 0, 0, 0, 0
+    local function hand_key() local hv = Director.view(); return hv.hand and hv.hand[1] and hv.hand[1].key end
+
+    for _ = 1, 1500 do
+      start(); Director.update(95)
+      local first = hand_key()
+      Director.update(6) -- the pick: its cooldown starts
+      Director.update(95)
+      local second = hand_key()
+
+      if first == "wave_small" then first_a = first_a + 1; if second == "wave_medium" then then_b = then_b + 1 end end
+      if first == "wave_medium" then first_b = first_b + 1; if second == "wave_small" then then_a = then_a + 1 end end
+    end
+
+    check("draw share: the first hand is by chance, 8 of 12 for the heavy card", first_a > 0.60 * 1500 and first_a < 0.73 * 1500, first_a)
+    check("draw share: with the heavy card resting the other two share the draw 50/50 (it was 2 of 12 each)", first_a > 500 and math.abs(then_b / first_a - 0.5) < 0.06, then_b / math.max(1, first_a))
+    check("draw share: with a light card resting the heavy one gets 8 of 10 (80 percent, not 8 of 12 = 67)", first_b > 150 and math.abs(then_a / first_b - 0.8) < 0.07, then_a / math.max(1, first_b))
+  end
+  settings.tarot_cards = 3
+
   -- empty pool, skip, next, short intervals, anti-snowball
   only({})
   v = start(); Director.update(95)
@@ -1032,7 +1057,7 @@ do
   Director.update(5)
   check("client: a paused host's age does not run", math.abs(Director.view().drawn_age - 4) < 0.01, Director.view().drawn_age)  is_server = true
 
-  -- rarity is relative to the pool: the lightest cards are rare, the heaviest are not
+  -- rarity is the number: a chance of 1 or 2 is rare, anything higher is not
   settings.tarot_cards = 3; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100
   only({ { "wave_small", 1, 0 }, { "wave_medium", 10, 0 }, { "wave_large", 10, 0 } })
   v = start(); Director.update(95)
@@ -1043,18 +1068,18 @@ do
   v = start(); Director.update(95)
   local any_rare = false
   for _, cd in ipairs(sent[#sent].state.h) do if cd.r == 1 then any_rare = true end end
-  check("rarity: when every card weighs the same none is rare (a weight of 1 would have been, before)", not any_rare)
+  check("rarity: a chance above 2 is not rare, however the others are (chances 18 count as 10)", not any_rare)
   only({ { "wave_small", 1, 0 }, { "wave_medium", 1, 0 }, { "wave_large", 1, 0 } })
   v = start(); Director.update(95)
   any_rare = false
   for _, cd in ipairs(sent[#sent].state.h) do if cd.r == 1 then any_rare = true end end
-  check("rarity: ...also at weight 1 for all", not any_rare)
+  check("rarity: a chance of 1 is rare for every card that has it, even when all of them do (it is the number, not a comparison)", any_rare)
   only({ { "wave_small", 50, 0 }, { "wave_medium", 40, 0 }, { "wave_large", 30, 0 }, { "wave_huge", 20, 0 }, { "boss_ambush", 1, 0 } })
   settings.tarot_cards = 5
   v = start(); Director.update(95)
   local rare_keys = {}
   for _, cd in ipairs(sent[#sent].state.h) do if cd.r == 1 then rare_keys[#rare_keys + 1] = cd.k end end
-  check("rarity: with weights 50 to 1 the very lightest card is rare, no matter the absolute numbers", #rare_keys == 1 and rare_keys[1] == "boss_ambush", table.concat(rare_keys, ","))
+  check("rarity: with chances 50 (counted as 10) down to 1 only the card with a chance of 1 is rare", #rare_keys == 1 and rare_keys[1] == "boss_ambush", table.concat(rare_keys, ","))
   settings.tarot_cards = 3
 
   -- legacy modes still work next to the tarot
@@ -1422,13 +1447,13 @@ do
 
   -- build a setup: rename + new composition on a standard wave, chance/cooldown on another, a custom wave
   Events.set_def(set, "wave_small", "My Small", Groups.parse("4 hounds, 2 scab rager"), Groups)
-  set("pct_boss_ambush", 40); set("cd_boss_ambush", 90); set("on_hound_frenzy", false)
+  set("pct_boss_ambush", 9); set("cd_boss_ambush", 90); set("on_hound_frenzy", false)
   Events.set_def(set, "custom_3", "Weird | Name ~ 100%", Groups.parse("3 crushers[rotten+enraged]@2, 1 plague ogryn|chaos spawn"), Groups)
-  set("on_custom_3", true); set("pct_custom_3", 25); set("sp_custom_3", 12); set("re_custom_3", 7); set("rf_custom_3", 42)
+  set("on_custom_3", true); set("pct_custom_3", 6); set("sp_custom_3", 12); set("re_custom_3", 7); set("rf_custom_3", 42)
   local cap = Presets.capture(get, Events, Groups)
   local keys = {}; for _, w in ipairs(cap.waves) do keys[w.key] = w end
   check("presets: capture holds exactly the changed waves", #cap.waves == 4 and keys.wave_small and keys.boss_ambush and keys.hound_frenzy and keys.custom_3, #cap.waves)
-  check("presets: chance-only change keeps the default name/recipe", keys.boss_ambush.pct == 40 and keys.boss_ambush.cd == 90 and keys.boss_ambush.name == Events.get("boss_ambush", function() return nil end, Groups).name)
+  check("presets: chance-only change keeps the default name/recipe", keys.boss_ambush.pct == 9 and keys.boss_ambush.cd == 90 and keys.boss_ambush.name == Events.get("boss_ambush", function() return nil end, Groups).name)
 
   cap.name = "  My   Setup " .. string.rep("x", 40)
   local text = Presets.encode(cap)
@@ -1438,7 +1463,7 @@ do
   check("presets: name is trimmed to 24 characters", back and #back.name <= 24 and back.name:sub(1, 8) == "My Setup", back and back.name)
   local dk = {}; for _, w in ipairs(back.waves) do dk[w.key] = w end
   check("presets: awkward characters in a wave name survive (| ~ %)", dk.custom_3.name == "Weird | Name ~ 100%", dk.custom_3.name)
-  check("presets: values round trip", dk.custom_3.enabled == true and dk.custom_3.pct == 25 and dk.custom_3.sp == 12 and dk.custom_3.re == 7 and dk.custom_3.rf == 42 and dk.hound_frenzy.enabled == false, tostring(dk.custom_3.recipe))
+  check("presets: values round trip", dk.custom_3.enabled == true and dk.custom_3.pct == 6 and dk.custom_3.sp == 12 and dk.custom_3.re == 7 and dk.custom_3.rf == 42 and dk.hound_frenzy.enabled == false, tostring(dk.custom_3.recipe))
 
   -- applying it to a different, messy setup gives exactly the saved setup
   local before = state()
@@ -1467,7 +1492,7 @@ do
   check("presets: wrong field count refused", bad(Presets.seal("RW1|x|1|custom_1~A~1~10")) ~= false)
   check("presets: non-numeric value refused", bad(Presets.seal("RW1|x|1|custom_1~A~1~lots~60~3~10~60~3 hounds")) ~= false)
   local wild = Presets.decode(Presets.seal("RW1|x|1|custom_1~A~1~99999~-5~500~0~99999~3 hounds"), Events, Groups)
-  check("presets: out-of-range numbers are clamped to the editor's limits", wild and wild.waves[1].pct == 1000 and wild.waves[1].cd == 0 and wild.waves[1].sp == 100 and wild.waves[1].re == 1 and wild.waves[1].rf == 3600, wild and wild.waves[1].pct)
+  check("presets: out-of-range numbers are clamped to the editor's limits (a chance is 0 to 10)", wild and wild.waves[1].pct == 10 and wild.waves[1].cd == 0 and wild.waves[1].sp == 100 and wild.waves[1].re == 1 and wild.waves[1].rf == 3600, wild and wild.waves[1].pct)
   local unk = Presets.decode(Presets.seal("RW1|x|2|custom_1~A~1~10~60~3~10~60~3 hounds|future_wave~B~1~10~60~3~10~60~2 hounds"), Events, Groups)
   check("presets: waves of an unknown key are skipped, the rest imported", unk and #unk.waves == 1 and unk.skipped == 1)
   check("presets: bad text never touches the settings (decode has no side effects)", state() == before)
@@ -1580,13 +1605,13 @@ do
   local function g(id) return store[id] end
   local function s(id, v) store[id] = v end
   Events.set_def(s, "custom_6", "Odd | Name ~ 50%", Groups.parse("3 crushers[purple+enraged]@2, 1 plague ogryn|chaos spawn"), Groups)
-  store.on_custom_6 = true; store.pct_custom_6 = 21; store.cd_custom_6 = 99; store.sp_custom_6 = 14; store.re_custom_6 = 8; store.rf_custom_6 = 44; store.dmin_custom_6 = 30; store.dmax_custom_6 = 110
+  store.on_custom_6 = true; store.pct_custom_6 = 7; store.cd_custom_6 = 99; store.sp_custom_6 = 14; store.re_custom_6 = 8; store.rf_custom_6 = 44; store.dmin_custom_6 = 30; store.dmax_custom_6 = 110
   local snap = Presets.capture_wave(g, "custom_6", Events, Groups)
-  check("wave share: capture_wave reads one wave", snap and snap.key == "custom_6" and snap.pct == 21 and snap.dmin == 30 and snap.dmax == 110)
+  check("wave share: capture_wave reads one wave", snap and snap.key == "custom_6" and snap.pct == 7 and snap.dmin == 30 and snap.dmax == 110)
   local text = Presets.encode_wave(snap)
   check("wave share: text is one line starting with RWW1|", text:sub(1, 5) == "RWW1|" and not text:find("[\r\n\t]") and select(2, text:gsub("|", "")) == 2, text:sub(1, 40))
   local wave, err = Presets.decode_wave(text, Events, Groups)
-  check("wave share: round trip keeps name (with | ~ %), values and recipe", wave and wave.name == "Odd | Name ~ 50%" and wave.pct == 21 and wave.cd == 99 and wave.sp == 14 and wave.re == 8 and wave.rf == 44 and wave.dmin == 30 and wave.dmax == 110 and wave.enabled == true and wave.recipe == snap.recipe, tostring(err))
+  check("wave share: round trip keeps name (with | ~ %), values and recipe", wave and wave.name == "Odd | Name ~ 50%" and wave.pct == 7 and wave.cd == 99 and wave.sp == 14 and wave.re == 8 and wave.rf == 44 and wave.dmin == 30 and wave.dmax == 110 and wave.enabled == true and wave.recipe == snap.recipe, tostring(err))
   -- applying it onto ANOTHER key replaces that wave completely
   local target = {}
   local function tg(id) return target[id] end
@@ -1594,7 +1619,7 @@ do
   Events.set_def(ts, "custom_2", "Old", Groups.parse("9 hounds"), Groups); target.pct_custom_2 = 5; target.dmin_custom_2 = 77
   Presets.apply_wave(wave, "custom_2", ts, Events, Groups)
   local now = Presets.capture_wave(tg, "custom_2", Events, Groups)
-  check("wave share: apply_wave onto another key replaces every setting of that wave", now.name == wave.name and now.recipe == wave.recipe and now.pct == 21 and now.dmin == 30 and now.dmax == 110 and now.key == "custom_2")
+  check("wave share: apply_wave onto another key replaces every setting of that wave", now.name == wave.name and now.recipe == wave.recipe and now.pct == 7 and now.dmin == 30 and now.dmax == 110 and now.key == "custom_2")
   check("wave share: the source wave is untouched by applying elsewhere", Presets.capture_wave(g, "custom_6", Events, Groups).name == "Odd | Name ~ 50%")
   -- a standard wave can be overwritten too, and a standard wave shared keeps its built-in name when unchanged
   local std = Presets.capture_wave(function() return nil end, "wave_small", Events, Groups)
@@ -1610,7 +1635,7 @@ do
   check("wave share: unknown enemy in the recipe refused with the parser's message", (bad(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~unicorns~0~0")) or ""):find("unicorns") ~= nil)
   check("wave share: damaged wave refused", bad(Presets.seal("RWW1|custom_1~A~1~10")) ~= false and bad(Presets.seal("RWW1|a|b")) ~= false)
   local w2 = Presets.decode_wave(Presets.seal("RWW1|custom_1~~1~99999~-5~500~0~99999~3 hounds~9999~-1"), Events, Groups)
-  check("wave share: numbers clamped to the editor's limits, empty name allowed", w2 and w2.pct == 1000 and w2.cd == 0 and w2.sp == 100 and w2.re == 1 and w2.rf == 3600 and w2.dmin == 200 and w2.dmax == 0 and w2.name == "")
+  check("wave share: numbers clamped to the editor's limits, empty name allowed", w2 and w2.pct == 10 and w2.cd == 0 and w2.sp == 100 and w2.re == 1 and w2.rf == 3600 and w2.dmin == 200 and w2.dmax == 0 and w2.name == "")
   local old = Presets.decode_wave(Presets.seal("RWW1|custom_1~Old~1~10~60~3~10~60~3 hounds"), Events, Groups)
   check("wave share: 9-field wave text (no distances) imports with distances 0", old and old.dmin == 0 and old.dmax == 0)
   -- a text with an unknown key still imports (the key is only the exporter's)
@@ -1756,44 +1781,26 @@ do
   -- whisper, look, rarity
   check("whisper: own text, else the suit's line; cleaned and cut at 40", Cards.whisper({ whisper = "It grows.", suit = "swarm" }) == "It grows." and Cards.whisper({ whisper = "", suit = "swarm" }) == "Too many to count." and Cards.whisper({ whisper = "   ", suit = "rage" }) == "Faster. Faster." and #Cards.clean_whisper(string.rep("ab ", 30)) <= 40 and Cards.clean_whisper("a\n\tb") == "a b" and Cards.whisper({ suit = "nope" }) == "Something is growing.")
   check("look: whisper for every murmur card, rot for the rest, an explicit look wins, junk ignored", Cards.look({ suit = "murmur" }) == "whisper" and Cards.look({ suit = "rage" }) == "rot" and Cards.look({ suit = "blight", look = "vial" }) == "vial" and Cards.look({ suit = "murmur", look = "rot" }) == "rot" and Cards.look({ suit = "blight", look = "nonsense" }) == "rot")
-  check("levels: the heaviest card is 10, the lightest 1, in between in proportion (weights 18, 10, 14)", Cards.level(18, 10, 18) == 10 and Cards.level(10, 10, 18) == 1 and Cards.level(14, 10, 18) == 6, Cards.level(14, 10, 18))
-check("levels: weights 1 to 10 are the levels 1 to 10", (function() for w = 1, 10 do if Cards.level(w, 1, 10) ~= w then return false end end return true end)())
-check("levels: when every card weighs the same all are level 10; a weight of 0 is level 0 (never drawn)", Cards.level(5, 5, 5) == 10 and Cards.level(0, 1, 10) == 0 and Cards.level(-3, 1, 10) == 0)
-check("levels: without a deck the weight itself is the level (1 to 10)", Cards.level(4, nil, nil) == 4 and Cards.level(40, nil, nil) == 10 and Cards.level(0.2, nil, nil) == 1)
-check("levels: a card outside the range is clamped (a disabled card heavier than the draw is 10)", Cards.level(99, 1, 10) == 10 and Cards.level(1, 5, 10) == 1)
-check("rare: the two lowest levels of a draw whose weights differ", Cards.is_rare_level(1, 1, 10) and Cards.is_rare_level(2, 1, 10) and not Cards.is_rare_level(3, 1, 10) and not Cards.is_rare_level(1, 5, 5) and not Cards.is_rare_level(1, nil, nil) and not Cards.is_rare_level(0, 1, 10))
-check("weight for a level: the others range 10..18 -> level 10 is 18, level 1 is 10, level 6 is 14", Cards.weight_for_level(10, 10, 18) == 18 and Cards.weight_for_level(1, 10, 18) == 10 and Cards.weight_for_level(6, 10, 18) == 14)
-check("weight for a level: with others from 1 to 10 the weight is the level", (function() for k = 1, 10 do if Cards.weight_for_level(k, 1, 10) ~= k then return false end end return true end)())
-check("weight for a level: the result shows the level asked for (wide ranges, every level)", (function()
-  for _, range in ipairs({ { 1, 10 }, { 5, 100 }, { 20, 300 }, { 1, 1000 } }) do
-    for k = 1, 10 do
-      local w = Cards.weight_for_level(k, range[1], range[2])
-      if Cards.level(w, range[1], range[2]) ~= k then return false end
-    end
-  end
-  return true
-end)())
-check("weight for a level: a range of 8 (10..18) has only nine whole weights: every level is within one of the asked one, the ends are exact", (function()
-  for k = 1, 10 do
-    local w = Cards.weight_for_level(k, 10, 18)
-    if math.abs(Cards.level(w, 10, 18) - k) > 1 then return false end
-  end
-  return Cards.level(Cards.weight_for_level(1, 10, 18), 10, 18) == 1 and Cards.level(Cards.weight_for_level(10, 10, 18), 10, 18) == 10
-end)())
-check("weight for a level: a narrow range cannot show every level, but never fails (1..4)", (function()
-  for k = 1, 10 do local w = Cards.weight_for_level(k, 1, 4); if w < 1 or w > 4 then return false end end
-  return Cards.weight_for_level(1, 1, 4) == 1 and Cards.weight_for_level(10, 1, 4) == 4
-end)())
-check("weight for a level: others that all weigh 5: level 10 matches them, lower levels are that fraction (at least 1)", Cards.weight_for_level(10, 5, 5) == 5 and Cards.weight_for_level(1, 5, 5) == 1 and Cards.weight_for_level(5, 5, 5) == 3 and Cards.weight_for_level(7, 5, 5) == 4)
-check("weight for a level: no other card in the draw: the level is the weight", Cards.weight_for_level(7, nil, nil) == 7 and Cards.weight_for_level(99, nil, nil) == 10 and Cards.weight_for_level(0, nil, nil) == 1)
-check("describe: with a range the card has its level and a relative rarity, without one the old absolute rule", (function()
-  local g = { kind = function() return "normal" end, MODIFIERS = {} }
-  local card = Cards.describe({ key = "x", name = "X", parts = {}, pct = 1, cooldown = 120, enabled = true }, g, nil, { lo = 1, hi = 10 })
-  local plain = Cards.describe({ key = "x", name = "X", parts = {}, pct = 1, cooldown = 120, enabled = true }, g)
-  local flat = Cards.describe({ key = "x", name = "X", parts = {}, pct = 1, cooldown = 120, enabled = true }, g, nil, { lo = 7, hi = 7 })
-  return card.level == 1 and card.rare == true and plain.rare == true and flat.rare == false and flat.level == 10
-end)())
-check("rare: weight 1-2 is rare, 0 and 3+ are not", Cards.is_rare(1) and Cards.is_rare(2) and not Cards.is_rare(3) and not Cards.is_rare(0) and not Cards.is_rare(nil))
+  check("chance: the pips are the number itself, 1 to 10 (a fraction rounds, 0 or less is none, above 10 is 10)", (function() for w = 1, 10 do if Cards.level(w) ~= w then return false end end return true end)() and Cards.level(0) == 0 and Cards.level(-3) == 0 and Cards.level(4.4) == 4 and Cards.level(4.5) == 5 and Cards.level(0.2) == 1 and Cards.level(40) == 10 and Cards.level(nil) == 0)
+  check("chance: chance 2 shows 2 pips, 3 shows 3, 4 shows 4 and 5 shows 5 (never one fewer, whatever the other cards have)", Cards.level(2, 2, 5) == 2 and Cards.level(3, 2, 5) == 3 and Cards.level(4, 2, 5) == 4 and Cards.level(5, 2, 5) == 5)
+  check("chance: rare is a chance of 1 or 2", Cards.is_rare_level(1) and Cards.is_rare_level(2) and not Cards.is_rare_level(3) and not Cards.is_rare_level(0) and not Cards.is_rare_level(nil))
+  check("chance: a click on a pip sets that number (kept between 1 and 10)", (function() for k = 1, 10 do if Cards.weight_for_level(k) ~= k then return false end end return true end)() and Cards.weight_for_level(0) == 1 and Cards.weight_for_level(99) == 10 and Cards.weight_for_level(nil) == 1)
+  check("chance: the most a chance can be is 10 (Cards.MAX_CHANCE, Events.MAX_PCT)", Cards.MAX_CHANCE == 10 and Events.MAX_PCT == 10)
+  check("chance: the share is the chance over the total of the cards that can be drawn; none when it cannot be drawn", math.abs(Cards.share(2, 10) - 20) < 1e-9 and math.abs(Cards.share(10, 10) - 100) < 1e-9 and Cards.share(0, 10) == nil and Cards.share(3, 0) == nil and Cards.share(nil, 10) == nil)
+  check("chance: the share grows when other cards leave the draw (a resting card): 3 of 12 is 25 percent, 3 of 9 is 33", math.abs(Cards.share(3, 12) - 25) < 1e-9 and math.abs(Cards.share(3, 9) - 100 / 3) < 1e-9)
+  check("describe: the card has its chance as its level and is rare at 1 or 2", (function()
+    local g = { kind = function() return "normal" end, MODIFIERS = {} }
+    local one = Cards.describe({ key = "x", name = "X", parts = {}, pct = 1, cooldown = 120, enabled = true }, g)
+    local two = Cards.describe({ key = "x", name = "X", parts = {}, pct = 2, cooldown = 120, enabled = true }, g)
+    local five = Cards.describe({ key = "x", name = "X", parts = {}, pct = 5, cooldown = 120, enabled = true }, g)
+    return one.level == 1 and one.rare == true and two.level == 2 and two.rare == true and five.level == 5 and five.rare == false
+  end)())
+  check("rare: weight 1-2 is rare, 0 and 3+ are not", Cards.is_rare(1) and Cards.is_rare(2) and not Cards.is_rare(3) and not Cards.is_rare(0) and not Cards.is_rare(nil))
+  check("events: a stored chance above 10 reads as 10, below 0 as 0, nothing stored is the card's default", (function()
+    local st = { pct_wave_small = 400, pct_wave_medium = -5, pct_custom_1 = 7 }
+    local g = function(id) return st[id] end
+    return Events.get("wave_small", g, Groups).pct == 10 and Events.get("wave_medium", g, Groups).pct == 0 and Events.get("wave_large", g, Groups).pct == 4 and Events.get("custom_1", g, Groups).pct == 7 and Events.get("custom_2", g, Groups).pct == 10
+  end)())
   check("suit: an unknown suit falls back to plague", Cards.normalize_suit("nonsense") == "plague" and Cards.normalize_suit(nil) == "plague" and Cards.normalize_suit("rage") == "rage")
   -- rot formulas of the reference page
   check("rot: strength is 0 at 30 s, 1 at the longest cooldown, clamped, and grows with the cooldown", Cards.rot_strength(30, 600) == 0 and math.abs(Cards.rot_strength(600, 600) - 1) < 1e-9 and Cards.rot_strength(5000, 600) == 1 and Cards.rot_strength(120, 600) > 0.4 and Cards.rot_strength(120, 600) < 0.5 and Cards.rot_strength(240, 600) > Cards.rot_strength(120, 600), Cards.rot_strength(120, 600))
@@ -2254,7 +2261,7 @@ do
     if bad then bare[#bare + 1] = key end
   end
   check("localization: no stray % in any string (DMF formats every string)", #bare == 0, table.concat(bare, ","))
-  check("localization: 'count' words are now 'weight'", loc.col_count.en == "Weight" and loc.popup_count_title.en == "Weight of %s")
+  check("localization: the enemy count column is the 'Brood' (it was 'Weight', which is not what it is: the card's chance has its own name)", loc.col_count.en == "Brood" and loc.popup_count_title.en == "Brood of %s" and loc.col_chance.en == "Chance" and loc.popup_chance_title.en:find("0 to 10", 1, true) ~= nil)
   check("localization: multiplier and search strings exist", loc.mult_normal and loc.mult_boss and loc.mult_special and loc.group_multipliers and loc.btn_search and loc.popup_search_hint and loc.picker_status and loc.unit_percent.en == "pct")
   -- DMF option rows: the title column holds about 27 characters on one line, the value column about 8
   -- (value + unit, e.g. "1000 pct"); longer text wraps into several lines and overlaps the next row.

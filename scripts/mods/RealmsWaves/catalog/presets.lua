@@ -49,7 +49,7 @@ local function clean_whisper(text)
 end
 
 local RANGES = {
-	pct = { 0, 1000 },
+	pct = { 0, 10 },
 	cd = { 0, 3600 },
 	sp = { 0, 100 },
 	re = { 1, 600 },

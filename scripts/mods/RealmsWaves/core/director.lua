@@ -292,22 +292,13 @@ local start_tarot_cycle
 -- Cards that can be dealt now: in the draw (enabled, with enemies, weight above 0, not timed or deleted) and off
 -- cooldown. A card that was drawn stays out of EVERY draw for its full cooldown (no fallback to cooling cards).
 -- Returns the ready entries, the size of the whole pool and the number of cards that are cooling down.
--- the lightest and heaviest weight of the whole pool (cards that are cooling down count too): a card's rarity is
--- relative to it (Cards.level / Cards.is_rare_level)
-local pool_range = { lo = nil, hi = nil }
-
 local function eligible_cards()
 	local pool = Events.build_pool(get_setting, Groups, Director.extra_waves())
 	local ready, cooling = {}, 0
 
-	pool_range.lo, pool_range.hi = nil, nil
-
 	for i = 1, #pool do
 		local entry = pool[i]
 		local since = last_fired[entry.key]
-
-		pool_range.lo = pool_range.lo and math.min(pool_range.lo, entry.raw) or entry.raw
-		pool_range.hi = pool_range.hi and math.max(pool_range.hi, entry.raw) or entry.raw
 
 		if since == nil or cd_clock - since >= entry.cooldown then
 			ready[#ready + 1] = entry
@@ -325,7 +316,7 @@ local function card_of(entry)
 	local card = Cards.describe({
 		key = entry.key, name = entry.name, parts = def.parts, suit = def.suit, threat_override = def.threat_override,
 		whisper = def.whisper, look = def.look, pct = entry.raw, cooldown = entry.cooldown, enabled = true,
-	}, Groups, nil, pool_range)
+	}, Groups, nil)
 
 	card.entry = entry
 
