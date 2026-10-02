@@ -66,7 +66,7 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] 3. The tile at any scale (`blueprints.tile(node, k)`, metrics in the content; offline only); the stage plate comes with the Cauldron
 - [x] 4. The Cauldron: rows, shelf, spawn block, action bar, stage with the 1.4 times card, quick face, tabs, cooldown preview (offline only)
 - [x] 5. The Mirror: suit plates, threat diamonds and sum, whisper field with a live box, cooldown stepper, three look plates, Reset face, the shared stage, "In the hand" (offline only; the look plates' pictures are static)
-- [ ] 6. Preview tool for any screen, tests, docs
+- [x] 6. Preview tool for any screen (`tools/ui_preview.py`), tests (editor 623, logic 0 failures, entry 14, hud 179), docs (CHANGELOG, 04, 05, 06, 07, 08, README, CLAUDE.md)
 - [ ] In-game verification (matrix rows from 97 in doc 06)
 
 Deviations from the original plan (all deliberate):
