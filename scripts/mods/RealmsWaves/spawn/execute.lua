@@ -13,7 +13,7 @@ local FixedFrame = require("scripts/utilities/fixed_frame")
 
 local Execute = {}
 
-local Positions, Bypass, Groups, Tuning
+local Positions, Bypass, Groups, Tuning, Appearance
 
 local FEED_INTERVAL = 0.15
 local FEED_BATCH = 2
@@ -71,6 +71,7 @@ Execute.init = function (deps)
 	Bypass = deps.bypass
 	Groups = deps.groups
 	Tuning = deps.tuning
+	Appearance = deps.appearance
 end
 
 local warned = {}
@@ -317,7 +318,7 @@ local function expand(parts, field, picks)
 		local amount = scaled_amount(base, percent_for(part))
 
 		for _ = 1, amount do
-			queue[#queue + 1] = { breed = breed_of(part, picks), mods = part.mods, tune = part.tune }
+			queue[#queue + 1] = { breed = breed_of(part, picks), mods = part.mods, tune = part.tune, appearance = part.appearance }
 		end
 	end
 
@@ -577,7 +578,7 @@ local function needs_shield_init(breed_name)
 end
 
 -- Returns true, or false and a reason. `tune` = the group's custom mods (Groups.TUNE, percent), see spawn/tuning.lua.
-local function spawn_one(breed_name, position, target_unit, mod_ids, tune)
+local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appearance)
 	local spawn_manager = Managers.state.minion_spawn
 	local side_system = Managers.state.extension:system("side_system")
 	local villains = side_system and side_system:get_side_from_name("villains")
@@ -622,6 +623,7 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune)
 	if tune and unit and Tuning then
 		Tuning.apply(unit, tune, breed_name)
 	end
+	if appearance and unit and Appearance then Appearance.apply(unit, appearance, breed_name) end
 
 	return true
 end
@@ -736,7 +738,7 @@ Execute.update = function (dt, paused)
 		local ok, why
 
 		if position then
-			ok, why = spawn_one(entry.breed, position, target, entry.mods, entry.tune)
+			ok, why = spawn_one(entry.breed, position, target, entry.mods, entry.tune, entry.appearance)
 		end
 
 		if ok then

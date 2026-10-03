@@ -19,6 +19,7 @@ local blueprints = mod:io_dofile(BASE .. "/ui/wave_editor_blueprints")
 local DeckView = mod:io_dofile(BASE .. "/ui/wave_editor_deck")
 local FaceView = mod:io_dofile(BASE .. "/ui/wave_editor_face")
 local TuneView = mod:io_dofile(BASE .. "/ui/wave_editor_tune")
+local ColourView = mod:io_dofile(BASE .. "/ui/wave_editor_appearance")
 local WorkshopView = mod:io_dofile(BASE .. "/ui/wave_editor_workshop")
 local WB = mod:io_dofile(BASE .. "/ui/workshop_blueprints")
 local Workshop = mod:io_dofile(BASE .. "/ui/workshop")
@@ -41,6 +42,7 @@ local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
 -- role: "primary" (the action a screen is for), "danger" (resets and removals), nothing = standard; pip = a toggle (a diamond
 -- that is lit while it is on). See Components.button.
 local BUTTONS = {
+	{ name = "btn_appearance", width = 400, cb = "cb_appearance" },
 	{ name = "btn_back", width = 180, cb = "cb_back" },
 	{ name = "btn_search", width = 420, cb = "cb_search" },
 	{ name = "btn_stay", width = 380, cb = "cb_toggle_stay", pip = true },
@@ -97,6 +99,7 @@ local CARD_SCREEN_TITLE = {
 	picker = "view_title_cauldron",
 	mods = "view_title_cauldron",
 	tune = "view_title_cauldron",
+	appearance = "view_title_cauldron",
 	face = "view_title_mirror",
 }
 
@@ -141,6 +144,7 @@ local function copy_parts(parts)
 			one_of = part.one_of and { unpack(part.one_of) } or nil,
 			mods = part.mods and { unpack(part.mods) } or nil,
 			tune = mod.rw.groups.copy_tune(part.tune),
+			appearance = mod.rw.groups.Appearance.copy(part.appearance),
 		}
 	end
 
@@ -197,6 +201,7 @@ RealmsWavesView.on_enter = function (self)
 end
 
 RealmsWavesView.on_exit = function (self)
+	if self._colour_drag then self._colour_drag = nil; self:_save() end
 	self:_end_drag()
 	self._screen = "list"
 	Popup.cancel(self)
@@ -218,6 +223,7 @@ RealmsWavesView.update = function (self, dt, t, input_service)
 	end
 
 	Popup.update(self, input_service)
+	self:_update_colour(input_service)
 
 	-- a pending "Sure?" (second click to delete/reset) runs out after a few seconds
 	self._t = t or self._t or 0
@@ -326,6 +332,7 @@ end
 -- that name that builds the static widgets from definitions.widget_definitions
 -- (and BaseView calls it before on_enter). Overriding it left title_text etc. nil.
 RealmsWavesView._create_editor_widgets = function (self)
+	self:_create_colour_callbacks()
 	for i = 1, LIST_CAPACITY do
 		local name = ROW_NODE_PREFIX .. i
 		local widget = self:_create_dynamic_widget(name, blueprints.row(name))
@@ -521,6 +528,8 @@ RealmsWavesView._source = function (self)
 		return mod.rw.groups.TUNE
 	elseif self._screen == "face" then
 		return {} -- (the Mirror has no table)
+	elseif self._screen == "appearance" then
+		return {}
 	elseif self._screen == "presets" then
 		return self._preset_slots
 	elseif self._screen == "preset_view" then
@@ -690,10 +699,17 @@ end
 
 RealmsWavesView._save = function (self)
 	local rw = mod.rw
+	local edited = self._parts[self._part_index or 0]
+	local edited_key = edited and rw.groups.part_key(edited)
 
 	rw.events.set_def(set_setting, self._key, self._wave.name, self._parts, rw.groups)
 	self:_reload()
 	self._parts = copy_parts(self._wave.parts)
+	if edited_key then
+		for i, part in ipairs(self._parts) do
+			if rw.groups.part_key(part) == edited_key then self._part_index = i; break end
+		end
+	end
 	self:_apply_screen(true)
 end
 
@@ -794,6 +810,10 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		widgets.description_text.content.description_text = mod:localize("view_desc_face", self._wave.name)
 		widgets.bottom_title.content.bottom_title = ""
 		widgets.hint_text.content.hint_text = ""
+	elseif screen == "appearance" then
+		local part = self._parts[self._part_index]
+		widgets.description_text.content.description_text = mod:localize("view_desc_appearance", part and rw.groups.describe_part(part) or "")
+		widgets.bottom_title.content.bottom_title = mod:localize("appearance_strength_info")
 	elseif screen == "tune" then
 		local part = self._parts[self._part_index]
 
@@ -840,6 +860,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 
 	widgets.hint_text.visible = false
 	widgets.help_text.content.help_text = mod:localize(help_keys[screen] or "hint_list")
+	if screen == "appearance" then widgets.help_text.content.help_text = mod:localize("help_appearance") end
 	widgets.btn_help.visible = true
 	widgets.btn_help.content.hotspot_text = "?"
 
@@ -852,12 +873,14 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	widgets.list_panel.visible = not deck_screen and not cauldron and screen ~= "face"
 	widgets.list_header.visible = not deck_screen and not cauldron and screen ~= "face"
 	widgets.bottom_panel.visible = not cauldron and screen ~= "face"
+	if screen == "appearance" then widgets.list_header.visible = false end
 
 	-- Back is at the foot of every screen of a card (its enemies, the picker, Mods, Custom, its face) in the same place, with the
 	-- picker's buttons beside it; the other screens keep it at 125, 800. Never on a spot where the screen it returns to has a button.
 	local card_screen = CARD_SCREEN_TITLE[screen] ~= nil
 
 	self:_set_scenegraph_position("btn_back", card_screen and Workshop.LEFT_X or 125, card_screen and under.actions_y or 800, 2)
+	self:_set_scenegraph_position("btn_appearance", Workshop.LEFT_X + 200, under.actions_y, 2)
 	self:_set_scenegraph_position("btn_search", screen == "picker" and 297 or 325, screen == "picker" and under.actions_y or 800, 2)
 	self:_set_scenegraph_position("btn_stay", screen == "picker" and 729 or 765, screen == "picker" and under.actions_y or 800, 2)
 	self:_set_scenegraph_position("btn_random", screen == "picker" and 1121 or 1165, screen == "picker" and under.actions_y or 800, 2)
@@ -936,8 +959,8 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 
 	self:_set_scenegraph_position("btn_thr_auto", thr_x, thr_y, 2)
 	self:_set_scenegraph_position("btn_thr_hand", thr_x + 76, thr_y, 2)
-	widgets.rw_scroll_up.visible = not mirror
-	widgets.rw_scroll_down.visible = not mirror
+	widgets.rw_scroll_up.visible = not mirror and screen ~= "appearance"
+	widgets.rw_scroll_down.visible = not mirror and screen ~= "appearance"
 	widgets.bottom_title.visible = not mirror
 	widgets.btn_delete.visible = detail
 	widgets.btn_delete.content.hotspot_text = mod:localize(self._confirm and self._wave and self._confirm.key == self._wave.key and "btn_sure" or "btn_delete")
@@ -1261,6 +1284,7 @@ RealmsWavesView._set_interaction_enabled = function (self)
 	if down then
 		down.content.hotspot.disabled = not rows_enabled or self._offset >= max_offset
 	end
+	self:_refresh_colour()
 end
 
 -- ------------------------------------------------------------------- callbacks
@@ -1305,6 +1329,8 @@ TuneView.install(RealmsWavesView, {
 	Components = Components,
 })
 
+ColourView.install(RealmsWavesView, { guarded = guarded, Popup = Popup })
+
 WorkshopView.install(RealmsWavesView, {
 	Deck = Deck,
 	Workshop = Workshop,
@@ -1324,10 +1350,14 @@ RealmsWavesView.cb_scroll = guarded(function (self, direction)
 end)
 
 RealmsWavesView.cb_back = guarded(function (self)
+	if self._colour_menu then self._colour_menu = false; self:_refresh_colour(); return end
+	if self._colour_drag then self._colour_drag = nil; self:_save() end
 	self._random_mode = false
 	self._random_pick = {}
 
-	if self._screen == "preset_view" then
+	if self._screen == "appearance" then
+		self._screen = "tune"
+	elseif self._screen == "preset_view" then
 		self._screen = "presets"
 		self:_reload_presets()
 	elseif self._screen == "picker" or self._screen == "mods" or self._screen == "face" or self._screen == "tune" then
@@ -1683,7 +1713,7 @@ RealmsWavesView._add_breed = function (self, breed)
 	local added, added_index
 
 	for i = 1, #self._parts do
-		if self._parts[i].breed == breed and not self._parts[i].mods and not self._parts[i].tune then
+		if self._parts[i].breed == breed and not self._parts[i].mods and not self._parts[i].tune and not self._parts[i].appearance then
 			self._parts[i].count = math.min(self._parts[i].count + 1, groups.MAX_BREED_COUNT)
 			added = self._parts[i].count
 			added_index = i

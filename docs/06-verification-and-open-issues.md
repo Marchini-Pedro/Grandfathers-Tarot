@@ -1,5 +1,25 @@
 # 06. Verification, risks, open issues
 
+## 2026-10-03 — Enemy colour experiments (offline; feature branch)
+
+Implemented per-group ARGB/method selection, persisted recipes/repeats, natural
+stim behaviour, visual-only stimm/explicit-slot tint and local outlines in the
+isolated `feature/enemy-appearance` worktree. Surface/private patch choices
+display prerequisites and perform no operation. Alpha is tint strength; native
+full-body/black surface coverage is not claimed. See [the live checklist and
+restoration limits](enemy-appearance.md).
+
+All baseline checks pass: 33 compiled files, logic 828, editor 694, entry 45,
+HUD 179 assertions; documentation sizes pass. The focused appearance harness
+adds 71 assertions (52 schema/runtime/protocol, 13 editor, six real
+entry/executor lifecycle) and reuses the editor/entry regressions. It passes on
+Lua 5.5 and LuaJIT 2.1. Real-English slider/dropdown previews were rendered from
+the real widgets and visually inspected; the zero-fill render failure was fixed.
+
+No game installation/session, shader/assets, native material coverage, live
+host/client, frame-time/RAM or user acceptance checks have run. The original
+CI checkout and installed mods remain untouched. No feature merge into `main`.
+
 ## Test matrix
 | # | Test | Expect | Status |
 |---|---|---|---|

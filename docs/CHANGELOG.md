@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-03 - Add per-group enemy colour experiments
+- Add ARGB sliders/numeric entry/swatch and a method dropdown under Custom; preserve appearance in recipes, grouping, copies and repeated spawns.
+- Implement natural stimm using supported vanilla actions/buffs, visual-only applied/explicit-slot stimm and private-map local outlines. Surface/private shader choices display their prerequisites and perform no operation.
+- Add optional host-authorized appearance replication with capability, mission token, late-join snapshots, bounded queues/renewal and cleanup. Keep HUD protocol/version 2 / 2.0.0. Preserve concurrent CI work in a separate worktree; native acceptance remains pending.
+- Document the implementation, advanced gates and restoration limits; preserve the earlier read-only research reports. Baseline regression checks pass, with the RPC inventory assertion updated for the appearance endpoint.
+
 ## 2026-10-03 - Synchronize remediation with the merged audit brief
 - Merge `main` at `44e536f` into the existing PR #4 branch. Resolve the three documentation conflicts by retaining completed audit/remediation status, history and links.
 - Update current PR status without changing runtime/tests or the frozen audit baseline. All six required checks pass on Lua 5.5 and LuaJIT 2.1 (1,746 assertions each); live acceptance remains pending.

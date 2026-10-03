@@ -1,5 +1,21 @@
 # 05. Implementation plan and status
 
+## Enemy appearance experiments — `feature/enemy-appearance` (2026-10-03)
+
+- [x] Isolate the feature in its own worktree from up-to-date `main` (`6d5756d`); preserve the CI/coverage checkout.
+- [x] Per-group method dropdown, ARGB sliders, numeric entry and input-colour swatch under Custom.
+- [x] Recipe/preset persistence and group identity; carry selected appearance through initial and repeated spawns.
+- [x] Natural stimm with existing supported actions and gameplay buffs; applied/explicit-slot visual-only stimm and private-map local outline.
+- [x] Show surface/private-shader prerequisites honestly; selecting them applies no guessed effect.
+- [x] Optional host-authorized Realms transport, mission tokens, bounded pending IDs, late-join snapshots, renewal and cleanup/retirement.
+- [x] Update design, user guidance and reusable research references in this worktree.
+- [ ] In-game acceptance: visuals/LOD/equipment, natural action/buffs, tags/other mods, cleanup, host/client joins/leave/reload and performance.
+- [ ] Verify a surface colour property/type/default/coverage before implementing the surface method.
+- [ ] Build compatible private assets and verify isolation/restoration before implementing shader/material patching.
+- [ ] Merge only after the user confirms the feature works in game.
+
+Details and live checklist: [Enemy colour experiments](enemy-appearance.md).
+
 Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\ayko4\.claude\plans\pasted-content-id-fdf1-i-have-valiant-parasol.md` (may not persist; this file is the durable one).
 
 ## Checklist

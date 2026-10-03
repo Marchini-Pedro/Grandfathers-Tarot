@@ -1,5 +1,39 @@
 # Learnings, dead ends and open gaps
 
+## 2026-10-03 — Enemy colour implementation
+
+- Worktree `feature/enemy-appearance` avoids touching the concurrent CI branch,
+  its Python helper/refactor changes or installed mods. Copy the earlier research
+  into this worktree rather than altering the original untracked reports.
+- The known stimm/outline APIs are RGB. Keep an explicit A-as-strength label;
+  stimm zero is the vanilla reset, so a black swatch is not a black surface.
+- Natural stimm needs both a breed `use_stim` action and a writable blackboard
+  stim component. A keyword alone does not prove that an arbitrary breed can
+  perform the animation. The normal buff/particles retain their gameplay effects.
+- Source reads found no verified generic material getter/clone or colour key
+  for all enemy surfaces. Surface/private patch choices remain prerequisite
+  entries, not successful no-op substitutes for those methods.
+- A direct setter's preceding value is unknown without engine getter support.
+  Cleanup can restore the current tracked buff vector or zero; unrelated direct
+  writes and actual private material instances still require game investigation.
+- Recipe merging can shorten/reorder the edited parts. Preserve the selected
+  group by its canonical key, otherwise a second identical colour could leave
+  the editor pointing past the merged list.
+- Native spawns/loadouts and mod RPCs can arrive in either order. Bound pending
+  IDs and retry readiness; validate the unit breed and reset token. Refresh the
+  normal handshake after host entry/reload/re-enable. Lease remote colours so a
+  vanished host cannot leave visual ownership indefinitely.
+- A synchronous send can tear down owners. Build a bounded snapshot before
+  sending and stop later batches if its generation changes.
+- First regression run: logic's exact RPC-count assertion still expected six;
+  update it for the single new appearance endpoint. This was the sole failure.
+- First render attempt: a zero-width G fill caused Pillow's rectangle assertion.
+  Hiding the fill at zero fixes it. The first visibility guard read a missing
+  style `size` in the engine-rule test; use a content flag instead. Regenerated
+  real-English panel/dropdown previews were visually inspected without clipping.
+
+Current implementation, limits and live checklist: [enemy-appearance.md](enemy-appearance.md).
+
 The journal the user asked for (2026-10-01): every attempt and error, discovery, actionable gap and insight, so a later session does not repeat a dead end. Newest entries first inside each section. The CHANGELOG says WHAT changed per commit; the results log in `06` says what was tested; this file says what we LEARNED and what is still missing. Keep it under 100 KB (`python tools/check_docs.py`); at 100 KB split by section into `docs/learnings/` and keep this file as the index.
 
 Entry format: `date, short title: what happened / what was found. Evidence (file:line or test). Consequence.`

@@ -12,6 +12,7 @@
 -- parts = { { breed = "name", count = n, rep = r, mods = { ids }, tune = { health = 150, ... } }  or
 --           { one_of = { "a", "b" }, ... }, ... }
 local Groups = {}
+Groups.Appearance = get_mod("RealmsWaves"):io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/appearance")
 
 Groups.MAX_PARTS = 12
 Groups.MAX_BREED_COUNT = 60
@@ -687,9 +688,11 @@ local function part_key(part)
 	if part.tune then
 		key = key .. "{" .. Groups.tune_recipe(part.tune) .. "}"
 	end
+	key = key .. Groups.Appearance.recipe(part.appearance)
 
 	return key
 end
+Groups.part_key = part_key
 
 -- Splits "enraged|garden" into canonical, de-duplicated modifier ids (in catalog order).
 local function parse_modifiers(inner)
@@ -794,6 +797,15 @@ Groups.parse = function (recipe)
 				end
 			end
 
+			local appearance
+			local without_appearance, appearance_text = name:match("^(.-)%s*<(.-)>%s*$")
+			if without_appearance then
+				local appearance_error
+				appearance, appearance_error = Groups.Appearance.parse(appearance_text)
+				if appearance_error then return nil, appearance_error end
+				name = without_appearance
+			end
+
 			-- custom mods "{health=150}" come after the modifiers: "crusher[enraged]{health=150}"
 			local tune
 			local without_tune, tune_inner = name:match("^(.-)%s*{(.-)}%s*$")
@@ -858,6 +870,7 @@ Groups.parse = function (recipe)
 			if new_part then
 				new_part.mods = mods
 				new_part.tune = tune
+				new_part.appearance = appearance
 
 				local key = part_key(new_part)
 				local part = by_key[key]
@@ -934,6 +947,7 @@ Groups.to_recipe = function (parts)
 			field = field .. "{" .. tune_text .. "}"
 		end
 
+		field = field .. Groups.Appearance.recipe(part.appearance)
 		if part.rep_same then
 			field = field .. "@="
 		elseif (part.rep or 0) > 0 then
@@ -984,12 +998,13 @@ Groups.describe_part_pieces = function (part)
 		modifiers[i] = { id = part.mods[i], name = modifier and modifier.name or tostring(part.mods[i]) }
 	end
 
-	local tail = ""
+	local appearance = Groups.Appearance.copy(part.appearance)
+	local tail = appearance and appearance.method ~= "none" and (" (" .. Groups.Appearance.method(appearance.method).name .. " #" .. Groups.Appearance.hex(appearance) .. ")") or ""
 
 	if part.rep_same then
-		tail = " (same amount on every repeat)"
+		tail = tail .. " (same amount on every repeat)"
 	elseif (part.rep or 0) > 0 then
-		tail = string.format(" (+%d per repeat)", part.rep)
+		tail = tail .. string.format(" (+%d per repeat)", part.rep)
 	end
 
 	return head, modifiers, tail
