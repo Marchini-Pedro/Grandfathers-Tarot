@@ -18,8 +18,11 @@ Feature behaviour and acceptance: [enemy-appearance.md](enemy-appearance.md).
 
 The [first hosted PR #7 run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37155162068)
 at `0103281` passes both runtimes. Downloaded reports confirm 1,916 assertions
-each, Lua 5.5 81.80% / LuaJIT 2.1 78.54% and no coverage failures. PR #7 remains
-open for in-game acceptance; this publication record changes documentation only.
+each, Lua 5.5 81.80% / LuaJIT 2.1 78.54% and no coverage failures. The
+[final PR run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37155424490)
+also passes both runtimes at `4782cfb`. GitHub records PR #7 merged by
+`EduardoKenji` at `c7cf1da`; in-game acceptance remains pending. Updating this
+publication/merge record changes documentation only.
 
 Reviewed 2026-10-03 from merged `main` at `6d5756d`, after fetching origin.
 The CI implementation was merged into `main` at `03785e3` through

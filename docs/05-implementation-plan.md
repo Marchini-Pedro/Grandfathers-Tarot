@@ -17,7 +17,7 @@
 - [ ] In-game acceptance: visuals/LOD/equipment, natural action/buffs, tags/other mods, cleanup, host/client joins/leave/reload and performance.
 - [ ] Verify a surface colour property/type/default/coverage before implementing the surface method.
 - [ ] Build compatible private assets and verify isolation/restoration before implementing shader/material patching.
-- [ ] Merge only after the user confirms the feature works in game.
+- [x] GitHub records PR #7 merged by `EduardoKenji` at `c7cf1da`; record the actual merge while keeping the unverified in-game checks above open.
 
 Details and live checklist: [Enemy colour experiments](enemy-appearance.md).
 

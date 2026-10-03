@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 - Record PR #7 merge status
+- Record GitHub's PR #7 merge by `EduardoKenji` at `c7cf1da` and refresh local main after final PR/push checks pass on Lua 5.5 and LuaJIT 2.1.
+- Correct current open/unmerged guidance in the README, index, method guide, plan and CI log; preserve historical publication records and pending native acceptance. This is a documentation-only follow-up with size/whitespace checks; runtime, tests and workflow match the verified PR head.
+
 ## 2026-10-03 - Record enemy appearance PR publication
 - Push `feature/enemy-appearance` and open [PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7) against main after PRs #5 and #6, as requested. Record the publication in the README, index, method guide, plan and verification log.
 - Verify the first hosted PR run at `0103281` and download reports: 1,916 assertions per runtime, 81.80% Lua 5.5 / 78.54% LuaJIT source-line scores and no coverage failures; the results match local runs.

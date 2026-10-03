@@ -1,5 +1,16 @@
 # 06. Verification, risks, open issues
 
+## 2026-10-03 - Record PR #7 merge and refresh main
+
+The [final hosted PR run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37155424490)
+at `4782cfb` and its push run pass both runtimes. GitHub then records PR #7
+merged by `EduardoKenji` at `c7cf1da`, 21:35:06 UTC. Fetch and fast-forward
+local main in its dedicated worktree; preserve the other agent's checkout.
+Update current merge status in the README, index, method guide, plan and CI log.
+The runtime/tests/workflow match the verified PR head; this follow-up changes
+documentation only, checked with the size checker and `git diff --check`.
+Native rendering, multiplayer, performance and installation remain unverified.
+
 ## 2026-10-03 - Publish enemy appearance PR #7
 
 Push `feature/enemy-appearance` at `0103281` and open

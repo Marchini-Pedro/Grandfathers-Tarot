@@ -1,5 +1,14 @@
 # Learnings, dead ends and open gaps
 
+## 2026-10-03 - PR #7 merged during verification
+
+The final check refresh found PR #7 already merged on GitHub. The REST merge
+record identifies `EduardoKenji`, `c7cf1da` and 21:35:06 UTC; the agent's actions
+were PR creation/editing and read/fetch/pull, not a feature merge command.
+Refresh local main and correct current "open/unmerged" guidance. Keep dated
+publication records as history and keep game acceptance pending: a GitHub
+merge is not evidence that native rendering or multiplayer was tested.
+
 ## 2026-10-03 - Synchronizing the appearance PR
 
 - Push `feature/enemy-appearance` and open PR #7 with the authenticated account's
