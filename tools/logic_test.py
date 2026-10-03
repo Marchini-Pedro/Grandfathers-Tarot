@@ -3261,6 +3261,13 @@ do
   local spread_ids = {}
   for _, w in ipairs(spread_group and spread_group.sub_widgets or {}) do spread_ids[w.setting_id] = true end
   check("options: the look options sit in the group 'The Spread (your screen)'", spread_ids.tarot_scale and spread_ids.tarot_opacity and spread_ids.tarot_timer_below and spread_ids.tarot_hide_icon and spread_ids.tarot_ping and spread_ids.tarot_font and spread_ids.tarot_roulette)
+  -- the window of the last card
+  do
+    local hl, hud_group = find("hud_last_card", all), find("group_hud", all)
+    local listed = false
+    for _, w in ipairs(hud_group and hud_group.sub_widgets or {}) do if w.setting_id == "hud_last_card" then listed = true end end
+    check("options: 'Last card' (the window of the last fulfilled card) is a checkbox, on by default, in the HUD group, with its texts (the age text takes one %s)", hl and hl.type == "checkbox" and hl.default_value == true and listed and loc.hud_last_card and loc.hud_last_card_description and loc.hud_last_ago and select(2, loc.hud_last_ago.en:gsub("%%s", "")) == 1 and not loc.hud_last_ago.en:find("%%[^s]"))
+  end
   -- the default cooldown of a card of your own
   do
     local dc = find("tarot_default_cooldown", all)

@@ -39,6 +39,16 @@ pcall(function ()
 	})
 end)
 
+-- The window of the last fulfilled card: its own element, so custom_hud moves it on its own.
+pcall(function ()
+	mod:register_hud_element({
+		class_name = "HudElementRealmsWavesLast",
+		filename = BASE .. "/ui/hud_element_last_card",
+		use_hud_scale = true,
+		visibility_groups = { "alive", "dead", "communication_wheel", "tactical_overlay" },
+	})
+end)
+
 mod.on_all_mods_loaded = function ()
 	RW.events = mod:io_dofile(BASE .. "/catalog/events")
 	RW.groups = mod:io_dofile(BASE .. "/catalog/groups")

@@ -148,6 +148,7 @@ return {
 				type = "group",
 				sub_widgets = {
 					{ setting_id = "hud_enabled", type = "checkbox", default_value = true },
+					{ setting_id = "hud_last_card", type = "checkbox", default_value = true },
 					{ setting_id = "hud_show_percent", type = "checkbox", default_value = true },
 					{ setting_id = "colour_enemies", type = "checkbox", default_value = true },
 					{ setting_id = "colour_spidey", type = "checkbox", default_value = true },

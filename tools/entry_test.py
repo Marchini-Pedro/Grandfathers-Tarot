@@ -29,7 +29,8 @@ mod.hook_safe = function(self, obj, method, fn) hooks[#hooks + 1] = { obj = obj,
 local hook_requires = {}
 local require_callbacks = {}
 mod.hook_require = function(self, path, fn) hook_requires[#hook_requires + 1] = path;require_callbacks[#require_callbacks+1]=fn end
-mod.register_hud_element = function() end
+local hud_elements = {}
+mod.register_hud_element = function(self, spec) hud_elements[#hud_elements + 1] = spec end
 mod.add_require_path = function() end
 mod.register_view = function(self, def) views[#views + 1] = def end
 mod.command = function(self, name, desc, fn) commands[name] = fn end
@@ -125,6 +126,7 @@ check("entry: the four budget-bypass hooks and the custom-mods hooks (stat recom
 check("entry: MinionAttack is hooked through hook_require (it may load after the mod)", #hook_requires == 1 and hook_requires[1] == "scripts/utilities/minion_attack", table.concat(hook_requires, ","))
 check("entry: editor view registered under its name with the right class", #views == 1 and views[1].view_name == "realms_waves_editor" and views[1].view_settings.class == "RealmsWavesView")
 check("entry: /rw_test_close is registered too", type(commands.rw_test_close) == "function")
+check("entry: two HUD elements are registered, the Spread and the window of the last card (own node, so custom_hud moves it on its own)", #hud_elements == 2 and hud_elements[1].class_name == "HudElementRealmsWavesPanel" and hud_elements[2].class_name == "HudElementRealmsWavesLast" and hud_elements[2].filename:find("hud_element_last_card$") ~= nil and hud_elements[2].use_hud_scale == true, #hud_elements)
 check("entry: commands registered (rw_test, rw_editor, rw_status, rw_custom, rw_roll, rw_start, rw_skip, rw_vote)", commands.rw_test and commands.rw_editor and commands.rw_status and commands.rw_custom and commands.rw_roll and commands.rw_start and commands.rw_skip and commands.rw_vote ~= nil)
 check("entry: keybind functions exist (open_editor, vote_1..vote_5)", type(mod.open_editor) == "function" and type(mod.vote_1) == "function" and type(mod.vote_5) == "function")
 

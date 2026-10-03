@@ -51,6 +51,9 @@ return {
 
 	group_hud = { en = "HUD and debug" },
 	hud_enabled = { en = "Show wave panel" },
+	hud_last_card = { en = "Last card" },
+	hud_last_card_description = { en = "Show the window of the last card: the card whose wave went out last, with how long ago. It stays until the next card goes out. Move it with Custom HUD." },
+	hud_last_ago = { en = "%s ago" },
 	hud_show_percent = { en = "Show chances in the vote" },
 	colour_enemies = { en = "Colour enemy names" },
 	colour_spidey = { en = "Use Spidey Sense colours" },
