@@ -49,3 +49,5 @@ Things we know are missing or unverified, each with the next concrete step.
 - Read the game's own consumer of a value before exposing it as a setting: three of the nine custom mods needed a second round because the value was written but read at a different moment or under different rules than assumed.
 - A setting named for what the stat DOES (time between attacks) is understood faster than one named for the stat (attack speed), and a name whose number goes up when the effect goes down is a bug in the UI even if the code is right.
 - When a feature cannot be proven offline, ship a probe (a debug command that prints facts) in the same change, so the first in-game run answers the open question.
+
+- 2026-10-03: the supplied copy has 25 commits after remote 1460711 and eight dirty files. Its origin is a different repo; preserve the ancestry in the requested Grandfathers-Tarot repo. Sorting and dragging have no added regression tests. check_lua.py and logic_test.py point at an installed mod, and the other harnesses assume the repo directory is named RealmsWaves; these can validate the wrong tree or fail on a fresh clone. Fix test paths before trusting results.

@@ -138,7 +138,12 @@ return {
 		en = "Every card that can be drawn. Click a card to put it in or out of the draw; Edit opens it. Only the host's settings are used in a session.",
 	},
 	deck_count = { en = "%d in the draw" },
-	deck_caption = { en = "Click a card to switch it, its pips for its chance, right click to edit" },
+	deck_caption = { en = "Click a card to switch it, its pips for its chance, right click to edit, hold it and drop it on another to swap them" },
+	sort_label = { en = "Sort by" },
+	sort_threat = { en = "Threat" },
+	sort_rarity = { en = "Rarity" },
+	sort_enemies = { en = "Enemies" },
+	sort_face = { en = "Face" },
 	tile_pip_hover = { en = "%s: chance %d of 10" },
 	-- custom mods of an enemy group (the "Custom" button beside "Mods")
 	btn_tune = { en = "Custom" },

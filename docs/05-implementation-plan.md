@@ -133,3 +133,7 @@ See `04-design-and-rationale.md`.
 
 ## Debug commands (planned)
 `/rw_test <event>` spawn now; `/rw_status` state + counters (raw vs adjusted `total_allocated_num_enemies`, tracked count, aggroed challenge rating); `/rw_roll <n>` n-roll simulation of the weights; `/rw_vote <n>` cast vote from console.
+
+## Recovery review (2026-10-03)
+- [x] Preserve remote baseline, 25 unpublished commits and eight uncommitted files on feature/workshop-recovery.
+- [ ] Complete sorting/drag behavior, review runtime and multiplayer edge cases, run offline checks, synchronize the feature branch. See 09-recovery-review.md.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 - Recover unpublished workshop work
+- Preserve 25 local commits after remote main and the eight-file unfinished Deck sorting/drag changes on `feature/workshop-recovery`.
+- Recovery provenance and review status: `09-recovery-review.md`. Validation pending; no in-game claim.
+
 Newest first. One entry per commit (see also the results log in `06-verification-and-open-issues.md`).
 
 ## 2.1.0 - Workshop redesign, step 5: the Mirror (branch `feature/workshop-redesign`)

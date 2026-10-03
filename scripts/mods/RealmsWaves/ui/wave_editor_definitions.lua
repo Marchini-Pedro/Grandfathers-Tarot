@@ -77,6 +77,12 @@ local scenegraph_definition = {
 	help_text = node(900, 100, 895, 280, 71),
 	btn_wimport = node(645, 800, 300, 44, 2), -- list screen: import a shared wave into the first free custom slot
 	btn_default = node(965, 800, 320, 44, 2), -- list screen: restore every wave to the defaults
+	-- list screen: sort the cards by threat, rarity, number of enemies or face (the label is a text, then four buttons)
+	sort_label = node(1305, 800, 80, 44, 2),
+	btn_sort_threat = node(1385, 800, 96, 44, 2),
+	btn_sort_rarity = node(1489, 800, 96, 44, 2),
+	btn_sort_enemies = node(1593, 800, 112, 44, 2),
+	btn_sort_face = node(1713, 800, 84, 44, 2),
 	-- list screen: the time between waves (the options menu has the same two settings)
 	stepper_tmin = node(125, 858, 700, 48, 2),
 	stepper_tmax = node(870, 858, 700, 48, 2),
@@ -371,6 +377,7 @@ local widget_definitions = {
 		{ pass_type = "rect", style = { color = Components.clone_color(colors.panel) } },
 	}, "bottom_panel"),
 
+	sort_label = plain_text("sort_label", "sort_label", 15, colors.muted, 80, 44, "left"),
 	bottom_title = plain_text("bottom_title", "bottom_title", 22, colors.gold, 1500, 34),
 	hint_text = plain_text("hint_text", "hint_text", 20, colors.muted, 1660, 120, "left", "top"),
 

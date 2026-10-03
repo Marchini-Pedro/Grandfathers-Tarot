@@ -52,6 +52,19 @@ Cards.THREAT_COLORS = { hex("#a7c27c"), hex("#74b22c"), hex("#e3cf4a"), hex("#d9
 -- a card with this weight or less is "rare": pus-yellow outline (the old, absolute rule: only used where no deck is known)
 Cards.RARE_WEIGHT = 2
 
+-- the place of a suit in Cards.SUIT_ORDER (1 to 12; an unknown suit is plague, 1)
+Cards.suit_index = function (suit)
+	local wanted = Cards.normalize_suit(suit)
+
+	for i = 1, #Cards.SUIT_ORDER do
+		if Cards.SUIT_ORDER[i] == wanted then
+			return i
+		end
+	end
+
+	return 1
+end
+
 Cards.normalize_suit = function (suit)
 	return Cards.SUITS[suit] and suit or "plague"
 end

@@ -79,3 +79,5 @@ Audit date: **2026-09-28**. Compare these against the current install before tru
 | Darktide source clone | audited at commit `0f0cb45991e9305ef4a7b925370792d7d6035f95`, "Added Version 1.12.5 08-18-26"; clone now at `419fe18d4` (1.13.0, 2026-09-29), hooks/calls re-checked, see CHANGELOG | `Content\Darktide-Source-Code` (`git log -1`) |
 
 Path conventions in these docs: mod paths are relative to `Content\mods\`; game source paths are relative to `Content\Darktide-Source-Code\scripts\` and written `S\...`.
+
+Recovery work (2026-10-03) is isolated on feature/workshop-recovery; provenance and current review status: [09-recovery-review.md](09-recovery-review.md). The supplied copy and remote main are preserved.

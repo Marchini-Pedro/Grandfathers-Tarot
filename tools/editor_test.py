@@ -152,7 +152,8 @@ local function click_row(i, hotspot) row(i).content[hotspot].pressed_callback() 
 -- the Deck: the home screen is a grid of card tiles
 local D = view._widgets_by_name
 local function tile(i) return view._widgets_by_name["rw_tile_" .. i] end
-local function click_tile(i, hotspot) tile(i).content[hotspot or "hotspot_top"].pressed_callback() end
+-- the toggles of a tile act when the button is let go (released_callback: a card held down is being dragged), the Edit pill and the pips when it is pressed
+local function click_tile(i, hotspot) local hs = tile(i).content[hotspot or "hotspot_top"]; (hs.released_callback or hs.pressed_callback)() end
 local function open_card(i) click_tile(i, "hotspot_edit") end
 local function blank_tile() return view._widgets_by_name.rw_tile_blank end
 local function plain(text) return (text:gsub("{#[^}]*}", "")) end

@@ -138,6 +138,44 @@ Events.keys = function ()
 	return keys
 end
 
+-- The order the Deck shows the cards in: the keys of Events.keys() arranged by the player's saved order ("deck_order", the keys
+-- separated by commas). Keys that are not in the list (a card made later) follow in their usual place, keys that no longer exist are
+-- ignored, so a damaged or old list never loses a card. The draw itself does not depend on the order.
+Events.ordered_keys = function (get_setting)
+	local keys = Events.keys()
+	local saved = get_setting("deck_order")
+
+	if type(saved) ~= "string" or saved == "" then
+		return keys
+	end
+
+	local valid, seen, ordered = {}, {}, {}
+
+	for i = 1, #keys do
+		valid[keys[i]] = true
+	end
+
+	for key in saved:gmatch("[^,]+") do
+		if valid[key] and not seen[key] then
+			seen[key] = true
+			ordered[#ordered + 1] = key
+		end
+	end
+
+	for i = 1, #keys do
+		if not seen[keys[i]] then
+			ordered[#ordered + 1] = keys[i]
+		end
+	end
+
+	return ordered
+end
+
+-- Saves an order (a list of keys); an empty list goes back to the usual order.
+Events.set_order = function (set_setting, keys)
+	set_setting("deck_order", table.concat(keys or {}, ","))
+end
+
 Events.DEFAULT_CUSTOM_PCT = 10
 Events.MAX_PCT = 10 -- the most a card's chance can be (older settings above it count as 10)
 Events.DEFAULT_CUSTOM_COOLDOWN = 120
@@ -169,6 +207,7 @@ Events.LOOKS = { rot = true, whisper = true, vial = true }
 --   sp_<key>        number              spawn spread radius in metres (0 = all at the spawn point)
 --   re_<key>        number              repeat every N seconds  (only used by groups with "@rep")
 --   rf_<key>        number              keep repeating for N seconds
+--   (deck_order     string              the keys of the cards in the order of the Deck, see Events.ordered_keys; deck_sort the last sort)
 --   rk_<key>        boolean             a random group ("a|b") rolls once and keeps its enemy on every repeat (default on; false = a new
 --                                       roll for every unit)
 --   dmin_<key>      number              minimum spawn distance in metres for this wave (0 = use the options)

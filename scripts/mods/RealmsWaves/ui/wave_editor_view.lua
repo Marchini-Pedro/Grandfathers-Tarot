@@ -73,6 +73,11 @@ local BUTTONS = {
 	{ name = "btn_settings", width = 270, cb = "cb_settings" },
 	{ name = "btn_wimport", width = 300, cb = "cb_wave_import", role = "primary" },
 	{ name = "btn_default", width = 320, cb = "cb_defaults", role = "danger" },
+	-- the Deck: sort the cards (the chosen one is lit; a second click turns the order round)
+	{ name = "btn_sort_threat", width = 96, font = 18, cb = "cb_sort", arg = "threat", role = "chip" },
+	{ name = "btn_sort_rarity", width = 96, font = 18, cb = "cb_sort", arg = "rarity", role = "chip" },
+	{ name = "btn_sort_enemies", width = 112, font = 18, cb = "cb_sort", arg = "enemies", role = "chip" },
+	{ name = "btn_sort_face", width = 84, font = 18, cb = "cb_sort", arg = "face", role = "chip" },
 	{ name = "btn_help", width = 50, cb = "cb_help" },
 	{ name = "btn_share", width = 190, cb = "cb_wave_share" },
 	{ name = "btn_pload", width = 250, cb = "cb_preset_load", role = "primary" },
@@ -240,6 +245,7 @@ RealmsWavesView.update = function (self, dt, t, input_service)
 
 	if self._screen == "list" and self._deck then
 		self:_update_deck(dt, t)
+		self:_update_deck_drag(input_service, dt)
 	end
 
 	if self._screen == "detail" or self._screen == "face" then
@@ -351,8 +357,10 @@ RealmsWavesView._create_editor_widgets = function (self)
 		local toggle = callback(self, "cb_tile_toggle", i)
 		local edit = callback(self, "cb_tile_edit", i)
 
-		content.hotspot_top.pressed_callback, content.hotspot_top.right_pressed_callback = toggle, edit
-		content.hotspot_state.pressed_callback, content.hotspot_state.right_pressed_callback = toggle, edit
+		-- the toggles act when the button is let go (a card held down for a while is being dragged to swap places, see
+		-- _update_deck_drag, and must not switch): a quick click is the same as it was
+		content.hotspot_top.released_callback, content.hotspot_top.right_pressed_callback = toggle, edit
+		content.hotspot_state.released_callback, content.hotspot_state.right_pressed_callback = toggle, edit
 		content.hotspot_edit.pressed_callback, content.hotspot_edit.right_pressed_callback = edit, edit
 		content.hotspot_edit.double_click_callback = edit
 
@@ -436,7 +444,7 @@ end
 
 RealmsWavesView._reload = function (self)
 	local rw = mod.rw
-	local keys = rw.events.keys()
+	local keys = rw.events.ordered_keys(get_setting)
 	local waves, total, deleted = {}, 0, 0
 
 	for i = 1, #keys do
@@ -861,6 +869,18 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		self:_set_scenegraph_position("bottom_title", 125, 758, 2)
 	end
 	widgets.btn_default.visible = screen == "list"
+	widgets.sort_label.visible = screen == "list"
+	widgets.sort_label.content.sort_label = string.upper(mod:localize("sort_label"))
+
+	for _, mode in ipairs(Deck.SORTS) do
+		local sort_button = widgets["btn_sort_" .. mode]
+		local active = mod:get("deck_sort") == mode
+
+		sort_button.visible = screen == "list"
+		-- the arrow says which way: ^ from the lowest, v from the highest
+		sort_button.content.hotspot_text = mod:localize("sort_" .. mode) .. (active and (mod:get("deck_sort_desc") == true and " v" or " ^") or "")
+		sort_button.content.hotspot_on = active
+	end
 	widgets.btn_default.content.hotspot_text = mod:localize(self._confirm and self._confirm.key == "__defaults" and "btn_sure" or "btn_default")
 	widgets.btn_default.content.hotspot_on = self._confirm ~= nil and self._confirm.key == "__defaults"
 	widgets.btn_presets.visible = screen == "list"
@@ -2287,6 +2307,8 @@ RealmsWavesView.cb_defaults = guarded(function (self)
 		backup.name = mod:localize("preset_undo_name")
 		rw.presets.write(set_setting, rw.presets.UNDO_ID, backup)
 		rw.presets.apply({ waves = {} }, set_setting, rw.events, rw.groups)
+		rw.events.set_order(set_setting, {})
+		set_setting("deck_sort", "")
 		self:_reload()
 		self:_apply_screen()
 		mod:echo("%s", mod:localize("msg_defaults_restored"))

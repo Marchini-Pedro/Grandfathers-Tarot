@@ -867,9 +867,234 @@ DeckView.install = function (View, h)
 		end
 	end
 
+	-- ------------------------------------------------------------------------------------- order, sort, drag
+	-- The keys of every card in the order shown now (the empty slots of custom cards and the blank tile are not in the Deck, they
+	-- keep their place among the others).
+	local function current_order(self)
+		local keys = {}
+
+		for i = 1, #self._waves do
+			keys[i] = self._waves[i].key
+		end
+
+		return keys
+	end
+
+	local function save_order(self, keys, sort, desc)
+		mod.rw.events.set_order(set_setting, keys)
+		set_setting("deck_sort", sort or "")
+		set_setting("deck_sort_desc", desc == true)
+		self:_reload()
+		self:_apply_screen(true)
+	end
+
+	-- A Sort button: the cards go in that order; a second click on the same button turns it round. The order is saved (the draw does
+	-- not care about it), moving a card by hand afterwards leaves the sort button unlit.
+	View.cb_sort = guarded(function (self, mode)
+		if self._screen ~= "list" then
+			return
+		end
+
+		local rw = mod.rw
+		local items, in_deck = {}, {}
+
+		for i = 1, #self._deck do
+			local wave = self._deck[i]
+
+			if not wave.blank then
+				local card = rw.cards.describe(wave, rw.groups)
+
+				in_deck[wave.key] = true
+				items[#items + 1] = {
+					key = wave.key,
+					threat = card.threat,
+					chance = tonumber(wave.pct) or 0,
+					enemies = rw.groups.total_count(wave.parts),
+					suit = rw.cards.suit_index and rw.cards.suit_index(card.suit) or 0,
+				}
+			end
+		end
+
+		local desc = mod:get("deck_sort") == mode and mod:get("deck_sort_desc") ~= true
+		local sorted = Deck.sorted(items, mode, desc)
+		local keys = {}
+
+		for i = 1, #sorted do
+			keys[i] = sorted[i].key
+		end
+
+		-- the slots that are not cards yet stay after them
+		for _, key in ipairs(current_order(self)) do
+			if not in_deck[key] then
+				keys[#keys + 1] = key
+			end
+		end
+
+		save_order(self, keys, mode, desc)
+	end)
+
+	-- the virtual position of the pointer (the editor is 1920 x 1080 whatever the window is)
+	View._cursor_point = function (self, input_service)
+		local cursor = input_service and input_service:get("cursor")
+
+		if not cursor then
+			return nil
+		end
+
+		local inverse = (self._render_settings and self._render_settings.inverse_scale) or (self._render_scale and self._render_scale > 0 and 1 / self._render_scale) or 1
+
+		return cursor[1] * inverse, cursor[2] * inverse
+	end
+
+	-- the slot (1 to 14) of the tile of this page that the point is on
+	View._tile_slot_at = function (self, x, y)
+		for slot = 1, Deck.CAPACITY do
+			local wave = self._deck[self._offset + slot]
+
+			if wave and not wave.blank then
+				local tx, ty = Deck.tile_pos(slot)
+
+				if x >= tx and x <= tx + Deck.TILE_W and y >= ty and y <= ty + Deck.TILE_H then
+					return slot
+				end
+			end
+		end
+
+		return nil
+	end
+
+	-- A tile of the Deck held with the left button for Deck.DRAG_HOLD seconds is lifted and follows the pointer; where it is let go
+	-- over another tile the two cards swap places. Let go anywhere else it goes back. (Only the cards of the page shown.)
+	View._end_drag = function (self)
+		self._press, self._drag = nil, nil
+	end
+
+	View._update_deck_drag = function (self, input_service, dt)
+		if (self._drag_cool or 0) > 0 then
+			self._drag_cool = self._drag_cool - 1
+		end
+
+		if self._popup or not self._deck then
+			if self._drag then
+				self:_end_drag()
+				self:_apply_screen(true)
+			end
+
+			self._press = nil
+
+			return
+		end
+
+		local widgets = self._widgets_by_name
+		local held = input_service ~= nil and input_service:get("left_hold") == true
+		local x, y = self:_cursor_point(input_service)
+		local drag = self._drag
+
+		if not drag then
+			if not held then
+				self._press = nil
+
+				return
+			end
+
+			local press = self._press
+
+			if not press then
+				for slot = 1, Deck.CAPACITY do
+					local widget = widgets[TILE_PREFIX .. slot]
+
+					if widget and widget.visible and (widget.content.hotspot_top.is_held or widget.content.hotspot_state.is_held) and x then
+						local tx, ty = Deck.tile_pos(slot)
+
+						self._press = { slot = slot, t = 0, gx = x - tx, gy = y - ty }
+
+						break
+					end
+				end
+
+				return
+			end
+
+			press.t = press.t + (dt or 0)
+
+			if press.t < Deck.DRAG_HOLD then
+				return
+			end
+
+			drag = { slot = press.slot, gx = press.gx, gy = press.gy }
+			self._drag, self._press = drag, nil
+		end
+
+		local widget = widgets[TILE_PREFIX .. drag.slot]
+
+		if held and x then
+			-- the lifted tile follows the pointer above the others; the tile under it is dimmed: the one it would swap with
+			widget.alpha_multiplier = 0.85
+			self:_set_scenegraph_position(TILE_PREFIX .. drag.slot, x - drag.gx, y - drag.gy, 40)
+
+			local target = self:_tile_slot_at(x, y)
+
+			if target == drag.slot then
+				target = nil
+			end
+
+			if target ~= drag.target then
+				local old = drag.target and widgets[TILE_PREFIX .. drag.target]
+
+				if old then
+					old.alpha_multiplier = old.content.card_state == "off" and 0.55 or 1
+				end
+
+				if target then
+					widgets[TILE_PREFIX .. target].alpha_multiplier = 0.45
+				end
+
+				drag.target = target
+			end
+
+			drag.x, drag.y = x, y
+
+			return
+		end
+
+		-- let go: swap with the tile it is over (the pointer where it was last seen), or go back
+		local target = x and self:_tile_slot_at(x, y) or drag.target
+
+		if target == drag.slot then
+			target = nil
+		end
+
+		self:_end_drag()
+		self._drag_cool = 3 -- (the release over the tile it came from is not a click)
+
+		local a, b = self._deck[self._offset + drag.slot], target and self._deck[self._offset + target]
+
+		if a and b and not a.blank and not b.blank then
+			local keys = current_order(self)
+			local ia, ib
+
+			for i = 1, #keys do
+				if keys[i] == a.key then
+					ia = i
+				elseif keys[i] == b.key then
+					ib = i
+				end
+			end
+
+			save_order(self, Deck.swapped(keys, ia, ib), "", false)
+		else
+			self:_apply_screen(true)
+		end
+	end
+
 	-- ------------------------------------------------------------------------------------- callbacks
 	-- a click on a tile (the face or the left of the state line): the card goes in or out of the draw
 	View.cb_tile_toggle = guarded(function (self, slot)
+		-- (the release that ends a drag is not a click)
+		if self._drag or (self._drag_cool or 0) > 0 then
+			return
+		end
+
 		local wave = self._deck[self._offset + slot]
 
 		if wave and not wave.blank then
