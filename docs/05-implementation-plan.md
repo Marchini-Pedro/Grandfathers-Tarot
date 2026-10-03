@@ -147,4 +147,20 @@ See `04-design-and-rationale.md`.
 - [ ] Complete the remaining in-game/multiplayer and actual CPU/process RAM checks listed in doc 09; merge status does not close these checks.
 
 - [x] Prepare the reusable audit-only adversarial brief in `audits/adversarial-audit-prompt.md`, covering the user's test/performance/lifecycle/UI/Realms/reuse questions (2026-10-03).
-- [ ] Execute the brief when explicitly requested and create a dated evidence-backed report; the prompt's preparation is not an executed audit.
+- [x] Execute the offline adversarial audit after explicit request; [dated report](audits/2026-10-03/report.md), full inventory/test map, embedded diagnostics and L1–L8 results/limits are available.
+- [x] Review the audit and receive authorization for all concrete remediation batches (2026-10-03).
+- [x] F01: release both mission event subscriptions from their original manager; detect 100 obsolete generations with an owner-faithful EventManager fixture and guard captured callbacks. Native reload remains pending.
+- [x] F02/F03/F05: pause freezes job/feed clocks; stop preserves living units; disable cancels work and re-enable requires host start/client resync. Real-collaborator regressions pass; live checks remain pending.
+- [x] F04: cap aggregate work at 64 jobs / 8,000 entries; refuse full admissions before allocation and skip/clip repeat ticks to available room. Supported-max regression passes.
+- [x] F07: reject non-finite numeric preset/card fields atomically on both runtimes; preserve finite clamps and legacy optional threat.
+- [x] F06: expose direct-send peer failures to the existing bounded current-size retry; coalesce failed late-join snapshots and preserve reentrant updates. Actual Realms contract fixture passes.
+- [x] Close the two surviving mutation gaps (retired tuning hooks and unload resets); add retirement/reentrancy, late-manager and partial aggregate-room regressions. All 17 selected mutations fail their intended assertions on both runtimes.
+- [x] Synchronize PR #4 with the PR #3 merge at `44e536f`; retain completed audit/remediation records when resolving the three documentation conflicts. Required checks pass on both runtimes.
+- [ ] Run the [live acceptance checklist](audits/2026-10-03/live-checklist.md), including verified installed revisions and eight hours / ten consecutive missions; obtain user in-game confirmation before merge.
+
+The audit stage changed Markdown only. Approved fixes are implemented in six
+batches on `feature/audit-remediation`, created from `main` at `3e6be46` and
+synchronized with the audit-brief merge at `44e536f`.
+Public APIs/settings, protocol 2 and serialization remain compatible. See the
+[remediation results](audits/2026-10-03/remediation.md) and reproducible validation.
+Installation, publication and merging remain separate; game confirmation is pending.

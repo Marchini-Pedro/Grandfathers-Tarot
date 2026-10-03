@@ -124,10 +124,27 @@
 | 74 | `custom_hud` edit mode | A sample hand shows; the node can be dragged and keeps its place; there is only ONE draggable box for this mod | not run |
 | 75 | Join a running mission as a client during the roulette / the rot | The client sees the same stage at the same moment (the rot already running, not a replay) | not run |
 
+## Adversarial audit follow-up (2026-10-03)
+
+The [offline report](audits/2026-10-03/report.md) supersedes broad acceptance
+inferences from the passing recovery checks. Findings were confirmed within
+their stated fixtures; current fixes are tracked below and in the
+[remediation log](audits/2026-10-03/remediation.md). The live matrix remains open.
+
+| Finding | Offline status | Required remediation / live evidence |
+| --- | --- | --- |
+| F01 reload event ownership | Fixed on remediation branch; 100-generation owner/weak-reference regression | Real reload/editor/pending-work sessions remain pending |
+| F02 disabled spawning | Fixed; disabled updates cannot replay queued work | Native hook/counter behavior, host restart and client resync |
+| F03 stop/live ownership | Fixed; stop retains factors, size records and combined alive cap | Native cap, tuning, late-join size and despawn checks |
+| F04 aggregate repeat backlog | Fixed; 32 legal timers remain within 64 jobs / 8,000 pending for 10,000 updates | Native frame/memory pressure and practical budget tuning |
+| F05 pause | Fixed; 200-second pause freezes real feed/repeat/timeout clocks | Native maintenance and resume without a catch-up burst |
+| F06 partial delivery | Fixed; direct fanout exposes failure and retries latest living sizes; actual Realms fixture passes | Native rejection occurrence/ordering, overhead and mixed peers remain pending |
+| F07 numeric import | Fixed; nine numeric fields reject NaN/infinity on both runtimes for presets/cards | Native paste/import workflow; finite and legacy formats retained |
+
 ## Known risks
 - Hooks on `PacingManager.add_aggroed_minion` and the two `MinionSpawnManager` counters must tolerate clients (nil managers) and hot reload.
 - Engine query errors: use `get_occluded_positions` / `occluded_positions_in_group` inside pcall (RealmsEvent avoided `get_random_occluded_position`).
-- Very large waves: unit/network object limits are real. Mitigation: per-wave and alive caps, drip-feed, queue < ~200.
+- Very large waves: unit/network object limits are real. Current mitigation is per-wave/alive caps and drip-feed, with 1,000 pending entries per job; aggregate work is now capped at 64 jobs / 8,000 pending entries, with skipped admissions/ticks on pressure (F04 remediation).
 - Ballot/vote state can go stale if the host leaves mid-vote: clear state on game-state exit and peer-left.
 - Host is the only driver; if host has no living humans (ghost host alone), skip and retry.
 
@@ -167,7 +184,25 @@
 - Positions use `side.valid_player_units` (includes bots). LOS is hidden from bots too, which is harmless.
 
 ## Results log
+
 (Append dated entries: what was tested, result, fixes.)
+
+- 2026-10-03, PR #3 merge synchronization: merge `origin/main` at `44e536f` into PR #4, keeping completed audit/remediation checklist, history and index links across the three documentation conflicts. Runtime/descriptor/tools are unchanged from `5eacc3e`; no conflict markers or unresolved paths remain. All six checks pass on both runtimes: 30 compilation inputs and 1,746 assertions each. Markdown size/link and Git whitespace checks pass. New diagnostics are separate under `.git/audit/2026-10-03-pr4-sync/`; historical evidence is preserved. Native acceptance remains pending.
+
+- 2026-10-03, remediation batch 6 and final review: clear all tuning/protocol owners at retirement, guard captured callbacks/delayed hooks/executors, attach late/replaced event managers, and prevent failed snapshots from requeueing after synchronous teardown. Skip malformed host candidates within the existing five-card bound; test partial shared capacity. All six checks pass on both runtimes: 30 compilation inputs, logic 828, editor 694, entry 45, HUD 179 (1,746 assertions each). All seven original and ten new mutations fail intended behavioral assertions with no harness errors. Twenty supported-max samples (five per VM/mode) stay at 16 jobs / 8,000 entries and reset to zero; tracing-off collected floors return near baseline. Exact scripts/controls/results are in [remediation validation](audits/2026-10-03/remediation-validation.md). Authorized runtime/test paths are the only non-Markdown changes; saved configuration, load order and read-only installed/source references retain baseline hashes/state. Native acceptance remains pending.
+
+- 2026-10-03, remediation batch 5 (F06): track up to 16 Realms peers and fan out sizes using direct sends, aggregating availability failures into the existing retry queue and skipping unsupported RPCs. Coalesce pending ids at admission, retain failed late-join snapshots, and detach the outbox before synchronous sends. Primary installed ModNetwork + real Protocol/Tuning injection confirms a recovered recipient receives size 180 after rejection. All six checks pass on both runtimes: logic 822, total 1,735 assertions. Native delivery/rejection frequency remains unverified; good peers may receive idempotent duplicates.
+
+- 2026-10-03, remediation batch 4 (F07): validate all nine imported numeric fields before rounding/clamping. Correctly checksummed NaN, infinity and overflow strings reject both full presets and individual cards without settings writes; huge finite values still clamp/round-trip. Legacy absent/empty threat remains zero. All six checks pass on both runtimes: logic 811, total 1,724 assertions. Native import UI remains pending.
+
+- 2026-10-03, remediation batch 3 (F04): enforce 64 jobs / 8,000 pending globally before admission and repeat construction. New waves are rejected atomically when they cannot fit; repeat ticks use available room or skip overdue ticks when full. Throttle timed-wave failure warnings to one per five seconds. The real 32-card fixture stays bounded for 10,000 updates; repeat-only jobs cannot evade the job cap, and progress/unload remain correct. All six checks pass on both runtimes: entry 40, total 1,677 assertions. Limits are an explicit initial policy; native cost/tuning remains pending.
+
+- 2026-10-03, remediation batch 2 (F02/F03/F05): separate job cancellation from full reset, freeze real executor clocks on pause, maintain/prune living units while stopped, and cancel disabled work. Disable suspends native hooks/tuning; host explicitly starts after re-enable and clients reset/re-handshake. Real entry/director/executor/tuning checks cover combined alive cap, equal-value recompute, 200-second pause, disable/enable and pending-work unload. All six checks pass on both runtimes: entry 35, total 1,672 assertions. Native acceptance remains pending.
+
+- 2026-10-03, remediation batch 1 (F01): release original-manager event subscriptions at unload; protect captured objective/update callbacks and tolerate missing manager. Entry regression checks 100 generations, replaced/missing manager and double unload. All six checks pass on both runtimes: entry 22, total 1,659 assertions. Native reload remains pending; see the remediation log.
+
+- 2026-10-03, final audit-document review: corrected descriptor line count, specified the rounded MiB precision of `/rw_status`, and distinguished injected SessionControl rejection from unverified native packet loss. Runtime/test/configuration scope remains unchanged. The user subsequently authorized systematic remediation on a new branch; the dated report remains the frozen pre-fix evidence.
+- 2026-10-03, adversarial audit: [report](audits/2026-10-03/report.md). Target `8c81c1bbfb6107788dafa98f56c6194dcaa80421`; all six checks pass, 30 compiled inputs and 1,655 assertions on each Lua runtime. Five of seven isolated mutations detect the intended behavioral regressions; retired-tuning and unload-reset variants survive. Seven findings reproduced; no production fixes applied. L1–L8 have results or explicit limits; Lua retention and normal-JIT timing use separate controls. 27 real-widget previews inspected across 1080p/1440p/4K. Native rendering, multiplayer and eight-hour/ten-mission soak remain pending. Reference/runtime/test/configuration hash integrity verified; only Markdown changed.
 
 - 2026-09-28: Audit complete, docs written.
 - 2026-09-28: Implementation written (all files in `docs/05`). Static: all 14 Lua files compile under Lua 5.5 (lupa). Offline logic tests pass (34 checks): recipe parser (aliases, caps 24/breed and 60 total, errors), pool normalisation to 100 with custom slots, vote tally (change vote, wrong ballot, ties), director state machine in random and vote modes (countdown, voting window, winner fires the 2-vote option, no-vote skip, new cycle after incoming, hub does nothing), client rendering of a synced state, version-mismatch disable, and a 20,000-roll simulation within 0.3 percentage points of the configured chances. **NOT tested in the game**: spawning, position search, budget hooks, Realms RPC delivery, HUD rendering, keybinds. Test matrix above is still "not run".

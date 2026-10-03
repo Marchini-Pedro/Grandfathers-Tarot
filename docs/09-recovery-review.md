@@ -2,8 +2,11 @@
 
 Current status: [PR #1](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/1)
 merged the recovery into `main` at `64f76f3` on 2026-10-03. The remote recovery
-branch was deleted. Offline verification is complete; the game checks below
-remain open. No new release or runtime version bump accompanied the merge.
+branch was deleted. The recorded recovery checks passed; the subsequent
+[adversarial audit](audits/2026-10-03/report.md) identified seven baseline defects
+and two surviving mutation gaps. The approved [remediation](audits/2026-10-03/remediation.md)
+fixes all seven and closes both gaps offline on a separate feature branch.
+The game checks below remain open. No new release or runtime version bump accompanied the merge.
 
 Remote baseline: `Marchini-Pedro/Grandfathers-Tarot`, `main` at
 `1460711a046f3d8949e5546335a296fd4216c5f3`.
@@ -49,3 +52,14 @@ Runtime fixes: repeat queues now stay at 1000 per job, prepend with linear work,
 The supplied folder and installed mods are preserved. Use this clone for future development; local `main` was synchronized with `origin/main` after the merge. The merge itself does not establish in-game verification.
 
 Final validation (2026-10-03): all six tools pass on both Lua 5.5 and LuaJIT 2.1: 30 compiled files; 764 logic, 694 editor, 18 entry and 179 HUD checks (1655 assertions per runtime); 13 Markdown files below 100 KB. In-game and actual CPU/process RAM testing remain open.
+
+## Subsequent adversarial evidence (2026-10-03)
+
+The passing recovery results above apply to their tested paths: 1,000 is a
+per-job queue bound, newest size means newest arrival, and the send retry
+fixture rejects the entire call. The [audit report](audits/2026-10-03/report.md)
+adds aggregate pressure, actual dependency partial-send behavior, event-manager
+ownership and control lifecycles that those tests did not cover. It also finds
+LuaJIT-only non-finite import acceptance. These findings are not yet fixed;
+the report and live checklist define follow-up acceptance. Only Markdown and
+isolated ignored diagnostics were written during the audit.

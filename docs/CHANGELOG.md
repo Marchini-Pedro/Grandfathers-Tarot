@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-10-03 - Synchronize remediation with the merged audit brief
+- Merge `main` at `44e536f` into the existing PR #4 branch. Resolve the three documentation conflicts by retaining completed audit/remediation status, history and links.
+- Update current PR status without changing runtime/tests or the frozen audit baseline. All six required checks pass on Lua 5.5 and LuaJIT 2.1 (1,746 assertions each); live acceptance remains pending.
+
+## 2026-10-03 - Close retirement coverage and complete remediation review
+- Release all tuning/protocol owners and guard captured callbacks, delayed hook registration and executors; retry missing/replaced event managers on gameplay entry.
+- Preserve current live records when a failed snapshot returns after synchronous teardown. Skip malformed host candidate entries within the existing five-card bound.
+- Add partial-budget and retirement regressions; all six checks pass on both runtimes (1,746 assertions each). All 17 selected mutations fail intended behavioral assertions; supported-max work stays bounded in five repetitions per runtime/mode. Saved data and read-only references remain unchanged; native acceptance is pending.
+
+## 2026-10-03 - Recover recipient-specific size failures (F06)
+- Fan out sizes through direct Realms sends with a bounded peer registry, propagate failures into current-size retry, skip unsupported RPCs and refresh peers after enable.
+- Coalesce failed late-join snapshots and protect new updates during synchronous sends. Actual installed ModNetwork plus real Protocol/Tuning reproduces rejection/recovery on both runtimes.
+- All six checks pass (1,735 assertions each); native rejection frequency and multiplayer overhead remain pending.
+
+## 2026-10-03 - Reject non-finite imported numbers (F07)
+- Validate all nine numeric fields in preset/card imports before rounding/clamping; retain finite clamps and legacy absent/empty threat.
+- Add valid-checksum NaN/infinity/overflow and atomic-write regressions on both runtimes. All six checks pass (1,724 assertions each); native paste workflow remains pending.
+
+## 2026-10-03 - Bound aggregate pending work (F04)
+- Cap execution at 64 jobs / 8,000 pending units; reject initial waves before allocation when they cannot fit and skip/clip repeats against shared capacity. Throttle timed-wave failure warnings.
+- Add supported 32-timer, atomic-admission, repeat-only and teardown regressions. All six checks pass on both runtimes (1,677 assertions each); native budget tuning remains pending.
+
+## 2026-10-03 - Remediate pause, stop and disable (F02/F03/F05)
+- Separate scheduling cancellation from mission teardown; preserve living-unit accounting/tuning while stopped and freeze queued clocks while paused.
+- Cancel disabled work, retain/prune living ownership, and resync clients on re-enable; hosts explicitly restart.
+- Drive real entry/director/executor/tuning through cap/recompute/control/unload regressions. All six checks pass on both runtimes (1,672 assertions each); native checks remain pending.
+
+## 2026-10-03 - Remediate event ownership (F01)
+- Unregister both mission events from their original manager at unload; guard captured callbacks and missing managers.
+- Add an owner-faithful 100-generation entry regression. All six checks pass on both runtimes (1,659 assertions each); native acceptance remains pending.
+
+## 2026-10-03 - Execute the offline adversarial audit (documentation only)
+- Record the frozen baseline, complete 29-file/descriptor inventory, risk-to-test map, five detected mutations and two survivors, L1–L8 results/limits, measurements and real-widget previews.
+- Report seven reproduced lifecycle, control, aggregate-pressure, delivery and numeric-import defects; preserve runnable isolated diagnostics in Markdown and an exact native/multiplayer/eight-hour acceptance checklist.
+- Update current guidance, plan, verification, learnings and source/recovery notes. Runtime, tracked tests, configuration, interfaces and read-only references remain unchanged; fixes await the agreed review gate.
+- Final review corrects descriptor line count and live heap precision, and clarifies the injected rejection/native-delivery distinction. Subsequent authorization starts a separate remediation branch; this report preserves the pre-fix baseline.
+
 ## 2026-10-03 - Prepare an adversarial audit brief
 - Add an audit-only prompt covering meaningful test adequacy, repeated UI/reload/preset/mission lifecycles, wave-count scaling, Lua/native/process memory, Realms authority and asynchronous ordering, UI/coherence and selective BetterInventory reuse.
 - Require reproducible baselines, primary-source checks, fault-injection evidence, honest offline/live limits and ranked proposed fixes. Link the brief from the documentation index and CLAUDE.md; the audit has not been executed.

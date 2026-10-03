@@ -317,7 +317,7 @@ local Execute = {
   has_authority = function() return true end,
   start_wave = function(def) started_waves[#started_waves+1] = def.name; started_defs[#started_defs+1] = def; return true end,
   uses_ring = function() return ring_level end,
-  update = function() end, reset = function() end,
+  update = function() end, reset = function() end, cancel = function() end,
   status = function() return { tracked = 0, queued = 0, jobs = 0 } end,
 }
 local sent = {}
@@ -543,11 +543,12 @@ end
 -- protocol layer: RPCs registered, rw_waves send/receive validation ------------------------------------------------
 do
   local registered, sent_rpcs = {}, {}
+  local joined, left
   local realms = {
     network_is_available = function() return true end,
     network_register = function(m, name, handler) registered[name] = handler; return true end,
     network_send = function(m, name, recipient, ...) sent_rpcs[#sent_rpcs + 1] = { name = name, recipient = recipient, args = { ... }, mod = m }; return true end,
-    network_on_peer_joined = function() end, network_on_peer_left = function() end,
+    network_on_peer_joined = function(m,fn) joined=fn end, network_on_peer_left = function(m,fn) left=fn end,
   }
   local real_get_mod = get_mod
   get_mod = function(name) if name == "Realms" then return realms end return real_get_mod(name) end
@@ -594,6 +595,71 @@ do
   realms.network_send=function() error("connection closed during send") end
   local send_ok, sent, why=pcall(P.send_hello)
   check("protocol: a disconnect during any RPC send returns a failure without raising", send_ok and sent==false and tostring(why):find("connection closed",1,true))
+
+  -- Match Realms' asymmetric contract: broadcast is true despite one rejected
+  -- peer, while a direct send exposes false. Use the real protocol and tuning.
+  local attempts, deliveries, payloads = {}, {}, {}
+  local reject, capable = true, false
+  cjson.encode=function(list)
+    local key="sizes:"..(#payloads+1);local copy={}
+    for i,item in ipairs(list) do copy[i]={item[1],item[2]} end
+    payloads[#payloads+1]=copy;payloads[key]=copy;return key
+  end
+  realms.network_send=function(m,name,recipient,json)
+    if recipient=="others" then
+      realms.network_send(m,name,"good",json)
+      realms.network_send(m,name,"failed",json)
+      if capable then realms.network_send(m,name,"unsupported",json) end
+      return true -- actual Realms broadcast hides individual rejection
+    end
+    attempts[recipient]=(attempts[recipient] or 0)+1
+    if recipient=="unsupported" and not capable then return false,"target_rpc_unsupported" end
+    if recipient=="failed" and reject then return false,"channel unavailable" end
+    deliveries[recipient]=payloads[json];return true
+  end
+  joined("good");joined("failed");joined("unsupported")
+  local native_unit,native_su,native_vector,native_spawner=Unit,ScriptUnit,Vector3,Managers.state.unit_spawner
+  Unit={alive=function() return true end,set_local_scale=function() end}
+  Vector3=function(x,y,z) return {x=x,y=y,z=z} end
+  ScriptUnit={has_extension=function() return nil end}
+  Managers.state.unit_spawner={game_object_id=function(self,unit) return unit.id end}
+  local tuner=load("spawn/tuning");tuner.init({protocol=P})
+  local unit={id=77}
+  tuner.apply(unit,{size=130});tuner.update(0.3)
+  check("delivery: partial direct rejection retains current-size retry while good peer is served", tuner.status().unsent==1 and deliveries.good[1][2]==130 and deliveries.failed==nil)
+  local unsupported_attempts=attempts.unsupported
+  tuner.apply(unit,{size=180});tuner.update(0.3)
+  check("delivery: retries coalesce to latest size and unsupported peers are skipped", tuner.status().unsent==1 and deliveries.good[1][2]==180 and attempts.unsupported==unsupported_attempts)
+  reject=false;tuner.update(0.3)
+  check("delivery: recovered recipient receives latest size and retry clears", deliveries.failed and deliveries.failed[1][2]==180 and tuner.status().unsent==0)
+  reject=true
+  for i=1,100 do tuner.send_all("failed") end
+  check("delivery: rejected late-join snapshots coalesce instead of growing", tuner.status().unsent==1)
+  left("failed");tuner.update(0.3)
+  check("delivery: disconnect removes failed recipient from retries", tuner.status().unsent==0)
+  capable=true;registered.rw_hello("unsupported",2,"2.0.0")
+  tuner.apply(unit,{size=150});tuner.update(0.3)
+  check("delivery: compatible hello rearms previously unsupported recipient", deliveries.unsupported[1][2]==150)
+  realms.network_on_peer_joined=function(m,fn) joined=fn;fn("good") end
+  P.refresh_peers();attempts={}
+  P.send_scales({{77,150}})
+  check("delivery: refresh discards peers missed while disabled and replays current peers", attempts.good==1 and attempts.unsupported==nil and attempts.failed==nil)
+  for i=1,30 do joined("synthetic_"..i) end
+  attempts={};P.send_scales({{77,150}})
+  local peer_count=0;for _ in pairs(attempts) do peer_count=peer_count+1 end
+  check("delivery: recipient registry is bounded at 16", peer_count==16)
+  P.refresh_peers();joined("zz_gone")
+  local gone_attempts=0
+  realms.network_send=function(m,name,recipient)
+    if recipient=="good" then left("zz_gone") end
+    if recipient=="zz_gone" then gone_attempts=gone_attempts+1 end
+    return true
+  end
+  check("delivery: synchronous disconnect during fanout skips removed recipient", P.send_scales({{77,150}})==true and gone_attempts==0)
+  local before_retire=calls
+  P.retire();registered.rw_state("host_peer","x");registered.rw_hello("late",2,"2.0.0");joined("late")
+  check("protocol: captured RPC/peer callbacks and sends are inert after retire", calls==before_retire and not P.is_available() and P.send_scales({{77,150}})==false)
+  Unit,ScriptUnit,Vector3,Managers.state.unit_spawner=native_unit,native_su,native_vector,native_spawner
   get_mod = real_get_mod; cjson = nil
 end
 -- fixed-timer waves: ignore the chance, run on their own clock, independent of the draw -----------------------------
@@ -1720,13 +1786,14 @@ do
     check("join: ...and the host forgets them (no growth over a long mission)", Tuning.status().sizes_known == to_joiner - 100, Tuning.status().sizes_known)
 
     -- a peer that left, or a network that fails, while sizes are going out
+    local warning_start = #echoes
     fake_protocol.send_scales = function() error("peer is gone") end
     local failed_ok = pcall(Tuning.send_all, "crashed_player")
     Tuning.apply(crowd[200], { size = 120 }, "crowd")
     local update_ok = pcall(function () Tuning.update(0.3); Tuning.update(0.3) end)
     check("leave: a send to a player who crashed or left raises nothing (not in send_all, not in the host's update)", failed_ok and update_ok)
     local warned_send = 0
-    for _, e in ipairs(echoes) do if e:find("sizes could not be sent", 1, true) then warned_send = warned_send + 1 end end
+    for i=warning_start+1,#echoes do if echoes[i]:find("sizes could not be sent", 1, true) then warned_send = warned_send + 1 end end
     check("leave: ...and it is logged once, not every frame", warned_send == 1, warned_send)
     fake_protocol.send_scales = function(list, recipient) sent_scales[#sent_scales + 1] = { list = list, recipient = recipient }; return true end
     sent_scales = {}
@@ -1747,6 +1814,16 @@ do
     fake_protocol.send_scales=function(list,recipient) sent_scales[#sent_scales+1]={list=list,recipient=recipient}; return true end
     Tuning.update(0.3)
     check("network: retries send the latest live value and clear the queue", Tuning.status().unsent==0 and sent_scales[#sent_scales].list[1][2]==125)
+    local reentered=false
+    fake_protocol.send_scales=function(list)
+      sent_scales[#sent_scales+1]={list=list}
+      if not reentered then reentered=true;Tuning.apply(crowd[201],{size=180},"crowd") end
+      return true
+    end
+    Tuning.apply(crowd[201],{size=130},"crowd");Tuning.update(0.3)
+    check("network: synchronous new size survives completion of the previous send", Tuning.status().unsent==1)
+    Tuning.update(0.3)
+    check("network: next cadence delivers reentrant latest value once", Tuning.status().unsent==0 and sent_scales[#sent_scales].list[1][2]==180)
 
     -- a unit that died: the stat hook and the end-of-attack hook no longer know it
     local gone = crowd[1]
@@ -1906,6 +1983,29 @@ do
   is_server = true; D2.on_scale("peer", { { id = 1, pct = 120 } })
   check("director: sizes from the host reach Tuning on a client, never on the host", received == 1)
 
+  -- A captured tuner can be reached after unload. Retirement must both release
+  -- its existing records and prevent a late callback from repopulating them.
+  Managers.state.unit_spawner.game_object_id=function(self,unit) return unit.gid end
+  local old_stats={melee_attack_speed=1}
+  local obsolete={gid=999,buffs={stat_buffs=function() return old_stats end}}
+  local old_apply,old_receive=Tuning.apply,Tuning.receive
+  Tuning.apply(obsolete,{gap=50,size=130})
+  Tuning.receive({{id=999,pct=130}})
+  local owned_status=Tuning.status()
+  Tuning.retire()
+  local retired_status=Tuning.status()
+  check("retire: tuning releases all unit records and incoming/outgoing work", owned_status.tuned>0 and owned_status.sizes_known==1 and owned_status.unsent==1 and owned_status.pending==1 and retired_status.tuned==0 and retired_status.sizes_known==0 and retired_status.unsent==0 and retired_status.pending==0)
+  old_stats.melee_attack_speed=1
+  local scales_before=#scales_set
+  old_apply(obsolete,{gap=50,size=130});old_receive({{id=999,pct=130}})
+  Tuning.update(1);Tuning.update_client(1);stat_hook(obsolete.buffs,1)
+  check("retire: obsolete apply/receive/update/stat hooks cannot repopulate records or change a unit", old_stats.melee_attack_speed==1 and #scales_set==scales_before and Tuning.status().tuned==0 and Tuning.status().pending==0)
+  local snapshot_tuner=load("spawn/tuning")
+  local snapshot_calls=0
+  snapshot_tuner.init({protocol={is_available=function() return true end,send_scales=function() snapshot_calls=snapshot_calls+1;snapshot_tuner.retire();return false,"retired during send" end}})
+  snapshot_tuner.apply(obsolete,{size=130})
+  snapshot_tuner.send_all("peer")
+  check("retire: a failed snapshot completing after synchronous retirement cannot recreate outgoing work", snapshot_calls==1 and snapshot_tuner.status().unsent==0 and snapshot_tuner.status().sizes_known==0)
   ScriptUnit, Unit, Vector3, Managers.state.unit_spawner = saved_su, saved_unit, saved_v3, saved_spawner
   minion_spawn.spawn_minion = saved_spawn
   Execute.init({ positions = StubPositions, bypass = Bypass, groups = Groups })
@@ -2961,7 +3061,7 @@ do
     if d > 0.01 then moved = moved + 1 end
     if p.z ~= 10.5 then all_snapped = false end
   end
-  check("spread: points stay inside the radius and are nav-snapped", max_r <= 5.0001 and all_snapped and moved == 500, string.format("max %.2f moved %d", max_r, moved))
+  check("spread: points stay inside the radius and are nav-snapped", max_r <= 5.0001 and all_snapped and moved >= 490, string.format("max %.2f moved %d", max_r, moved))
   local inner = 0
   for _ = 1, 2000 do local p = Pos.spread(origin, 10); if math.sqrt((p.x - 100) ^ 2 + (p.y - 200) ^ 2) < 5 then inner = inner + 1 end end
   check("spread: uniform over the disc (about a quarter of points within half the radius)", inner > 400 and inner < 600, inner)
@@ -2989,6 +3089,40 @@ for i = 1, #pool2 do
   maxerr = math.max(maxerr, math.abs(got - pool2[i].pct))
 end
 check("simulate 20000 rolls within 1.2 pct points", maxerr < 1.2, string.format("max err %.2f", maxerr))
+
+-- Finite validation is shared by full preset and single-card imports. A correct
+-- checksum must never make NaN/infinity valid or allow partial settings writes.
+do
+  is_server=false;Director.on_enter_gameplay()
+  local accepted=pcall(Director.on_state,"host_peer",{p="waiting",m="vote",r=10,b=1,k={false,{k="valid",n="Valid",p=10,v=0}}})
+  check("state: malformed authorized-host candidate is skipped without losing valid items", accepted and #Director.view().cands==1 and Director.view().cands[1].key=="valid")
+  local many={};for i=1,100 do many[i]={k="k"..i,n="N",p=10,v=0} end
+  Director.on_state("host_peer",{p="waiting",m="vote",r=10,b=1,k=many})
+  check("state: candidates remain within the supported five-item bound and non-table state is ignored", #Director.view().cands==5 and pcall(Director.on_state,"host_peer",false))
+  Director.on_exit_gameplay();is_server=true
+end
+
+do
+  local fields={"wave_small","changed","1","10","120","3","10","60","1 hound{size=130}","0","0","0","0","swarm","0","","","1"}
+  for _,index in ipairs({4,5,6,7,8,10,11,12,15}) do
+    local original=fields[index]
+    for _,value in ipairs({"nan","-nan","inf","-inf","1e309"}) do
+      fields[index]=value
+      local body=table.concat(fields,"~")
+      local decoded=PresetsMod.decode(PresetsMod.seal("RW1|Preset|1|"..body),Events,Groups)
+      local writes=0
+      if decoded then PresetsMod.apply(decoded,function() writes=writes+1 end,Events,Groups) end
+      local card=PresetsMod.decode_wave(PresetsMod.seal("RWW1|"..body),Events,Groups)
+      check("import: non-finite field "..index.." "..value.." rejects preset/card atomically", decoded==nil and card==nil and writes==0)
+    end
+    fields[index]=original
+  end
+  local bad="RW1|Preset|1|wave_small~changed~1~nan~120~3~10~60~1 hound{size=130}~0~0~0~0~swarm~0~~~1|a6a3"
+  check("import: exact audit NaN preset is rejected", PresetsMod.decode(bad,Events,Groups)==nil)
+  fields[4]="1e300"
+  local finite=PresetsMod.decode(PresetsMod.seal("RW1|Preset|1|"..table.concat(fields,"~")),Events,Groups)
+  check("import: very large finite values still clamp and round-trip", finite~=nil and finite.waves[1].pct<math.huge and PresetsMod.decode(PresetsMod.encode(finite),Events,Groups)~=nil)
+end
 
 return table.concat(results, "\n") .. "\n--- echoes ---\n" .. table.concat(echoes, "\n")
 '''

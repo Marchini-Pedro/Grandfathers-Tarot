@@ -160,4 +160,49 @@ See `05-implementation-plan.md`.
 `deck_order` stores visual card keys as a comma-separated string, normalized against the current catalog on load. Missing/deleted keys never erase a card; absent/new keys append. `deck_sort` and `deck_sort_desc` mark the last ascending/descending sort (threat, rarity/chance, enemies, face); manual swaps clear the mark. This order has no effect on the director pool or probability. Dragging starts after a real face/state press held 0.3 seconds, swaps within the visible page on release over another card, and cancels everywhere else. A popup, page/screen change, reload or editor exit cancels before reusing widgets. The quick click acts on release; a double-click arms a hold but suppresses its second toggle.
 
 ### Runtime recovery hardening (2026-10-03)
-Repeat queues hold at most 1000 pending units per job, truncate a repeat batch to the available room, and skip missed ticks once full. Batch prepending preserves the older pending units first using linear work and the existing batch table. Size replication coalesces one pending update per id (newest arrival wins, at most 600 ids); it waits for the unit handle and retries transient scale failures up to 20 seconds. Outbound failures retry every 0.3 seconds with current live sizes only. Host-only RPCs require the actual session host sender; protocol 2 stays compatible. A real buff reset is recorded so equal numerical values cannot hide a fresh recompute.
+Repeat queues hold at most 1000 pending units per job, truncate a repeat batch to the available room, and skip missed ticks once full. Batch prepending preserves the older pending units first using linear work and the existing batch table. Size replication coalesces one pending update per id (newest arrival wins, at most 600 ids); it waits for the unit handle and retries transient scale failures up to 20 seconds. Whole-call outbound failures retry every 0.3 seconds with current live sizes only; the subsequent audit found that Realms partial peer failures are not reported through that return value (F06). Host-only RPCs require the actual session host sender; protocol 2 stays compatible. A real buff reset is recorded so equal numerical values cannot hide a fresh recompute.
+
+### Adversarial audit ownership review (2026-10-03)
+
+The [dated report](audits/2026-10-03/report.md) records seven baseline defects,
+before remediation: event subscriptions survive unload; disabled
+updates still spawn; stop clears living-unit ownership; pause leaves Execute
+running; local queue caps lack an aggregate budget; partial broadcast rejection
+loses size recovery; LuaJIT preset numeric parsing admits NaN. The user approved
+implementation after reviewing the audit. Fixes use existing ownership and
+validation boundaries, preserving protocol 2, public options and serialization.
+The approved [remediation log](audits/2026-10-03/remediation.md) tracks current
+changes. Entry unload now releases both subscriptions from their stored original
+event manager; retired callbacks are inert even if already captured.
+Gameplay entry registers a manager that appeared after initialization or replaces
+the original owner safely. Retirement releases tuning records/queues and protocol
+peer/handler references, blocks captured entry points, and prevents delayed
+hook-require callbacks from installing hooks. A failed late-join send checks
+current live records before retrying, including synchronous teardown during send.
+Scheduling cancellation now drops jobs/cache without discarding living unit
+records. Pause freezes feed/repeat/timeout clocks while maintenance continues;
+stop retains tracking/tuning and prunes dead units even without jobs. Disable
+cancels jobs and performs liveness cleanup only while DMF hooks are suspended.
+Re-enable requires host `/rw_start`; clients clear stale state and handshake.
+Pending work now has fixed internal limits of 64 jobs and 8,000 aggregate
+entries. Admission estimates the clipped initial batch before allocation and
+rejects it atomically if it cannot fit. Repeats skip full-budget overdue ticks
+or clip to remaining capacity, retaining the per-job 1,000 bound. Status exposes
+limits; timed-wave failures log at most once per five seconds. Supported
+recipes/multipliers bound individual temporary batches; this is not a new option
+or a guarantee about native frame time.
+Both preset and single-card import validate finiteness of every numeric field
+before rounding/clamping. Supplied invalid threat is rejected; absent/empty
+legacy threat stays zero. Huge finite numbers still clamp, and validation
+completes before settings writes. Serialization is unchanged.
+Size replication now tracks at most 16 known Realms peers, fan-outs through
+direct sends, and aggregates recipient failures into the existing coalesced
+current-size retry. Successful recipients can receive idempotent duplicates;
+unsupported RPCs are skipped until a compatible hello or peer refresh. Re-enable
+replays Realms peers to discard missed disconnects. Failed late-join snapshots
+coalesce into the same outbox, and synchronous sends cannot clear newly queued
+sizes. No new protocol fields or per-peer scheduler is introduced.
+Client state skips malformed candidate entries and reads at most five candidates,
+matching the existing hand/ballot bounds. No message schema changes are required.
+Full mission teardown works in the Lua fixtures; actual engine resources and
+eight-hour acceptance remain pending.

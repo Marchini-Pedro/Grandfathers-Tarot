@@ -10,6 +10,25 @@ mod.rw = {}
 
 local RW = mod.rw
 
+local function release_events()
+	if RW.event_manager then
+		pcall(RW.event_manager.unregister, RW.event_manager, mod, "event_mission_objective_start")
+		pcall(RW.event_manager.unregister, RW.event_manager, mod, "event_player_died")
+		RW.event_manager = nil
+	end
+end
+
+local function register_events()
+	local manager = Managers.event
+
+	if manager and manager ~= RW.event_manager then
+		release_events()
+		RW.event_manager = manager
+		manager:register(mod, "event_mission_objective_start", "_on_mission_objective_start")
+		manager:register(mod, "event_player_died", "_on_player_died")
+	end
+end
+
 -- Registered at load so DMF injects it whenever the HUD is built.
 pcall(function ()
 	mod:register_hud_element({
@@ -123,10 +142,7 @@ mod.on_all_mods_loaded = function ()
 	})
 
 	-- Same "first objective started" signal RealmsEvent uses to begin its rolls.
-	Managers.event:register(mod, "event_mission_objective_start", "_on_mission_objective_start")
-
-	-- fired by PlayerDeath.die (utilities/player_death.lua:45) on the host: used by the anti-snowball option
-	Managers.event:register(mod, "event_player_died", "_on_player_died")
+	register_events()
 
 	-- Wave editor view (structure copied from RealmsEvent's editor registration).
 	local UISoundEvents = require("scripts/settings/ui/ui_sound_events")
@@ -174,12 +190,13 @@ mod.open_editor = function ()
 	end
 end
 
--- On a mod reload (or game exit): stop this instance's hooks from acting (DMF cannot remove
--- them) and release everything it holds, so reloads do not stack behaviour or pin memory.
+-- Release subscriptions from their original owner; DMF removes hooks on reload.
+-- Retirement also protects callbacks already captured by an in-flight dispatch.
 mod.on_unload = function ()
-	-- the keybind-suppression hook of this instance stays in DMF's chain after a reload: never let it block
 	RW.dead = true
 	RW.text_input_active = false
+
+	release_events()
 
 	if RW.bypass then
 		RW.bypass.retire()
@@ -187,6 +204,10 @@ mod.on_unload = function ()
 
 	if RW.tuning then
 		RW.tuning.retire()
+	end
+
+	if RW.protocol then
+		RW.protocol.retire()
 	end
 
 	if RW.execute then
@@ -199,26 +220,74 @@ mod.on_unload = function ()
 end
 
 mod._on_mission_objective_start = function ()
-	if RW.director then
+	if RW.director and not RW.dead and not RW.disabled then
 		RW.director.on_mission_started()
 	end
 end
 
 mod._on_player_died = function ()
-	if RW.director and not RW.dead then
+	if RW.director and not RW.dead and not RW.disabled then
 		pcall(RW.director.on_player_died)
 	end
 end
 
 mod.on_game_state_changed = function (status, state_name)
-	if state_name ~= "GameplayStateRun" or not RW.director then
+	if state_name ~= "GameplayStateRun" or not RW.director or RW.dead then
 		return
 	end
 
 	if status == "enter" then
+		register_events()
 		RW.director.on_enter_gameplay()
 	else
 		RW.director.on_exit_gameplay()
+	end
+end
+
+-- Disable cancels future work. Living units remain owned for re-enable; DMF
+-- suspends their hooks while disabled. The host explicitly restarts with /rw_start.
+mod.on_disabled = function ()
+	if RW.dead then
+		return
+	end
+
+	RW.disabled = true
+	RW.text_input_active = false
+
+	if RW.director then
+		RW.director.stop()
+	end
+
+	if RW.execute then
+		RW.execute.cancel()
+	end
+
+	if Managers.ui and Managers.ui.view_instance and Managers.ui.close_view then
+		pcall(function ()
+			if Managers.ui:view_instance(EDITOR_VIEW) then
+				Managers.ui:close_view(EDITOR_VIEW)
+			end
+		end)
+	end
+end
+
+mod.on_enabled = function (initial_call)
+	if RW.dead then
+		return
+	end
+
+	local was_disabled = RW.disabled
+	RW.disabled = false
+
+	if not initial_call and was_disabled and RW.director then
+		if RW.director.is_host() then
+			RW.director.stop()
+		else
+			-- Discard stale client state and re-handshake if already in a mission.
+			RW.director.on_enter_gameplay()
+		end
+
+		RW.protocol.refresh_peers()
 	end
 end
 
@@ -227,7 +296,23 @@ mod.update = function (...)
 	local first, second = ...
 	local dt = type(first) == "number" and first or second
 
-	if RW.director and dt then
+	if RW.dead then
+		return
+	end
+
+	if mod.is_enabled and not mod:is_enabled() then
+		if not RW.disabled then
+			mod.on_disabled()
+		end
+
+		if RW.bypass then
+			RW.bypass.purge()
+		end
+
+		return
+	end
+
+	if RW.director and not RW.dead and dt then
 		local ok, err = pcall(RW.director.update, dt)
 
 		if not ok and not RW.update_failed then

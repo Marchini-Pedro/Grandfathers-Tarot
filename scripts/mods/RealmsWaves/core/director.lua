@@ -626,10 +626,13 @@ end
 -- A wave with a fixed timer ("ev_<key>" seconds, set in the wave editor) ignores its chance and cooldown and
 -- never takes part in the draw or the vote: it spawns every N seconds on its own clock, whatever the other
 -- waves do. The clocks start with the mission's first cycle and only run while a player is alive.
+local timed_warning_at = -math.huge
+
 local function fire_timed(wave)
 	local ok, err = Execute.start_wave(wave.def)
 
-	if not ok then
+	if not ok and clock - timed_warning_at >= 5 then
+		timed_warning_at = clock
 		mod:warning("RealmsWaves: timed wave %s not started: %s", tostring(wave.key), tostring(err))
 	end
 end
@@ -776,7 +779,7 @@ Director.update = function (dt)
 	if Director.is_host() then
 		if Execute.has_authority() then
 			host_update(dt)
-			Execute.update(dt)
+			Execute.update(dt, paused or stopped)
 		end
 	elseif Tuning then
 		-- a client: the sizes the host sent (custom mods) go onto the units as they arrive here
@@ -877,7 +880,7 @@ Director.stop = function ()
 
 	stopped, paused = true, false
 	timers, timer_check = {}, 0
-	Execute.reset()
+	Execute.cancel()
 	Votes.close()
 
 	if host_state then
@@ -1024,17 +1027,19 @@ Director.on_welcome = function (sender, proto, version_text, ok)
 end
 
 Director.on_state = function (sender, s)
-	if Director.is_host() or client_disabled then
+	if type(s) ~= "table" or Director.is_host() or client_disabled then
 		return
 	end
 
 	local cands = {}
 
 	if type(s.k) == "table" then
-		for i = 1, #s.k do
+		for i = 1, math.min(#s.k, HAND_MAX) do
 			local item = s.k[i]
 
-			cands[i] = { key = tostring(item.k), name = tostring(item.n), pct = tonumber(item.p) or 0, votes = tonumber(item.v) or 0 }
+			if type(item) == "table" then
+				cands[#cands + 1] = { key = tostring(item.k), name = tostring(item.n), pct = tonumber(item.p) or 0, votes = tonumber(item.v) or 0 }
+			end
 		end
 	end
 
