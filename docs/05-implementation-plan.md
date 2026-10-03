@@ -164,3 +164,19 @@ synchronized with the audit-brief merge at `44e536f`.
 Public APIs/settings, protocol 2 and serialization remain compatible. See the
 [remediation results](audits/2026-10-03/remediation.md) and reproducible validation.
 Installation, publication and merging remain separate; game confirmation is pending.
+
+## 2.1 batch: `feature/heresy-card-and-ui-pass` (2026-10-03, from `main` at `6d5756d`)
+
+Ten changes the user asked for in one list. Everything below is implemented and tested offline (Lua 5.5 and LuaJIT 2.1) and committed on the branch; none is merged or played. In-game checks: `06` rows 114-121.
+
+- [x] Custom health 1:1 with the config under Havoc (`Tuning.set_exact_health`); the game's "Weakened" name kept for bosses below normal health.
+- [x] The Mods and Custom pages (and every card screen) in the colours of the card's face (`Components.set_theme`).
+- [x] Smaller shelf chips now that the D/S tags are gone; the freed room is a sixth enemy row in the Cauldron.
+- [x] The Deck's top button renamed "Deck presets".
+- [x] `/rw_test_close <wave>`: the wave in front of the player.
+- [x] Fester replaced by HERESY (special colours, frame, glow, mark, banner line; `fester` stays an alias).
+- [x] 100 cards (88 custom slots), the waves message trims instead of failing.
+- [x] A HUD window for the last fulfilled card (own element, synced, option, Custom HUD sample).
+- [x] A cooldown row on every Deck tile (`-` / `+` / number box / hover preview).
+- [ ] GitHub: admin permission for EduardoKenji. NOT done: a personal-account repository has no admin collaborator role and no API credential was available to me (see `07`, open gaps).
+- [ ] The in-game run of rows 114-121; the user's "100 percent working" merges the branch into `main`.

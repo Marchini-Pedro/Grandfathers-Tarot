@@ -27,6 +27,11 @@ The reusable audit brief was merged into `main` through
 [PR #4](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/4) includes that
 merge and retains the completed audit and six remediation batches.
 
+The open branch `feature/heresy-card-and-ui-pass` (2026-10-03; ten requested changes: exact custom
+health, card-coloured pages, tighter shelf chips, Deck presets, `/rw_test_close`, HERESY, 100 cards,
+the last-card window, cooldowns on the Deck tiles) is documented in the changelog, doc 05 and the new
+rows 114-121 of the verification matrix. It has offline tests only and is not merged.
+
 ## References
 
 | Document | Purpose |

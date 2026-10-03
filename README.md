@@ -8,17 +8,24 @@ random selection and player voting. No Twitch service is required.
 > in [PR #1](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/1).
 > Offline checks pass; the recovered changes still need in-game and multiplayer
 > verification. The runtime reports `2.0.0`; the last tagged release is `v1.13.0`.
+> The open branch `feature/heresy-card-and-ui-pass` (exact custom health, the HERESY suit, 100 cards,
+> a last-card window, cooldowns on the Deck tiles, `/rw_test_close`, card-coloured pages) has offline
+> tests only: it is not merged and nothing of it has been played yet.
 
 ## Features
 
 - **Three wave modes:** tarot draws with card cooldowns, weighted random waves,
   and player ballots, with a synchronized countdown and HUD.
-- **The Deck:** create, enable, share and import waves; save five presets; sort
-  cards by threat, rarity, enemy count or face; drag to swap cards on a page.
+- **The Deck:** up to 100 cards; create, enable, share and import waves; set a
+  card's chance (the pips) and cooldown (the `-` / `+` on its tile) in place; save five
+  **Deck presets**; sort cards by threat, rarity, enemy count or face; drag to swap
+  cards on a page. **HERESY** is the one special suit (frame and glow of its own).
 - **The Cauldron:** build enemy groups with a searchable catalog and Dreg/Scab
   shelf, modifiers, custom stats and a live card preview.
 - **The Mirror:** customize the card's suit, threat, whisper and cooldown look,
   with a preview of its appearance in the hand.
+- **Last card window:** a HUD window with the card whose wave went out last and how long
+  ago, the same on every player's screen (option "Last card", movable with Custom HUD).
 - **Wave controls:** weights, spawn distances, spread, repeating groups, fixed
   timers, enemy-type multipliers and optional pooling of players' waves.
 - **Host controls:** pause, stop, resume or advance the cycle; configurable
@@ -58,7 +65,8 @@ and Improved Havoc Tags supply enemy/modifier colours when installed.
 | --- | --- |
 | `/rw_editor` | Open or close the wave editor |
 | `/rw_status` | Show director state and spawn counters |
-| `/rw_test <wave key or name>` | Spawn a test wave immediately (host) |
+| `/rw_test <wave key or name>` | Spawn a test wave immediately, out of sight (host) |
+| `/rw_test_close <wave key or name>` | Spawn the wave right in front of you, facing you (host) |
 | `/rw_start` / `/rw_stop` | Start or stop the cycle; stopping leaves spawned enemies alive (host) |
 | `/rw_pause [on\|off]` | Freeze/resume wave clocks and queued spawns; living units stay maintained (host) |
 | `/rw_next` | Discard the current wave and draw a new one (host) |
@@ -79,8 +87,9 @@ and Improved Havoc Tags supply enemy/modifier colours when installed.
   unmeasured. Start with moderate enemy counts and restart for clean testing.
 - Custom **Time between attacks** changes attack timing. Animation playback
   speed has no confirmed per-unit API and is not an implemented control.
-- Enemy size replication requires RealmsWaves on each peer. Custom boss-health
-  naming is host-local, so clients may still see the game's **Weakened** prefix.
+- Enemy size replication requires RealmsWaves on each peer. A custom health is
+  exact (normal health times your percent, whatever Havoc adds); a boss below its
+  normal health keeps the game's own **Weakened** name.
 
 See the [recovery review](docs/09-recovery-review.md) and
 [verification matrix](docs/06-verification-and-open-issues.md) for remaining

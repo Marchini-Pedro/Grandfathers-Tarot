@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-10-03 - Every card shows its cooldown and changes it in the Deck (`341093e`, branch `feature/heresy-card-and-ui-pass`)
+- Each Deck tile has a cooldown row under the chance pips: `[-] COOLDOWN 2:30 [+]` in the card's own colours. A click takes 30 s (shortest 30 s, longest the "Longest cooldown" option), the value opens the number box, the pointer on a plate previews the new value, a right click opens the card, a plate at its limit is dimmed. Cards with a fixed timer say EVERY and have no plates; the stage card shows the value without plates. The Mirror keeps its stepper and shares `Deck.cooldown_after`.
+- To make room the lower part of the tile moved up 18 units and the composition lost one line (four lines for a one-line name, three for two, two for three). Offline only: layout tests follow the new numbers; hover/click behaviour is in `06` row 121.
+
+## 2026-10-03 - A HUD window shows the last fulfilled card (`06b0112`, `37b4d59`)
+- New HUD element `HudElementRealmsWavesLast` (own node, so Custom HUD moves it separately; default right of the Spread): "LAST CARD", how long ago, the card as the Spread draws it, its whisper and modifiers. It stays until the next card goes out. Option "Last card" (on by default); a sample shows while Custom HUD is edited.
+- The director remembers the card whose wave really started (tarot pick, random wave, voted wave; not `/rw_test`, not fixed timers) and syncs it (`lc`, `la`, `ls` in the state, decoded with the same validator as the hand, `decode_card`). `Director.view()` gains `last`, `last_seq`, `last_age`.
+
+## 2026-10-03 - A deck holds up to 100 cards (`e16bd3c`)
+- `Events.MAX_CARDS = 100`; the custom slots are the rest (88, keys `custom_1`...`custom_88`; it was 20). The Deck's odds strip has 100 segments, the host takes up to 100 cards per player in the pooled draw (it was 40), `/rw_custom` takes slots 1-88.
+- The client-to-host waves message limit is 90000 bytes (it was 60000; Realms allows 96 KiB); a client whose enabled cards do not fit sends the first ones that do and logs it once. 100 cards of twelve groups with modifiers and custom mods measured 34 KB.
+
+## 2026-10-03 - Fester becomes HERESY (`c8b955b`)
+- The Fester suit is replaced by Heresy, the last of the twelve and the only `special` one: black red face, blood-red frame, gilded accent, a broken-halo-and-blade mark, the whisper "He does not answer.". It has a frame at rest and a smouldering glow on the Spread, the Deck tile, the Cauldron's stage card and the Mirror's hand preview, and the banner says "Heresy is drawn".
+- `fester` stays an alias (`Cards.SUIT_ALIAS`, `Events.SUIT_ALIAS`): saved cards, presets, shared texts and hands synced by an older host become Heresy.
+
+## 2026-10-03 - `/rw_test_close <wave>` (`d1c35a0`)
+- Spawns the wave 3.5 to 8 m in front of the player who typed it (where the camera looks, on walkable ground, closer if a wall is in the way), spread at most 2 m, facing and aggroed on the player. Host only. `/rw_test` is unchanged.
+
+## 2026-10-03 - Deck presets (`d19a314`)
+- The Deck's top button, "Spreads", is called "Deck presets": it holds the five whole-deck slots. "Spread" now only means the HUD's hand.
+
+## 2026-10-03 - Card pages take the colours of the card's face; tighter shelf chips (`af83310`)
+- The Mods and Custom pages (and the picker, Cauldron and Mirror) took only their buttons from the suit; now the ground, panels, rows, frames, titles and headings do too (`Components.set_theme`, one shared table that the static widgets read every frame). The Deck, options and presets keep the default palette.
+- With the D/S tags gone the shelf chips are smaller (height 30, pitch 36); the room that freed is a sixth enemy row in the Cauldron.
+
+## 2026-10-03 - Custom health is exact and the game's "Weakened" name is back (`d8e57bf`)
+- `MinionSpawnManager.spawn_minion` adds the Havoc / mission health modifier to the custom health spawn parameter, and mods such as Ultra Havoc rewrite that modifier, so a boss set to 50 percent was 50 percent plus Havoc's share. `Tuning.set_exact_health` now sets maximum health to exactly normal health x the player's percent right after the spawn (the extension's `_health` and the game object's `health` field) and re-reads the boss's weakened mark.
+- The workaround that cleared the mark and hooked the boss health bar (`b5a41c5`) is removed: a boss with less than its normal health is "Weakened" again, the game's own word.
+
 ## 2026-10-03 - Synchronize remediation with the merged audit brief
 - Merge `main` at `44e536f` into the existing PR #4 branch. Resolve the three documentation conflicts by retaining completed audit/remediation status, history and links.
 - Update current PR status without changing runtime/tests or the frozen audit baseline. All six required checks pass on Lua 5.5 and LuaJIT 2.1 (1,746 assertions each); live acceptance remains pending.
