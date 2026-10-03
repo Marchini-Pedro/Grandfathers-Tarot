@@ -60,17 +60,17 @@ and Improved Havoc Tags supply enemy/modifier colours when installed.
 | `/rw_status` | Show director state and spawn counters |
 | `/rw_test <wave key or name>` | Spawn a test wave immediately (host) |
 | `/rw_start` / `/rw_stop` | Start or stop the cycle; stopping leaves spawned enemies alive (host) |
-| `/rw_pause [on\|off]` | Pause or resume the director (host; see current limits) |
+| `/rw_pause [on\|off]` | Freeze/resume wave clocks and queued spawns; living units stay maintained (host) |
 | `/rw_next` | Discard the current wave and draw a new one (host) |
 | `/rw_skip` | Resolve the current wave immediately (host) |
 
 ## Current limits
 
-- The [2026-10-03 audit](docs/audits/2026-10-03/report.md) found open defects:
-  disable can keep spawning, stop forgets
-  surviving units, and pause still feeds queued/repeating work. Aggregate
-  repeats can create a large backlog; peer-specific size-send rejection and
-  malformed numeric preset import also need fixes. Remediation awaits review.
+- [Audit remediation](docs/audits/2026-10-03/remediation.md) fixes reload event
+  cleanup and pause/stop/disable ownership offline. Stop cancels pending work
+  while surviving units remain counted and tuned. Disable suspends tuning/hooks
+  and cancels jobs; re-enable needs `/rw_start` on the host and resyncs clients.
+  Aggregate backlog, peer-specific size recovery and numeric imports are pending.
 
 - The recovered workshop, drag interactions and multiplayer changes have
   offline coverage; actual game rendering, frame time and process RAM remain

@@ -207,13 +207,13 @@ mod.on_unload = function ()
 end
 
 mod._on_mission_objective_start = function ()
-	if RW.director and not RW.dead then
+	if RW.director and not RW.dead and not RW.disabled then
 		RW.director.on_mission_started()
 	end
 end
 
 mod._on_player_died = function ()
-	if RW.director and not RW.dead then
+	if RW.director and not RW.dead and not RW.disabled then
 		pcall(RW.director.on_player_died)
 	end
 end
@@ -230,10 +230,71 @@ mod.on_game_state_changed = function (status, state_name)
 	end
 end
 
+-- Disable cancels future work. Living units remain owned for re-enable; DMF
+-- suspends their hooks while disabled. The host explicitly restarts with /rw_start.
+mod.on_disabled = function ()
+	if RW.dead then
+		return
+	end
+
+	RW.disabled = true
+	RW.text_input_active = false
+
+	if RW.director then
+		RW.director.stop()
+	end
+
+	if RW.execute then
+		RW.execute.cancel()
+	end
+
+	if Managers.ui and Managers.ui.view_instance and Managers.ui.close_view then
+		pcall(function ()
+			if Managers.ui:view_instance(EDITOR_VIEW) then
+				Managers.ui:close_view(EDITOR_VIEW)
+			end
+		end)
+	end
+end
+
+mod.on_enabled = function (initial_call)
+	if RW.dead then
+		return
+	end
+
+	local was_disabled = RW.disabled
+	RW.disabled = false
+
+	if not initial_call and was_disabled and RW.director then
+		if RW.director.is_host() then
+			RW.director.stop()
+		else
+			-- Discard stale client state and re-handshake if already in a mission.
+			RW.director.on_enter_gameplay()
+		end
+	end
+end
+
 -- DMF calls mod.update(dt); accept the method-call form as well.
 mod.update = function (...)
 	local first, second = ...
 	local dt = type(first) == "number" and first or second
+
+	if RW.dead then
+		return
+	end
+
+	if mod.is_enabled and not mod:is_enabled() then
+		if not RW.disabled then
+			mod.on_disabled()
+		end
+
+		if RW.bypass then
+			RW.bypass.purge()
+		end
+
+		return
+	end
 
 	if RW.director and not RW.dead and dt then
 		local ok, err = pcall(RW.director.update, dt)

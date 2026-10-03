@@ -317,7 +317,7 @@ local Execute = {
   has_authority = function() return true end,
   start_wave = function(def) started_waves[#started_waves+1] = def.name; started_defs[#started_defs+1] = def; return true end,
   uses_ring = function() return ring_level end,
-  update = function() end, reset = function() end,
+  update = function() end, reset = function() end, cancel = function() end,
   status = function() return { tracked = 0, queued = 0, jobs = 0 } end,
 }
 local sent = {}

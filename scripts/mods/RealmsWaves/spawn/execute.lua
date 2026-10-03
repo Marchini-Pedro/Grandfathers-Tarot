@@ -236,6 +236,10 @@ end
 Execute.over_heap_guard = over_heap_guard
 
 Execute.has_authority = function ()
+	if mod.is_enabled and not mod:is_enabled() then
+		return false
+	end
+
 	local state = Managers.state
 	local game_session = state and state.game_session
 
@@ -593,22 +597,17 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune)
 	return true
 end
 
-Execute.update = function (dt)
-	clock = clock + dt
+Execute.update = function (dt, paused)
+	if mod.is_enabled and not mod:is_enabled() then
+		Execute.cancel()
+		Bypass.purge()
+
+		return
+	end
 
 	-- custom mods: keep the written stats on top, send new sizes (cheap when nothing is tuned)
 	if Tuning then
 		Tuning.update(dt)
-	end
-
-	if #jobs == 0 then
-		return
-	end
-
-	if not Execute.has_authority() then
-		jobs = {}
-
-		return
 	end
 
 	purge_timer = purge_timer + dt
@@ -618,6 +617,18 @@ Execute.update = function (dt)
 
 		Bypass.purge()
 	end
+
+	if #jobs == 0 or paused then
+		return
+	end
+
+	if not Execute.has_authority() then
+		Execute.cancel()
+
+		return
+	end
+
+	clock = clock + dt
 
 	for i = #jobs, 1, -1 do
 		local job = jobs[i]
@@ -711,12 +722,18 @@ Execute.update = function (dt)
 	end
 end
 
-Execute.reset = function ()
+-- Scheduling cancellation leaves living units owned until mission teardown.
+Execute.cancel = function ()
 	jobs = {}
 	cache = {}
 	feed_timer = 0
 	last_full_gc = -math.huge
 	heap_paused = false
+end
+
+Execute.reset = function ()
+	Execute.cancel()
+	purge_timer = 0
 
 	if Bypass then
 		Bypass.reset()

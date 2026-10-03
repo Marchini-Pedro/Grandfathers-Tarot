@@ -153,6 +153,79 @@ local missing_ok = pcall(function() dofile(BASE .. "/RealmsWaves.lua"); mod.on_a
 check("reload: missing event manager is safe at initialization and unload", missing_ok)
 if tracing then jit.on() end
 
+-- Real entry + director + executor + tuning, with only native minion/position
+-- boundaries faked. DMF disables hooks before on_disabled and still sends updates.
+mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
+local settings = {max_alive=10,max_per_wave=500,initial_delay=600,interval_min=600,interval_random=false,mode="random"}
+local enabled, server = true, true
+mod.get = function(self,id) return settings[id] end
+mod.set = function(self,id,value) settings[id] = value end
+mod.is_enabled = function() return enabled end
+hooks, views, commands, hook_requires = {}, {}, {}, {}
+Managers.event = event_manager()
+local spawned, dead = {}, {}
+ALIVE = setmetatable({}, {__index=function(_,unit) return not dead[unit] end})
+Vector3 = function(x,y,z) return {x=x,y=y,z=z} end
+Unit = {world_rotation=function() return "rot" end,alive=function(unit) return not dead[unit] end,set_local_scale=function(unit,node,v) unit.size=v.x end}
+ScriptUnit = {has_extension=function(unit,system) return system=="buff_system" and unit.buffs or nil end}
+Managers.state = {
+  game_session={is_server=function() return server end},
+  game_mode={game_mode=function() return {name=function() return "coop_complete_objective" end} end},
+  main_path={is_main_path_ready=function() return true end},
+  extension={system=function() return {get_side_from_name=function() return {side_id=2} end} end},
+  unit_spawner={game_object_id=function(self,unit) return unit.id end},
+  minion_spawn={request_param_table=function() return {} end,spawn_minion=function()
+    local stats={melee_attack_speed=1};local unit={id=#spawned+1,buffs={stat_buffs=function() return stats end},stats=stats}
+    spawned[#spawned+1]=unit;return unit
+  end},
+}
+dofile(BASE .. "/RealmsWaves.lua");mod.on_all_mods_loaded()
+RW=mod.rw
+local positions={player_units=function() return {"player"} end,random_player_unit=function() return "player" end,candidates=function() return {"point"} end,pick=function() return "point" end,spread=function(p) return p end}
+RW.execute.init({positions=positions,bypass=RW.bypass,groups=RW.groups,tuning=RW.tuning})
+RW.director.init({events=RW.events,groups=RW.groups,protocol=RW.protocol,execute=RW.execute,votes=RW.votes,positions=positions,presets=RW.presets,cards=RW.cards,tuning=RW.tuning})
+mod.on_game_state_changed("enter","GameplayStateRun");mod._on_mission_objective_start();mod.update(0.01)
+RW.execute.start_wave({name="pause",parts=RW.groups.parse("2 hounds@2"),rep_every=1,rep_for=10})
+RW.director.pause(true);local remaining=RW.director.view().remaining
+for i=1,200 do mod.update(1) end
+check("pause: real executor freezes feed, repeat and timeout clocks", #spawned==0 and RW.execute.status().queued==2 and RW.execute.status().jobs==1 and RW.director.view().remaining==remaining)
+RW.director.pause(false);mod.update(0.2)
+check("resume: initial work continues without catching up paused repeats", #spawned==2 and RW.execute.status().queued==0)
+mod.update(1)
+check("resume: exactly the next repeat becomes due", #spawned==4)
+local living=spawned[1]
+RW.tuning.apply(living,{gap=50,size=130},"chaos_hound")
+RW.director.stop()
+check("stop: cancel jobs but retain live accounting, tuning and size snapshot", RW.execute.status().jobs==0 and RW.bypass.count()==4 and RW.tuning.status().tuned==1 and RW.tuning.status().sizes_known==1)
+living.stats.melee_attack_speed=1
+for _,h in ipairs(hooks) do if h.obj=="MinionBuffExtension" and h.method=="_reset_stat_buffs" then h.fn(living.buffs) end end
+for _,h in ipairs(hooks) do if h.obj=="MinionBuffExtension" and h.method=="_update_stat_buffs_and_keywords" then h.fn(living.buffs) end end
+check("stop: native buff recompute still reasserts the factor", living.stats.melee_attack_speed==2)
+RW.director.force_start();RW.execute.start_wave({name="cap",parts=RW.groups.parse("60 hounds")})
+for i=1,20 do mod.update(0.2) end
+check("restart: surviving units count against the combined alive cap", #spawned==10 and RW.bypass.count()==10)
+enabled=false;mod.on_disabled(false)
+local disabled_stats=living.stats.melee_attack_speed
+for i=1,20 do mod.update(1) end
+RW.execute.update(1)
+check("disable: queued work is cancelled and DMF updates cannot spawn", #spawned==10 and RW.execute.status().jobs==0 and RW.director.is_stopped())
+check("disable: explicit commands cannot admit a new spawn job", not RW.execute.start_wave({parts=RW.groups.parse("1 hound")}) and RW.execute.status().jobs==0)
+check("disable: surviving ownership is retained without tuning writes", RW.bypass.count()==10 and RW.tuning.status().tuned==1 and living.stats.melee_attack_speed==disabled_stats)
+dead[living]=true;mod.update(1)
+check("disable: vanished owned units are pruned", RW.bypass.count()==9)
+enabled=true;mod.on_enabled(false);mod.update(1)
+check("enable: no stale replay and host waits for explicit start", #spawned==10 and RW.director.is_stopped() and RW.tuning.status().tuned==0)
+server=false;RW.director.on_enter_gameplay()
+RW.director.on_state("host",{p="waiting",m="random",r=99,b=1,k={}})
+RW.tuning.receive({{id=999,pct=130}})
+enabled=false;mod.on_disabled(false);enabled=true;mod.on_enabled(false)
+check("enable: client discards stale presentation and pending sizes before re-handshake", RW.director.view().phase=="off" and RW.tuning.status().pending==0)
+server=true;RW.director.on_enter_gameplay()
+RW.director.force_start();RW.execute.start_wave({parts=RW.groups.parse("2 hounds@1"),rep_every=1,rep_for=10})
+mod.update(0.2)
+mod.on_unload()
+check("unload: real pending jobs and director state are torn down", RW.execute.status().jobs==0 and RW.execute.status().queued==0 and RW.director.view().phase=="off" and RW.bypass.count()==0 and RW.tuning.status().sizes_known==0)
+
 return table.concat(results, "\n")
 '''
 out = lua.execute(harness, MODROOT)

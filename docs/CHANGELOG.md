@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Remediate pause, stop and disable (F02/F03/F05)
+- Separate scheduling cancellation from mission teardown; preserve living-unit accounting/tuning while stopped and freeze queued clocks while paused.
+- Cancel disabled work, retain/prune living ownership, and resync clients on re-enable; hosts explicitly restart.
+- Drive real entry/director/executor/tuning through cap/recompute/control/unload regressions. All six checks pass on both runtimes (1,672 assertions each); native checks remain pending.
+
 ## 2026-10-03 - Remediate event ownership (F01)
 - Unregister both mission events from their original manager at unload; guard captured callbacks and missing managers.
 - Add an owner-faithful 100-generation entry regression. All six checks pass on both runtimes (1,659 assertions each); native acceptance remains pending.

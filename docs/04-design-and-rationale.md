@@ -165,7 +165,7 @@ Repeat queues hold at most 1000 pending units per job, truncate a repeat batch t
 ### Adversarial audit ownership review (2026-10-03)
 
 The [dated report](audits/2026-10-03/report.md) records seven baseline defects,
-not implemented design changes: event subscriptions survive unload; disabled
+before remediation: event subscriptions survive unload; disabled
 updates still spawn; stop clears living-unit ownership; pause leaves Execute
 running; local queue caps lack an aggregate budget; partial broadcast rejection
 loses size recovery; LuaJIT preset numeric parsing admits NaN. Remediation is
@@ -174,5 +174,10 @@ public options and serialization. Review is required before code changes.
 The approved [remediation log](audits/2026-10-03/remediation.md) tracks current
 changes. Entry unload now releases both subscriptions from their stored original
 event manager; retired callbacks are inert even if already captured.
+Scheduling cancellation now drops jobs/cache without discarding living unit
+records. Pause freezes feed/repeat/timeout clocks while maintenance continues;
+stop retains tracking/tuning and prunes dead units even without jobs. Disable
+cancels jobs and performs liveness cleanup only while DMF hooks are suspended.
+Re-enable requires host `/rw_start`; clients clear stale state and handshake.
 Full mission teardown works in the Lua fixtures; actual engine resources and
 eight-hour acceptance remain pending.

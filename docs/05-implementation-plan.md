@@ -150,7 +150,7 @@ See `04-design-and-rationale.md`.
 - [x] Execute the offline adversarial audit after explicit request; [dated report](audits/2026-10-03/report.md), full inventory/test map, embedded diagnostics and L1–L8 results/limits are available.
 - [x] Review the audit and receive authorization for all concrete remediation batches (2026-10-03).
 - [x] F01: release both mission event subscriptions from their original manager; detect 100 obsolete generations with an owner-faithful EventManager fixture and guard captured callbacks. Native reload remains pending.
-- [ ] F02/F03/F05: define coherent disable/stop/pause behavior, preserve live-unit ownership and add detecting regressions.
+- [x] F02/F03/F05: pause freezes job/feed clocks; stop preserves living units; disable cancels work and re-enable requires host start/client resync. Real-collaborator regressions pass; live checks remain pending.
 - [ ] F04: enforce an aggregate pending-work budget before admission/repeat allocation.
 - [ ] F07: reject non-finite numeric preset fields atomically on both runtimes.
 - [ ] F06: recover current sizes after peer-specific Realms send rejection.

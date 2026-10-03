@@ -776,7 +776,7 @@ Director.update = function (dt)
 	if Director.is_host() then
 		if Execute.has_authority() then
 			host_update(dt)
-			Execute.update(dt)
+			Execute.update(dt, paused or stopped)
 		end
 	elseif Tuning then
 		-- a client: the sizes the host sent (custom mods) go onto the units as they arrive here
@@ -877,7 +877,7 @@ Director.stop = function ()
 
 	stopped, paused = true, false
 	timers, timer_check = {}, 0
-	Execute.reset()
+	Execute.cancel()
 	Votes.close()
 
 	if host_state then

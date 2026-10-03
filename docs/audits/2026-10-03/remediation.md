@@ -11,7 +11,7 @@ kept separately under `.git/audit/2026-10-03-remediation/`.
 | Batch | Scope | Status |
 | --- | --- | --- |
 | 1 | F01 event owner cleanup | Implemented; offline checks pass |
-| 2 | F02/F03/F05 disable, stop, pause and living units | Pending |
+| 2 | F02/F03/F05 disable, stop, pause and living units | Implemented; offline checks pass |
 | 3 | F04 aggregate admission/repeat budget | Pending |
 | 4 | F07 finite numeric imports | Pending |
 | 5 | F06 recipient-aware size recovery | Pending |
@@ -28,3 +28,13 @@ No installed mods, saved profiles or read-only sources are changed. Public
 APIs, options, protocol 2 and serialization remain compatible. Native rendering,
 multiplayer and the [eight-hour live procedure](live-checklist.md) remain pending;
 no merge or installation is implied by these commits.
+
+Batch 2 freezes queued repeat/feed/timeout clocks during pause while maintaining
+existing units. Stop cancels pending jobs/cache, preserves living ownership and
+continues tuning/pruning without active jobs. Disable cancels work and performs
+liveness cleanup; DMF suspends hooks and stat maintenance until re-enable. Hosts
+explicitly use `/rw_start`; clients clear stale presentation/inbox and handshake.
+The real entry fixture checks a 200-second pause, exact resume tick, live stat
+recompute, combined alive cap, disable/enable and pending-work unload. All six
+checks pass on both runtimes: entry 35, total 1,672 assertions each. This also
+closes the unload-reset mutation gap; retired-tuning coverage is still pending.

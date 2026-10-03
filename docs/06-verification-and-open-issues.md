@@ -127,16 +127,17 @@
 ## Adversarial audit follow-up (2026-10-03)
 
 The [offline report](audits/2026-10-03/report.md) supersedes broad acceptance
-inferences from the passing recovery checks. Findings are confirmed within
-their stated fixtures, not fixed. The detailed live matrix above remains open.
+inferences from the passing recovery checks. Findings were confirmed within
+their stated fixtures; current fixes are tracked below and in the
+[remediation log](audits/2026-10-03/remediation.md). The live matrix remains open.
 
 | Finding | Offline status | Required remediation / live evidence |
 | --- | --- | --- |
 | F01 reload event ownership | Fixed on remediation branch; 100-generation owner/weak-reference regression | Real reload/editor/pending-work sessions remain pending |
-| F02 disabled spawning | Actual DMF toggle/update still spawns two queued hounds | Explicit disable policy; no disabled work or stale replay |
-| F03 stop/live ownership | Alive unit forgotten; recompute factor 2 becomes 1 | Preserve owned units; cap, tuning, late-join size and despawn checks |
+| F02 disabled spawning | Fixed; disabled updates cannot replay queued work | Native hook/counter behavior, host restart and client resync |
+| F03 stop/live ownership | Fixed; stop retains factors, size records and combined alive cap | Native cap, tuning, late-join size and despawn checks |
 | F04 aggregate repeat backlog | 992 jobs / 992,000 pending at 160 simulated seconds | Global budget and backpressure; native frame/memory pressure |
-| F05 pause | Countdown frozen but ten hounds spawn | Freeze job/repeat/feed clocks while keeping maintenance |
+| F05 pause | Fixed; 200-second pause freezes real feed/repeat/timeout clocks | Native maintenance and resume without a catch-up burst |
 | F06 partial delivery | Actual Realms returns success after one rejected peer; no size retry | Bounded recipient-aware recovery; native transport occurrence pending |
 | F07 numeric import | LuaJIT accepts checksummed NaN chance; Lua 5.5 rejects | Finite-value validation, atomic rejection and both-runtime regression |
 
@@ -185,6 +186,8 @@ their stated fixtures, not fixed. The detailed live matrix above remains open.
 ## Results log
 
 (Append dated entries: what was tested, result, fixes.)
+
+- 2026-10-03, remediation batch 2 (F02/F03/F05): separate job cancellation from full reset, freeze real executor clocks on pause, maintain/prune living units while stopped, and cancel disabled work. Disable suspends native hooks/tuning; host explicitly starts after re-enable and clients reset/re-handshake. Real entry/director/executor/tuning checks cover combined alive cap, equal-value recompute, 200-second pause, disable/enable and pending-work unload. All six checks pass on both runtimes: entry 35, total 1,672 assertions. Native acceptance remains pending.
 
 - 2026-10-03, remediation batch 1 (F01): release original-manager event subscriptions at unload; protect captured objective/update callbacks and tolerate missing manager. Entry regression checks 100 generations, replaced/missing manager and double unload. All six checks pass on both runtimes: entry 22, total 1,659 assertions. Native reload remains pending; see the remediation log.
 
