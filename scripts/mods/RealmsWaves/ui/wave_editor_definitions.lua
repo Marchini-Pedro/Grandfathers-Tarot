@@ -66,7 +66,7 @@ local scenegraph_definition = {
 	-- presets: list screen button (where Back sits on the other screens), and one preset's actions in two rows
 	-- NOT under Back (x 125-305): Back is drawn before this button, so a click on Back that switches to the
 	-- list would land on a Presets button at the same spot in the same frame and open the presets page.
-	btn_presets = node(1170, 36, 290, 44, 2), -- header of the Deck ("Spreads"); the Back button is not on that screen
+	btn_presets = node(1170, 36, 290, 44, 2), -- header of the Deck ("Deck presets": the five slots that hold the whole deck); the Back button is not on that screen
 	-- corner buttons, top right (the title text ends at x 1280): "More options" (list screen only) and the
 	-- help icon whose tooltip replaces the long gray texts that used to fill the bottom of the screen
 	btn_settings = node(1480, 36, 270, 44, 2),

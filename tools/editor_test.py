@@ -179,7 +179,7 @@ check("deck: every shape has a larger faint copy under it (anti-aliasing): the s
 check("deck: the suit mark is 26 units (it was 22) and sits in the top right corner", view._tile_shape ~= nil and tile(1).style.icon_c1.size[1] > 2 * 2.4 * 26 / 24 - 0.01 and tile(1).style.icon_c1.size[1] < 2 * 2.4 * 26 / 24 + 0.01)
 check("deck: header 'N in the draw', caption, and the strip has a segment per card in the draw", D.deck_count.content.deck_count == "deck_count:12" and D.deck_caption.content.deck_caption == "deck_caption" and #view._strip_segments == 12 and D.rw_strip.style.seg_12.visible and not D.rw_strip.style.seg_13.visible)
 check("deck: the strip is as wide as its track (segments and gaps add up to 1710)", (function() local s = view._strip_segments; local last = s[#s]; return math.abs(last.x + last.w - 1710) < 1e-6 end)())
-check("deck: buttons: Spreads (top right) and Import card / Restore defaults at the bottom, no Back, the time steppers", D.btn_presets.visible and D.btn_presets.content.hotspot_text == "btn_presets" and D.btn_wimport.visible and D.btn_default.visible and not D.btn_back.visible and D.stepper_tmin.visible and D.stepper_tmax.visible)
+check("deck: buttons: Deck presets (top right) and Import card / Restore defaults at the bottom, no Back, the time steppers", D.btn_presets.visible and D.btn_presets.content.hotspot_text == "btn_presets" and D.btn_wimport.visible and D.btn_default.visible and not D.btn_back.visible and D.stepper_tmin.visible and D.stepper_tmax.visible)
 check("deck: nothing of the detail screen shows", not D.btn_rename.visible and not D.btn_delete.visible and not D.stepper_chance.visible)
 
 -- the Deck's arithmetic (ui/deck.lua) ---------------------------------------------------------------------------------------
@@ -1486,6 +1486,7 @@ do
   W2.btn_help.content.hotspot.is_hover = true; view:update(0.01, 0, input_stub3)
   check("help: the wave screen explains the fixed timer, distances and sharing", W2.help_text.content.help_text == "help_detail")
   W2.btn_help.content.hotspot.is_hover = false; view:update(0.01, 0, input_stub3); click("btn_back")
+  check("names: the Deck's top button is called Deck presets (it holds the whole deck), 'Spreads' is only the HUD's hand", (function() local loc = dofile(MODROOT .. "/scripts/mods/RealmsWaves/RealmsWaves_localization.lua"); local bad = {}; for k, v in pairs(loc) do local en = type(v) == "table" and v.en; if type(en) == "string" and en:find("Spreads", 1, true) then bad[#bad + 1] = k end end; return loc.btn_presets.en == "Deck presets" and #bad == 0, table.concat(bad, ",") end)())
   check("help: texts exist in the localization for every screen", (function() local ok = true; for _, k in ipairs({ "hint_list", "hint_mods", "hint_presets", "hint_settings", "help_detail", "help_picker", "help_preset_view" }) do if not dofile(MODROOT .. "/scripts/mods/RealmsWaves/RealmsWaves_localization.lua")[k] then ok = false end end return ok end)())
   settings["pct_wave_small"] = 5
 
@@ -1687,8 +1688,8 @@ do
   local function hit(a, b) local ax, ay, aw, ah = rect(a); local bx, by, bw, bh = rect(b); return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah end
   check("corner: 'More options' and '?' sit top right, clear of the title, the description and each other", not hit("btn_settings", "title_text") and not hit("btn_settings", "description_text") and not hit("btn_help", "title_text") and not hit("btn_help", "description_text") and not hit("btn_settings", "btn_help") and sg.btn_help.position[1] + sg.btn_help.size[1] <= 1920)
   check("corner: the help tooltip lies inside the screen and below the corner buttons", sg.help_panel.position[2] > sg.btn_help.position[2] + sg.btn_help.size[2] and sg.help_panel.position[1] + sg.help_panel.size[1] <= 1920 and sg.help_panel.position[2] + sg.help_panel.size[2] <= 1080)
-  check("corner: the Back button does not overlap the Restore defaults / Import / Spreads buttons (no click-through)", not hit("btn_back", "btn_default") and not hit("btn_back", "btn_wimport") and not hit("btn_back", "btn_presets"))
-  check("deck: the bottom row (Import card, Restore defaults) does not overlap, nor do the header's Spreads, More options, help, count and title", not hit("btn_wimport", "btn_default") and not hit("btn_presets", "btn_settings") and not hit("btn_presets", "btn_help") and not hit("btn_presets", "deck_count") and not hit("deck_count", "title_text") and not hit("btn_settings", "deck_count") and not hit("btn_presets", "title_text"))
+  check("corner: the Back button does not overlap the Restore defaults / Import / Deck presets buttons (no click-through)", not hit("btn_back", "btn_default") and not hit("btn_back", "btn_wimport") and not hit("btn_back", "btn_presets"))
+  check("deck: the bottom row (Import card, Restore defaults) does not overlap, nor do the header's Deck presets, More options, help, count and title", not hit("btn_wimport", "btn_default") and not hit("btn_presets", "btn_settings") and not hit("btn_presets", "btn_help") and not hit("btn_presets", "deck_count") and not hit("deck_count", "title_text") and not hit("btn_settings", "deck_count") and not hit("btn_presets", "title_text"))
   check("deck: the strip and its captions do not overlap the tiles or the header", not hit("deck_strip", "deck_caption") and not hit("deck_caption", "rw_tile_1") and not hit("deck_strip", "rw_tile_1") and not hit("deck_hover", "rw_tile_1") and not hit("deck_caption", "deck_hover") and not hit("deck_strip", "btn_presets") and not hit("deck_strip", "description_text"))
 end
 -- sharing one wave ------------------------------------------------------------------------------------------------
@@ -1793,7 +1794,7 @@ do
     for _, name in ipairs(cauldron_widgets) do
       if overlaps_back(name) then hit[#hit + 1] = name end
     end
-    -- the other screens' Back (125, 800) against the buttons of the screens they return to (the Deck, the Spreads)
+    -- the other screens' Back (125, 800) against the buttons of the screens they return to (the Deck, the Deck presets)
     for _, name in ipairs({ "btn_presets", "btn_settings", "btn_wimport", "btn_default", "stepper_tmin", "stepper_tmax" }) do
       if overlaps("btn_back", name) then hit[#hit + 1] = name end
     end
@@ -2122,7 +2123,7 @@ do
   check("title: the options screen keeps the Tarot title", title() == "view_title" and mod.rw_accent[1] == 183)
   view:cb_back()
   click("btn_presets")
-  check("title: the Spreads screen keeps the Tarot title", title() == "view_title")
+  check("title: the Deck presets screen keeps the Tarot title", title() == "view_title")
   view:cb_back()
   open_card(1)
   local fool = mod.rw.cards.suit(view._wave.suit).accent

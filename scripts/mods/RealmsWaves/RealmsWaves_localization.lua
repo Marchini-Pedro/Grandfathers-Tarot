@@ -197,7 +197,7 @@ return {
 	bottom_list_title = { en = "The two numbers are the time between cards. The blank card makes a card of your own." },
 	bottom_detail_title = { en = "%s: %d enemies in total" },
 	hint_list = {
-		en = "Click a card to put it in or out of the draw (a card out of the draw is dimmed). Edit in the corner of a card opens it: name, enemies, chance, cooldown and more. The ten pips are the card's chance (1 to 10); the strip above shows how likely each card is to be dealt into a hand, among the cards that are not resting. The blank card makes a card of your own. Spreads (top right) saves and loads whole setups. Delete (inside a card) removes any card, the default ones too: they stay hidden until you press Restore defaults, which also resets every other change. The two numbers at the bottom are the time between cards; More options has the rest of the timing and display settings.",
+		en = "Click a card to put it in or out of the draw (a card out of the draw is dimmed). Edit in the corner of a card opens it: name, enemies, chance, cooldown and more. The ten pips are the card's chance (1 to 10); the strip above shows how likely each card is to be dealt into a hand, among the cards that are not resting. The blank card makes a card of your own. Deck presets (top right) saves and loads whole setups: your whole deck, five slots. Delete (inside a card) removes any card, the default ones too: they stay hidden until you press Restore defaults, which also resets every other change. The two numbers at the bottom are the time between cards; More options has the rest of the timing and display settings.",
 	},
 	view_desc_mods = { en = "Modifiers for: %s" },
 	col_modifier = { en = "Modifier" },
@@ -212,7 +212,7 @@ return {
 	btn_default = { en = "Restore defaults" },
 	bottom_list_deleted = { en = "%s default waves are deleted. Restore defaults brings them back." },
 	extra_not_random = { en = "(not used: random is off)" },
-	msg_defaults_restored = { en = "RealmsWaves: every wave is back to the defaults (Undo last load on the Presets screen restores your previous waves)." },
+	msg_defaults_restored = { en = "RealmsWaves: every wave is back to the defaults (Undo last load on the Deck presets screen restores your previous waves)." },
 	help_detail = { en = "Edit one card. The card on the right follows every change. Click an enemy on the shelf to add one (the Dreg / Scab switch chooses which kind); the - and + of a row change its brood (how many of that enemy), Mods adds Havoc-style conditions and Custom changes health, size, speed, attack speed, fire rate, burst and hit mass. Under the card: its suit, its threat and its chance; the whisper and the cooldown are on the Face tab. How it spawns: spread, repeats, its own min and max spawn distance and a fixed timer (a card with a fixed timer ignores its chance and spawns every N seconds). Share wave gives you its text, or paste a friend's card over it." },
 	help_picker = { en = "Click an enemy to add it. Just start typing to search. The button next to Search chooses whether you stay here after adding, to add several in a row, or go back to the wave." },
 	help_preset_view = { en = "Load this setup replaces ALL your waves with the ones stored here (an empty slot loads the default waves). Save current waves here stores what you have now. Export gives you text to send to a friend, Import pastes theirs into this slot. Undo last load brings your previous waves back once." },
@@ -331,7 +331,7 @@ return {
 	msg_no_free_slot = { en = "All custom slots are in use. Delete one first, or open a wave and use Share to import over it." },
 
 	-- Presets
-	btn_presets = { en = "Spreads" },
+	btn_presets = { en = "Deck presets" },
 	btn_open = { en = "Open" },
 	btn_pload = { en = "Load this setup" },
 	btn_psave = { en = "Save current waves here" },
