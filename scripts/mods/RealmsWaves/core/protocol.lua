@@ -41,6 +41,19 @@ local function valid_sender(peer_id)
 	return type(peer_id) == "string" and peer_id ~= ""
 end
 
+-- Realms can relay client RPCs to other clients. Only the session's host may send state, welcome or unit sizes.
+local function valid_host_sender(peer_id)
+	local connection = Managers.connection
+
+	if not valid_sender(peer_id) or not connection or not connection.host then
+		return false
+	end
+
+	local ok, host = pcall(connection.host, connection)
+
+	return ok and type(host) == "string" and host:lower() == peer_id:lower()
+end
+
 local function encode(value)
 	if type(cjson) ~= "table" or type(cjson.encode) ~= "function" then
 		return nil
@@ -76,7 +89,11 @@ local function send(rpc_name, recipient, ...)
 		return false, "Realms network unavailable"
 	end
 
-	local sent, send_error = _realms.network_send(mod, rpc_name, recipient, ...)
+	local ok, sent, send_error = pcall(_realms.network_send, mod, rpc_name, recipient, ...)
+
+	if not ok then
+		send_error, sent = sent, false
+	end
 
 	if not sent and mod:get("debug") then
 		mod:warning("RealmsWaves: send %s failed: %s", rpc_name, tostring(send_error))
@@ -100,7 +117,7 @@ end
 local function on_welcome(sender, proto, version, ok)
 	proto, ok = tonumber(proto), tonumber(ok)
 
-	if not valid_sender(sender) or not proto or not ok or type(version) ~= "string" then
+	if not valid_host_sender(sender) or not proto or not ok or type(version) ~= "string" then
 		return
 	end
 
@@ -110,7 +127,7 @@ local function on_welcome(sender, proto, version, ok)
 end
 
 local function on_state(sender, state_json)
-	local state = valid_sender(sender) and decode(state_json)
+	local state = valid_host_sender(sender) and decode(state_json)
 
 	if state and _handlers.on_state then
 		_handlers.on_state(sender, state)
@@ -141,7 +158,7 @@ end
 
 -- every entry is checked: a whole network id and a size in percent, clamped to the allowed range
 local function on_scale(sender, text)
-	local list = valid_sender(sender) and decode(text)
+	local list = valid_host_sender(sender) and decode(text)
 
 	if not list then
 		return

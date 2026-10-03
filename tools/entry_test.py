@@ -26,6 +26,8 @@ local dmf_mod = { check_keybinds = function(...) dmf_calls[#dmf_calls + 1] = { .
 local mod = {}
 mod.hook = function(self, obj, method, fn) hooks[#hooks + 1] = { obj = obj, method = method, fn = fn, safe = false } end
 mod.hook_safe = function(self, obj, method, fn) hooks[#hooks + 1] = { obj = obj, method = method, fn = fn, safe = true } end
+local hook_requires = {}
+mod.hook_require = function(self, path, fn) hook_requires[#hook_requires + 1] = path end
 mod.register_hud_element = function() end
 mod.add_require_path = function() end
 mod.register_view = function(self, def) views[#views + 1] = def end
@@ -37,7 +39,7 @@ mod.echo = function() end
 mod.warning = function() end
 mod.error = function() end
 mod.localize = function(self, id) return id end
-mod.io_dofile = function(self, path) return dofile(MODROOT .. "/../" .. path .. ".lua") end
+mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
 get_mod = function(name)
   if name == "DMF" then return dmf_mod end
   if name == "Realms" then return nil end
@@ -80,6 +82,16 @@ mod.echo = function(self, fmt, ...) echoed[#echoed + 1] = string.format(fmt, ...
 commands.rw_stop(); commands.rw_pause("on"); commands.rw_next()
 check("entry: the commands answer in chat (a client or a stopped host gets a reason, never an error)", #echoed == 3 and echoed[1]:find("RealmsWaves") ~= nil, table.concat(echoed, " | "))
 
+-- the animation probe: registered, and in a game without any wave unit (or without the engine's Unit table) it only says so
+echoed = {}
+check("entry: /rw_anim and /rw_tune are registered", type(commands.rw_anim) == "function" and type(commands.rw_tune) == "function")
+echoed = {}
+local tune_ok = pcall(commands.rw_tune)
+check("entry: /rw_tune with nothing tuned answers instead of failing", tune_ok and #echoed == 1 and echoed[1]:find("No living unit", 1, true) ~= nil, table.concat(echoed, " | "))
+echoed = {}
+local anim_ok, anim_err = pcall(commands.rw_anim)
+check("entry: /rw_anim without the engine table (this harness has none) answers instead of failing", anim_ok and #echoed == 2 and echoed[1]:find("Unit functions about animation", 1, true) ~= nil and echoed[2]:find("cannot be looked at", 1, true) ~= nil, anim_ok and table.concat(echoed, " | ") or anim_err)
+
 RW.text_input_active = true
 mod.on_unload()
 check("unload: the flag is cleared and this instance's hook becomes a pass-through (stale hooks after a reload never block keys)", RW.dead == true and RW.text_input_active == false and (function() dmf_calls = {}; RW.text_input_active = true; hook(original); return #dmf_calls == 1 end)())
@@ -88,7 +100,8 @@ check("unload: the flag is cleared and this instance's hook becomes a pass-throu
 local names = {}
 for _, h in ipairs(hooks) do if type(h.obj) == "string" then names[#names + 1] = h.obj .. "." .. h.method end end
 table.sort(names)
-check("entry: the four budget-bypass hooks and the custom-mods stat hook are installed", table.concat(names, ",") == "BuffExtensionBase._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion", table.concat(names, ","))
+check("entry: the four budget-bypass hooks and the custom-mods hooks (stat recompute on both buff classes, melee attack start, burster explosion) are installed", table.concat(names, ",") == "BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BuffExtensionBase._update_stat_buffs_and_keywords,HudElementBossHealth.event_boss_encounter_start,MinionBuffExtension._reset_stat_buffs,MinionBuffExtension._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion", table.concat(names, ","))
+check("entry: MinionAttack is hooked through hook_require (it may load after the mod)", #hook_requires == 1 and hook_requires[1] == "scripts/utilities/minion_attack", table.concat(hook_requires, ","))
 check("entry: editor view registered under its name with the right class", #views == 1 and views[1].view_name == "realms_waves_editor" and views[1].view_settings.class == "RealmsWavesView")
 check("entry: commands registered (rw_test, rw_editor, rw_status, rw_custom, rw_roll, rw_start, rw_skip, rw_vote)", commands.rw_test and commands.rw_editor and commands.rw_status and commands.rw_custom and commands.rw_roll and commands.rw_start and commands.rw_skip and commands.rw_vote ~= nil)
 check("entry: keybind functions exist (open_editor, vote_1..vote_5)", type(mod.open_editor) == "function" and type(mod.vote_1) == "function" and type(mod.vote_5) == "function")

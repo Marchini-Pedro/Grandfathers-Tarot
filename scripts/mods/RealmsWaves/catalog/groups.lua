@@ -200,7 +200,10 @@ end
 --   health   the unit's maximum health (a spawn parameter of the game, so every player sees the right bar)
 --   size     the size of the model (`Unit.set_local_scale`, also sent to the other players that have this mod)
 --   speed    run speed (a movement modifier of the navigation: how fast it walks, trots or runs after you)
---   melee    melee attack speed (how soon the next swing comes: the game's own `melee_attack_speed` stat)
+--   gap      time between attacks, in percent of the normal time (50 = half the wait, 200 = twice): it writes the game's own
+--            `melee_attack_speed` stat as 100 / value, which ends a melee attack early (see spawn/tuning.lua). It used to
+--            be called "melee attack speed" with the number the other way round (200 = twice as fast); recipes written
+--            with the old names (`melee=200`) are read as the new setting (`gap=50`, the `legacy` field below)
 --   fire     gunner fire rate (the time between two shots: the game's own `ranged_attack_speed` stat)
 --   burst    shots per burst (the game's `minion_num_shots_modifier`, a fraction rounds up to one more shot)
 --   explosion / dot  the share of explosion damage / of burning, toxin and bleeding damage the unit takes (50 = half,
@@ -211,7 +214,7 @@ Groups.TUNE = {
 	{ id = "health", name = "Health", min = 10, max = 1000, step = 10, aliases = { "health", "hp", "life" } },
 	{ id = "size", name = "Size", min = 25, max = 300, step = 5, aliases = { "size", "scale" } },
 	{ id = "speed", name = "Run speed", min = 25, max = 300, step = 5, aliases = { "speed", "run", "run speed", "runspeed", "move speed", "movement" } },
-	{ id = "melee", name = "Melee attack speed", min = 25, max = 400, step = 5, aliases = { "melee", "melee speed", "melee attack speed", "melee attack", "attack speed" } },
+	{ id = "gap", name = "Time between attacks", min = 25, max = 400, step = 5, aliases = { "gap", "time between attacks", "attack gap", "attack time", "attack delay", "attack interval" }, legacy = { "melee", "melee speed", "melee attack speed", "melee attack", "attack speed" } },
 	{ id = "fire", name = "Gunner fire rate", min = 25, max = 400, step = 5, aliases = { "fire", "fire rate", "firerate", "gunner fire rate", "ranged", "ranged speed", "ranged attack speed" } },
 	{ id = "burst", name = "Shots per burst", min = 25, max = 500, step = 25, aliases = { "burst", "shots", "shots per burst", "burst size" } },
 	{ id = "mass", name = "Hit mass", min = 10, max = 1000, step = 10, aliases = { "mass", "hit mass", "hitmass" } },
@@ -221,6 +224,7 @@ Groups.TUNE = {
 
 local tune_by_id = {}
 local tune_alias = {}
+local tune_legacy = {} -- old names whose number was a SPEED while the setting that replaced them is a time
 local tune_ids = {}
 
 for index, def in ipairs(Groups.TUNE) do
@@ -230,6 +234,11 @@ for index, def in ipairs(Groups.TUNE) do
 
 	for _, alias in ipairs(def.aliases) do
 		tune_alias[normalize_word(alias)] = def.id
+	end
+
+	for _, alias in ipairs(def.legacy or {}) do
+		tune_alias[normalize_word(alias)] = def.id
+		tune_legacy[normalize_word(alias)] = true
 	end
 end
 
@@ -334,7 +343,14 @@ local function parse_tune(inner)
 			return nil, string.format("%q is not a custom mod I know. Valid ones: %s", (name:gsub("%s+$", "")), Groups.TUNE_IDS)
 		end
 
-		local value = Groups.clamp_tune(id, number)
+		local amount = tonumber(number)
+
+		if tune_legacy[normalize_word(name)] then
+			-- an old name: its number was a speed, the setting is a time now (200 percent as fast = half the time)
+			amount = amount > 0 and 10000 / amount or tune_by_id[id].max
+		end
+
+		local value = Groups.clamp_tune(id, amount)
 
 		tune[id] = value ~= 100 and value or nil
 		pos = stop + 1
@@ -387,6 +403,121 @@ Groups.category = function (breed_name)
 	end
 
 	return "normal"
+end
+
+-- ------------------------------------------------------------------------------------------------ factions and the shelf
+-- The two human factions: the Dregs are the cultists (`cultist_*`), the Scabs the renegades (`renegade_*`). The Chaos units
+-- (`chaos_*`) belong to neither. Several roles exist in both (a Dreg gunner and a Scab gunner are different breeds).
+Groups.FACTIONS = { "dreg", "scab" }
+Groups.FACTION_NAMES = { dreg = "Dreg", scab = "Scab" }
+
+-- "dreg" | "scab" | nil
+Groups.faction = function (breed_name)
+	local name = tostring(breed_name or "")
+
+	if name:find("^cultist_") then
+		return "dreg"
+	elseif name:find("^renegade_") then
+		return "scab"
+	end
+
+	return nil
+end
+
+-- The faction word to put after an enemy's name when the name does not already say it: "Gunner" is the Scab one
+-- (renegade_gunner), "Dreg Gunner" says it itself, "Tox Flamer" does not say Dreg, Chaos units have none. nil = nothing to add.
+Groups.faction_suffix = function (breed_name)
+	local faction = Groups.faction(breed_name)
+
+	if not faction then
+		return nil
+	end
+
+	local name = Groups.display_name(breed_name)
+
+	if name:find("Dreg") or name:find("Scab") then
+		return nil
+	end
+
+	return Groups.FACTION_NAMES[faction]
+end
+
+-- The shelf of the card's own screen (the Cauldron): the common enemies as chips, grouped by kind (the ids are the kinds of
+-- the multiplier sliders, "fodder" being the "normal" breeds: both vanguards are fodder, not elites). An entry is one chip:
+-- { breed = ... } for an enemy with no twin in the other faction (its faction tag, if it has one, is its own), or
+-- { label = "Gunner", dreg = ..., scab = ... } for a role both factions have; the shelf's "Adds: Dreg | Scab" switch chooses
+-- which of the two a click adds. The picker (Search all enemies) still lists every breed.
+Groups.SHELF = {
+	{
+		id = "fodder",
+		entries = {
+			{ breed = "chaos_poxwalker" },
+			{ breed = "chaos_mutated_poxwalker" },
+			{ label = "Melee", dreg = "cultist_melee", scab = "renegade_melee" },
+			{ label = "Assault", dreg = "cultist_assault", scab = "renegade_assault" },
+			{ label = "Vanguard", dreg = "cultist_vanguard", scab = "renegade_vanguard" },
+			{ breed = "renegade_rifleman" },
+		},
+	},
+	{
+		id = "elite",
+		entries = {
+			{ label = "Shocktrooper", dreg = "cultist_shocktrooper", scab = "renegade_shocktrooper" },
+			{ label = "Gunner", dreg = "cultist_gunner", scab = "renegade_gunner" },
+			{ label = "Rager", dreg = "cultist_berzerker", scab = "renegade_berzerker" },
+			{ breed = "renegade_executor" },
+			{ breed = "chaos_ogryn_executor" },
+			{ breed = "chaos_ogryn_bulwark" },
+			{ breed = "chaos_ogryn_gunner" },
+			{ breed = "renegade_plasma_gunner" },
+		},
+	},
+	{
+		id = "special",
+		entries = {
+			{ breed = "cultist_mutant" },
+			{ breed = "chaos_hound" },
+			{ breed = "chaos_armored_hound" },
+			{ label = "Flamer", dreg = "cultist_flamer", scab = "renegade_flamer" },
+			{ label = "Bomber", dreg = "cultist_grenadier", scab = "renegade_grenadier" },
+			{ breed = "chaos_poxwalker_bomber" },
+			{ breed = "renegade_netgunner" },
+			{ breed = "renegade_sniper" },
+		},
+	},
+	{
+		id = "boss",
+		entries = {
+			{ breed = "chaos_plague_ogryn" },
+			{ breed = "chaos_beast_of_nurgle" },
+			{ breed = "chaos_spawn" },
+			{ breed = "chaos_daemonhost" },
+			{ breed = "chaos_ogryn_houndmaster" },
+			{ label = "Captain", dreg = "cultist_captain", scab = "renegade_captain" },
+			{ breed = "renegade_twin_captain" },
+			{ breed = "renegade_twin_captain_two" },
+		},
+	},
+}
+
+-- The breed a click on a chip adds, with the switch at `faction` ("dreg" or "scab").
+Groups.shelf_breed = function (entry, faction)
+	return entry.breed or entry[faction] or entry.scab or entry.dreg
+end
+
+-- The faction a chip shows: the switch for a role both factions have, the unit's own for one that has a faction, nil for a
+-- Chaos unit.
+Groups.shelf_faction = function (entry, faction)
+	if entry.breed then
+		return Groups.faction(entry.breed)
+	end
+
+	return faction
+end
+
+-- What a chip says: the role ("Gunner") or the enemy's own name.
+Groups.shelf_label = function (entry)
+	return entry.label or Groups.display_name(entry.breed)
 end
 
 local function normalize(word)
@@ -893,6 +1024,17 @@ end
 Groups.has_repeat = function (parts)
 	for i = 1, #(parts or {}) do
 		if Groups.repeat_amount(parts[i]) > 0 then
+			return true
+		end
+	end
+
+	return false
+end
+
+-- true when at least one enemy group is random ("a|b|c")
+Groups.has_random = function (parts)
+	for i = 1, #(parts or {}) do
+		if parts[i].one_of then
 			return true
 		end
 	end

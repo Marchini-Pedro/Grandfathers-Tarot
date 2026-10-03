@@ -1,12 +1,14 @@
--- Scenegraph and static widgets of the wave editor (1920x1080 canvas).
--- Layout follows RealmsEvent's editor: title, list panel with a scrolling row
--- pool, bottom panel with actions. One row blueprint serves three screens
--- (wave list, wave detail, enemy picker); see wave_editor_view.lua.
+-- Scenegraph and static widgets of the wave editor (1920x1080 canvas, one layout for every resolution: the engine scales it).
+-- The Deck (list), the settings, the presets, the picker, Mods and Custom use a title, a table panel with a scrolling row pool
+-- and a bottom panel; one row blueprint serves them. A card's own screens, the Cauldron (detail) and the Mirror (face), have
+-- their own nodes and widgets (ui/workshop.lua for where things sit, docs/08-workshop-redesign.md); see wave_editor_view.lua.
 local mod = get_mod("RealmsWaves")
 
 local UIWidget = require("scripts/managers/ui/ui_widget")
 local UIFontSettings = require("scripts/managers/ui/ui_font_settings")
 local Components = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/wave_editor_components")
+local Workshop = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/workshop")
+local WB = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/workshop_blueprints")
 
 local definitions = {}
 
@@ -48,7 +50,7 @@ local scenegraph_definition = {
 	-- Bottom panel: a title line, one row of buttons (y 800) and up to three rows of steppers (858, 910, 962).
 	-- Rows are 52 px apart; the panel ends at 1030 so the last stepper row stays above the input legend.
 	bottom_panel = node(105, 750, 1710, 280, 0),
-	bottom_title = node(125, 758, 900, 34, 2),
+	bottom_title = node(125, 758, 1500, 34, 2),
 	hint_text = node(125, 852, 1660, 120, 2), -- below the button row (800)
 
 	btn_back = node(125, 800, 180, 44, 2),
@@ -71,18 +73,22 @@ local scenegraph_definition = {
 	btn_help = node(1766, 36, 50, 44, 2),
 	btn_face = node(1480, 36, 270, 44, 2), -- a card's own screen: its face (suit, threat, whisper, look); same spot as More options, which is list-only
 	-- the card face screen: "Threat N by the numbers" under the rows, the live preview of the tile in the bottom right
-	face_numbers = node(125, 852, 1400, 120, 2),
-	rw_tile_preview = node(1560, 756, 228, 270, 3),
 	help_panel = node(880, 90, 935, 300, 70),
 	help_text = node(900, 100, 895, 280, 71),
 	btn_wimport = node(645, 800, 300, 44, 2), -- list screen: import a shared wave into the first free custom slot
 	btn_default = node(965, 800, 320, 44, 2), -- list screen: restore every wave to the defaults
+	-- list screen: sort the cards by threat, rarity, number of enemies or face (the label is a text, then four buttons)
+	sort_label = node(1305, 800, 80, 44, 2),
+	btn_sort_threat = node(1385, 800, 96, 44, 2),
+	btn_sort_rarity = node(1489, 800, 96, 44, 2),
+	btn_sort_enemies = node(1593, 800, 112, 44, 2),
+	btn_sort_face = node(1713, 800, 84, 44, 2),
 	-- list screen: the time between waves (the options menu has the same two settings)
 	stepper_tmin = node(125, 858, 700, 48, 2),
 	stepper_tmax = node(870, 858, 700, 48, 2),
 	-- detail screen: export this wave / import over it. Top right of the panel, beside the title line (the
 	-- steppers need every pixel of the three rows below)
-	btn_share = node(1500, 754, 300, 42, 2),
+	btn_share = node(1520, 752, 280, 44, 2),
 	btn_pload = node(325, 800, 250, 44, 2),
 	btn_psave = node(595, 800, 400, 44, 2),
 	btn_prename = node(1015, 800, 200, 44, 2),
@@ -102,10 +108,9 @@ local scenegraph_definition = {
 	-- input popup, centred
 	rw_popup_panel = node(560, 400, 800, 260, 45),
 	rw_popup_input = node(600, 470, 720, 46, 50),
-	-- The vanilla button template draws big ornamental side frames inside its box, so the box must
-	-- be wide (the clickable/visible inner rectangle is roughly the width minus ~120 px).
-	rw_popup_confirm = node(600, 600, 240, 56, 50),
-	rw_popup_cancel = node(870, 600, 240, 56, 50),
+	-- OK and Cancel are the mod's own buttons (Components.button), 200 x 48, on the right of the panel
+	rw_popup_confirm = node(1130, 596, 200, 48, 50),
+	rw_popup_cancel = node(910, 596, 200, 48, 50),
 }
 
 for i = 1, definitions.LIST_CAPACITY do
@@ -122,6 +127,115 @@ for i = 1, definitions.TILE_CAPACITY do
 end
 
 scenegraph_definition[definitions.TILE_BLANK_NODE] = node(126, 190, 228, 270, 3)
+
+-- ---- the Workshop (docs/08-workshop-redesign.md): the card's own screens. Where everything sits comes from ui/workshop.lua;
+-- the nodes of the buttons that only the Cauldron uses are placed here, the ones other screens share (Back, the scroll
+-- buttons, the summary line) are moved by the view while a screen is shown.
+local shelf = Workshop.shelf_layout(mod.rw.groups.SHELF, mod.rw.groups)
+local under = Workshop.under_shelf(shelf.height)
+local LX, SY, P = Workshop.LEFT_X, Workshop.SHELF_Y, Workshop.PLATE
+
+definitions.shelf_layout, definitions.under_shelf = shelf, under
+definitions.ERROW_NODE_PREFIX, definitions.CHIP_NODE_PREFIX, definitions.SUIT_NODE_PREFIX = "rw_erow_", "rw_chip_", "rw_suit_"
+definitions.STAGE_CARD_NODE = "rw_stage_card"
+
+-- header: the tabs
+scenegraph_definition.btn_enemies = node(1478, 36, 150, 44, 2)
+scenegraph_definition.btn_face = node(1628, 36, 124, 44, 2)
+
+-- left pane: the rows, the shelf, the spawn block, the action bar
+scenegraph_definition.enemy_header = node(LX, Workshop.HEADER_Y, Workshop.LEFT_W, Workshop.HEADER_H, 2)
+
+for i = 1, Workshop.ROWS do
+	scenegraph_definition[definitions.ERROW_NODE_PREFIX .. i] = node(LX, Workshop.row_y(i), Workshop.LEFT_W, Workshop.ROW_H, 1)
+end
+
+scenegraph_definition.shelf_panel = node(LX, SY, Workshop.LEFT_W, shelf.height, 0)
+scenegraph_definition.btn_add = node(LX + 889, SY + 6, 230, 44, 3)
+scenegraph_definition.btn_dreg = node(LX + 712, SY + 10, 80, 36, 3)
+scenegraph_definition.btn_scab = node(LX + 792, SY + 10, 80, 36, 3)
+
+for i = 1, #shelf.chips do
+	local chip = shelf.chips[i]
+
+	scenegraph_definition[definitions.CHIP_NODE_PREFIX .. i] = node(LX + chip.x, SY + chip.y, chip.w, Workshop.CHIP_H, 3)
+end
+
+scenegraph_definition.spawn_label = node(LX, under.label_y, 600, 22, 2)
+scenegraph_definition.btn_keep_pick = node(LX + Workshop.LEFT_W - 360, under.label_y - 10, 360, 30, 2)
+
+for i, name in ipairs(Workshop.SPAWN_ORDER) do
+	local x, y = Workshop.spawn_pos(i, under.row_y)
+
+	scenegraph_definition[name] = node(x, y, Workshop.SPAWN_W, 48, 2)
+end
+
+scenegraph_definition.btn_rename = node(297, under.actions_y, 150, 44, 2)
+scenegraph_definition.btn_text = node(459, under.actions_y, 190, 44, 2)
+scenegraph_definition.btn_share = node(661, under.actions_y, 190, 44, 2)
+scenegraph_definition.btn_reset = node(868, under.actions_y, 230, 44, 2)
+scenegraph_definition.btn_delete = node(1110, under.actions_y, 130, 44, 2)
+
+-- right pane: the stage, the toolbar, the quick face
+local card_w, card_h = 228 * Workshop.CARD_SCALE, 270 * Workshop.CARD_SCALE
+local card_x, card_y = Workshop.card_pos(card_w)
+
+scenegraph_definition.stage_caption = node(P.x, Workshop.CAPTION_Y, P.w, 28, 2)
+scenegraph_definition.stage_plate = node(P.x, P.y, P.w, P.h, 0)
+scenegraph_definition[definitions.STAGE_CARD_NODE] = node(card_x, card_y, card_w, card_h, 3)
+scenegraph_definition.stage_stats = node(P.x, Workshop.STATS_Y, P.w, 28, 4)
+scenegraph_definition.btn_enabled = node(P.x, Workshop.TOOLBAR_Y, 230, 44, 2)
+scenegraph_definition.btn_preview = node(P.x + 242, Workshop.TOOLBAR_Y, 283, 44, 2)
+scenegraph_definition.quick_label = node(P.x, Workshop.QUICK_Y, 200, 28, 2)
+scenegraph_definition.btn_quickface = node(P.x + P.w - 250, Workshop.QUICK_Y - 4, 250, 36, 2)
+
+for i = 1, 12 do
+	local x, y = Workshop.suit_pos(i)
+
+	scenegraph_definition[definitions.SUIT_NODE_PREFIX .. i] = node(x, y, Workshop.SUIT_W, Workshop.SUIT_H, 3)
+end
+
+scenegraph_definition.threat_label = node(P.x, Workshop.THREAT_Y, Workshop.ROW_LABEL_W, 44, 2)
+scenegraph_definition.rw_threat = node(Workshop.THREAT_X, Workshop.THREAT_Y, 5 * Workshop.THREAT_PITCH, 44, 2)
+scenegraph_definition.btn_thr_auto = node(Workshop.THREAT_X + 5 * Workshop.THREAT_PITCH + 12, Workshop.THREAT_Y + 4, 76, 36, 2)
+scenegraph_definition.btn_thr_hand = node(Workshop.THREAT_X + 5 * Workshop.THREAT_PITCH + 12 + 76, Workshop.THREAT_Y + 4, 100, 36, 2)
+scenegraph_definition.stepper_chance = node(P.x, Workshop.CHANCE_Y, P.w, 48, 2)
+
+-- ---- the Mirror (the card face screen): four sections on the left, the stage of the Cauldron on the right
+local M = Workshop.MIRROR
+
+definitions.PLATE_NODE_PREFIX, definitions.LOOK_NODE_PREFIX = "rw_plate_", "rw_look_"
+definitions.MIRROR_LOOKS = { "rot", "whisper", "vial" }
+
+for i = 1, 4 do
+	scenegraph_definition["mirror_head_" .. i] = node(LX, M.head[i], Workshop.LEFT_W, M.head_h, 2)
+end
+
+scenegraph_definition.mirror_desc = node(LX, M.desc_y, Workshop.LEFT_W, M.desc_h, 2)
+
+for i = 1, 12 do
+	local x, y = Workshop.plate_pos(i)
+
+	scenegraph_definition[definitions.PLATE_NODE_PREFIX .. i] = node(x, y, M.plate.w, M.plate.h, 3)
+end
+
+scenegraph_definition.rw_threat_big = node(LX, M.threat_y, 5 * M.threat_pitch, M.threat_h, 2)
+scenegraph_definition.mirror_numbers = node(LX + 5 * M.threat_pitch + 12 + 76 + 100 + 24, M.threat_y, Workshop.LEFT_W - (5 * M.threat_pitch + 12 + 76 + 100 + 24), M.threat_h, 2)
+scenegraph_definition.whisper_field = node(LX, M.whisper_y, M.whisper_w, M.whisper_h, 2)
+scenegraph_definition.btn_whisper_change = node(LX + M.whisper_w + 12, M.whisper_y, 150, 44, 2)
+scenegraph_definition.btn_whisper_suit = node(LX + M.whisper_w + 12 + 150 + 12, M.whisper_y + 4, Workshop.LEFT_W - (M.whisper_w + 12 + 150 + 12), 36, 2)
+scenegraph_definition.stepper_cooldown = node(LX, M.cooldown_y, 700, 48, 2)
+
+for i = 1, 3 do
+	local x, y = Workshop.look_pos(i)
+
+	scenegraph_definition[definitions.LOOK_NODE_PREFIX .. i] = node(x, y, M.look.w, M.look.h, 3)
+end
+
+scenegraph_definition.btn_look_auto = node(LX, M.auto_y, 330, M.auto_h, 2)
+scenegraph_definition.hand_caption = node(Workshop.HAND.x, Workshop.HAND.caption_y, P.w, 28, 2)
+scenegraph_definition.rw_hand_card = node(Workshop.HAND.x, Workshop.HAND.y, Workshop.HAND.w, Workshop.HAND.max_h, 2)
+scenegraph_definition.btn_reset_face = node(1070, under.actions_y, 170, 44, 2)
 
 local function header_pass(id, x, w, align)
 	return {
@@ -162,6 +276,12 @@ local function plain_text(node_id, value_id, font_size, color, w, h, align, vali
 	}, node_id)
 end
 
+-- the frames of the tooltip and of the input popup: four rects in the accent, the popup with the two corner brackets
+local help_frame, popup_frame = {}, {}
+
+Components.frame_passes(help_frame, "frame", 935, 300, 1)
+Components.frame_passes(popup_frame, "frame", 800, 260, 1, { brackets = true })
+
 local widget_definitions = {
 	background = UIWidget.create_definition({
 		{
@@ -199,7 +319,6 @@ local widget_definitions = {
 		},
 	}, "title_text"),
 
-	face_numbers = plain_text("face_numbers", "face_numbers", 20, colors.muted, 1400, 120, "left", "top"),
 	deck_count = plain_text("deck_count", "deck_count", 20, colors.muted, 270, 44, "right"),
 	deck_caption = plain_text("deck_caption", "deck_caption", 15, colors.muted, 800, 22, "left"),
 	deck_hover = plain_text("deck_hover", "deck_hover", 15, colors.text, 800, 22, "right"),
@@ -230,38 +349,48 @@ local widget_definitions = {
 
 	list_range = plain_text("list_range", "list_range", 18, colors.muted, 340, 28, "right"),
 
+	-- the Workshop's static widgets (shown by the view only while the Cauldron is)
+	enemy_header = UIWidget.create_definition({
+		header_pass("col_1", Workshop.COL.name, 300),
+		header_pass("col_2", Workshop.COL.weight, 136, "center"),
+		header_pass("col_3", Workshop.COL.repeat_ - 30, 196, "center"),
+		header_pass("col_4", Workshop.COL.same - 40, 80, "center"),
+	}, "enemy_header"),
+	shelf_panel = WB.shelf_panel("shelf_panel", shelf),
+	stage_plate = WB.stage_plate("stage_plate"),
+	stage_caption = plain_text("stage_caption", "stage_caption", 16, colors.text, P.w, 28, "left"),
+	stage_stats = plain_text("stage_stats", "stage_stats", 18, colors.muted, P.w, 28, "center"),
+	quick_label = plain_text("quick_label", "quick_label", 16, colors.text, 200, 28, "left"),
+	threat_label = plain_text("threat_label", "threat_label", 16, colors.muted, Workshop.ROW_LABEL_W, 44, "left"),
+	spawn_label = plain_text("spawn_label", "spawn_label", 16, colors.muted, 600, 22, "left"),
+
+	-- the Mirror's static widgets: the section headers, the suit's description, the threat sum
+	mirror_head_1 = WB.section_head("mirror_head_1"),
+	mirror_head_2 = WB.section_head("mirror_head_2"),
+	mirror_head_3 = WB.section_head("mirror_head_3"),
+	mirror_head_4 = WB.section_head("mirror_head_4"),
+	hand_caption = plain_text("hand_caption", "hand_caption", 16, colors.text, P.w, 28, "left"),
+	mirror_desc = plain_text("mirror_desc", "mirror_desc", 20, colors.muted, Workshop.LEFT_W, M.desc_h, "left", "top"),
+	mirror_numbers = plain_text("mirror_numbers", "mirror_numbers", 19, colors.muted, Workshop.LEFT_W - (5 * M.threat_pitch + 12 + 76 + 100 + 24), M.threat_h, "left", "center"),
+
 	bottom_panel = UIWidget.create_definition({
 		{ pass_type = "rect", style = { color = Components.clone_color(colors.panel) } },
 	}, "bottom_panel"),
 
-	bottom_title = plain_text("bottom_title", "bottom_title", 24, colors.gold, 900, 34),
+	sort_label = plain_text("sort_label", "sort_label", 15, colors.muted, 80, 44, "left"),
+	bottom_title = plain_text("bottom_title", "bottom_title", 22, colors.gold, 1500, 34),
 	hint_text = plain_text("hint_text", "hint_text", 20, colors.muted, 1660, 120, "left", "top"),
 
 	-- tooltip shown while the pointer is on the "?" corner button
 	help_panel = UIWidget.create_definition({
 		{ pass_type = "rect", style = { color = { 245, 15, 23, 19 } } },
-		{
-			style_id = "frame",
-			pass_type = "texture",
-			value = "content/ui/materials/frames/frame_tile_2px",
-			style = { scale_to_material = true, color = Components.clone_color(colors.gold), offset = { 0, 0, 1 } },
-		},
+		unpack(help_frame),
 	}, "help_panel"),
 	help_text = plain_text("help_text", "help_text", 20, colors.text, 895, 280, "left", "top"),
 
 	-- input popup: fill, gold frame, title and hint (input and buttons are dynamic)
 	rw_popup_panel = UIWidget.create_definition({
 		{ pass_type = "rect", style = { color = { 245, 15, 23, 19 } } },
-		{
-			style_id = "frame",
-			pass_type = "texture",
-			value = "content/ui/materials/frames/frame_tile_2px",
-			style = {
-				scale_to_material = true,
-				color = Components.clone_color(colors.gold),
-				offset = { 0, 0, 1 },
-			},
-		},
 		{
 			value_id = "title_text",
 			style_id = "title_text",
@@ -289,10 +418,11 @@ local widget_definitions = {
 				text_horizontal_alignment = "left",
 				text_vertical_alignment = "top",
 				size = { 760, 60 },
-				offset = { 20, 150, 2 },
+				offset = { 20, 130, 2 },
 				word_wrap = true,
 			},
 		},
+		unpack(popup_frame),
 	}, Components.POPUP_PANEL_NAME),
 }
 

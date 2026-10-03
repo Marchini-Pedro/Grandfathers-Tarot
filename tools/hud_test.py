@@ -97,7 +97,7 @@ mod.set = function(self, id, v) settings[id] = v end
 mod.is_enabled = function() return true end
 mod.error = function(self, fmt, ...) errors_logged[#errors_logged + 1] = string.format(fmt, ...) end
 mod.localize = function(self, id, ...) local a = { ... } for i = 1, #a do a[i] = tostring(a[i]) end return id .. (#a > 0 and (":" .. table.concat(a, ",")) or "") end
-mod.io_dofile = function(self, path) return dofile(MODROOT .. "/../" .. path .. ".lua") end
+mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
 local custom_hud = { is_customizing = false }
 get_mod = function(name) if name == "custom_hud" then return custom_hud end return mod end
 
@@ -828,14 +828,20 @@ end
 -- no allocation per frame
 -- =====================================================================================================================
 local function growth(fixed_view, step, frames)
+  -- Measure Lua allocations, excluding the VM's trace compiler and its unpredictable hot-loop thresholds.
+  if jit then jit.off(); jit.flush() end
   local e = new_element()
   current_view = fixed_view
-  for i = 1, 30 do step(fixed_view, i); frame(e) end -- warm-up: strings, caches
+  local function advance(count)
+    for i = 1, count do step(fixed_view, i); frame(e) end
+  end
+  advance(frames) -- warm the same loop and time range, including LuaJIT traces, before measuring heap growth
   collectgarbage("collect"); collectgarbage("stop")
   local before = collectgarbage("count")
-  for i = 1, frames do step(fixed_view, i); frame(e) end
+  advance(frames)
   local after = collectgarbage("count")
   collectgarbage("restart")
+  if jit then jit.on() end
   return (after - before) * 1024 / frames
 end
 local per_frame_hand = growth(view_of({ remaining = 9.5, hand_seq = 30 }), function(v, i) end, 600)

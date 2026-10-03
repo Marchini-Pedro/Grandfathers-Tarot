@@ -6,7 +6,7 @@
 -- part = { breed = "name", count = n }  or  { one_of = { "a", "b" }, count = n }
 -- monster = true uses the monster distance range.
 -- The standard waves are tarot cards (names, suits and whispers: catalog/cards.lua); their keys never change, so saved
--- settings keep working. default_pct is the card's draw weight on the 1-10 scale of the editor's weight pips.
+-- settings keep working. default_pct is the card's chance on the 1-10 scale of the editor's chance pips.
 local Events = {}
 
 Events.CUSTOM_SLOTS = 20
@@ -138,7 +138,46 @@ Events.keys = function ()
 	return keys
 end
 
+-- The order the Deck shows the cards in: the keys of Events.keys() arranged by the player's saved order ("deck_order", the keys
+-- separated by commas). Keys that are not in the list (a card made later) follow in their usual place, keys that no longer exist are
+-- ignored, so a damaged or old list never loses a card. The draw itself does not depend on the order.
+Events.ordered_keys = function (get_setting)
+	local keys = Events.keys()
+	local saved = get_setting("deck_order")
+
+	if type(saved) ~= "string" or saved == "" then
+		return keys
+	end
+
+	local valid, seen, ordered = {}, {}, {}
+
+	for i = 1, #keys do
+		valid[keys[i]] = true
+	end
+
+	for key in saved:gmatch("[^,]+") do
+		if valid[key] and not seen[key] then
+			seen[key] = true
+			ordered[#ordered + 1] = key
+		end
+	end
+
+	for i = 1, #keys do
+		if not seen[keys[i]] then
+			ordered[#ordered + 1] = keys[i]
+		end
+	end
+
+	return ordered
+end
+
+-- Saves an order (a list of keys); an empty list goes back to the usual order.
+Events.set_order = function (set_setting, keys)
+	set_setting("deck_order", table.concat(keys or {}, ","))
+end
+
 Events.DEFAULT_CUSTOM_PCT = 10
+Events.MAX_PCT = 10 -- the most a card's chance can be (older settings above it count as 10)
 Events.DEFAULT_CUSTOM_COOLDOWN = 120
 
 -- The cooldown of a card of your own that has none set: the option "Default card cooldown" (default 120 s), in 30 s
@@ -163,11 +202,14 @@ Events.LOOKS = { rot = true, whisper = true, vial = true }
 -- Settings per wave (all plain values so DMF can persist them):
 --   wave_def_<key>  "name<TAB>recipe"   overrides name/composition ("" = default)
 --   on_<key>        boolean             enabled (default: standard on, custom off)
---   pct_<key>       number              relative chance weight
+--   pct_<key>       number              chance of the card, 0 to 10 (the ten pips; shown as a share of the cards that can be drawn)
 --   cd_<key>        number              cooldown seconds
 --   sp_<key>        number              spawn spread radius in metres (0 = all at the spawn point)
 --   re_<key>        number              repeat every N seconds  (only used by groups with "@rep")
 --   rf_<key>        number              keep repeating for N seconds
+--   (deck_order     string              the keys of the cards in the order of the Deck, see Events.ordered_keys; deck_sort the last sort)
+--   rk_<key>        boolean             a random group ("a|b") rolls once and keeps its enemy on every repeat (default on; false = a new
+--                                       roll for every unit)
 --   dmin_<key>      number              minimum spawn distance in metres for this wave (0 = use the options)
 --   dmax_<key>      number              maximum spawn distance in metres for this wave (0 = use the options)
 --   del_<key>       boolean             a STANDARD wave the player deleted: hidden in the editor, never drawn or timed.
@@ -270,11 +312,12 @@ Events.get = function (key, get_setting, Groups)
 	if wave.deleted then
 		wave.enabled = false
 	end
-	wave.pct = tonumber(get_setting("pct_" .. key)) or (std and std.default_pct) or Events.DEFAULT_CUSTOM_PCT
+	wave.pct = math.max(0, math.min(Events.MAX_PCT, tonumber(get_setting("pct_" .. key)) or (std and std.default_pct) or Events.DEFAULT_CUSTOM_PCT))
 	wave.cooldown = tonumber(get_setting("cd_" .. key)) or (std and std.cooldown) or Events.default_cooldown(get_setting)
 	wave.spread = tonumber(get_setting("sp_" .. key)) or Events.DEFAULT_SPREAD
 	wave.rep_every = tonumber(get_setting("re_" .. key)) or Events.DEFAULT_REPEAT_EVERY
 	wave.rep_for = tonumber(get_setting("rf_" .. key)) or Events.DEFAULT_REPEAT_FOR
+	wave.keep_pick = get_setting("rk_" .. key) ~= false
 	wave.dmin = math.max(0, tonumber(get_setting("dmin_" .. key)) or 0)
 	wave.dmax = math.max(0, tonumber(get_setting("dmax_" .. key)) or 0)
 
@@ -414,6 +457,7 @@ Events.reset = function (set_setting, key)
 	set_setting("sp_" .. key, Events.DEFAULT_SPREAD)
 	set_setting("re_" .. key, Events.DEFAULT_REPEAT_EVERY)
 	set_setting("rf_" .. key, Events.DEFAULT_REPEAT_FOR)
+	set_setting("rk_" .. key, true)
 	set_setting("dmin_" .. key, 0)
 	set_setting("dmax_" .. key, 0)
 	set_setting("su_" .. key, "")
@@ -422,6 +466,19 @@ Events.reset = function (set_setting, key)
 	set_setting("cl_" .. key, "")
 	set_setting("ev_" .. key, 0)
 	set_setting("del_" .. key, false)
+end
+
+-- Back to the defaults of a card's face only (Reset face on the card face screen): the suit the card would have without a choice,
+-- the threat worked out from the enemies, the suit's own whisper, the look the suit gives, the default cooldown. The enemies and
+-- everything else stay.
+Events.reset_face = function (set_setting, key)
+	local std = by_key[key]
+
+	set_setting("su_" .. key, "")
+	set_setting("th_" .. key, 0)
+	set_setting("wh_" .. key, "")
+	set_setting("cl_" .. key, "")
+	set_setting("cd_" .. key, std and std.cooldown or nil)
 end
 
 -- The definition handed to the spawner (Execute.start_wave) for a resolved wave.
@@ -435,6 +492,7 @@ Events.spawn_def = function (wave)
 		spread = wave.spread,
 		rep_every = wave.rep_every,
 		rep_for = wave.rep_for,
+		keep_pick = wave.keep_pick,
 		dmin = wave.dmin,
 		dmax = wave.dmax,
 		timer = wave.timer,
@@ -511,8 +569,10 @@ Events.build_pool = function (get_setting, Groups, extra)
 						name = string.format("%s (%d)", name, used + 1)
 					end
 
-					pool[#pool + 1] = { key = wave.key, name = name, def = Events.spawn_def(wave), raw = wave.pct, cooldown = wave.cooldown, owner = wave.owner }
-					total = total + wave.pct
+					local raw = math.min(Events.MAX_PCT, wave.pct)
+
+					pool[#pool + 1] = { key = wave.key, name = name, def = Events.spawn_def(wave), raw = raw, cooldown = wave.cooldown, owner = wave.owner }
+					total = total + raw
 				end
 			end
 		end

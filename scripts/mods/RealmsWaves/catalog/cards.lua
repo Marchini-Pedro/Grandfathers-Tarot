@@ -52,6 +52,19 @@ Cards.THREAT_COLORS = { hex("#a7c27c"), hex("#74b22c"), hex("#e3cf4a"), hex("#d9
 -- a card with this weight or less is "rare": pus-yellow outline (the old, absolute rule: only used where no deck is known)
 Cards.RARE_WEIGHT = 2
 
+-- the place of a suit in Cards.SUIT_ORDER (1 to 12; an unknown suit is plague, 1)
+Cards.suit_index = function (suit)
+	local wanted = Cards.normalize_suit(suit)
+
+	for i = 1, #Cards.SUIT_ORDER do
+		if Cards.SUIT_ORDER[i] == wanted then
+			return i
+		end
+	end
+
+	return 1
+end
+
 Cards.normalize_suit = function (suit)
 	return Cards.SUITS[suit] and suit or "plague"
 end
@@ -66,76 +79,47 @@ Cards.is_rare = function (weight)
 	return weight > 0 and weight <= Cards.RARE_WEIGHT
 end
 
--- ---------------------------------------------------------------------------------------------- chance levels
--- The chance of a card as ten levels (the ten pips), RELATIVE to the other cards of the draw: the heaviest card has
--- level 10, the lightest level 1, the rest in between in proportion to their weights; when every card weighs the same
--- all are level 10 (all are equally likely, the highest). A weight of 0 or less is level 0 (never drawn). `lo` and `hi`
--- are the smallest and the largest weight in the draw; without them (nothing is in the draw) the weight itself is the
--- level (1-10).
+-- ---------------------------------------------------------------------------------------------- chance
+-- The chance of a card is a whole number from 1 to 10 (0 = never drawn) and the ten pips of a tile show exactly that number.
+-- It is NOT relative to the other cards: how likely a card is in a draw is its chance over the chances of the cards that
+-- can be drawn at that moment (the cards that rest after a pick leave the draw, so the others become likelier).
 Cards.LEVELS = 10
+Cards.MAX_CHANCE = 10
 
-Cards.level = function (weight, lo, hi)
+-- the pips of a chance: 0 for none, else the number rounded and kept between 1 and 10 (the extra arguments of the old,
+-- relative version are ignored)
+Cards.level = function (weight)
 	weight = tonumber(weight) or 0
 
 	if weight <= 0 then
 		return 0
 	end
 
-	lo, hi = tonumber(lo), tonumber(hi)
-
-	if not lo or not hi then
-		return math.max(1, math.min(Cards.LEVELS, math.floor(weight + 0.5)))
-	end
-
-	if hi <= lo then
-		return Cards.LEVELS
-	end
-
-	local t = math.max(0, math.min(1, (weight - lo) / (hi - lo)))
-
-	return math.max(1, math.min(Cards.LEVELS, 1 + math.floor((Cards.LEVELS - 1) * t + 0.5)))
+	return math.max(1, math.min(Cards.LEVELS, math.floor(weight + 0.5)))
 end
 
--- A card is "rare" when it is among the two lowest levels of a draw whose weights differ.
-Cards.is_rare_level = function (level, lo, hi)
-	lo, hi = tonumber(lo), tonumber(hi)
+-- A card is "rare" when its chance is 1 or 2 (Cards.RARE_WEIGHT).
+Cards.is_rare_level = function (level)
+	level = tonumber(level) or 0
 
-	return lo ~= nil and hi ~= nil and hi > lo and level >= 1 and level <= 2
+	return level >= 1 and level <= Cards.RARE_WEIGHT
 end
 
--- The weight (a whole number, at least 1) that gives a card chance level `level` among the OTHER cards of the draw,
--- whose lightest and heaviest weights are `lo` and `hi` (nil when there are no other cards: then the level is the
--- weight). Clicking the pips of a card uses this. When the others differ the weight lies in their range (the closest
--- whole number that shows the wanted level); when the others all weigh the same, level 10 matches them and lower
--- levels are that fraction of it.
-Cards.weight_for_level = function (level, lo, hi)
-	level = math.max(1, math.min(Cards.LEVELS, math.floor(tonumber(level) or 1)))
-	lo, hi = tonumber(lo), tonumber(hi)
+-- The chance a click on pip `level` sets: the level itself (kept between 1 and 10)
+Cards.weight_for_level = function (level)
+	return math.max(1, math.min(Cards.LEVELS, math.floor((tonumber(level) or 1) + 0.5)))
+end
 
-	if not lo or not hi then
-		return level
+-- Share of the draw in percent of a card with chance `weight`, among cards whose chances add up to `total` (the card itself
+-- is part of the total); nil when it cannot be drawn.
+Cards.share = function (weight, total)
+	weight, total = tonumber(weight) or 0, tonumber(total) or 0
+
+	if weight <= 0 or total <= 0 then
+		return nil
 	end
 
-	if hi > lo then
-		local ideal = lo + (level - 1) / (Cards.LEVELS - 1) * (hi - lo)
-		local best, best_cost = nil, math.huge
-
-		for w = math.max(math.floor(lo), math.floor(ideal) - 1), math.min(math.ceil(hi), math.ceil(ideal) + 1) do
-			local cost = math.abs(Cards.level(w, lo, hi) - level) * 1000 + math.abs(w - ideal)
-
-			if cost < best_cost then
-				best, best_cost = w, cost
-			end
-		end
-
-		return math.max(1, best or math.floor(ideal + 0.5))
-	end
-
-	if level == Cards.LEVELS then
-		return math.max(1, math.floor(lo + 0.5))
-	end
-
-	return math.max(1, math.floor(lo * level / Cards.LEVELS + 0.5))
+	return weight / total * 100
 end
 
 -- ---------------------------------------------------------------------------------------------- cooldown looks
@@ -408,8 +392,7 @@ Cards.modifier_line = function (parts, Groups, paint)
 end
 
 -- Everything the editor and the HUD show for one card (a wave from Events.get). `rgb_of(breed)` gives enemy colours.
--- `range` ({ lo, hi }: the lightest and heaviest weight in the draw, optional) makes `level` and `rare` relative to the deck.
-Cards.describe = function (wave, Groups, rgb_of, range)
+Cards.describe = function (wave, Groups, rgb_of)
 	local parts = wave.parts or {}
 	local auto = Cards.threat_auto(parts, Groups)
 	local suit = Cards.normalize_suit(wave.suit)
@@ -437,8 +420,8 @@ Cards.describe = function (wave, Groups, rgb_of, range)
 		own_whisper = Cards.clean_whisper(wave.whisper) ~= "",
 		look = Cards.look({ look = wave.look, suit = suit }),
 		weight = tonumber(wave.pct) or 0,
-		level = Cards.level(wave.pct, range and range.lo, range and range.hi),
-		rare = range and Cards.is_rare_level(Cards.level(wave.pct, range.lo, range.hi), range.lo, range.hi) or (not range and Cards.is_rare(wave.pct)),
+		level = Cards.level(wave.pct),
+		rare = Cards.is_rare(wave.pct),
 		cooldown = tonumber(wave.cooldown) or Cards.DEFAULT_COOLDOWN,
 		modifiers = Cards.modifier_line(parts, Groups),
 		enabled = wave.enabled == true,

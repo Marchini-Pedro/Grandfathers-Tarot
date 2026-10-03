@@ -38,6 +38,87 @@ Deck.clamp_offset = function (offset, count)
 	return floor(offset / Deck.COLS) * Deck.COLS
 end
 
+-- ------------------------------------------------------------------------------------------------- sorting and moving
+Deck.SORTS = { "threat", "rarity", "enemies", "face" }
+Deck.DRAG_HOLD = 0.3 -- seconds a card is held before it is lifted
+local SORT_TIES = { "threat", "enemies", "chance" }
+
+-- The cards of the Deck in the order of `sort` ("threat": the hardest last; "rarity": the rarest, the lowest chance, first; "enemies":
+-- the fewest first; "face": by suit in the order of the suit list), `desc` turns it round. `items` = list of { key, threat, chance, enemies,
+-- suit (the place of its suit) }; the sort is stable (equal cards keep the order they had) and the tie breakers are the
+-- other numbers, threat then enemies. Returns a new list of the same items.
+Deck.sorted = function (items, sort, desc)
+	local order = {}
+
+	for i = 1, #items do
+		order[i] = { item = items[i], index = i }
+	end
+
+	local function primary(item)
+		if sort == "rarity" then
+			return item.chance
+		elseif sort == "enemies" then
+			return item.enemies
+		elseif sort == "face" then
+			return item.suit
+		end
+
+		return item.threat
+	end
+
+	table.sort(order, function (a, b)
+		local pa, pb = primary(a.item), primary(b.item)
+
+		if pa ~= pb then
+			if desc then
+				return pa > pb
+			end
+
+			return pa < pb
+		end
+
+		-- the tie breakers follow the direction of the sort too
+		for _, field in ipairs(SORT_TIES) do
+			local x, y = a.item[field], b.item[field]
+
+			if x ~= y then
+				if desc then
+					return x > y
+				end
+
+				return x < y
+			end
+		end
+
+		return a.index < b.index
+	end)
+
+	local out = {}
+
+	for i = 1, #order do
+		out[i] = order[i].item
+	end
+
+	return out
+end
+
+-- Swaps two places of a list of keys; returns a new list (the same list when a place is missing or both are the same place).
+Deck.swapped = function (keys, a, b)
+	if a == b or not keys[a] or not keys[b] then
+		return keys
+	end
+
+	local out = {}
+
+	for i = 1, #keys do
+		out[i] = keys[i]
+	end
+
+	out[a], out[b] = keys[b], keys[a]
+
+	return out
+end
+
 -- ----------------------------------------------------------------------------------------------- weights
 Deck.PIPS = 10
 

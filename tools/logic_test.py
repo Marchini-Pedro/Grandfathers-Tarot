@@ -2,7 +2,7 @@ import sys, os
 sys.path.insert(0, os.environ.get("PYLIBS", r"C:\Users\ayko4\AppData\Local\Temp\claude\c--XboxGames-Warhammer-40-000--Darktide-Content\9da40c72-f459-4d9d-ab4b-3023fa21e2f5\scratchpad\pylibs"))
 from lupa import LuaRuntime
 
-ROOT = r"C:\XboxGames\Warhammer 40,000- Darktide\Content\mods\RealmsWaves\scripts\mods\RealmsWaves"
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "mods", "RealmsWaves")
 lua = LuaRuntime(unpack_returned_tuples=True)
 
 harness = r'''
@@ -19,12 +19,13 @@ mod.echo = function(self, fmt, ...) echoes[#echoes+1] = string.format(fmt, ...) 
 mod.warning = function(self, fmt, ...) echoes[#echoes+1] = "WARN " .. string.format(fmt, ...) end
 mod.error = mod.warning
 mod.localize = function(self, id, ...) if select("#", ...) > 0 then return id .. ":" .. table.concat({...}, ",") end return id end
-mod.io_dofile = function(self, path) return dofile(ROOT .. "/../../../" .. path .. ".lua") end
+mod.io_dofile = function(self, path) return dofile(ROOT .. "/../../../" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
 get_mod = function(name) return mod end
 
 local is_server = true
 local mission_name = "coop_complete_objective"
 Managers = {
+  connection = { host = function() return "host_peer" end },
   state = {
     game_session = { is_server = function() return is_server end },
     game_mode = { game_mode = function() return { name = function() return mission_name end } end },
@@ -146,6 +147,49 @@ check("search: by breed id fragment and case-insensitive", ids(Groups.search("PL
 check("search: all words must match (ogryn AND boss = plague ogryn + packmaster)", #Groups.search("ogryn boss") == 2 and #Groups.search("hound special") == 2, #Groups.search("ogryn boss") .. "/" .. #Groups.search("hound special"))
 check("search: no match -> empty list", #Groups.search("xyzzy") == 0)
 
+-- factions and the shelf (docs/08) ----------------------------------------------------------------------------------------
+do
+  local dregs, scabs, chaos, other = 0, 0, 0, {}
+  for _, b in ipairs(Groups.breed_list()) do
+    local f = Groups.faction(b)
+    if b:find("^cultist_") and f == "dreg" then dregs = dregs + 1
+    elseif b:find("^renegade_") and f == "scab" then scabs = scabs + 1
+    elseif b:find("^chaos_") and f == nil then chaos = chaos + 1
+    else other[#other + 1] = b end
+  end
+  check("factions: every cultist breed is a Dreg, every renegade a Scab, every Chaos unit neither", #other == 0 and dregs >= 9 and scabs >= 15 and chaos >= 12 and dregs + scabs + chaos == #Groups.breed_list(), table.concat(other, ","))
+  check("factions: no breed, nil and junk have none", Groups.faction(nil) == nil and Groups.faction("") == nil and Groups.faction(42) == nil and Groups.faction("whatever") == nil)
+  check("faction word: Gunner is the Scab one and says so; a name that says it already adds nothing; Tox Flamer says Dreg; Chaos units say nothing", Groups.faction_suffix("renegade_gunner") == "Scab" and Groups.faction_suffix("cultist_gunner") == nil and Groups.faction_suffix("renegade_melee") == nil and Groups.faction_suffix("cultist_melee") == nil and Groups.faction_suffix("cultist_flamer") == "Dreg" and Groups.faction_suffix("renegade_flamer") == "Scab" and Groups.faction_suffix("cultist_berzerker") == "Dreg" and Groups.faction_suffix("renegade_berzerker") == nil and Groups.faction_suffix("chaos_hound") == nil and Groups.faction_suffix("cultist_mutant") == "Dreg")
+  check("factions: the faction word never doubles a faction already in the name (Scab Rager, Dreg Shocktrooper)", (function() for _, b in ipairs(Groups.breed_list()) do local n = Groups.display_name(b) if Groups.faction_suffix(b) and (n:find("Dreg") or n:find("Scab")) then return false end end return true end)())
+
+  -- the shelf
+  local seen, problems, count = {}, {}, 0
+  local KIND_OF_GROUP = { fodder = "normal", elite = "elite", special = "special", boss = "boss" }
+  for _, group in ipairs(Groups.SHELF) do
+    for _, entry in ipairs(group.entries) do
+      count = count + 1
+      local list = entry.breed and { entry.breed } or { entry.dreg, entry.scab }
+      if not entry.breed and (not entry.dreg or not entry.scab or not entry.label) then problems[#problems + 1] = "incomplete pair " .. tostring(entry.label) end
+      for _, b in ipairs(list) do
+        if not Groups.is_known(b) then problems[#problems + 1] = "unknown " .. tostring(b)
+        elseif Groups.kind(b) ~= KIND_OF_GROUP[group.id] then problems[#problems + 1] = b .. " is " .. Groups.kind(b) .. " in " .. group.id end
+        if seen[b] then problems[#problems + 1] = "twice " .. b end
+        seen[b] = true
+      end
+      if not entry.breed and (Groups.faction(entry.dreg) ~= "dreg" or Groups.faction(entry.scab) ~= "scab") then problems[#problems + 1] = "faction mismatch " .. entry.label end
+    end
+  end
+  check("shelf: four groups (fodder, elite, special, boss), every breed known, in the group of its kind, none twice, each pair a Dreg and a Scab", #Groups.SHELF == 4 and #problems == 0 and count == 30, table.concat(problems, ", ") .. " / " .. count)
+  check("shelf: the Packmaster (the houndmaster) is among the bosses", seen.chaos_ogryn_houndmaster == true and Groups.SHELF[4].entries[5].breed == "chaos_ogryn_houndmaster")
+  check("shelf: both vanguards are fodder, as a Dreg / Scab pair", (function() for _, e in ipairs(Groups.SHELF[1].entries) do if e.dreg == "cultist_vanguard" and e.scab == "renegade_vanguard" then return true end end return false end)())
+  check("shelf: the vanguards count as normal enemies, not elites, for the threat and the multipliers", Groups.kind("cultist_vanguard") == "normal" and Groups.kind("renegade_vanguard") == "normal" and Groups.category("renegade_vanguard") == "normal")
+  local gunner = Groups.SHELF[2].entries[2]
+  check("shelf: a role both factions have adds the Dreg or the Scab one by the switch, a unit with one faction ignores it", Groups.shelf_breed(gunner, "dreg") == "cultist_gunner" and Groups.shelf_breed(gunner, "scab") == "renegade_gunner" and Groups.shelf_breed(Groups.SHELF[2].entries[4], "dreg") == "renegade_executor" and Groups.shelf_breed(Groups.SHELF[1].entries[1], "scab") == "chaos_poxwalker")
+  check("shelf: the tag a chip shows: the switch for a pair, the unit's own for a Mauler (Scab) or a Mutant (Dreg), none for a Poxwalker", Groups.shelf_faction(gunner, "dreg") == "dreg" and Groups.shelf_faction(gunner, "scab") == "scab" and Groups.shelf_faction(Groups.SHELF[2].entries[4], "dreg") == "scab" and Groups.shelf_faction(Groups.SHELF[3].entries[1], "scab") == "dreg" and Groups.shelf_faction(Groups.SHELF[1].entries[1], "dreg") == nil)
+  check("shelf: labels: the role for a pair, the enemy's own name otherwise", Groups.shelf_label(gunner) == "Gunner" and Groups.shelf_label(Groups.SHELF[2].entries[4]) == "Mauler" and Groups.shelf_label(Groups.SHELF[4].entries[5]) == "Packmaster")
+  check("shelf: 'houndmaster' still finds the Packmaster (the old names parse)", Groups.parse("1 houndmaster")[1].breed == "chaos_ogryn_houndmaster")
+end
+
 -- repeats ("@N") ------------------------------------------------------------
 local r1 = Groups.parse("5 crushers[enraged]@2, 3 hounds, 0 snipers@4")
 check("parse repeat: count, rep, mods", r1 and #r1 == 3 and r1[1].count == 5 and r1[1].rep == 2 and r1[1].mods[1] == "enraged" and r1[2].rep == nil and r1[3].count == 0 and r1[3].rep == 4, r1 and (tostring(r1[1].rep) .. "/" .. tostring(r1[3] and r1[3].rep)))
@@ -170,6 +214,20 @@ do
   Events.reset(s, "wave_small")
   w = Events.get("wave_small", g, Groups)
   check("reset restores spread/repeat defaults", w.spread == 3 and w.rep_every == 10 and w.rep_for == 60)
+end
+
+-- Reset face (the Mirror): only the face goes back, the enemies, the chance and the rest stay
+do
+  local st = {}
+  local g, s = function(id) return st[id] end, function(id, v) st[id] = v end
+  s("wave_def_wave_small", "The Fool\t3 hounds"); s("pct_wave_small", 9); s("su_wave_small", "rage"); s("th_wave_small", 4); s("wh_wave_small", "Mine"); s("cl_wave_small", "vial"); s("cd_wave_small", 300)
+  Events.reset_face(s, "wave_small")
+  local w = Events.get("wave_small", g, Groups)
+  check("reset face: suit, threat, whisper, look and cooldown go back to the card's defaults (The Fool: swarm, 120 s)", w.suit == "swarm" and w.threat_override == 0 and st.wh_wave_small == "" and st.cl_wave_small == "" and w.cooldown == 120, tostring(w.suit) .. "/" .. tostring(w.cooldown))
+  check("reset face: the enemies, the chance and the name stay", st.wave_def_wave_small == "The Fool\t3 hounds" and st.pct_wave_small == 9 and w.name == "The Fool")
+  s("wave_def_custom_1", "Mine\t2 hounds"); s("su_custom_1", "rage"); s("cd_custom_1", 400); s("th_custom_1", 2)
+  Events.reset_face(s, "custom_1")
+  check("reset face: a custom card goes back to plague (or its suggestion) and the default cooldown option; its enemies stay", st.su_custom_1 == "" and st.cd_custom_1 == nil and st.th_custom_1 == 0 and st.wave_def_custom_1 == "Mine\t2 hounds")
 end
 
 -- every breed in every standard wave must be a known breed
@@ -440,7 +498,7 @@ do
   check("pool: a friend's wave with an already used name gets '(2)'", suffixed == "The Fool (2)", tostring(suffixed))
   -- the spawn definition of a friend's wave is complete
   local friend; for _, e in ipairs(pool) do if e.name == "Friend Special" then friend = e end end
-  check("pool: the friend's wave carries a full spawn definition", friend and friend.def.parts and friend.def.parts[1].breed == "chaos_hound" and friend.def.parts[1].count == 4 and friend.def.cooldown == 0 and friend.def.spread == 3 and friend.raw == 500)
+  check("pool: the friend's wave carries a full spawn definition (its chance of 500 counts as the most a chance can be, 10)", friend and friend.def.parts and friend.def.parts[1].breed == "chaos_hound" and friend.def.parts[1].count == 4 and friend.def.cooldown == 0 and friend.def.spread == 3 and friend.raw == 10)
 
   -- a full cycle where only the friend's wave exists: it is drawn and spawned
   disable_all_host_waves()
@@ -523,6 +581,19 @@ do
   cjson.encode = function(v) return "list:" .. #v end
   local before = #sent_rpcs
   check("protocol: send_scales sends one json argument to the others (or to one peer); nothing for an empty list", P.send_scales({ { 1, 120 }, { 2, 130 } }) == true and sent_rpcs[#sent_rpcs].name == "rw_scale" and sent_rpcs[#sent_rpcs].recipient == "others" and sent_rpcs[#sent_rpcs].args[1] == "list:2" and P.send_scales({ { 3, 120 } }, "peer_b") == true and sent_rpcs[#sent_rpcs].recipient == "peer_b" and P.send_scales({}) == false and #sent_rpcs == before + 2)
+  local calls = 0
+  P.init({ on_state=function() calls=calls+1 end, on_welcome=function() calls=calls+1 end, on_scale=function() calls=calls+1 end })
+  registered.rw_state("other_client", "x"); registered.rw_welcome("other_client", 2, "2.0.0", 1); registered.rw_scale("other_client", "x")
+  check("protocol: another client cannot spoof host state, a welcome or unit sizes", calls==0)
+  registered.rw_state("host_peer", "x"); registered.rw_welcome("host_peer", 2, "2.0.0", 1); registered.rw_scale("host_peer", "x")
+  check("protocol: authenticated host messages still arrive", calls==3)
+  local connection=Managers.connection; Managers.connection=nil
+  registered.rw_state("host_peer", "x"); registered.rw_welcome("host_peer", 2, "2.0.0", 1); registered.rw_scale("host_peer", "x")
+  check("protocol: no session connection means no host messages are accepted", calls==3)
+  Managers.connection=connection
+  realms.network_send=function() error("connection closed during send") end
+  local send_ok, sent, why=pcall(P.send_hello)
+  check("protocol: a disconnect during any RPC send returns a failure without raising", send_ok and sent==false and tostring(why):find("connection closed",1,true))
   get_mod = real_get_mod; cjson = nil
 end
 -- fixed-timer waves: ignore the chance, run on their own clock, independent of the draw -----------------------------
@@ -914,6 +985,31 @@ do
   Director.update(95)
   check("cooldown: ...so the card is still out when the countdown resumes and dealt again only after its cooldown", Director.view().hand == nil or Director.view().empty or Director.view().drawn == true)
 
+  -- the cards that rest leave the draw, so the others become likelier: a card is dealt by its chance over the chances of the cards
+  -- that can be dealt now (hands of ONE card here: three cards with chances 8, 2 and 2 that rest for ages after their pick)
+  settings.tarot_cards = 1; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100
+  only({ { "wave_small", 8, 100000 }, { "wave_medium", 2, 100000 }, { "wave_large", 2, 100000 } })
+  do
+    local first_a, then_b, first_b, then_a = 0, 0, 0, 0
+    local function hand_key() local hv = Director.view(); return hv.hand and hv.hand[1] and hv.hand[1].key end
+
+    for _ = 1, 1500 do
+      start(); Director.update(95)
+      local first = hand_key()
+      Director.update(6) -- the pick: its cooldown starts
+      Director.update(95)
+      local second = hand_key()
+
+      if first == "wave_small" then first_a = first_a + 1; if second == "wave_medium" then then_b = then_b + 1 end end
+      if first == "wave_medium" then first_b = first_b + 1; if second == "wave_small" then then_a = then_a + 1 end end
+    end
+
+    check("draw share: the first hand is by chance, 8 of 12 for the heavy card", first_a > 0.60 * 1500 and first_a < 0.73 * 1500, first_a)
+    check("draw share: with the heavy card resting the other two share the draw 50/50 (it was 2 of 12 each)", first_a > 500 and math.abs(then_b / first_a - 0.5) < 0.06, then_b / math.max(1, first_a))
+    check("draw share: with a light card resting the heavy one gets 8 of 10 (80 percent, not 8 of 12 = 67)", first_b > 150 and math.abs(then_a / first_b - 0.8) < 0.07, then_a / math.max(1, first_b))
+  end
+  settings.tarot_cards = 3
+
   -- empty pool, skip, next, short intervals, anti-snowball
   only({})
   v = start(); Director.update(95)
@@ -975,7 +1071,7 @@ do
   Director.update(5)
   check("client: a paused host's age does not run", math.abs(Director.view().drawn_age - 4) < 0.01, Director.view().drawn_age)  is_server = true
 
-  -- rarity is relative to the pool: the lightest cards are rare, the heaviest are not
+  -- rarity is the number: a chance of 1 or 2 is rare, anything higher is not
   settings.tarot_cards = 3; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100
   only({ { "wave_small", 1, 0 }, { "wave_medium", 10, 0 }, { "wave_large", 10, 0 } })
   v = start(); Director.update(95)
@@ -986,18 +1082,18 @@ do
   v = start(); Director.update(95)
   local any_rare = false
   for _, cd in ipairs(sent[#sent].state.h) do if cd.r == 1 then any_rare = true end end
-  check("rarity: when every card weighs the same none is rare (a weight of 1 would have been, before)", not any_rare)
+  check("rarity: a chance above 2 is not rare, however the others are (chances 18 count as 10)", not any_rare)
   only({ { "wave_small", 1, 0 }, { "wave_medium", 1, 0 }, { "wave_large", 1, 0 } })
   v = start(); Director.update(95)
   any_rare = false
   for _, cd in ipairs(sent[#sent].state.h) do if cd.r == 1 then any_rare = true end end
-  check("rarity: ...also at weight 1 for all", not any_rare)
+  check("rarity: a chance of 1 is rare for every card that has it, even when all of them do (it is the number, not a comparison)", any_rare)
   only({ { "wave_small", 50, 0 }, { "wave_medium", 40, 0 }, { "wave_large", 30, 0 }, { "wave_huge", 20, 0 }, { "boss_ambush", 1, 0 } })
   settings.tarot_cards = 5
   v = start(); Director.update(95)
   local rare_keys = {}
   for _, cd in ipairs(sent[#sent].state.h) do if cd.r == 1 then rare_keys[#rare_keys + 1] = cd.k end end
-  check("rarity: with weights 50 to 1 the very lightest card is rare, no matter the absolute numbers", #rare_keys == 1 and rare_keys[1] == "boss_ambush", table.concat(rare_keys, ","))
+  check("rarity: with chances 50 (counted as 10) down to 1 only the card with a chance of 1 is rare", #rare_keys == 1 and rare_keys[1] == "boss_ambush", table.concat(rare_keys, ","))
   settings.tarot_cards = 3
 
   -- legacy modes still work next to the tarot
@@ -1069,7 +1165,9 @@ mission_name = "coop_complete_objective"
 -- budget bypass hooks -------------------------------------------------------
 local hooks = {}
 mod.hook = function(self, cls, method, fn) hooks[cls .. "." .. method] = fn end
-mod.hook_safe = function(self, cls, method, fn) hooks[cls .. "." .. method .. "!"] = fn end
+mod.hook_safe = function(self, cls, method, fn) hooks[(type(cls) == "table" and (cls._name or "table") or cls) .. "." .. method .. "!"] = fn end
+local hook_requires = {}
+mod.hook_require = function(self, path, fn) hook_requires[path] = fn end
 local events = {}
 Managers.event = { trigger = function(self, name, unit) events[#events+1] = name .. ":" .. tostring(unit) end }
 ALIVE = {}
@@ -1209,7 +1307,10 @@ do
   Tuning.init({ protocol = fake_protocol })
   local dead, scales_set, next_gid = {}, {}, 100
   local saved_su, saved_unit, saved_v3, saved_spawner = ScriptUnit, Unit, Vector3, Managers.state.unit_spawner
-  ScriptUnit = { has_extension = function(unit, sys) if sys == "buff_system" then return unit.buffs end return unit.ext and unit.ext[sys] end }
+  ScriptUnit = {
+    has_extension = function(unit, sys) if sys == "buff_system" then return unit.buffs end return unit.ext and unit.ext[sys] end,
+    extension = function(unit, sys) local ext = unit.ext and unit.ext[sys]; if not ext then error("no extension " .. tostring(sys)) end return ext end,
+  }
   Unit = {
     world_rotation = function() return "rot" end,
     alive = function(unit) return not dead[unit] end,
@@ -1217,6 +1318,7 @@ do
   }
   Vector3 = function(x, y, z) return { x = x, y = y, z = z } end
   Managers.state.unit_spawner = { game_object_id = function(self, unit) return unit.gid end }
+  local boss_breeds = {}
   local function make_unit(breed, param)
     local unit = { breed = breed, gid = next_gid, health_mod = param.optional_health_modifier, buffs = make_buff_ext(breed) }
     next_gid = next_gid + 1
@@ -1225,8 +1327,15 @@ do
     unit.ext = {
       health_system = { mass = 2, hit_mass = function(self) return self.mass end, set_hit_mass = function(self, v) self.mass = v end },
       navigation_system = { mods = {}, add_movement_modifier = function(self, m) self.mods[#self.mods + 1] = m; return #self.mods end },
+      unit_data_system = { breed = function() return { name = breed } end },
     }
     if breed == "chaos_hound" then unit.ext.navigation_system = nil end -- a unit without navigation: that step fails alone
+    -- bosses: the game marks one spawned with less than its normal health as weakened (boss_extension.lua:61-66)
+    if breed == "chaos_plague_ogryn" or breed == "chaos_beast_of_nurgle" then
+      unit.ext.boss_system = { _is_weakened = (param.optional_health_modifier or 1) < 1 }
+      unit.ext.unit_data_system = { breed = function() return boss_breeds[breed] end }
+      boss_breeds[breed] = boss_breeds[breed] or { name = breed }
+    end
     return unit
   end
   local saved_spawn = minion_spawn.spawn_minion
@@ -1238,13 +1347,13 @@ do
   Execute.init({ positions = StubPositions, bypass = Bypass, groups = Groups, tuning = Tuning })
   Bypass.reset(); Tuning.reset()
 
-  run_wave({ name = "t", parts = Groups.parse("2 crushers[enraged]{health=150 size=130 speed=120 melee=150 fire=200 burst=300 mass=250}, 1 poxwalker") })
+  run_wave({ name = "t", parts = Groups.parse("2 crushers[enraged]{health=150 size=130 speed=120 gap=40 fire=200 burst=300 mass=250}, 1 poxwalker") })
   local crushers, plain = {}, nil
   for _, u in ipairs(spawned) do if u.breed == "chaos_ogryn_executor" then crushers[#crushers + 1] = u else plain = u end end
   local c = crushers[1]
   check("tuning: health is a spawn parameter (x1.5); a group without custom mods gets none", #crushers == 2 and c.health_mod == 1.5 and crushers[2].health_mod == 1.5 and plain and plain.health_mod == nil)
   check("tuning: hit mass is multiplied (2 -> 5) and the run speed gets a movement modifier of 1.2", c.ext.health_system.mass == 5 and #c.ext.navigation_system.mods == 1 and c.ext.navigation_system.mods[1] == 1.2 and plain.ext.health_system.mass == 2 and #plain.ext.navigation_system.mods == 0)
-  check("tuning: melee and ranged attack speed and the burst size are written to the unit's stat buffs", c.buffs.stats.melee_attack_speed == 1.5 and c.buffs.stats.ranged_attack_speed == 2 and c.buffs.stats.minion_num_shots_modifier == 3 and plain.buffs.stats.melee_attack_speed == nil)
+  check("tuning: time between attacks 40 writes melee_attack_speed x2.5 (100 / 40), the fire rate and the burst size go to the stat buffs", c.buffs.stats.melee_attack_speed == 2.5 and c.buffs.stats.ranged_attack_speed == 2 and c.buffs.stats.minion_num_shots_modifier == 3 and plain.buffs.stats.melee_attack_speed == nil)
   check("tuning: the modifiers are added first (Enraged), the custom mods after", c.buffs.added[1] == "havoc_enraged_enemies")
   local scaled_c = 0; for _, s in ipairs(scales_set) do if s.unit == c and s.node == 1 and math.abs(s.x - 1.3) < 1e-9 and s.x == s.z then scaled_c = scaled_c + 1 end end
   check("tuning: the size is the unit's root scale (node 1, 1.3 on every axis); nothing for the plain unit", scaled_c == 1 and (function() for _, s in ipairs(scales_set) do if s.unit == plain then return false end end return true end)())
@@ -1252,10 +1361,12 @@ do
   -- the buff system rewrites a stat (a debuff changed): our factor goes back on top, once
   c.buffs.stats.melee_attack_speed = 1.2
   Tuning.update(0.3)
-  check("tuning: a stat the buff system rewrote gets the factor again (1.2 x 1.5 = 1.8)", math.abs(c.buffs.stats.melee_attack_speed - 1.8) < 1e-9 and c.buffs.stats.ranged_attack_speed == 2)
+  check("tuning: a stat the buff system rewrote gets the factor again (1.2 x 2.5 = 3)", math.abs(c.buffs.stats.melee_attack_speed - 3.0) < 1e-9 and c.buffs.stats.ranged_attack_speed == 2)
   Tuning.update(0.3); Tuning.update(0.3)
-  check("tuning: ...and is not multiplied again while nothing changes", math.abs(c.buffs.stats.melee_attack_speed - 1.8) < 1e-9)
-  check("tuning: the new sizes are sent to the other players in one batch: [network id, percent]", #sent_scales >= 1 and sent_scales[1].recipient == nil and #sent_scales[1].list == 2 and sent_scales[1].list[1][1] == c.gid and sent_scales[1].list[1][2] == 130)
+  check("tuning: ...and is not multiplied again while nothing changes", math.abs(c.buffs.stats.melee_attack_speed - 3.0) < 1e-9)
+  local sent_ids, sent_count = {}, 0
+  for _, batch in ipairs(sent_scales) do if batch.recipient == nil then for _, e in ipairs(batch.list) do sent_ids[e[1]] = e[2]; sent_count = sent_count + 1 end end end
+  check("tuning: the new sizes are sent to the other players, [network id, percent] for every tuned unit (the batches depend on how the spawns fall into the frames)", #sent_scales >= 1 and sent_scales[1].recipient == nil and sent_count == 2 and sent_ids[crushers[1].gid] == 130 and sent_ids[crushers[2].gid] == 130)
   local sends = #sent_scales
   Tuning.update(0.3)
   check("tuning: a size is sent once", #sent_scales == sends)
@@ -1271,11 +1382,152 @@ do
   check("tuning: a hook on the buff system's stat recompute is installed", stat_hook ~= nil)
   c.buffs.stats.melee_attack_speed = 1.2 -- a recompute dropped our factor (a mission-wide modifier did it)
   stat_hook(c.buffs, 5)
-  check("tuning: right after a recompute the factor is back on top (1.2 x 1.5), once", math.abs(c.buffs.stats.melee_attack_speed - 1.8) < 1e-9)
+  check("tuning: right after a recompute the factor is back on top (1.2 x 2.5), once", math.abs(c.buffs.stats.melee_attack_speed - 3.0) < 1e-9)
   stat_hook(c.buffs, 5)
-  check("tuning: ...and a second call without a recompute changes nothing", math.abs(c.buffs.stats.melee_attack_speed - 1.8) < 1e-9)
+  check("tuning: ...and a second call without a recompute changes nothing", math.abs(c.buffs.stats.melee_attack_speed - 3.0) < 1e-9)
   stat_hook({ stat_buffs = function() return {} end }, 5)
   check("tuning: the hook ignores units that are not tuned", true)
+
+  -- the game's real recompute (buff_extension_base.lua:318-354, buff.lua:689-733), reduced: the stats listed in
+  -- _modified_stats go back to their base value, then every buff is added (additive: +, multiplicative: *).
+  -- The user's console log of 2026-10-02: under Havoc the gunner read speed 1.3 and 2.25 shots, never our factor.
+  local BASE_STAT = { ranged_attack_speed = 1, minion_num_shots_modifier = 1, melee_attack_speed = 1 }
+  local MULTIPLICATIVE = { minion_num_shots_modifier = true }
+  local function sim_unit(buff_list)
+    local ext = { buff_list = buff_list, recomputes = 0 }
+    local stats = setmetatable({ _modified_stats = {} }, { __index = function(s, k) local v = BASE_STAT[k]; s[k] = v; return v end })
+    ext.stat_buffs = function(self) return stats end
+    ext.recompute = function(self)
+      self.recomputes = self.recomputes + 1
+      for key in pairs(stats._modified_stats) do stats[key] = BASE_STAT[key] end
+      for key in pairs(stats._modified_stats) do stats._modified_stats[key] = nil end
+      local reset_hook=hooks["MinionBuffExtension._reset_stat_buffs!"]
+      if reset_hook then reset_hook(self) end
+      for _, buff in ipairs(self.buff_list) do
+        for key, value in pairs(buff) do
+          if MULTIPLICATIVE[key] then stats[key] = stats[key] * value else stats[key] = stats[key] + value end
+          stats._modified_stats[key] = true
+        end
+      end
+    end
+    return { buffs = ext }, ext, stats
+  end
+  local HAVOC_RANGED = { ranged_attack_speed = 0.3, minion_num_shots_modifier = 2.25 } -- havoc_ranged_attack_speed_05
+  local minion_hook = hooks["MinionBuffExtension._update_stat_buffs_and_keywords!"]
+  check("recompute: the subclass MinionBuffExtension is hooked too (the game's class() copies the parent's methods into it)", minion_hook ~= nil)
+
+  local g_unit, g_ext, g_stats = sim_unit({ HAVOC_RANGED })
+  g_ext:recompute()
+  check("recompute: the model reproduces the log (a Havoc unit reads 1.3 and 2.25)", math.abs(g_stats.ranged_attack_speed - 1.3) < 1e-9 and math.abs(g_stats.minion_num_shots_modifier - 2.25) < 1e-9)
+  Tuning.apply(g_unit, { fire = 25, burst = 500 }, "renegade_gunner")
+  g_ext:recompute()
+  check("recompute: without the hook the factor is lost at once (what the user saw)", math.abs(g_stats.ranged_attack_speed - 1.3) < 1e-9)
+  minion_hook(g_ext, 5)
+  check("recompute: right after the hook the unit reads Havoc x ours (1.3 x 0.25, 2.25 x 5)", math.abs(g_stats.ranged_attack_speed - 0.325) < 1e-9 and math.abs(g_stats.minion_num_shots_modifier - 11.25) < 1e-9, tostring(g_stats.ranged_attack_speed) .. "/" .. tostring(g_stats.minion_num_shots_modifier))
+  for _ = 1, 5 do g_ext:recompute(); minion_hook(g_ext, 5) end
+  check("recompute: every frame for a while gives the same value, nothing compounds", math.abs(g_stats.ranged_attack_speed - 0.325) < 1e-9 and math.abs(g_stats.minion_num_shots_modifier - 11.25) < 1e-9)
+  stat_hook(g_ext, 5)
+  minion_hook(g_ext, 5)
+  check("recompute: both hooks in a row (a unit that reaches both) change nothing the second time", math.abs(g_stats.ranged_attack_speed - 0.325) < 1e-9 and math.abs(g_stats.minion_num_shots_modifier - 11.25) < 1e-9)
+  g_ext.buff_list = {}
+  g_ext:recompute(); minion_hook(g_ext, 5)
+  check("recompute: the Havoc buff leaving the unit leaves our factor on the base value", math.abs(g_stats.ranged_attack_speed - 0.25) < 1e-9 and math.abs(g_stats.minion_num_shots_modifier - 5) < 1e-9, tostring(g_stats.ranged_attack_speed))
+
+  -- a buff that arrives AFTER the stats were written (a debuff from a player, an Enraged modifier): the key was listed as
+  -- modified, so the recompute starts from the base value and the factor is applied once, not on top of a buff twice
+  local late_unit, late_ext, late_stats = sim_unit({})
+  Tuning.apply(late_unit, { fire = 200, burst = 300 }, "renegade_gunner")
+  check("recompute: written on a unit with no buff, the stats read x2 and x3", late_stats.ranged_attack_speed == 2 and late_stats.minion_num_shots_modifier == 3)
+  late_ext.buff_list = { HAVOC_RANGED }
+  late_ext:recompute(); minion_hook(late_ext, 5)
+  check("recompute: a buff that arrives later is added to the base, then the factor once (1.3 x 2, 2.25 x 3)", math.abs(late_stats.ranged_attack_speed - 2.6) < 1e-9 and math.abs(late_stats.minion_num_shots_modifier - 6.75) < 1e-9, tostring(late_stats.ranged_attack_speed) .. "/" .. tostring(late_stats.minion_num_shots_modifier))
+  Tuning.update(0.3)
+  check("recompute: the fallback timer leaves a correct value alone", math.abs(late_stats.ranged_attack_speed - 2.6) < 1e-9)
+  local equal_unit,equal_ext,equal_stats=sim_unit({})
+  Tuning.apply(equal_unit,{fire=200},"renegade_gunner")
+  equal_ext.buff_list={{ranged_attack_speed=1}}
+  equal_ext:recompute(); minion_hook(equal_ext,5)
+  check("recompute: a fresh base equal to the last tuned value still gets its factor", equal_stats.ranged_attack_speed==4)
+  stat_hook(equal_ext,5); minion_hook(equal_ext,5)
+  check("recompute: a reset notification is consumed once across both hooks", equal_stats.ranged_attack_speed==4)
+
+  -- a stat table without _modified_stats (a stub, or a game that changes) is still written
+  local plain_unit = { buffs = { stats = {} } }
+  plain_unit.buffs.stat_buffs = function(self) return self.stats end
+  Tuning.apply(plain_unit, { fire = 50 }, "renegade_gunner")
+  check("recompute: a stat table without _modified_stats is written all the same", plain_unit.buffs.stats.ranged_attack_speed == 0.5)
+
+  -- the factor a custom mod writes: a TIME (gap) is inverted into the game's speed, the others are plain percents
+  check("tuning: factor_for, gap is a time (40 -> x2.5, 200 -> x0.5), the others a share, 100 or nonsense is nothing", Tuning.factor_for("gap", 40) == 2.5 and Tuning.factor_for("gap", 200) == 0.5 and Tuning.factor_for("gap", 100) == nil and Tuning.factor_for("gap", 0) == nil and Tuning.factor_for("gap", "x") == nil and Tuning.factor_for("fire", 200) == 2 and Tuning.factor_for("explosion", 0) == 0 and Tuning.factor_for("dot", nil) == nil)
+
+  -- the melee attack that has just started (BtMeleeAttackAction._start_attack_anim, bt_melee_attack_action.lua:259-271):
+  -- the game ends it at t + max(duration / speed, T + 0.2667) with T = the stop of the FIRST hit of a chained sweep
+  local fix = hooks["BtMeleeAttackAction._start_attack_anim!"]
+  check("tuning: a hook after the start of every melee attack is installed", fix ~= nil)
+  local COMBO = { { 1.0962962962962963, 1.2148148148148148 }, { 1.8074074074074074, 1.9259259259259258 }, { 2.696296296296296, 2.8444444444444446 } }
+  local PLAGUE = { attack_anim_durations = { attack_sword_combo = 3.5555555555555554, attack_swing = 1.6 } }
+  local function game_end(t0, base, speed, timings)
+    local first = type(timings[1]) == "table" and timings[1][2] or timings[1]
+    return t0 + math.max(base / speed, first + 0.26666666666666666)
+  end
+  local function pad(speed, timings, event, base, kind)
+    return { melee_attack_speed = speed, attack_type = kind or "sweep", attack_sweep_timings = timings, attack_event = event, attack_duration = game_end(10, base, speed, timings) }
+  end
+  local p1 = pad(2.5, COMBO, "attack_sword_combo", 3.5555555555555554)
+  check("chain: at x2.5 the game's own end of the Plague Ogryn combo is before its second hit (the bug the user saw)", p1.attack_duration - 10 < COMBO[2][1], p1.attack_duration - 10)
+  fix(nil, c, nil, nil, 10, nil, p1, PLAGUE)
+  check("chain: for a unit with a custom time between attacks the attack lasts until the LAST hit plus 0.27 s", math.abs((p1.attack_duration - 10) - (2.8444444444444446 + 0.26666666666666666)) < 1e-9, p1.attack_duration - 10)
+  check("chain: ...so every hit of the combo is inside it", p1.attack_duration - 10 > COMBO[1][2] and p1.attack_duration - 10 > COMBO[2][2] and p1.attack_duration - 10 > COMBO[3][2])
+  local p2 = pad(2.5, COMBO, "attack_sword_combo", 3.5555555555555554)
+  local untouched = p2.attack_duration
+  fix(nil, plain, nil, nil, 10, nil, p2, PLAGUE)
+  check("chain: a unit without custom mods is left alone (the game's own behaviour, also under Havoc)", p2.attack_duration == untouched)
+  local fire_only = nil
+  run_wave({ name = "t", parts = Groups.parse("1 mauler{fire=150}") })
+  for _, u in ipairs(spawned) do if u.breed == "renegade_executor" then fire_only = u end end
+  local p3 = pad(2.5, COMBO, "attack_sword_combo", 3.5555555555555554)
+  untouched = p3.attack_duration
+  fix(nil, fire_only, nil, nil, 10, nil, p3, PLAGUE)
+  check("chain: a tuned unit without a custom time between attacks is left alone too", p3.attack_duration == untouched)
+  local slow = nil
+  run_wave({ name = "t", parts = Groups.parse("1 crusher{gap=200}") })
+  for _, u in ipairs(spawned) do if u.breed == "chaos_ogryn_executor" then slow = u end end
+  local p4 = pad(0.5, COMBO, "attack_sword_combo", 3.5555555555555554)
+  untouched = p4.attack_duration
+  fix(nil, slow, nil, nil, 10, nil, p4, PLAGUE)
+  check("chain: a LONGER time between attacks (x0.5) is never shortened by the correction (7.1 s stays 7.1 s)", p4.attack_duration == untouched and math.abs(p4.attack_duration - 10 - 7.111111111111111) < 1e-9, p4.attack_duration)
+  local single = pad(2.5, { 0.5, 0.8 }, "attack_swing", 1.6)
+  fix(nil, c, nil, nil, 10, nil, single, PLAGUE)
+  check("chain: a single sweep is kept until its sweep has stopped (0.8 + 0.27), the game used its start (0.5 + 0.27)", math.abs((single.attack_duration - 10) - 1.0666666666666667) < 1e-9, single.attack_duration - 10)
+  local oobb = { melee_attack_speed = 2.5, attack_type = "oobb", attack_timings = { 0.5, 1.0 }, attack_event = "attack_swing", attack_duration = 11 }
+  fix(nil, c, nil, nil, 10, nil, oobb, PLAGUE)
+  check("chain: attacks that are not sweeps are left alone (the game already waits for their last timing)", oobb.attack_duration == 11)
+  local calm = pad(1, COMBO, "attack_sword_combo", 3.5555555555555554); calm.melee_attack_speed = nil
+  untouched = calm.attack_duration
+  fix(nil, c, nil, nil, 10, nil, calm, PLAGUE)
+  check("chain: a unit whose attack speed stat is 1 (the game stores nothing) is left alone", calm.attack_duration == untouched)
+
+  -- things that can go wrong in a real match must never break an attack
+  local logged_before = #echoes
+  local ok_all = pcall(function ()
+    fix(nil, c, nil, nil, 10, nil, nil, PLAGUE)                                        -- no scratchpad
+    fix(nil, c, nil, nil, 10, nil, pad(2.5, COMBO, "attack_sword_combo", 1), nil)      -- no action data
+    fix(nil, c, nil, nil, 10, nil, pad(2.5, COMBO, "unknown_event", 1), PLAGUE)        -- an event the action does not list
+    fix(nil, c, nil, nil, nil, nil, pad(2.5, COMBO, "attack_sword_combo", 1), PLAGUE)  -- no time
+    fix(nil, nil, nil, nil, 10, nil, pad(2.5, COMBO, "attack_sword_combo", 1), PLAGUE) -- the unit is gone
+    fix(nil, { dead = true, buffs = nil }, nil, nil, 10, nil, pad(2.5, COMBO, "attack_sword_combo", 1), PLAGUE) -- no buff extension any more
+    fix(nil, c, nil, nil, 10, nil, { melee_attack_speed = 2.5, attack_type = "sweep", attack_sweep_timings = { "bad" }, attack_event = "attack_sword_combo", attack_duration = 11 }, PLAGUE) -- damaged timings
+    fix(nil, c, nil, nil, 10, nil, { melee_attack_speed = 2.5, attack_type = "sweep", attack_sweep_timings = {}, attack_event = "attack_sword_combo", attack_duration = 11 }, PLAGUE)  -- an empty list
+  end)
+  check("chain: missing or damaged data (no scratchpad, no action data, an unknown event, no time, a gone unit, bad timings) never raises", ok_all)
+  check("chain: ...and does not even log", #echoes == logged_before)
+  Tuning.dead = true
+  local p5 = pad(2.5, COMBO, "attack_sword_combo", 3.5555555555555554)
+  untouched = p5.attack_duration
+  fix(nil, c, nil, nil, 10, nil, p5, PLAGUE)
+  check("chain: after a reload (the old instance is retired) the stale hook does nothing", p5.attack_duration == untouched)
+  Tuning.dead = false
+  fix = nil
 
   -- explosion and damage over time taken: a share of the damage, 0 = none
   run_wave({ name = "t", parts = Groups.parse("1 crusher{explosion=50 dot=25}, 1 mauler{explosion=0}") })
@@ -1290,6 +1542,344 @@ do
   local logged = 0; for i = before + 1, #echoes do if echoes[i]:find("run speed of chaos_hound was not changed", 1, true) then logged = logged + 1 end end
   check("tuning: a missing extension only skips that step (hit mass still changed) and is logged once", #spawned == 2 and spawned[1].ext.health_system.mass == 4 and logged == 1, logged)
   check("tuning: health_modifier is nil for 100 or nothing", Tuning.health_modifier({ health = 100 }) == nil and Tuning.health_modifier(nil) == nil and Tuning.health_modifier({ health = 250 }) == 2.5)
+
+  -- a boss with less health than normal is "weakened" for the game (its bar says so, the pacing counts a fifth of it): not for a boss
+  -- whose health the player set, the number is the player's
+  run_wave({ name = "t", parts = Groups.parse("1 plague ogryn{health=50}, 1 beast of nurgle{health=150}, 2 poxwalker{health=50}") })
+  local ogryn, beast, pox_tuned = nil, nil, 0
+  for _, u in ipairs(spawned) do
+    if u.breed == "chaos_plague_ogryn" then ogryn = u elseif u.breed == "chaos_beast_of_nurgle" then beast = u else pox_tuned = pox_tuned + 1 end
+  end
+  check("weakened: a boss spawned with the player's health of 50 percent has its health set (x0.5) and the game's weakened mark cleared", ogryn and ogryn.health_mod == 0.5 and ogryn.ext.boss_system._is_weakened == false and Tuning.is_health_tuned(ogryn) == true)
+  check("weakened: a boss with more health (150) was never weakened and is not touched; units that are not bosses are fine", beast and beast.health_mod == 1.5 and beast.ext.boss_system._is_weakened == false and Tuning.is_health_tuned(beast) == false and pox_tuned == 2)
+  local hud_hook = hooks["HudElementBossHealth.event_boss_encounter_start"]
+  check("weakened: a hook on the boss health bar is installed", hud_hook ~= nil)
+  local seen, calls = "unset", 0
+  local function bar(self, unit, ext, extra) calls = calls + 1; seen = boss_breeds[unit.breed].ignore_weakened_boss_name; return extra end
+  local back = hud_hook(bar, {}, ogryn, {}, "extra")
+  check("weakened: while the bar of a tuned boss is made the breed says to leave the 'Weakened' out, afterwards it is as before", seen == true and boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == nil and calls == 1)
+  hud_hook(bar, {}, beast, {})
+  check("weakened: another boss is left alone (the game's own rule stays for it)", seen == nil and calls == 2)
+  boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name = false
+  hud_hook(bar, {}, ogryn, {})
+  check("weakened: a breed that had its own value gets it back", boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == false)
+  boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name = nil
+  local ok_boom = pcall(hud_hook, function() error("boom") end, {}, ogryn, {})
+  check("weakened: when the bar fails the error goes on and the breed is restored all the same", not ok_boom and boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == nil)
+  local unknown = { breed = "chaos_plague_ogryn", ext = {} }
+  check("weakened: a unit the hook cannot read the breed of just runs the bar", (function() local ran = false; hud_hook(function() ran = true end, {}, unknown, {}); return ran end)())
+  Tuning.dead = true
+  local ran_dead = false
+  hud_hook(function() ran_dead = true end, {}, ogryn, {})
+  Tuning.dead = false
+  check("weakened: after a hot reload (the old module retired) the hook does nothing but run the bar", ran_dead and boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == nil)
+
+  -- ----------------------------------------------------------------------------- the burster's explosion follows its size
+  do
+    local normal_template = { name = "poxwalker_bomber", radius = 6, min_radius = 3, close_radius = 3, min_close_radius = 1, damage_profile = { id = "profile" }, vfx = { "fx" }, scalable_radius = true }
+    local mild_template = { name = "poxwalker_bomber_mild", radius = 3, min_radius = 1.5, close_radius = 1.5, min_close_radius = 0.5, damage_profile = { id = "mild" } }
+    local function burster_action() return { explode_position_node = "j_spine2", explosion_template = normal_template, explosion_template_mild = mild_template } end
+    local seen
+    local function original(self, unit, breed, blackboard, scratchpad, action_data, t)
+      seen = { normal = action_data.explosion_template, mild = action_data.explosion_template_mild, unit = unit, t = t }
+      return "boom"
+    end
+    local enter = hooks["BtChaosPoxwalkerExplodeAction.enter"]
+    check("burster: a hook around the explosion action's enter is installed", enter ~= nil)
+
+    run_wave({ name = "t", parts = Groups.parse("1 burster{size=200}, 1 burster{size=50}, 1 burster, 1 burster{health=150}") })
+    -- which is which: by the size that was put on it (the order the wave spawns them in is not part of what is tested)
+    local big, small, plain_b, healthy
+    for _, u in ipairs(spawned) do
+      if u.breed == "chaos_poxwalker_bomber" then
+        local size
+        for _, s in ipairs(scales_set) do if s.unit == u then size = s.x end end
+        if size == 2 then big = u elseif size == 0.5 then small = u elseif u.health_mod == 1.5 then healthy = u else plain_b = u end
+      end
+    end
+    check("burster: the four bursters were spawned (a size 200 one, a size 50 one, a plain one, a one with only health)", big and small and plain_b and healthy)
+
+    local action = burster_action()
+    local result = enter(original, "node", big, nil, nil, nil, action, 7)
+    check("burster: at size 200 the blast is made with every radius doubled (6 m -> 12, 3 -> 6, close 3 -> 6, 1 -> 2) and the other fields unchanged", result == "boom" and seen.normal.radius == 12 and seen.normal.min_radius == 6 and seen.normal.close_radius == 6 and seen.normal.min_close_radius == 2 and seen.normal.name == "poxwalker_bomber" and seen.normal.damage_profile == normal_template.damage_profile and seen.normal.vfx == normal_template.vfx and seen.normal.scalable_radius == true, seen and seen.normal.radius)
+    check("burster: the mild blast (a burster that dies by itself) is doubled too, and the arguments reach the game's function unchanged", seen.mild.radius == 6 and seen.mild.min_radius == 3 and seen.mild.close_radius == 3 and seen.mild.min_close_radius == 1 and seen.unit == big and seen.t == 7)
+    check("burster: afterwards the action has its own templates back and the shared ones were never touched", action.explosion_template == normal_template and action.explosion_template_mild == mild_template and normal_template.radius == 6 and mild_template.radius == 3)
+    enter(original, "node", small, nil, nil, nil, action, 7)
+    check("burster: at size 50 the blast is half (3 m)", seen.normal.radius == 3 and seen.normal.close_radius == 1.5 and seen.mild.radius == 1.5)
+    enter(original, "node", plain_b, nil, nil, nil, action, 7)
+    check("burster: a burster without a custom size blasts with the game's own templates", seen.normal == normal_template and seen.mild == mild_template)
+    enter(original, "node", healthy, nil, nil, nil, action, 7)
+    check("burster: so does one with only other custom mods", seen.normal == normal_template)
+    enter(original, "node", { name = "not ours" }, nil, nil, nil, action, 7)
+    check("burster: and a unit that is not a wave unit at all", seen.normal == normal_template)
+
+    local raised_ok, raised = pcall(enter, function() error("explosion failed") end, "node", big, nil, nil, nil, action, 7)
+    check("burster: an error inside the game's explosion still reaches the game, and the templates are restored", raised_ok == false and tostring(raised):find("explosion failed", 1, true) ~= nil and action.explosion_template == normal_template and action.explosion_template_mild == mild_template)
+    local nil_ok, nil_result = pcall(enter, function() return "plain" end, "node", big, nil, nil, nil, nil, 7)
+    check("burster: no action data (damaged call) is handed to the game's function as it is, nothing raised by the hook", nil_ok and nil_result == "plain")
+    local lerp_action = { explosion_template = { name = "lerped", radius = { 4, 8 }, min_radius = { 1, 2 }, close_radius = 2, label = "x" }, explosion_template_mild = nil }
+    enter(original, "node", big, nil, nil, nil, lerp_action, 7)
+    check("burster: a radius that is a table of two values (a template that lerps) is scaled entry by entry, a missing mild template stays missing", seen.normal.radius[1] == 8 and seen.normal.radius[2] == 16 and seen.normal.min_radius[2] == 4 and seen.normal.close_radius == 4 and seen.normal.label == "x" and seen.mild == nil and lerp_action.explosion_template.radius[1] == 4)
+    check("burster: scaled_template of nothing or of nonsense returns it as it is", Tuning.scaled_template(nil, 2) == nil and Tuning.scaled_template("x", 2) == "x" and Tuning.scaled_template({ radius = 5 }, "bad").radius == 5 and Tuning.scaled_template({ radius = 5 }, -3).radius == 5 and Tuning.scaled_template({ radius = 5 }, 0).radius == 5)
+
+    dead[big] = true
+    Tuning.update(0.3)
+    enter(original, "node", big, nil, nil, nil, action, 7)
+    check("burster: a unit that is gone is forgotten (no growth over a long mission)", seen.normal == normal_template and Tuning.status().tuned >= 0)
+    Tuning.dead = true
+    enter(original, "node", small, nil, nil, nil, action, 7)
+    check("burster: after a reload (the old instance is retired) the stale hook leaves the game's templates alone", seen.normal == normal_template)
+    Tuning.dead = false
+    Tuning.reset()
+    enter(original, "node", small, nil, nil, nil, action, 7)
+    check("burster: a mission restart forgets every size", seen.normal == normal_template)
+  end
+
+  -- ------------------------------------------------------------------ what a tuned shooter read (/rw_tune and the log)
+  do
+    local infos = {}
+    mod.info = function(self, fmt, ...) infos[#infos + 1] = string.format(fmt, ...) end
+    local install_shooting = hook_requires["scripts/utilities/minion_attack"]
+    check("shooting: a hook on MinionAttack is registered through hook_require (the module may load after the mod)", install_shooting ~= nil)
+    local fake_module = { _name = "MinionAttack" }
+    install_shooting(fake_module)
+    local shooting = hooks["MinionAttack.start_shooting!"]
+    check("shooting: it hooks start_shooting after it ran", shooting ~= nil)
+
+    Tuning.reset()
+    run_wave({ name = "t", parts = Groups.parse("1 rifleman{fire=25 burst=500}, 1 scab{fire=200}, 1 hound") })
+    local rifle, scab, hound
+    for _, u in ipairs(spawned) do
+      if u.breed == "renegade_rifleman" then rifle = u elseif u.breed == "renegade_melee" then scab = u elseif u.breed == "chaos_hound" then hound = u end
+    end
+    check("shooting: the shooters were spawned with their stats written (rifleman fire x0.25, burst x5)", rifle and rifle.buffs.stats.ranged_attack_speed == 0.25 and rifle.buffs.stats.minion_num_shots_modifier == 5, rifle and tostring(rifle.buffs.stats.ranged_attack_speed))
+    local apply_lines = 0
+    for _, l in ipairs(infos) do if l:find("custom stats written on renegade_rifleman: minion_num_shots_modifier x5.00 (stat now 5", 1, true) and l:find("ranged_attack_speed x0.25 (stat now 0.25)", 1, true) then apply_lines = apply_lines + 1 end end
+    check("apply: the units written to the log show what was written and what the stat says right after", apply_lines == 1 and #infos == 2, #infos)
+    infos = {}
+    local hostile_ok = pcall(function ()
+      shooting(rifle, nil, 10, {})
+      shooting(rifle, { shoot_attack_speed = "x" }, nil, nil)
+      shooting(nil, {}, 10, {})
+    end)
+    check("shooting: damaged arguments never raise", hostile_ok)
+    for i = 1, 5 do
+      shooting(rifle, { shoot_attack_speed = 0.25, num_shots = 15, next_shoot_timing = 12 }, 10, {})
+    end
+    check("shooting: only the first three starts of a breed are written to the log", #infos == 3 and infos[3]:find("renegade_rifleman started shooting: speed x0.25, 15 shots, first shot in 2", 1, true) ~= nil, #infos)
+    shooting(hound, { shoot_attack_speed = 1, num_shots = 3, next_shoot_timing = 12 }, 10, {})
+    shooting({ name = "not ours" }, { shoot_attack_speed = 1 }, 10, {})
+    check("shooting: a unit with no custom stats, or one that is not a wave unit, is not logged", #infos == 3)
+    local lines = Tuning.describe()
+    local all = table.concat(lines, " | ")
+    check("describe: one line per tuned breed with what was written, what the stat says now and what the last shot read", all:find("renegade_rifleman: ", 1, true) ~= nil and all:find("ranged_attack_speed written x0.25, now 0.25", 1, true) ~= nil and all:find("minion_num_shots_modifier written x5.00, now 5", 1, true) ~= nil and all:find("last shooting start: speed x0.25, 15 shots, first shot in 2", 1, true) ~= nil, all)
+    check("describe: a tuned unit that has not shot yet says so", (function() for _, l in ipairs(lines) do if l:find("renegade_melee", 1, true) and l:find("has not started shooting", 1, true) then return true end end return false end)(), all)
+    check("describe: a unit with no custom stat (the hound) has no line", not all:find("chaos_hound", 1, true))
+    dead[rifle] = true
+    dead[scab] = true
+    Tuning.update(0.3)
+    check("describe: with nothing alive it says so instead of printing nothing", Tuning.describe()[1]:find("No living unit", 1, true) ~= nil)
+    mod.info = nil
+    local quiet_ok = pcall(shooting, rifle, { shoot_attack_speed = 1 }, 10, {})
+    check("shooting: a game without mod:info (or one that raises) is no problem", quiet_ok)
+    Tuning.reset()
+  end
+
+  -- ------------------------------------------------------------------------- what can happen in a real match
+  -- (players joining late, a player gone, a mission restarting, a game without the mod, damaged or doubled messages)
+  do
+    local before_units = Tuning.status().sizes_known
+    local crowd = {}
+    for i = 1, 250 do
+      local u = { gid = 5000 + i, buffs = make_buff_ext("x") }
+      u.buffs.stats = {}
+      u.buffs.stat_buffs = function(self) return self.stats end
+      crowd[i] = u
+      Tuning.apply(u, { size = 150 }, "crowd")
+    end
+    sent_scales = {}
+    Tuning.update(0.3)
+    local flushed = 0
+    for _, s in ipairs(sent_scales) do flushed = flushed + #s.list end
+    check("join: 250 new sizes leave in batches of at most 100 (three messages), none lost", #sent_scales == 3 and flushed == 250 and #sent_scales[1].list == 100 and #sent_scales[3].list == 50, #sent_scales)
+    sent_scales = {}
+    Tuning.send_all("joiner")
+    local to_joiner, per_message_ok = 0, true
+    for _, s in ipairs(sent_scales) do
+      to_joiner = to_joiner + #s.list
+      if s.recipient ~= "joiner" or #s.list > 100 then per_message_ok = false end
+    end
+    check("join: a player who joins in the middle of a big fight gets every living size, only him, in batches of at most 100", per_message_ok and to_joiner == Tuning.status().sizes_known and to_joiner >= 250 and #sent_scales == math.ceil(to_joiner / 100), to_joiner)
+    for i = 1, 100 do dead[crowd[i]] = true end
+    sent_scales = {}
+    Tuning.send_all("joiner_two")
+    local after_deaths = 0
+    for _, s in ipairs(sent_scales) do after_deaths = after_deaths + #s.list end
+    check("join: units that died before he arrived are not sent", after_deaths == to_joiner - 100, after_deaths)
+    Tuning.update(0.3)
+    check("join: ...and the host forgets them (no growth over a long mission)", Tuning.status().sizes_known == to_joiner - 100, Tuning.status().sizes_known)
+
+    -- a peer that left, or a network that fails, while sizes are going out
+    fake_protocol.send_scales = function() error("peer is gone") end
+    local failed_ok = pcall(Tuning.send_all, "crashed_player")
+    Tuning.apply(crowd[200], { size = 120 }, "crowd")
+    local update_ok = pcall(function () Tuning.update(0.3); Tuning.update(0.3) end)
+    check("leave: a send to a player who crashed or left raises nothing (not in send_all, not in the host's update)", failed_ok and update_ok)
+    local warned_send = 0
+    for _, e in ipairs(echoes) do if e:find("sizes could not be sent", 1, true) then warned_send = warned_send + 1 end end
+    check("leave: ...and it is logged once, not every frame", warned_send == 1, warned_send)
+    fake_protocol.send_scales = function(list, recipient) sent_scales[#sent_scales + 1] = { list = list, recipient = recipient }; return true end
+    sent_scales = {}
+    Tuning.send_all("next_joiner")
+    check("leave: the next player is served normally afterwards", #sent_scales >= 1 and sent_scales[1].recipient == "next_joiner")
+    fake_protocol.is_available = function() return false end
+    sent_scales = {}
+    Tuning.apply(crowd[201], { size = 130 }, "crowd")
+    local quiet_ok = pcall(function () Tuning.update(0.3); Tuning.send_all("anyone") end)
+    check("mods: without the Realms network (nobody to tell) nothing is sent and nothing fails", quiet_ok and #sent_scales == 0)
+    check("network: pending live sizes survive a temporary outage", Tuning.status().unsent>0)
+    fake_protocol.is_available = function() return true end
+    Tuning.update(0.3)
+    check("network: a recovered connection flushes pending sizes", Tuning.status().unsent==0 and #sent_scales>0)
+    fake_protocol.send_scales=function() return false,"peer disconnected" end
+    Tuning.apply(crowd[201],{size=125},"crowd"); Tuning.update(0.3)
+    check("network: a returned send failure retains the size for retry", Tuning.status().unsent==1)
+    fake_protocol.send_scales=function(list,recipient) sent_scales[#sent_scales+1]={list=list,recipient=recipient}; return true end
+    Tuning.update(0.3)
+    check("network: retries send the latest live value and clear the queue", Tuning.status().unsent==0 and sent_scales[#sent_scales].list[1][2]==125)
+
+    -- a unit that died: the stat hook and the end-of-attack hook no longer know it
+    local gone = crowd[1]
+    Tuning.apply(gone, { gap = 50 }, "crowd")
+    dead[gone] = true
+    Tuning.update(0.3)
+    gone.buffs.stats.melee_attack_speed = 1.2
+    stat_hook(gone.buffs, 5)
+    check("leave: a dead unit's record is dropped, the stat hook leaves its stats alone (and nothing leaks)", gone.buffs.stats.melee_attack_speed == 1.2)
+    check("leave: the mission restarting (Tuning.reset) forgets everything the host knew", (function() Tuning.reset(); local s = Tuning.status(); return s.tuned == 0 and s.sizes_known == 0 and s.unsent == 0 and s.pending == 0 end)())
+  end
+
+  -- the client side with a damaged or unlucky world
+  do
+    local saved_spawner2 = Managers.state.unit_spawner
+    Managers.state.unit_spawner = nil
+    Tuning.reset()
+    Tuning.receive({ { id = 1, pct = 120 } })
+    local nil_ok = pcall(Tuning.update_client, 1)
+    check("client: before the game's unit spawner exists nothing fails and the size waits", nil_ok and Tuning.status().pending == 1)
+    Managers.state.unit_spawner = { unit_exists = function() error("session is closing") end, unit = function() error("session is closing") end }
+    local raising_ok = pcall(Tuning.update_client, 1)
+    check("client: a spawner that raises (the session is closing) is contained and the size waits", raising_ok and Tuning.status().pending == 1)
+    Tuning.update_client(25)
+    check("client: ...and gives up after 20 s", Tuning.status().pending == 0)
+    local flood = {}
+    for i = 1, 1000 do flood[i] = { id = i, pct = 110 } end
+    Tuning.receive(flood)
+    check("client: a flood of sizes (a broken or hostile host) is capped at 600 waiting entries", Tuning.status().pending == 600, Tuning.status().pending)
+    Tuning.reset()
+    local present2, applied2 = { [9] = { name = "u9" } }, {}
+    Managers.state.unit_spawner = { unit_exists = function(self, id) return present2[id] ~= nil end, unit = function(self, id) return present2[id] end }
+    local saved_set_scale = Unit.set_local_scale
+    Unit.set_local_scale = function(unit, node, v) applied2[#applied2 + 1] = v.x end
+    Tuning.receive({ { id = 9, pct = 150 } })
+    Tuning.receive({ { id = 9, pct = 150 } }) -- the host answered two hellos: the same size twice
+    Tuning.update_client(0.1)
+    check("client: duplicate sizes use one pending entry and one application", #applied2 == 1 and applied2[1] == 1.5 and Tuning.status().pending == 0)
+    Tuning.receive({{id=9,pct=150}}); Tuning.receive({{id=9,pct=120}})
+    Tuning.update_client(0.1)
+    check("client: the newest received size wins, never the first message replayed in reverse", applied2[#applied2]==1.2 and Tuning.status().pending==0)
+    local saved_lookup=Managers.state.unit_spawner.unit
+    Managers.state.unit_spawner.unit=function() return nil end
+    Tuning.receive({{id=9,pct=130}}); Tuning.update_client(0.1)
+    check("client: existence before the unit handle arrives keeps the size pending", Tuning.status().pending==1)
+    Managers.state.unit_spawner.unit=saved_lookup
+    Tuning.update_client(0.1)
+    check("client: the deferred size is applied once the handle arrives", applied2[#applied2]==1.3 and Tuning.status().pending==0)
+    Tuning.receive(flood); Tuning.receive({{id=9,pct=180}})
+    Tuning.update_client(0.1)
+    check("client: an existing unit's newest size is accepted even with a full pending queue", applied2[#applied2]==1.8 and Tuning.status().pending==599)
+    Unit.set_local_scale = saved_set_scale
+    Managers.state.unit_spawner = saved_spawner2
+    Tuning.reset()
+  end
+
+  -- the handshake of a player who joins: the director gives a late player the sizes, only when versions agree
+  do
+    local welcomed, sent_all = {}, {}
+    local P3 = {
+      PROTO = 2, VERSION = "2.0.0", is_available = function() return true end, send_state = function() return true end, send_hello = function() end,
+      send_welcome = function(peer, ok) welcomed[#welcomed + 1] = { peer, ok } end, send_waves = function() return true end,
+    }
+    local fake_tuning = { send_all = function(peer) sent_all[#sent_all + 1] = peer end, receive = function() end, update_client = function() end, status = function() return { tuned = 0, sizes_known = 0, unsent = 0, pending = 0 } end }
+    local D3 = load("core/director")
+    D3.init({ events = Events, groups = Groups, protocol = P3, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod, cards = CardsMod, tuning = fake_tuning })
+    is_server = true
+    D3.on_hello("late_peer", 2, "2.0.0")
+    check("handshake: a player with the same version is welcomed and gets the sizes of the units already out there", #welcomed == 1 and welcomed[1][2] == true and sent_all[1] == "late_peer")
+    D3.on_hello("old_peer", 1, "1.0.0")
+    check("handshake: a player with another version (older mod) is refused and gets no sizes", welcomed[2][2] == false and #sent_all == 1)
+    fake_tuning.send_all = function() error("peer is gone") end
+    local hello_ok = pcall(D3.on_hello, "flaky_peer", 2, "2.0.0")
+    check("handshake: a player who drops while he is being served cannot break the host", hello_ok and welcomed[3] and welcomed[3][2] == true)
+    is_server = false
+    sent_all = {}
+    fake_tuning.send_all = function(peer) sent_all[#sent_all + 1] = peer end
+    D3.on_hello("someone", 2, "2.0.0")
+    check("handshake: a non-host never answers a hello", #sent_all == 0 and #welcomed == 3)
+    local got = 0
+    fake_tuning.receive = function() got = got + 1 end
+    D3.on_welcome("host_peer", 2, "9.9.9", false)
+    D3.on_scale("host_peer", { { id = 1, pct = 120 } })
+    check("handshake: a client that refused the host's version (the mod is disabled there) takes no sizes", got == 0)
+    D3.on_welcome("host_peer", 2, "2.0.0", true)
+    D3.on_scale("host_peer", { { id = 1, pct = 120 } })
+    check("handshake: ...and takes them after a good welcome", got == 1)
+    local D4 = load("core/director")
+    D4.init({ events = Events, groups = Groups, protocol = P3, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod, cards = CardsMod })
+    is_server = true
+    local no_tuning_ok = pcall(D4.on_hello, "peer", 2, "2.0.0")
+    is_server = false
+    local no_tuning_scale = pcall(D4.on_scale, "host_peer", { { id = 1, pct = 120 } })
+    is_server = true
+    check("mods: a director built without the custom-mods module (an older install) still welcomes and ignores sizes", no_tuning_ok and no_tuning_scale)
+  end
+
+  -- the animation probe (/rw_anim): which engine functions and which animation variables exist, never an error
+  do
+    local function probe_unit(breed, vars, dead_unit)
+      local u = { breed = breed, vars = vars or {}, is_dead = dead_unit }
+      u.ext = { unit_data_system = { breed = function() return { name = breed } end } }
+      return u
+    end
+    local saved_unit_table = Unit
+    Unit = {
+      animation_event = function() end, animation_set_variable = function() end, set_local_scale = function() end, world_position = function() end,
+      animation_find_variable = function(unit, name) return unit.vars[name] end,
+      animation_get_variable_min_max = function(unit, index) return 0.5, 2.5 end,
+      alive = function(unit) return not unit.is_dead end,
+      set_data = "not a function",
+    }
+    local crusher = probe_unit("chaos_ogryn_executor", { anim_move_speed = 3, attack_speed = 7 })
+    local crusher2 = probe_unit("chaos_ogryn_executor", { anim_move_speed = 3 })
+    local hound = probe_unit("chaos_hound", {})
+    local gone = probe_unit("renegade_executor", { anim_move_speed = 1 }, true)
+    local lines = Tuning.probe({ crusher, crusher2, hound, gone })
+    local all = table.concat(lines, "\n")
+    check("probe: the engine's functions about animation, speed, time, scale or rate are listed (sorted), others and non-functions are not", lines[1]:find("(5): animation_event, animation_find_variable, animation_get_variable_min_max, animation_set_variable, set_local_scale", 1, true) ~= nil, lines[1])
+    check("probe: world_position and a non-function are not listed", not lines[1]:find("world_position", 1, true) and not lines[1]:find("set_data", 1, true))
+    check("probe: a unit's candidate variables are listed with their range, the control variable included", all:find("chaos_ogryn_executor has animation variables: attack_speed (0.5 to 2.5), anim_move_speed (0.5 to 2.5)", 1, true) ~= nil, all)
+    check("probe: one line per breed (the second crusher adds none)", select(2, all:gsub("chaos_ogryn_executor has", "")) == 1)
+    check("probe: a breed with none of them says so", all:find("chaos_hound has animation variables: none of the candidates", 1, true) ~= nil)
+    check("probe: a unit that is gone is skipped", all:find("renegade_executor", 1, true) == nil and #lines == 3, #lines)
+    check("probe: no unit alive gives the hint", Tuning.probe({})[2]:find("spawn one first", 1, true) ~= nil and Tuning.probe(nil)[2]:find("spawn one first", 1, true) ~= nil)
+    Unit.animation_find_variable = function() error("engine quirk") end
+    local quirk_ok, quirk_lines = pcall(Tuning.probe, { crusher })
+    check("probe: an engine call that raises is contained (that unit just has none)", quirk_ok and quirk_lines[2]:find("none of the candidates", 1, true) ~= nil)
+    Unit = nil
+    local no_engine_ok, no_engine = pcall(Tuning.probe, { crusher })
+    check("probe: without the engine's Unit table it still answers (0 functions, and says the units cannot be looked at)", no_engine_ok and no_engine[1]:find("(0)", 1, true) ~= nil and no_engine[2]:find("cannot be looked at", 1, true) ~= nil, no_engine_ok and no_engine[2] or no_engine)
+    Unit = saved_unit_table
+  end
 
   -- a client puts the sizes on units when they exist there
   local present = {}
@@ -1328,9 +1918,16 @@ do
   check("tune: '{health=150 size=130}' after the modifiers is read into part.tune (the repeat still works)", parts and parts[1].tune and parts[1].tune.health == 150 and parts[1].tune.size == 130 and parts[1].mods[1] == "enraged" and parts[1].rep == 2 and parts[1].count == 3 and parts[2].tune == nil, parts and parts[1].tune and Groups.tune_recipe(parts[1].tune))
   local again = Groups.parse(Groups.to_recipe(parts))
   check("tune: written back as text it reads back the same (to_recipe / parse)", Groups.to_recipe(parts) == "3 crusher[enraged]{health=150 size=130}@2, 2 hound" and again[1].tune.health == 150 and again[1].tune.size == 130 and again[1].rep == 2, Groups.to_recipe(parts))
-  parts = Groups.parse("1 crusher {hp 200, run speed 120%, melee attack speed=150; fire:200 / shots per burst 300 & hit mass 250}")
+  parts = Groups.parse("1 crusher {hp 200, run speed 120%, time between attacks=40; fire:200 / shots per burst 300 & hit mass 250}")
   local tune = parts and parts[1].tune or {}
-  check("tune: names have aliases (hp, run speed, shots per burst...), separators can be spaces, commas, =, : and a % may follow the number", tune.health == 200 and tune.speed == 120 and tune.melee == 150 and tune.fire == 200 and tune.burst == 300 and tune.mass == 250, Groups.tune_recipe(tune))
+  check("tune: names have aliases (hp, run speed, shots per burst...), separators can be spaces, commas, =, : and a % may follow the number", tune.health == 200 and tune.speed == 120 and tune.gap == 40 and tune.fire == 200 and tune.burst == 300 and tune.mass == 250, Groups.tune_recipe(tune))
+  -- the setting was called "melee attack speed" (200 = twice as fast); it is the time between attacks now (50 = half the wait)
+  parts = Groups.parse("2 crushers{melee=200}, 1 mauler{melee attack speed 125%}, 1 hound{attack speed=400}, 1 dreg{melee=100}, 1 scab{melee=0}")
+  check("tune: an old recipe's melee=200 is read as gap=50 (the same behaviour), 125 as 80, 400 as 25, 100 as nothing, 0 as the longest time", parts[1].tune.gap == 50 and parts[2].tune.gap == 80 and parts[3].tune.gap == 25 and parts[4].tune == nil and parts[5].tune.gap == 400, parts and parts[1] and Groups.tune_recipe(parts[1].tune))
+  check("tune: ...and it is written back with the new name", Groups.to_recipe(parts):find("crusher{gap=50}", 1, true) ~= nil and Groups.to_recipe(parts):find("melee", 1, true) == nil, Groups.to_recipe(parts))
+  parts = Groups.parse("1 crusher{gap=40}, 1 mauler{time between attacks 150}, 1 hound{attack delay=60 gap=70}")
+  check("tune: the new names (gap, time between attacks, attack delay) are the number as it is, the last one wins", parts[1].tune.gap == 40 and parts[2].tune.gap == 150 and parts[3].tune.gap == 70)
+  check("tune: its readable name is 'Time between attacks'", Groups.tune_text({ gap = 50 }) == "Time between attacks 50%")
   parts = Groups.parse("1 crusher{size=999 health=1 speed=100}")
   check("tune: values are clamped to their range (size 300 at most, health 10 at least) and 100 is the same as nothing", parts[1].tune.size == 300 and parts[1].tune.health == 10 and parts[1].tune.speed == nil)
   parts = Groups.parse("1 crusher{}, 1 hound{speed=100}")
@@ -1344,7 +1941,7 @@ do
   parts = Groups.parse("1 plague ogryn|chaos spawn[garden]{health=300}")
   check("tune: works on a random group too", parts[1].one_of and #parts[1].one_of == 2 and parts[1].tune.health == 300 and parts[1].mods[1] == "garden")
   check("tune: the readable text lists the changed ones in catalog order", Groups.tune_text({ mass = 200, health = 150 }) == "Health 150%, Hit mass 200%" and Groups.tune_text(nil) == "" and Groups.tune_text({ size = 100 }) == "")
-  check("tune: has_tune, copy_tune, clamp_tune", Groups.has_tune(Groups.parse("1 hound, 1 crusher{mass=200}")) and not Groups.has_tune(Groups.parse("1 hound")) and Groups.copy_tune(nil) == nil and Groups.copy_tune({ size = 120 }).size == 120 and Groups.clamp_tune("burst", 1000) == 500 and Groups.clamp_tune("melee", 26.4) == 26)
+  check("tune: has_tune, copy_tune, clamp_tune", Groups.has_tune(Groups.parse("1 hound, 1 crusher{mass=200}")) and not Groups.has_tune(Groups.parse("1 hound")) and Groups.copy_tune(nil) == nil and Groups.copy_tune({ size = 120 }).size == 120 and Groups.clamp_tune("burst", 1000) == 500 and Groups.clamp_tune("gap", 26.4) == 26 and Groups.clamp_tune("gap", 1000) == 400 and Groups.clamp_tune("gap", 5) == 25)
   check("tune: nine custom mods, each with a range around 100 and a step", (function()
     if #Groups.TUNE ~= 9 then return false end
     for _, def in ipairs(Groups.TUNE) do if not (def.min < 100 and def.max > 100 and def.step > 0 and def.name ~= "") then return false end end
@@ -1365,13 +1962,13 @@ do
 
   -- build a setup: rename + new composition on a standard wave, chance/cooldown on another, a custom wave
   Events.set_def(set, "wave_small", "My Small", Groups.parse("4 hounds, 2 scab rager"), Groups)
-  set("pct_boss_ambush", 40); set("cd_boss_ambush", 90); set("on_hound_frenzy", false)
+  set("pct_boss_ambush", 9); set("cd_boss_ambush", 90); set("on_hound_frenzy", false)
   Events.set_def(set, "custom_3", "Weird | Name ~ 100%", Groups.parse("3 crushers[rotten+enraged]@2, 1 plague ogryn|chaos spawn"), Groups)
-  set("on_custom_3", true); set("pct_custom_3", 25); set("sp_custom_3", 12); set("re_custom_3", 7); set("rf_custom_3", 42)
+  set("on_custom_3", true); set("pct_custom_3", 6); set("sp_custom_3", 12); set("re_custom_3", 7); set("rf_custom_3", 42)
   local cap = Presets.capture(get, Events, Groups)
   local keys = {}; for _, w in ipairs(cap.waves) do keys[w.key] = w end
   check("presets: capture holds exactly the changed waves", #cap.waves == 4 and keys.wave_small and keys.boss_ambush and keys.hound_frenzy and keys.custom_3, #cap.waves)
-  check("presets: chance-only change keeps the default name/recipe", keys.boss_ambush.pct == 40 and keys.boss_ambush.cd == 90 and keys.boss_ambush.name == Events.get("boss_ambush", function() return nil end, Groups).name)
+  check("presets: chance-only change keeps the default name/recipe", keys.boss_ambush.pct == 9 and keys.boss_ambush.cd == 90 and keys.boss_ambush.name == Events.get("boss_ambush", function() return nil end, Groups).name)
 
   cap.name = "  My   Setup " .. string.rep("x", 40)
   local text = Presets.encode(cap)
@@ -1381,7 +1978,7 @@ do
   check("presets: name is trimmed to 24 characters", back and #back.name <= 24 and back.name:sub(1, 8) == "My Setup", back and back.name)
   local dk = {}; for _, w in ipairs(back.waves) do dk[w.key] = w end
   check("presets: awkward characters in a wave name survive (| ~ %)", dk.custom_3.name == "Weird | Name ~ 100%", dk.custom_3.name)
-  check("presets: values round trip", dk.custom_3.enabled == true and dk.custom_3.pct == 25 and dk.custom_3.sp == 12 and dk.custom_3.re == 7 and dk.custom_3.rf == 42 and dk.hound_frenzy.enabled == false, tostring(dk.custom_3.recipe))
+  check("presets: values round trip", dk.custom_3.enabled == true and dk.custom_3.pct == 6 and dk.custom_3.sp == 12 and dk.custom_3.re == 7 and dk.custom_3.rf == 42 and dk.hound_frenzy.enabled == false, tostring(dk.custom_3.recipe))
 
   -- applying it to a different, messy setup gives exactly the saved setup
   local before = state()
@@ -1410,7 +2007,7 @@ do
   check("presets: wrong field count refused", bad(Presets.seal("RW1|x|1|custom_1~A~1~10")) ~= false)
   check("presets: non-numeric value refused", bad(Presets.seal("RW1|x|1|custom_1~A~1~lots~60~3~10~60~3 hounds")) ~= false)
   local wild = Presets.decode(Presets.seal("RW1|x|1|custom_1~A~1~99999~-5~500~0~99999~3 hounds"), Events, Groups)
-  check("presets: out-of-range numbers are clamped to the editor's limits", wild and wild.waves[1].pct == 1000 and wild.waves[1].cd == 0 and wild.waves[1].sp == 100 and wild.waves[1].re == 1 and wild.waves[1].rf == 3600, wild and wild.waves[1].pct)
+  check("presets: out-of-range numbers are clamped to the editor's limits (a chance is 0 to 10)", wild and wild.waves[1].pct == 10 and wild.waves[1].cd == 0 and wild.waves[1].sp == 100 and wild.waves[1].re == 1 and wild.waves[1].rf == 3600, wild and wild.waves[1].pct)
   local unk = Presets.decode(Presets.seal("RW1|x|2|custom_1~A~1~10~60~3~10~60~3 hounds|future_wave~B~1~10~60~3~10~60~2 hounds"), Events, Groups)
   check("presets: waves of an unknown key are skipped, the rest imported", unk and #unk.waves == 1 and unk.skipped == 1)
   check("presets: bad text never touches the settings (decode has no side effects)", state() == before)
@@ -1523,13 +2120,13 @@ do
   local function g(id) return store[id] end
   local function s(id, v) store[id] = v end
   Events.set_def(s, "custom_6", "Odd | Name ~ 50%", Groups.parse("3 crushers[purple+enraged]@2, 1 plague ogryn|chaos spawn"), Groups)
-  store.on_custom_6 = true; store.pct_custom_6 = 21; store.cd_custom_6 = 99; store.sp_custom_6 = 14; store.re_custom_6 = 8; store.rf_custom_6 = 44; store.dmin_custom_6 = 30; store.dmax_custom_6 = 110
+  store.on_custom_6 = true; store.pct_custom_6 = 7; store.cd_custom_6 = 99; store.sp_custom_6 = 14; store.re_custom_6 = 8; store.rf_custom_6 = 44; store.dmin_custom_6 = 30; store.dmax_custom_6 = 110
   local snap = Presets.capture_wave(g, "custom_6", Events, Groups)
-  check("wave share: capture_wave reads one wave", snap and snap.key == "custom_6" and snap.pct == 21 and snap.dmin == 30 and snap.dmax == 110)
+  check("wave share: capture_wave reads one wave", snap and snap.key == "custom_6" and snap.pct == 7 and snap.dmin == 30 and snap.dmax == 110)
   local text = Presets.encode_wave(snap)
   check("wave share: text is one line starting with RWW1|", text:sub(1, 5) == "RWW1|" and not text:find("[\r\n\t]") and select(2, text:gsub("|", "")) == 2, text:sub(1, 40))
   local wave, err = Presets.decode_wave(text, Events, Groups)
-  check("wave share: round trip keeps name (with | ~ %), values and recipe", wave and wave.name == "Odd | Name ~ 50%" and wave.pct == 21 and wave.cd == 99 and wave.sp == 14 and wave.re == 8 and wave.rf == 44 and wave.dmin == 30 and wave.dmax == 110 and wave.enabled == true and wave.recipe == snap.recipe, tostring(err))
+  check("wave share: round trip keeps name (with | ~ %), values and recipe", wave and wave.name == "Odd | Name ~ 50%" and wave.pct == 7 and wave.cd == 99 and wave.sp == 14 and wave.re == 8 and wave.rf == 44 and wave.dmin == 30 and wave.dmax == 110 and wave.enabled == true and wave.recipe == snap.recipe, tostring(err))
   -- applying it onto ANOTHER key replaces that wave completely
   local target = {}
   local function tg(id) return target[id] end
@@ -1537,7 +2134,7 @@ do
   Events.set_def(ts, "custom_2", "Old", Groups.parse("9 hounds"), Groups); target.pct_custom_2 = 5; target.dmin_custom_2 = 77
   Presets.apply_wave(wave, "custom_2", ts, Events, Groups)
   local now = Presets.capture_wave(tg, "custom_2", Events, Groups)
-  check("wave share: apply_wave onto another key replaces every setting of that wave", now.name == wave.name and now.recipe == wave.recipe and now.pct == 21 and now.dmin == 30 and now.dmax == 110 and now.key == "custom_2")
+  check("wave share: apply_wave onto another key replaces every setting of that wave", now.name == wave.name and now.recipe == wave.recipe and now.pct == 7 and now.dmin == 30 and now.dmax == 110 and now.key == "custom_2")
   check("wave share: the source wave is untouched by applying elsewhere", Presets.capture_wave(g, "custom_6", Events, Groups).name == "Odd | Name ~ 50%")
   -- a standard wave can be overwritten too, and a standard wave shared keeps its built-in name when unchanged
   local std = Presets.capture_wave(function() return nil end, "wave_small", Events, Groups)
@@ -1553,12 +2150,31 @@ do
   check("wave share: unknown enemy in the recipe refused with the parser's message", (bad(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~unicorns~0~0")) or ""):find("unicorns") ~= nil)
   check("wave share: damaged wave refused", bad(Presets.seal("RWW1|custom_1~A~1~10")) ~= false and bad(Presets.seal("RWW1|a|b")) ~= false)
   local w2 = Presets.decode_wave(Presets.seal("RWW1|custom_1~~1~99999~-5~500~0~99999~3 hounds~9999~-1"), Events, Groups)
-  check("wave share: numbers clamped to the editor's limits, empty name allowed", w2 and w2.pct == 1000 and w2.cd == 0 and w2.sp == 100 and w2.re == 1 and w2.rf == 3600 and w2.dmin == 200 and w2.dmax == 0 and w2.name == "")
+  check("wave share: numbers clamped to the editor's limits, empty name allowed", w2 and w2.pct == 10 and w2.cd == 0 and w2.sp == 100 and w2.re == 1 and w2.rf == 3600 and w2.dmin == 200 and w2.dmax == 0 and w2.name == "")
   local old = Presets.decode_wave(Presets.seal("RWW1|custom_1~Old~1~10~60~3~10~60~3 hounds"), Events, Groups)
   check("wave share: 9-field wave text (no distances) imports with distances 0", old and old.dmin == 0 and old.dmax == 0)
   -- a text with an unknown key still imports (the key is only the exporter's)
   local fk = Presets.decode_wave(Presets.seal("RWW1|future_wave~F~1~10~60~3~10~60~3 hounds~0~0"), Events, Groups)
   check("wave share: the exporter's key does not matter (unknown keys are fine)", fk and fk.key == "future_wave")
+  -- the roll switch (rk_): default on, travels with the card
+  local rk = {}
+  local function rg(id) return rk[id] end
+  local function rs(id, v) rk[id] = v end
+  check("roll switch: a card keeps the roll of its random groups by default, and the definition for the spawner says so", Events.get("custom_1", rg, Groups).keep_pick == true and Events.spawn_def(Events.get("custom_1", rg, Groups)).keep_pick == true)
+  rk.rk_custom_1 = false
+  check("roll switch: turned off it reads as off and reaches the spawner; Reset puts it back on", Events.get("custom_1", rg, Groups).keep_pick == false and Events.spawn_def(Events.get("custom_1", rg, Groups)).keep_pick == false and (function() Events.reset(rs, "custom_1"); return Events.get("custom_1", rg, Groups).keep_pick == true end)())
+  Events.set_def(rs, "custom_5", "Roll", Groups.parse("1 hound|mutant@2"), Groups); rk.on_custom_5 = true; rk.rk_custom_5 = false
+  local rsnap = Presets.capture_wave(rg, "custom_5", Events, Groups)
+  check("roll switch: it is part of a shared card (RWW1 text) and the card is 'changed' because of it", rsnap.keep == false and Presets.decode_wave(Presets.encode_wave(rsnap), Events, Groups).keep == false)
+  local on_snap = Presets.capture_wave(function(id) if id == "rk_custom_5" then return nil end return rk[id] end, "custom_5", Events, Groups)
+  check("roll switch: a card with the switch on round trips as on", on_snap.keep == true and Presets.decode_wave(Presets.encode_wave(on_snap), Events, Groups).keep == true)
+  local old17 = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~0~0~rage~2~Hi~vial"), Events, Groups)
+  check("roll switch: a card text from before the switch (17 fields) imports with it on", old17 and old17.keep == true and old17.suit == "rage")
+  local target = {}
+  Presets.apply_wave(Presets.decode_wave(Presets.encode_wave(rsnap), Events, Groups), "custom_2", function(id, v) target[id] = v end, Events, Groups)
+  check("roll switch: applying a card writes rk_ to the slot", target.rk_custom_2 == false)
+  local pool = Presets.pool_waves({ waves = { Presets.decode_wave(Presets.encode_wave(rsnap), Events, Groups) } }, "peer_z", Events, Groups)
+  check("roll switch: a friend's card in the draw keeps its switch", pool[1] and pool[1].keep_pick == false)
 end
 -- enemy name colours without Spidey Sense: the palette asked for ------------------------------------------------------
 do
@@ -1699,44 +2315,26 @@ do
   -- whisper, look, rarity
   check("whisper: own text, else the suit's line; cleaned and cut at 40", Cards.whisper({ whisper = "It grows.", suit = "swarm" }) == "It grows." and Cards.whisper({ whisper = "", suit = "swarm" }) == "Too many to count." and Cards.whisper({ whisper = "   ", suit = "rage" }) == "Faster. Faster." and #Cards.clean_whisper(string.rep("ab ", 30)) <= 40 and Cards.clean_whisper("a\n\tb") == "a b" and Cards.whisper({ suit = "nope" }) == "Something is growing.")
   check("look: whisper for every murmur card, rot for the rest, an explicit look wins, junk ignored", Cards.look({ suit = "murmur" }) == "whisper" and Cards.look({ suit = "rage" }) == "rot" and Cards.look({ suit = "blight", look = "vial" }) == "vial" and Cards.look({ suit = "murmur", look = "rot" }) == "rot" and Cards.look({ suit = "blight", look = "nonsense" }) == "rot")
-  check("levels: the heaviest card is 10, the lightest 1, in between in proportion (weights 18, 10, 14)", Cards.level(18, 10, 18) == 10 and Cards.level(10, 10, 18) == 1 and Cards.level(14, 10, 18) == 6, Cards.level(14, 10, 18))
-check("levels: weights 1 to 10 are the levels 1 to 10", (function() for w = 1, 10 do if Cards.level(w, 1, 10) ~= w then return false end end return true end)())
-check("levels: when every card weighs the same all are level 10; a weight of 0 is level 0 (never drawn)", Cards.level(5, 5, 5) == 10 and Cards.level(0, 1, 10) == 0 and Cards.level(-3, 1, 10) == 0)
-check("levels: without a deck the weight itself is the level (1 to 10)", Cards.level(4, nil, nil) == 4 and Cards.level(40, nil, nil) == 10 and Cards.level(0.2, nil, nil) == 1)
-check("levels: a card outside the range is clamped (a disabled card heavier than the draw is 10)", Cards.level(99, 1, 10) == 10 and Cards.level(1, 5, 10) == 1)
-check("rare: the two lowest levels of a draw whose weights differ", Cards.is_rare_level(1, 1, 10) and Cards.is_rare_level(2, 1, 10) and not Cards.is_rare_level(3, 1, 10) and not Cards.is_rare_level(1, 5, 5) and not Cards.is_rare_level(1, nil, nil) and not Cards.is_rare_level(0, 1, 10))
-check("weight for a level: the others range 10..18 -> level 10 is 18, level 1 is 10, level 6 is 14", Cards.weight_for_level(10, 10, 18) == 18 and Cards.weight_for_level(1, 10, 18) == 10 and Cards.weight_for_level(6, 10, 18) == 14)
-check("weight for a level: with others from 1 to 10 the weight is the level", (function() for k = 1, 10 do if Cards.weight_for_level(k, 1, 10) ~= k then return false end end return true end)())
-check("weight for a level: the result shows the level asked for (wide ranges, every level)", (function()
-  for _, range in ipairs({ { 1, 10 }, { 5, 100 }, { 20, 300 }, { 1, 1000 } }) do
-    for k = 1, 10 do
-      local w = Cards.weight_for_level(k, range[1], range[2])
-      if Cards.level(w, range[1], range[2]) ~= k then return false end
-    end
-  end
-  return true
-end)())
-check("weight for a level: a range of 8 (10..18) has only nine whole weights: every level is within one of the asked one, the ends are exact", (function()
-  for k = 1, 10 do
-    local w = Cards.weight_for_level(k, 10, 18)
-    if math.abs(Cards.level(w, 10, 18) - k) > 1 then return false end
-  end
-  return Cards.level(Cards.weight_for_level(1, 10, 18), 10, 18) == 1 and Cards.level(Cards.weight_for_level(10, 10, 18), 10, 18) == 10
-end)())
-check("weight for a level: a narrow range cannot show every level, but never fails (1..4)", (function()
-  for k = 1, 10 do local w = Cards.weight_for_level(k, 1, 4); if w < 1 or w > 4 then return false end end
-  return Cards.weight_for_level(1, 1, 4) == 1 and Cards.weight_for_level(10, 1, 4) == 4
-end)())
-check("weight for a level: others that all weigh 5: level 10 matches them, lower levels are that fraction (at least 1)", Cards.weight_for_level(10, 5, 5) == 5 and Cards.weight_for_level(1, 5, 5) == 1 and Cards.weight_for_level(5, 5, 5) == 3 and Cards.weight_for_level(7, 5, 5) == 4)
-check("weight for a level: no other card in the draw: the level is the weight", Cards.weight_for_level(7, nil, nil) == 7 and Cards.weight_for_level(99, nil, nil) == 10 and Cards.weight_for_level(0, nil, nil) == 1)
-check("describe: with a range the card has its level and a relative rarity, without one the old absolute rule", (function()
-  local g = { kind = function() return "normal" end, MODIFIERS = {} }
-  local card = Cards.describe({ key = "x", name = "X", parts = {}, pct = 1, cooldown = 120, enabled = true }, g, nil, { lo = 1, hi = 10 })
-  local plain = Cards.describe({ key = "x", name = "X", parts = {}, pct = 1, cooldown = 120, enabled = true }, g)
-  local flat = Cards.describe({ key = "x", name = "X", parts = {}, pct = 1, cooldown = 120, enabled = true }, g, nil, { lo = 7, hi = 7 })
-  return card.level == 1 and card.rare == true and plain.rare == true and flat.rare == false and flat.level == 10
-end)())
-check("rare: weight 1-2 is rare, 0 and 3+ are not", Cards.is_rare(1) and Cards.is_rare(2) and not Cards.is_rare(3) and not Cards.is_rare(0) and not Cards.is_rare(nil))
+  check("chance: the pips are the number itself, 1 to 10 (a fraction rounds, 0 or less is none, above 10 is 10)", (function() for w = 1, 10 do if Cards.level(w) ~= w then return false end end return true end)() and Cards.level(0) == 0 and Cards.level(-3) == 0 and Cards.level(4.4) == 4 and Cards.level(4.5) == 5 and Cards.level(0.2) == 1 and Cards.level(40) == 10 and Cards.level(nil) == 0)
+  check("chance: chance 2 shows 2 pips, 3 shows 3, 4 shows 4 and 5 shows 5 (never one fewer, whatever the other cards have)", Cards.level(2, 2, 5) == 2 and Cards.level(3, 2, 5) == 3 and Cards.level(4, 2, 5) == 4 and Cards.level(5, 2, 5) == 5)
+  check("chance: rare is a chance of 1 or 2", Cards.is_rare_level(1) and Cards.is_rare_level(2) and not Cards.is_rare_level(3) and not Cards.is_rare_level(0) and not Cards.is_rare_level(nil))
+  check("chance: a click on a pip sets that number (kept between 1 and 10)", (function() for k = 1, 10 do if Cards.weight_for_level(k) ~= k then return false end end return true end)() and Cards.weight_for_level(0) == 1 and Cards.weight_for_level(99) == 10 and Cards.weight_for_level(nil) == 1)
+  check("chance: the most a chance can be is 10 (Cards.MAX_CHANCE, Events.MAX_PCT)", Cards.MAX_CHANCE == 10 and Events.MAX_PCT == 10)
+  check("chance: the share is the chance over the total of the cards that can be drawn; none when it cannot be drawn", math.abs(Cards.share(2, 10) - 20) < 1e-9 and math.abs(Cards.share(10, 10) - 100) < 1e-9 and Cards.share(0, 10) == nil and Cards.share(3, 0) == nil and Cards.share(nil, 10) == nil)
+  check("chance: the share grows when other cards leave the draw (a resting card): 3 of 12 is 25 percent, 3 of 9 is 33", math.abs(Cards.share(3, 12) - 25) < 1e-9 and math.abs(Cards.share(3, 9) - 100 / 3) < 1e-9)
+  check("describe: the card has its chance as its level and is rare at 1 or 2", (function()
+    local g = { kind = function() return "normal" end, MODIFIERS = {} }
+    local one = Cards.describe({ key = "x", name = "X", parts = {}, pct = 1, cooldown = 120, enabled = true }, g)
+    local two = Cards.describe({ key = "x", name = "X", parts = {}, pct = 2, cooldown = 120, enabled = true }, g)
+    local five = Cards.describe({ key = "x", name = "X", parts = {}, pct = 5, cooldown = 120, enabled = true }, g)
+    return one.level == 1 and one.rare == true and two.level == 2 and two.rare == true and five.level == 5 and five.rare == false
+  end)())
+  check("rare: weight 1-2 is rare, 0 and 3+ are not", Cards.is_rare(1) and Cards.is_rare(2) and not Cards.is_rare(3) and not Cards.is_rare(0) and not Cards.is_rare(nil))
+  check("events: a stored chance above 10 reads as 10, below 0 as 0, nothing stored is the card's default", (function()
+    local st = { pct_wave_small = 400, pct_wave_medium = -5, pct_custom_1 = 7 }
+    local g = function(id) return st[id] end
+    return Events.get("wave_small", g, Groups).pct == 10 and Events.get("wave_medium", g, Groups).pct == 0 and Events.get("wave_large", g, Groups).pct == 4 and Events.get("custom_1", g, Groups).pct == 7 and Events.get("custom_2", g, Groups).pct == 10
+  end)())
   check("suit: an unknown suit falls back to plague", Cards.normalize_suit("nonsense") == "plague" and Cards.normalize_suit(nil) == "plague" and Cards.normalize_suit("rage") == "rage")
   -- rot formulas of the reference page
   check("rot: strength is 0 at 30 s, 1 at the longest cooldown, clamped, and grows with the cooldown", Cards.rot_strength(30, 600) == 0 and math.abs(Cards.rot_strength(600, 600) - 1) < 1e-9 and Cards.rot_strength(5000, 600) == 1 and Cards.rot_strength(120, 600) > 0.4 and Cards.rot_strength(120, 600) < 0.5 and Cards.rot_strength(240, 600) > Cards.rot_strength(120, 600), Cards.rot_strength(120, 600))
@@ -1891,6 +2489,47 @@ check("repeat: +2 after the second tick (20 s)", count_at(tl, 23) == 9, count_at
 check("repeat: +2 after the third tick (30 s), none after 'for' ends (35 s)", count_at(tl, 33) == 11 and count_at(tl, 44) == 11, count_at(tl, 33) .. "/" .. count_at(tl, 44))
 check("repeat: finished job is removed", Execute.status().jobs == 0, Execute.status().jobs)
 
+-- a random group rolls ONCE and keeps its enemy on every repeat (the card's switch, default on); with the switch off every unit rolls
+do
+  local function breeds_of_wave(def)
+    run_timed(def, 45, 0.25)
+    local seen, n = {}, 0
+    for _, u in ipairs(spawned) do if not seen[u.breed] then seen[u.breed] = true; n = n + 1 end end
+    return n, #spawned, seen
+  end
+  local random_parts = function() return Groups.parse("2 hound|mutant|trapper@3") end
+  local always_one, total_ok, variety = true, true, {}
+  for _ = 1, 40 do
+    local n, units, seen = breeds_of_wave({ name = "t", parts = random_parts(), rep_every = 10, rep_for = 35, keep_pick = true })
+    if n ~= 1 then always_one = false end
+    if units ~= 2 + 3 * 3 then total_ok = false end
+    for b in pairs(seen) do variety[b] = true end
+  end
+  local kinds = 0; for _ in pairs(variety) do kinds = kinds + 1 end
+  check("roll once: with the switch on a random group is ONE enemy in the first spawn and in every repeat (40 waves of 11 units)", always_one and total_ok)
+  check("roll once: ...and the roll still varies from wave to wave (all three enemies came up)", kinds == 3, kinds)
+  local mixed = 0
+  for _ = 1, 40 do
+    local n = breeds_of_wave({ name = "t", parts = random_parts(), rep_every = 10, rep_for = 35, keep_pick = false })
+    if n > 1 then mixed = mixed + 1 end
+  end
+  check("roll once: with the switch off every unit rolls (a wave of 11 units almost always has more than one enemy)", mixed >= 35, mixed)
+  local n_default = breeds_of_wave({ name = "t", parts = random_parts(), rep_every = 10, rep_for = 35 })
+  check("roll once: a definition without the switch (an older caller) keeps the roll too", n_default == 1, n_default)
+  -- two random groups roll separately; a plain group is untouched
+  local parts = Groups.parse("1 hound|mutant@2, 1 sniper|trapper@2, 2 crusher@1")
+  run_timed({ name = "t", parts = parts, rep_every = 10, rep_for = 25, keep_pick = true }, 40, 0.25)
+  local groups_seen = { a = {}, b = {}, plain = 0 }
+  for _, u in ipairs(spawned) do
+    if u.breed == "chaos_hound" or u.breed == "cultist_mutant" then groups_seen.a[u.breed] = true
+    elseif u.breed == "renegade_sniper" or u.breed == "chaos_poxwalker_bomber" or u.breed == "renegade_netgunner" or u.breed == "cultist_trapper" then groups_seen.b[u.breed] = true
+    else groups_seen.plain = groups_seen.plain + 1 end
+  end
+  local na, nb = 0, 0; for _ in pairs(groups_seen.a) do na = na + 1 end; for _ in pairs(groups_seen.b) do nb = nb + 1 end
+  check("roll once: each random group keeps its own roll (one enemy each), the plain group is spawned as written", na == 1 and nb == 1 and groups_seen.plain == 2 + 2 * 1, tostring(na) .. "/" .. tostring(nb) .. "/" .. tostring(groups_seen.plain))
+  Execute.reset()
+end
+
 local _, _, tl2 = run_timed({ name = "t", parts = Groups.parse("0 hounds@3, 2 snipers"), rep_every = 5, rep_for = 10 }, 20, 0.25)
 check("repeat: only-repeat group starts at 0 and repeats (2 snipers + 2 ticks x 3 hounds)", count_at(tl2, 3) == 2 and count_at(tl2, 20) == 8, count_at(tl2, 3) .. "/" .. count_at(tl2, 20))
 local ok3 = Execute.start_wave({ name = "t", parts = Groups.parse("0 hounds@3"), rep_every = 0, rep_for = 10 })
@@ -2028,7 +2667,7 @@ do
   check("float trap: 20 x 115 percent is exactly 23, 3 x 110 is 3 (3.3), 7 x 130 is 9 (9.1)", sa(20, 115) == 23 and sa(3, 110) == 3 and sa(7, 130) == 9, sa(20, 115) .. "/" .. sa(3, 110) .. "/" .. sa(7, 130))
   local exact = true
   for base = 0, 60 do for percent = 0, 500, 5 do
-    local want = (base * percent) // 100
+    local want = math.floor(base * percent / 100)
     if sa(base, percent) ~= want then exact = false end
   end end
   check("scaled_amount equals integer floor(base * percent / 100) for every base 0-60 and every slider step", exact)
@@ -2071,6 +2710,19 @@ settings.max_per_wave = 300
 Execute.reset()
 Execute.start_wave({ name = "t", parts = Groups.parse("60 poxwalkers, 40 scabs") })
 check("max_per_wave still caps a multiplied wave", Execute.status().queued == 300, Execute.status().queued)
+
+do
+  local saved_per,saved_special=settings.max_per_wave,settings.mult_special
+  settings.max_per_wave=500; settings.mult_special=500; cand_fail=true
+  Execute.reset()
+  Execute.start_wave({name="backlog",parts=Groups.parse("60 hounds@60"),rep_every=1,rep_for=3600})
+  Execute.update(1800)
+  check("repeat: a long frame and blocked positions never queue over 1000 units", Execute.status().queued==1000,Execute.status().queued)
+  Execute.update(1)
+  check("repeat: a full queue skips further ticks without growing", Execute.status().queued==1000)
+  Execute.reset(); cand_fail=false
+  settings.max_per_wave=saved_per; settings.mult_special=saved_special
+end
 Execute.reset()
 ALIVE = saved_alive2
 settings.max_per_wave, settings.max_alive, settings.mult_normal = nil, nil, nil
@@ -2197,7 +2849,7 @@ do
     if bad then bare[#bare + 1] = key end
   end
   check("localization: no stray % in any string (DMF formats every string)", #bare == 0, table.concat(bare, ","))
-  check("localization: 'count' words are now 'weight'", loc.col_count.en == "Weight" and loc.popup_count_title.en == "Weight of %s")
+  check("localization: the enemy count column is the 'Brood' (it was 'Weight', which is not what it is: the card's chance has its own name)", loc.col_count.en == "Brood" and loc.popup_count_title.en == "Brood of %s" and loc.col_chance.en == "Chance" and loc.popup_chance_title.en:find("0 to 10", 1, true) ~= nil)
   check("localization: multiplier and search strings exist", loc.mult_normal and loc.mult_boss and loc.mult_special and loc.group_multipliers and loc.btn_search and loc.popup_search_hint and loc.picker_status and loc.unit_percent.en == "pct")
   -- DMF option rows: the title column holds about 27 characters on one line, the value column about 8
   -- (value + unit, e.g. "1000 pct"); longer text wraps into several lines and overlaps the next row.
@@ -2268,6 +2920,20 @@ do
   local cramped = {}
   for id, limit in pairs(fits) do if not loc[id] or #(loc[id].en:gsub("%%s", "00")) > limit then cramped[#cramped + 1] = id end end
   check("localization: texts beside the steppers fit their space", #cramped == 0, table.concat(cramped, ","))
+  -- the Custom screen: a row name is one line (about 26 characters), the explanation two lines (about 138, like a modifier's)
+  local tune_long = {}
+  for _, def in ipairs(Groups.TUNE) do
+    local name, info = loc["tune_" .. def.id], loc["tune_" .. def.id .. "_info"]
+    if not name or not info then
+      tune_long[#tune_long + 1] = def.id .. "(missing)"
+    else
+      local shown = info.en:gsub("%%d", tostring(def.min), 1):gsub("%%d", tostring(def.max), 1)
+      if #name.en > 26 then tune_long[#tune_long + 1] = def.id .. " name(" .. #name.en .. ")" end
+      if #shown > 138 then tune_long[#tune_long + 1] = def.id .. " info(" .. #shown .. ")" end
+      if name.en ~= def.name then tune_long[#tune_long + 1] = def.id .. " name differs from Groups.TUNE" end
+    end
+  end
+  check("localization: every custom mod has a name and an explanation that fit their row, and the same name as the catalog", #tune_long == 0, table.concat(tune_long, ","))
 end
 
 -- Positions.spread with stubbed nav queries -----------------------------------------
