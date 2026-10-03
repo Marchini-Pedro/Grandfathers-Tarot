@@ -25,3 +25,5 @@ permission. Offline validation cannot establish engine frame time,
 rendering correctness, or multiplayer behavior in a real mission.
 
 Harness repair: all six tools now validate this checkout. Lua 5.5 and LuaJIT 2.1 pass the existing checks (30 compiled files, editor 650, entry 14, HUD 179, logic zero failures). Editor tests require the adjacent Darktide-Source-Code clone for the real engine callback helper. LuaJIT heap checks exclude compiler allocations; game frame time remains unmeasured.
+
+The supplied repo also has feature/attack-timing at c7141cb, with nine commits absent from the workshop branch. Both histories are integrated into the recovery feature branch. Conflict resolution preserves the boss-name hook, stat hooks on both buff classes, combo protection, explosion scaling, and both sets of regression tests.
