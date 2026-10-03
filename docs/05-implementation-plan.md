@@ -145,3 +145,6 @@ See `04-design-and-rationale.md`.
 - [x] Confirm PR #1 merged into `main` at `64f76f3` and synchronize local `main`; remote recovery branch deleted (2026-10-03).
 - [x] Add player-facing README, compact the technical index, and define ongoing README maintenance in CLAUDE.md (2026-10-03).
 - [ ] Complete the remaining in-game/multiplayer and actual CPU/process RAM checks listed in doc 09; merge status does not close these checks.
+
+- [x] Prepare the reusable audit-only adversarial brief in `audits/adversarial-audit-prompt.md`, covering the user's test/performance/lifecycle/UI/Realms/reuse questions (2026-10-03).
+- [ ] Execute the brief when explicitly requested and create a dated evidence-backed report; the prompt's preparation is not an executed audit.
