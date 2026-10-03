@@ -10,6 +10,7 @@ output = lua.execute(r'''
 local ROOT=...
 local warnings,errors,sends,registered,received={},{},{},{},{}
 local mod={ get=function() return true end,
+  io_dofile=function(_,path) return dofile(ROOT.."/"..path:match("RealmsWaves/scripts/mods/RealmsWaves/(.*)")..".lua") end,
   warning=function(_,...) warnings[#warnings+1]={...} end,
   error=function(_,...) errors[#errors+1]={...} end }
 local realms
@@ -22,7 +23,7 @@ P.init()
 check("protocol failures: missing Realms keeps solo mode and reports unavailability", not P.is_available() and #warnings==1 and not P.send_hello())
 realms={network_register=function(_,name,fn) registered[name]=fn;return false,"registration rejected" end}
 P.init()
-check("protocol failures: all six RPC registration errors are reported", #errors==6 and not P.is_available())
+check("protocol failures: all seven RPC registration errors are reported", #errors==7 and not P.is_available())
 realms.network_is_available=function() error("native availability failed") end
 check("protocol failures: native availability exception fails safely", not P.is_available())
 realms.network_is_available=function() return 1 end

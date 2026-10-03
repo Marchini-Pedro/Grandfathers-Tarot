@@ -1,5 +1,53 @@
 # 06. Verification, risks, open issues
 
+## 2026-10-03 - Synchronize appearance with merged PRs #5 and #6
+
+Fetch origin, pull main to `06c2b3a` in a separate worktree and merge main into
+`feature/enemy-appearance`. Preserve both changelog histories and the concurrent
+agent's checkout. This synchronization changes documentation only.
+Both aggregate runners pass again: **1,916 assertions per runtime**, Lua
+compilation, documentation sizes and every coverage gate; source-line scores
+**Lua 5.5 81.80%, LuaJIT 2.1 78.54%**. Reports are in ignored
+`test-results/pr7-lua55/` and `test-results/pr7-luajit21/`. Native rendering,
+multiplayer and performance acceptance remain pending; the feature is unmerged.
+
+## 2026-10-03 — Enemy colour experiments (offline; feature branch)
+
+Implemented per-group ARGB/method selection, persisted recipes/repeats, natural
+stim behaviour, visual-only stimm/explicit-slot tint and local outlines in the
+isolated `feature/enemy-appearance` worktree. Surface/private patch choices
+display prerequisites and perform no operation. Alpha is tint strength; native
+full-body/black surface coverage is not claimed. See [the live checklist and
+restoration limits](enemy-appearance.md).
+
+Before CI integration, the baseline passed: 33 compiled files, logic 828, editor
+694, entry 45 and HUD 179 assertions; documentation sizes passed. The initial
+focused appearance harness added 71 assertions (52 schema/runtime/protocol, 13 editor, six real
+entry/executor lifecycle) and reuses the editor/entry regressions. It passes on
+Lua 5.5 and LuaJIT 2.1. Real-English slider/dropdown previews were rendered from
+the real widgets and visually inspected; the zero-fill render failure was fixed.
+
+No game installation/session, shader/assets, native material coverage, live
+host/client, frame-time/RAM or user acceptance checks have run. The original
+CI checkout and installed mods remain untouched. No feature merge into `main`.
+
+### 2026-10-03 — Final integrated CI verification
+
+Integrate CI work at `fd56262` into this feature branch only. Resolve README and
+changelog conflicts while retaining both histories. Extend the protocol failure
+fixture for DMF schema loading/seven RPCs; instrument all three appearance test
+VMs and report every focused assertion. Add eight readiness/unsupported-stim/
+cleanup cases, bringing focused checks to 79 (60 schema/runtime/protocol,
+13 editor, six entry/executor).
+
+Both aggregate runners pass: **1,916 printed assertions**, compilation,
+documentation and every module/overall coverage gate. Source-line execution
+scores: **Lua 5.5 81.80; LuaJIT 2.1 78.54 percent**. New-module floors are
+schema 84, runtime 79, editor 90; all existing floors and overall 78 remain.
+The source-line proxy includes structural lines and is not branch/native
+coverage. Reports are reproducible under `test-results/` with `tools/run_tests.py`.
+No installation, publish, main merge or in-game acceptance is implied.
+
 ## Test matrix
 | # | Test | Expect | Status |
 |---|---|---|---|

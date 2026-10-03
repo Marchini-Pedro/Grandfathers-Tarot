@@ -30,6 +30,9 @@ local RPC_STATE = "rw_state"
 local RPC_VOTE = "rw_vote"
 local RPC_WAVES = "rw_waves"
 local RPC_SCALE = "rw_scale"
+local RPC_APPEARANCE = "rw_appearance"
+local appearance_peers, appearance_epoch = {}, nil
+local AppearanceSchema = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/appearance")
 local MAX_SCALES = 200
 Protocol.MIN_SCALE, Protocol.MAX_SCALE = 25, 300 -- percent (the range of the custom mod "size")
 local MAX_WAVES_TEXT = 60000 -- the Realms limit is 96 KiB per message; a full setup is about 15 KB
@@ -78,6 +81,7 @@ local function on_peer_left(peer_id)
 
 	if valid_sender(peer_id) then
 		peers[peer_id:lower()], scale_unsupported[peer_id:lower()] = nil, nil
+		appearance_peers[peer_id:lower()] = nil
 	end
 
 	if _handlers.on_peer_left then _handlers.on_peer_left(peer_id) end
@@ -96,6 +100,7 @@ Protocol.refresh_peers = function ()
 	end
 
 	for peer in pairs(previous) do
+		if not peers[peer] then appearance_peers[peer] = nil end
 		if not peers[peer] and _handlers.on_peer_left then _handlers.on_peer_left(peer) end
 	end
 end
@@ -161,7 +166,7 @@ local function send(rpc_name, recipient, ...)
 	return sent, send_error
 end
 
-local function on_hello(sender, proto, version)
+local function on_hello(sender, proto, version, appearance_capability)
 	proto = tonumber(proto)
 
 	if retired or not valid_sender(sender) or not proto or type(version) ~= "string" then
@@ -169,7 +174,7 @@ local function on_hello(sender, proto, version)
 	end
 
 	if proto == Protocol.PROTO and version == Protocol.VERSION then
-		remember_peer(sender)
+		if remember_peer(sender) then appearance_peers[sender:lower()] = appearance_capability == 1 or nil end
 	end
 
 	if _handlers.on_hello then
@@ -177,13 +182,14 @@ local function on_hello(sender, proto, version)
 	end
 end
 
-local function on_welcome(sender, proto, version, ok)
+local function on_welcome(sender, proto, version, ok, epoch)
 	proto, ok = tonumber(proto), tonumber(ok)
 
 	if retired or not valid_host_sender(sender) or not proto or not ok or type(version) ~= "string" then
 		return
 	end
 
+	appearance_epoch = ok == 1 and proto == Protocol.PROTO and version == Protocol.VERSION and type(epoch) == "string" and epoch ~= "" and #epoch <= 64 and epoch or nil
 	if _handlers.on_welcome then
 		_handlers.on_welcome(sender, proto, version, ok == 1)
 	end
@@ -244,12 +250,56 @@ local function on_scale(sender, text)
 	end
 end
 
--- handlers: { on_hello, on_welcome, on_state, on_vote, on_waves, on_scale, on_peer_joined, on_peer_left }
+local function on_appearance(sender, text)
+	if retired or not valid_host_sender(sender) or type(text) ~= "string" or #text > 32768 then return end
+	local packet = decode(text)
+	-- A host entering later, re-enabling or reloading asks capable clients to repeat the normal version handshake.
+	if packet and packet.request == true then Protocol.send_hello(); return end
+	if not appearance_epoch or not packet or packet.epoch ~= appearance_epoch or type(packet.entries) ~= "table" then return end
+	local entries = {}
+	for i = 1, math.min(#packet.entries, MAX_SCALES) do
+		local item = packet.entries[i]
+		if type(item) == "table" then
+			local id, method, breed = item[1], AppearanceSchema.method(item[2]), item[7]
+			local valid = type(id) == "number" and id == id and id >= 0 and id <= 4294967295 and id == math.floor(id)
+			valid = valid and method and method.available and type(breed) == "string" and #breed <= 80 and breed:match("^[%w_]+$")
+			for j = 3, 6 do
+				local value = item[j]
+				valid = valid and type(value) == "number" and value == value and value >= 0 and value <= 255 and value == math.floor(value)
+			end
+			if valid then entries[#entries + 1] = { id = id, breed = breed, config = { method = item[2], a = item[3], r = item[4], g = item[5], b = item[6] } } end
+		end
+	end
+	if #entries > 0 and _handlers.on_appearance then _handlers.on_appearance(sender, entries) end
+end
+
+Protocol.clear_appearance_session = function () appearance_epoch = nil end
+Protocol.request_appearance_sync = function ()
+	local json = encode({ request = true })
+	return json and send(RPC_APPEARANCE, "others", json) or false
+end
+
+-- Optional appearance capability extends hello/welcome without changing the existing HUD protocol.
+Protocol.send_appearances = function (epoch, list, recipient)
+	local json = encode({ epoch = epoch, entries = list })
+	if not json then return false end
+	local success = true
+	for peer in pairs(appearance_peers) do
+		if not recipient or recipient == "others" or recipient:lower() == peer then
+			local sent, err = send(RPC_APPEARANCE, peer, json)
+			if err == "target_rpc_unsupported" then appearance_peers[peer] = nil else success = sent and success end
+		end
+	end
+	return success
+end
+
+-- handlers also include on_appearance.
 Protocol.init = function (handlers)
 	retired = false
 	_handlers = handlers or {}
 	_realms = get_mod("Realms")
 	peers, scale_unsupported = {}, {}
+	appearance_peers, appearance_epoch = {}, nil
 
 	if not _realms then
 		mod:warning("RealmsWaves: Realms mod not found, network features disabled (solo host only)")
@@ -264,6 +314,7 @@ Protocol.init = function (handlers)
 		{ RPC_VOTE, on_vote },
 		{ RPC_WAVES, on_waves },
 		{ RPC_SCALE, on_scale },
+		{ RPC_APPEARANCE, on_appearance },
 	}
 
 	for i = 1, #rpcs do
@@ -285,15 +336,17 @@ end
 Protocol.retire = function ()
 	retired = true
 	_handlers, peers, scale_unsupported = {}, {}, {}
+	appearance_peers, appearance_epoch = {}, nil
 	_realms = nil
 end
 
 Protocol.send_hello = function ()
-	return send(RPC_HELLO, "host", Protocol.PROTO, Protocol.VERSION)
+	return send(RPC_HELLO, "host", Protocol.PROTO, Protocol.VERSION, 1)
 end
 
 Protocol.send_welcome = function (peer_id, ok)
-	return send(RPC_WELCOME, peer_id, Protocol.PROTO, Protocol.VERSION, ok and 1 or 0)
+	local epoch = mod.rw and mod.rw.appearance and mod.rw.appearance.epoch()
+	return send(RPC_WELCOME, peer_id, Protocol.PROTO, Protocol.VERSION, ok and 1 or 0, epoch or "")
 end
 
 -- recipient: "others" (default) or a peer id

@@ -38,6 +38,8 @@ await owner setup.
 | Document | Purpose |
 | --- | --- |
 | [Design and rationale](04-design-and-rationale.md) | Requirements, architecture and protocol decisions |
+| [Enemy colour experiments](enemy-appearance.md) | Per-group ARGB/method controls, usable experiments, prerequisites, transport and live acceptance |
+| [Enemy appearance research](research/enemy-appearance/findings.md) | Earlier read-only source/mod/public evidence; [experiment plan](research/enemy-appearance/experiments-and-recommendation.md) and [original brief](research/enemy-appearance/research-prompt.md) |
 | [Implementation plan](05-implementation-plan.md) | Checklist, reuse map and unfinished work |
 | [Verification and open issues](06-verification-and-open-issues.md) | Game test matrix, risks and dated results |
 | [Learnings and gaps](07-learnings-and-gaps.md) | Discoveries, failed approaches and actionable gaps |

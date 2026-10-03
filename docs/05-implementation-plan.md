@@ -1,5 +1,25 @@
 # 05. Implementation plan and status
 
+## Enemy appearance experiments — `feature/enemy-appearance` (2026-10-03)
+
+- [x] Isolate the feature in its own worktree from up-to-date `main` (`6d5756d`); preserve the CI/coverage checkout.
+- [x] Per-group method dropdown, ARGB sliders, numeric entry and input-colour swatch under Custom.
+- [x] Recipe/preset persistence and group identity; carry selected appearance through initial and repeated spawns.
+- [x] Natural stimm with existing supported actions and gameplay buffs; applied/explicit-slot visual-only stimm and private-map local outline.
+- [x] Show surface/private-shader prerequisites honestly; selecting them applies no guessed effect.
+- [x] Optional host-authorized Realms transport, mission tokens, bounded pending IDs, late-join snapshots, renewal and cleanup/retirement.
+- [x] Update design, user guidance and reusable research references in this worktree.
+- [x] Focused schema/runtime/protocol, editor and actual spawn/cleanup checks on Lua 5.5 and LuaJIT 2.1; render/inspect the real-English panel and dropdown.
+- [x] Integrate committed CI work into this feature branch only; discover/instrument the appearance harness and assign measured floors to all three new modules, preserving existing thresholds.
+- [x] Fetch origin, pull `main` in a separate worktree and synchronize the feature with `06c2b3a` after merged PRs #5 and #6.
+- [ ] Publish the enemy appearance branch as a pull request and verify its hosted runtime checks.
+- [ ] In-game acceptance: visuals/LOD/equipment, natural action/buffs, tags/other mods, cleanup, host/client joins/leave/reload and performance.
+- [ ] Verify a surface colour property/type/default/coverage before implementing the surface method.
+- [ ] Build compatible private assets and verify isolation/restoration before implementing shader/material patching.
+- [ ] Merge only after the user confirms the feature works in game.
+
+Details and live checklist: [Enemy colour experiments](enemy-appearance.md).
+
 Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\ayko4\.claude\plans\pasted-content-id-fdf1-i-have-valiant-parasol.md` (may not persist; this file is the durable one).
 
 ## Checklist

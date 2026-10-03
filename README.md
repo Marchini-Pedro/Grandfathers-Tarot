@@ -8,6 +8,8 @@ random selection and player voting. No Twitch service is required.
 > into `main` through [PR #4](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/4).
 > Offline checks pass; the recovered changes still need in-game and multiplayer
 > verification. The runtime reports `2.0.0`; the last tagged release is `v1.13.0`.
+> Enemy colour experiments are available on `feature/enemy-appearance` for testing;
+> see the [methods and remaining prerequisites](docs/enemy-appearance.md).
 
 ## Features
 
@@ -17,6 +19,9 @@ random selection and player voting. No Twitch service is required.
   cards by threat, rarity, enemy count or face; drag to swap cards on a page.
 - **The Cauldron:** build enemy groups with a searchable catalog and Dreg/Scab
   shelf, modifiers, custom stats and a live card preview.
+- **Enemy colour experiments:** per-group ARGB sliders and a method dropdown
+  under **Custom > Enemy colour experiments**. Try natural/applied stimm,
+  explicit loadout tint or outlines; surface/shader options display their prerequisites.
 - **The Mirror:** customize the card's suit, threat, whisper and cooldown look,
   with a preview of its appearance in the hand.
 - **Wave controls:** weights, spawn distances, spread, repeating groups, fixed
@@ -40,7 +45,7 @@ authority; a client in an ordinary online mission cannot spawn them.
    to avoid overlapping wave systems.
 
 Install the same development revision on participating players' machines for
-the shared HUD, voting and enemy-size replication.
+the shared HUD, voting, enemy-size and enemy-colour replication.
 
 Optional integrations: Custom HUD can reposition the wave panel; Spidey Sense
 and Improved Havoc Tags supply enemy/modifier colours when installed.
@@ -81,6 +86,11 @@ and Improved Havoc Tags supply enemy/modifier colours when installed.
   speed has no confirmed per-unit API and is not an implemented control.
 - Enemy size replication requires RealmsWaves on each peer. Custom boss-health
   naming is host-local, so clients may still see the game's **Weakened** prefix.
+- Enemy colour **A** means tint strength, not mesh transparency. Natural stimm
+  keeps vanilla gameplay buffs on supported breeds. Surface recolouring and
+  private shader patches are unavailable until compatible material data/assets
+  are verified. Colour coverage and cleanup still need game acceptance; disable
+  removes experimental colours and re-enable needs fresh coloured spawns.
 
 See the [recovery review](docs/09-recovery-review.md) and
 [verification matrix](docs/06-verification-and-open-issues.md) for remaining

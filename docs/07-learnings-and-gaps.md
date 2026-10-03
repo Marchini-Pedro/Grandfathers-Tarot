@@ -1,5 +1,76 @@
 # Learnings, dead ends and open gaps
 
+## 2026-10-03 - Synchronizing the appearance PR
+
+- GitHub confirms PRs #5 and #6 are merged; `origin/main` is `06c2b3a`.
+  Pulling main in a dedicated worktree leaves the other agent's branch intact.
+  Merge main into the feature branch so publication retains both ancestries;
+  merging the feature into main still needs the user's in-game confirmation.
+- The only merge conflict was the changelog's top entries. Retain both the
+  appearance history and the CI publication record. Runtime/tests are unchanged;
+  both full runners still pass 1,916 assertions and every coverage gate.
+- Guessed workflow reads (`ci.yml`, `tests.yml`) failed; `rg --files .github`
+  identifies `.github/workflows/verify.yml`. It runs on pushes and PRs, so
+  publication produces two independent runtime matrices. A documentation patch
+  also rejected an incorrect title anchor without changing files; read the
+  actual heading before applying the corrected patch.
+
+## 2026-10-03 — Enemy colour implementation
+
+- Worktree `feature/enemy-appearance` avoids touching the concurrent CI branch,
+  its Python helper/refactor changes or installed mods. Copy the earlier research
+  into this worktree rather than altering the original untracked reports.
+- The known stimm/outline APIs are RGB. Keep an explicit A-as-strength label;
+  stimm zero is the vanilla reset, so a black swatch is not a black surface.
+- Natural stimm needs both a breed `use_stim` action and a writable blackboard
+  stim component. A keyword alone does not prove that an arbitrary breed can
+  perform the animation. The normal buff/particles retain their gameplay effects.
+- Source reads found no verified generic material getter/clone or colour key
+  for all enemy surfaces. Surface/private patch choices remain prerequisite
+  entries, not successful no-op substitutes for those methods.
+- A direct setter's preceding value is unknown without engine getter support.
+  Cleanup can restore the current tracked buff vector or zero; unrelated direct
+  writes and actual private material instances still require game investigation.
+- Recipe merging can shorten/reorder the edited parts. Preserve the selected
+  group by its canonical key, otherwise a second identical colour could leave
+  the editor pointing past the merged list.
+- Native spawns/loadouts and mod RPCs can arrive in either order. Bound pending
+  IDs and retry readiness; validate the unit breed and reset token. Refresh the
+  normal handshake after host entry/reload/re-enable. Lease remote colours so a
+  vanished host cannot leave visual ownership indefinitely.
+- A synchronous send can tear down owners. Build a bounded snapshot before
+  sending and stop later batches if its generation changes.
+- First regression run: logic's exact RPC-count assertion still expected six;
+  update it for the single new appearance endpoint. This was the sole failure.
+- First render attempt: a zero-width G fill caused Pillow's rectangle assertion.
+  Hiding the fill at zero fixes it. The first visibility guard read a missing
+  style `size` in the engine-rule test; use a content flag instead. Regenerated
+  real-English panel/dropdown previews were visually inspected without clipping.
+
+Current implementation, limits and live checklist: [enemy-appearance.md](enemy-appearance.md).
+
+### CI integration follow-up
+
+Integrate the CI branch at `fd56262` into this feature branch, leaving its
+checkout and `main` alone. Resolve README/changelog conflicts by preserving
+both histories and using the aggregate runner. Its protocol failure fixture
+lacked DMF's `io_dofile` loader and expected six RPC failures; extend that fixture
+for the actual schema and seventh endpoint. Its first integrated run failed
+there; the fixture repair passes without changing production protocol behaviour.
+
+The collector counts printed `PASS` lines, so emit the focused schema/runtime
+assertions as well as the UI/entry ones. Eight additional checks cover unsupported
+natural breeds, a missing component, expired stim colour, late loadout readiness,
+default cleanup, original outline-map restoration and zero-strength outlines.
+The appearance suite now has 79 focused assertions.
+
+Trial floor 80 for the new runtime passed Lua 5.5 but exceeded LuaJIT's initial
+77.69 source-line score. After the extra checks LuaJIT measures 79.34; schema
+84.44 and editor 90.14. Assign new-module floors 79/84/90 from both backends'
+measurements. Existing thresholds stay unchanged. Many uncovered lines are
+function declarations/closing delimiters under this source-line proxy; these
+scores must not be represented as branch or native rendering coverage.
+
 The journal the user asked for (2026-10-01): every attempt and error, discovery, actionable gap and insight, so a later session does not repeat a dead end. Newest entries first inside each section. The CHANGELOG says WHAT changed per commit; the results log in `06` says what was tested; this file says what we LEARNED and what is still missing. Keep it under 100 KB (`python tools/check_docs.py`); at 100 KB split by section into `docs/learnings/` and keep this file as the index.
 
 Entry format: `date, short title: what happened / what was found. Evidence (file:line or test). Consequence.`

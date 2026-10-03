@@ -276,7 +276,7 @@ WorkshopView.install = function (View, h)
 		for i = 1, #self._parts do
 			local part = self._parts[i]
 
-			if part.breed == breed and not part.mods and not part.tune then
+			if part.breed == breed and not part.mods and not part.tune and not part.appearance then
 				return true
 			end
 		end
@@ -757,7 +757,7 @@ WorkshopView.install = function (View, h)
 		for i = 1, #self._parts do
 			local part = self._parts[i]
 
-			if part.breed == breed and not part.mods and not part.tune then
+			if part.breed == breed and not part.mods and not part.tune and not part.appearance then
 				part.count = math.min(part.count + 1, groups.MAX_BREED_COUNT)
 				self:_save()
 
