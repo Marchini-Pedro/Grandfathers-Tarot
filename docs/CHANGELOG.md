@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 - Publish the reviewed Heresy continuation
+- Push the completed continuation and open draft [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8) against main as requested. GitHub reports no merge conflicts; the branch remains unmerged pending game acceptance.
+- First hosted PR run at `a163552` passes both runtimes: 2,104 assertions each, all coverage gates and Lua 5.5 81.97% / LuaJIT 2.1 78.75%. Downloaded reports confirm the counts/scores. Update current README/plan/hand-off status and preserve native checks.
+
 ## 2026-10-03 - Complete dual-runtime coverage and continuation hand-off
 - Inventory both new HUD modules and document the measured source-proxy floor exceptions for Face/editor definitions. Preserve the overall floor and all other existing floors.
 - Both complete runners pass 2,104 assertions, 34 Lua compile inputs and every coverage gate: Lua 5.5 81.97% / LuaJIT 2.1 78.75%. Nine reverse mutations are detected on both runtimes (18/18).

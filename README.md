@@ -8,7 +8,7 @@ random selection and player voting. No Twitch service is required.
 > into `main` through [PR #4](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/4).
 > Offline checks pass; the recovered changes still need in-game and multiplayer
 > verification. The runtime reports `2.0.0`; the last tagged release is `v1.13.0`.
-> The open branch `feature/heresy-card-and-ui-pass` (exact custom health, the HERESY suit, 100 cards,
+> Draft [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8) (`feature/heresy-card-and-ui-pass`) (exact custom health, the HERESY suit, 100 cards,
 > a last-card window, cooldowns on the Deck tiles, `/rw_test_close`, card-coloured pages) has offline
 > tests only: it is not merged and nothing of it has been played yet.
 > Enemy colour experiments are merged through [PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7);

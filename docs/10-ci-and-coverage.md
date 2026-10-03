@@ -61,6 +61,11 @@ Current measured scores (source-line proxy, not branch coverage):
 | `ui/workshop.lua` | 89.68% | 80.16% | 80% |
 | `ui/workshop_blueprints.lua` | 86.92% | 79.32% | 79% |
 
+The continuation is published in draft [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8). Its
+[first hosted PR run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37159420038) at `a163552` passes both
+Ubuntu/Python 3.13 jobs. Downloaded artifacts confirm 2,104 assertions each,
+all 34 module gates and Lua 5.5 81.97% / LuaJIT 2.1 78.75%. Native acceptance remains pending.
+
 The records below retain the earlier PR #4/CI/appearance baselines as history.
 
 ## Enemy appearance branch integration (2026-10-03)

@@ -59,10 +59,10 @@ Source references in the repaired tree:
 - [Health correction](../../../scripts/mods/RealmsWaves/spawn/tuning.lua),
   `set_exact_health:214`, synchronized write:238, boss flag:245.
 - [Spawn protection](../../../scripts/mods/RealmsWaves/spawn/execute.lua),
-  `spawn_one:597`, protected facing/spawn:625.
+  `spawn_one:598`, protected facing/spawn:625.
 - [Wave transport](../../../scripts/mods/RealmsWaves/core/protocol.lua),
-  encoded budget:39, `waves_text_fits:417`, send validation:427;
-  [director](../../../scripts/mods/RealmsWaves/core/director.lua), trimming:159,
+  encoded budget:39, `waves_text_fits:417`, send validation:428;
+  [director](../../../scripts/mods/RealmsWaves/core/director.lua), trimming:160,
   stop cleanup:958, off-snapshot validation:1175.
 - [Tile geometry](../../../scripts/mods/RealmsWaves/ui/deck.lua), `layout:226`;
   [cooldown painting](../../../scripts/mods/RealmsWaves/ui/wave_editor_deck.lua),
@@ -124,7 +124,9 @@ needs at most seven prefix probes for 100 cards, plus the original encode;
 existing 64-job / 8,000-entry queue caps still bound spawning. No throughput,
 native memory-retention or end-to-end multiplayer performance claim is made.
 
-Publish a draft PR and keep the branch unmerged. Game matrix rows 114-121 and
+Draft [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8) is published and unmerged. Its first hosted PR run
+at `a163552` passes both VMs; downloaded reports confirm 2,104 assertions each
+and all coverage gates. Game matrix rows 114-121 and
 the [enemy appearance checks](../../enemy-appearance.md) remain pending.
 Add stop-after-draw on both peers, quote-heavy pooled decks, long tile names
 with modifiers, limit-hover stability, vanished targets and recovery after

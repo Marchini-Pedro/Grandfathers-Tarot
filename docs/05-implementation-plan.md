@@ -205,8 +205,8 @@ Ten changes the user asked for in one list. Everything below is implemented and 
 - [x] Synchronize with current `main` at `1290abc` (documentation only); preserve accurate PR #7 status.
 - [x] Adversarial review of all branch changes; repair nine reproduced health/spawn/network/HUD/layout gaps, including long modifier wrapping, strengthen regressions and detect nine reverse mutations on both VMs ([review](audits/2026-10-03/heresy-review.md)).
 - [x] Complete CI coverage inventory and justified source-proxy floor exceptions on both runtimes; 2,104 assertions each and all 34 module gates pass ([coverage](10-ci-and-coverage.md)).
-- [ ] Publish this branch and a draft PR; verify both hosted runtime checks.
-- [ ] GitHub: admin permission for EduardoKenji. NOT done: a personal-account repository has no admin collaborator role and no API credential was available to me (see `07`, open gaps).
+- [x] Publish the continuation in draft [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8); both first hosted runtime checks pass at `a163552`, 2,104 assertions each.
+- [ ] GitHub: admin permission for EduardoKenji remains an owner task. The authenticated identity has write/push access and neither admin nor maintain; no settings were changed.
 - [ ] The in-game run of rows 114-121; the user's "100 percent working" merges the branch into `main`.
 
 ## Post-PR #4 test coverage (2026-10-03)
