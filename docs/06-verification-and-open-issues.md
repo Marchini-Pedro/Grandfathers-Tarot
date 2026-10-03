@@ -124,10 +124,26 @@
 | 74 | `custom_hud` edit mode | A sample hand shows; the node can be dragged and keeps its place; there is only ONE draggable box for this mod | not run |
 | 75 | Join a running mission as a client during the roulette / the rot | The client sees the same stage at the same moment (the rot already running, not a replay) | not run |
 
+## Adversarial audit follow-up (2026-10-03)
+
+The [offline report](audits/2026-10-03/report.md) supersedes broad acceptance
+inferences from the passing recovery checks. Findings are confirmed within
+their stated fixtures, not fixed. The detailed live matrix above remains open.
+
+| Finding | Offline status | Required remediation / live evidence |
+| --- | --- | --- |
+| F01 reload event ownership | 100 obsolete generations retained; unregister control releases them | Event cleanup regression, real reload/editor/pending-work sessions |
+| F02 disabled spawning | Actual DMF toggle/update still spawns two queued hounds | Explicit disable policy; no disabled work or stale replay |
+| F03 stop/live ownership | Alive unit forgotten; recompute factor 2 becomes 1 | Preserve owned units; cap, tuning, late-join size and despawn checks |
+| F04 aggregate repeat backlog | 992 jobs / 992,000 pending at 160 simulated seconds | Global budget and backpressure; native frame/memory pressure |
+| F05 pause | Countdown frozen but ten hounds spawn | Freeze job/repeat/feed clocks while keeping maintenance |
+| F06 partial delivery | Actual Realms returns success after one rejected peer; no size retry | Bounded recipient-aware recovery; native transport occurrence pending |
+| F07 numeric import | LuaJIT accepts checksummed NaN chance; Lua 5.5 rejects | Finite-value validation, atomic rejection and both-runtime regression |
+
 ## Known risks
 - Hooks on `PacingManager.add_aggroed_minion` and the two `MinionSpawnManager` counters must tolerate clients (nil managers) and hot reload.
 - Engine query errors: use `get_occluded_positions` / `occluded_positions_in_group` inside pcall (RealmsEvent avoided `get_random_occluded_position`).
-- Very large waves: unit/network object limits are real. Mitigation: per-wave and alive caps, drip-feed, queue < ~200.
+- Very large waves: unit/network object limits are real. Current mitigation is per-wave/alive caps and drip-feed, with 1,000 pending entries per job; there is no aggregate job/queue budget (confirmed F04).
 - Ballot/vote state can go stale if the host leaves mid-vote: clear state on game-state exit and peer-left.
 - Host is the only driver; if host has no living humans (ghost host alone), skip and retry.
 
@@ -167,7 +183,11 @@
 - Positions use `side.valid_player_units` (includes bots). LOS is hidden from bots too, which is harmless.
 
 ## Results log
+
 (Append dated entries: what was tested, result, fixes.)
+
+- 2026-10-03, final audit-document review: corrected descriptor line count, specified the rounded MiB precision of `/rw_status`, and distinguished injected SessionControl rejection from unverified native packet loss. Runtime/test/configuration scope remains unchanged. The user subsequently authorized systematic remediation on a new branch; the dated report remains the frozen pre-fix evidence.
+- 2026-10-03, adversarial audit: [report](audits/2026-10-03/report.md). Target `8c81c1bbfb6107788dafa98f56c6194dcaa80421`; all six checks pass, 30 compiled inputs and 1,655 assertions on each Lua runtime. Five of seven isolated mutations detect the intended behavioral regressions; retired-tuning and unload-reset variants survive. Seven findings reproduced; no production fixes applied. L1–L8 have results or explicit limits; Lua retention and normal-JIT timing use separate controls. 27 real-widget previews inspected across 1080p/1440p/4K. Native rendering, multiplayer and eight-hour/ten-mission soak remain pending. Reference/runtime/test/configuration hash integrity verified; only Markdown changed.
 
 - 2026-09-28: Audit complete, docs written.
 - 2026-09-28: Implementation written (all files in `docs/05`). Static: all 14 Lua files compile under Lua 5.5 (lupa). Offline logic tests pass (34 checks): recipe parser (aliases, caps 24/breed and 60 total, errors), pool normalisation to 100 with custom slots, vote tally (change vote, wrong ballot, ties), director state machine in random and vote modes (countdown, voting window, winner fires the 2-vote option, no-vote skip, new cycle after incoming, hub does nothing), client rendering of a synced state, version-mismatch disable, and a 20,000-roll simulation within 0.3 percentage points of the configured chances. **NOT tested in the game**: spawning, position search, budget hooks, Realms RPC delivery, HUD rendering, keybinds. Test matrix above is still "not run".

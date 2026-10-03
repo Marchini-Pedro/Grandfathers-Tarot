@@ -160,4 +160,16 @@ See `05-implementation-plan.md`.
 `deck_order` stores visual card keys as a comma-separated string, normalized against the current catalog on load. Missing/deleted keys never erase a card; absent/new keys append. `deck_sort` and `deck_sort_desc` mark the last ascending/descending sort (threat, rarity/chance, enemies, face); manual swaps clear the mark. This order has no effect on the director pool or probability. Dragging starts after a real face/state press held 0.3 seconds, swaps within the visible page on release over another card, and cancels everywhere else. A popup, page/screen change, reload or editor exit cancels before reusing widgets. The quick click acts on release; a double-click arms a hold but suppresses its second toggle.
 
 ### Runtime recovery hardening (2026-10-03)
-Repeat queues hold at most 1000 pending units per job, truncate a repeat batch to the available room, and skip missed ticks once full. Batch prepending preserves the older pending units first using linear work and the existing batch table. Size replication coalesces one pending update per id (newest arrival wins, at most 600 ids); it waits for the unit handle and retries transient scale failures up to 20 seconds. Outbound failures retry every 0.3 seconds with current live sizes only. Host-only RPCs require the actual session host sender; protocol 2 stays compatible. A real buff reset is recorded so equal numerical values cannot hide a fresh recompute.
+Repeat queues hold at most 1000 pending units per job, truncate a repeat batch to the available room, and skip missed ticks once full. Batch prepending preserves the older pending units first using linear work and the existing batch table. Size replication coalesces one pending update per id (newest arrival wins, at most 600 ids); it waits for the unit handle and retries transient scale failures up to 20 seconds. Whole-call outbound failures retry every 0.3 seconds with current live sizes only; the subsequent audit found that Realms partial peer failures are not reported through that return value (F06). Host-only RPCs require the actual session host sender; protocol 2 stays compatible. A real buff reset is recorded so equal numerical values cannot hide a fresh recompute.
+
+### Adversarial audit ownership review (2026-10-03)
+
+The [dated report](audits/2026-10-03/report.md) confirms seven open defects,
+not implemented design changes: event subscriptions survive unload; disabled
+updates still spawn; stop clears living-unit ownership; pause leaves Execute
+running; local queue caps lack an aggregate budget; partial broadcast rejection
+loses size recovery; LuaJIT preset numeric parsing admits NaN. Remediation is
+proposed at existing ownership/validation boundaries, preserving protocol 2,
+public options and serialization. Review is required before code changes.
+Full mission teardown works in the Lua fixtures; actual engine resources and
+eight-hour acceptance remain pending.

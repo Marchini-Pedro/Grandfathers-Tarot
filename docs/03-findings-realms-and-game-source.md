@@ -166,3 +166,28 @@ Source: the 1.13.0 clone. Nothing below was run in the game.
 
 ### Recovery review, 2026-10-03
 Realms mod_network.receive_host_request relays client requests addressed to others while preserving sender_peer_id (core/mod_network.lua:367-386). Therefore a valid sender string alone does not establish that rw_state, rw_welcome or rw_scale came from the host. Protocol now matches Managers.connection:host() before decoding or forwarding these messages; missing/closing connections reject them. BuffExtensionBase._reset_stat_buffs resets the modified keys before adding buffs (318-354); equal numeric values do not establish that a write was retained. A minion reset hook marks a fresh recompute and consumes that marker once across the post-hooks. No new network lookup, breed or buff data is introduced.
+
+## Adversarial contract refresh (2026-10-03)
+
+The [current audit](audits/2026-10-03/report.md) compares the installed Realms
+1.0.0 network module and session control byte-for-byte with author revision
+`a4564b7dda7c6fdbd92eb633c1931b1a51a749ae`. Sender-preserving routing,
+synchronous local dispatch, owner-enabled gating and capability checks hold.
+Broadcast delivery logs individual peer rejection and returns true (F06).
+Native framed RPC reliability/order is not established by that script source.
+
+Installed DMF events/toggling/loader match upstream
+`fc08c1cb772f86248c7ae9e957543e801a0dbf64`. Update events are delivered
+without an enabled filter (F02); reload unloads hooks and restores originals.
+Matching game 1.13.0 EventManager uses weak values with strong mod-object keys;
+explicit unregister is needed at unload (F01). Buff reset/MinionBuffExtension
+class-copy and melee/shoot/explosion consumers were revisited at local
+`419fe18d414a618ce0474bd015bab470afb446d6`.
+
+Separately published 1.13.1 revision
+`7e662fcda16219d775b84af50322be2e9cd9d62e` changes nine files (+24/-7),
+including Havoc activate-on-load flags. No audited hook signature changed in
+that delta; modifier/recompute sessions must still be rechecked live after a
+game update. The local baseline was not replaced. Primary source links, exact
+scope and limitations are in the dated report; no unrelated dependency audit
+or native compatibility claim is implied.

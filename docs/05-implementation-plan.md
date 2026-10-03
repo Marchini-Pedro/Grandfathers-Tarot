@@ -147,4 +147,16 @@ See `04-design-and-rationale.md`.
 - [ ] Complete the remaining in-game/multiplayer and actual CPU/process RAM checks listed in doc 09; merge status does not close these checks.
 
 - [x] Prepare the reusable audit-only adversarial brief in `audits/adversarial-audit-prompt.md`, covering the user's test/performance/lifecycle/UI/Realms/reuse questions (2026-10-03).
-- [ ] Execute the brief when explicitly requested and create a dated evidence-backed report; the prompt's preparation is not an executed audit.
+- [x] Execute the offline adversarial audit after explicit request; [dated report](audits/2026-10-03/report.md), full inventory/test map, embedded diagnostics and L1–L8 results/limits are available.
+- [ ] Review and approve the concrete remediation batches before production changes.
+- [ ] F01: release mission event subscriptions on unload and detect obsolete generations with the real EventManager.
+- [ ] F02/F03/F05: define coherent disable/stop/pause behavior, preserve live-unit ownership and add detecting regressions.
+- [ ] F04: enforce an aggregate pending-work budget before admission/repeat allocation.
+- [ ] F07: reject non-finite numeric preset fields atomically on both runtimes.
+- [ ] F06: recover current sizes after peer-specific Realms send rejection.
+- [ ] Close the two surviving mutation gaps (retired tuning hooks and unload resets).
+- [ ] Run the [live acceptance checklist](audits/2026-10-03/live-checklist.md), including verified installed revisions and eight hours / ten consecutive missions; obtain user in-game confirmation before merge.
+
+Audit work changed Markdown only. Proposed fixes keep public APIs/settings,
+protocol 2 and existing serialization unchanged. Later approved batches start
+from then-current `main`; installation, publication and merging remain separate.

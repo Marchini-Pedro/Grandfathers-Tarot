@@ -9,6 +9,7 @@ Things we know are missing or unverified, each with the next concrete step.
 
 | Gap | Next step | Since |
 |---|---|---|
+| Adversarial audit F01–F07 plus two surviving mutations | Review [report](audits/2026-10-03/report.md), then approved root-cause batches and detecting regressions; no implementation yet | 2026-10-03 |
 | Nothing of 2.0.0 (Spread HUD options, Deck look, card builder, custom mods) has been checked in a real two-player game | the user plays; matrix rows 91-96 in `06` | 2026-10-01 |
 | Per-unit **animation speed** of attacks ("Animation attack speed") | CLOSED 2026-10-02 as not possible cleanly: `/rw_anim` found no speed variable on three breeds and the engine's speed functions are for simple animations only (docs/03). Reopen only if someone finds a state-machine variable by another route | 2026-10-01 |
 | **Gunner fire rate and shots per burst do nothing** on riflemen and scab gunners (the user, 2026-10-02) | FIXED offline 2026-10-02 (the recompute hook never reached `MinionBuffExtension`; see section 2). Waiting for the in-game run of matrix row 103 (fire 25 / burst 500 under Havoc and without): the log line "started shooting" must read x0.325 / x0.25 and the shots must be multiplied | 2026-10-02 |
@@ -19,6 +20,15 @@ Things we know are missing or unverified, each with the next concrete step.
 | `CHANGELOG.md` is 86 KB (limit 100) | split into `docs/changelog/` per major version when it passes 100 KB (`check_docs.py` warns from 80) | 2026-10-01 |
 
 ## 2. Discoveries (things the source or the game taught us)
+
+- **2026-10-03, final audit review:** `/rw_status` rounds heap to whole MiB; converting the displayed MB value to KiB cannot reveal sub-MiB retention. Record source/precision and keep precise live collected floors pending without telemetry. SessionControl false returns are availability/encoding failures, not demonstrated packet-loss acknowledgements.
+- **2026-10-03, weak values do not release strong object keys:** actual EventManager holds each old mod key after unload. 100-generation fixture and unregister-only control demonstrate F01. Retiring callbacks suppresses behavior but does not remove their owner.
+- **2026-10-03, verify DMF contracts rather than old comments:** current loader restores original hooked functions at reload; the runtime comments saying hooks cannot be removed are historical assumptions. DMF does keep delivering update events to disabled mods, so an enabled gate/disable lifecycle is necessary (F02).
+- **2026-10-03, cancellation and teardown have different owners:** stop leaves enemies alive but uses full mission reset, discarding bypass/tuning state (F03). Pause freezes the director while Execute keeps repeating/feeding (F05). Test the real collaborator across the lifecycle boundary.
+- **2026-10-03, local bounds do not sum to a global budget:** 32 legal repeating timers yield 992,000 pending entries although each job holds at most 1,000. Teardown releases them; classify aggregate pressure separately from a lifetime leak (F04).
+- **2026-10-03, success is dependency-specific:** actual Realms broadcast returns true while logging a rejected peer. A stub returning false for the whole send cannot establish recipient recovery (F06).
+- **2026-10-03, both runtimes matter for validation:** LuaJIT parses `nan` in a correctly checksummed preset and retains it through rounding/clamping; Lua 5.5 refuses it. Explicit finite-value validation is needed before applying imported fields (F07).
+- **2026-10-03, passing counts do not measure test effectiveness:** five intended mutation detections and two survivors identify actual coverage strengths/gaps. An exception in harness setup is never counted as a detection. BetterInventory's selected lifecycle test uses source-string assertions, so its scenarios are useful without treating them as a measured soak.
 
 - **2026-10-01, a screen change that moves a shared button can put it on a button of the screen it returns to.** Back was at 125, 800 on every screen; the new Cauldron has a stepper there, and the picker's Back (which returns to it) would have clicked it in the same frame (1.6.1 again, with a stepper this time). Rule kept: Back sits in the same place on every screen of a card, and the editor test places Back against every widget of the destination. The preview tool and the test of overlaps between clickable widgets found this class of mistake before the game could.
 - **2026-10-01, a list that keeps its scroll offset across screens needs the offset reset or aimed.** The picker scrolled to 33; adding an enemy returned to the card with the same offset, which hid the card's groups once the card page had five rows instead of ten. The list now scrolls to the group that was added.
@@ -50,6 +60,10 @@ Things we know are missing or unverified, each with the next concrete step.
 - **2026-10-02, the log's numbers named the culprit**: speed 1.3 and 2.25x shots are exactly `havoc_ranged_attack_speed_05` (+0.3, x2.25). The user's own hint (a shooter that stims itself raises its volley) points at the same mechanism, a buff on the minion changing these stats. Not used as a feature (no new buffs), but our factor now stacks on top of any such buff.
 
 ## 3. Attempts and dead ends
+
+- **2026-10-03, audit scratch probes:** missing command stub, invalid tune id, wrong simulation helper, below-minimum fixed timer and replacing a captured RW table invalidated early probes; corrected only in `.git/audit/`. A sparse-array probe initially used an empty snapshot and was corrected before conclusions. Setup errors were excluded from finding/mutation evidence.
+- **2026-10-03, empty-standard allegation disproved:** forcing private `_parts = {}` restored defaults, but the real Remove callback refuses the last standard enemy group. Keep this as a rejected hypothesis, not a confirmed UI bug.
+- **2026-10-03, measurement controls:** initial preset heap growth included first-time settings and JIT traces. Warm repetitions and tracing-off controls showed a stable floor; they do not prove native/game memory stability. Proxy-font overflow markers remain live-check candidates. Windows Python has no tzdata here; Windows TimeZoneInfo verified the São Paulo date without a new dependency.
 
 - **2026-10-01, re-asserting stats from a 0.25 s timer** (first version of the custom mods): did not work for melee/fire rate/burst because of the per-frame recompute above. Replaced by the hook; the timer stays as a fallback only.
 - **2026-10-01, one global animation speed** was considered and rejected: the engine's world time scale is global (every unit and the players), not per unit.

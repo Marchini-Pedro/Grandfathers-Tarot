@@ -16,6 +16,11 @@ The runtime version remains `2.0.0`. Workshop build logs use the historical
 `2.1.0` milestone label; no new release or version bump accompanied recovery.
 The last tagged release is `v1.13.0`.
 
+The [2026-10-03 adversarial audit](audits/2026-10-03/report.md) is now
+complete offline: seven reproduced findings, a test/mutation map, measured
+Lua lifecycle workloads and an exact live checklist. Runtime fixes await the
+agreed report review; live acceptance remains pending.
+
 ## References
 
 | Document | Purpose |
@@ -26,6 +31,7 @@ The last tagged release is `v1.13.0`.
 | [Learnings and gaps](07-learnings-and-gaps.md) | Discoveries, failed approaches and actionable gaps |
 | [Workshop redesign](08-workshop-redesign.md) | Cauldron/Mirror design and build log |
 | [Recovery review](09-recovery-review.md) | Recovered history, fixes, validation and remaining limits |
+| [Executed audit](audits/2026-10-03/report.md) | Baseline, ranked findings, reproductions, inventory, measurements and live acceptance |
 | [Adversarial audit prompt](audits/adversarial-audit-prompt.md) | Reusable audit-only brief: risk-based tests, lifecycle/scaling stress, measurements and evidence requirements; not an executed audit |
 | [Changelog](CHANGELOG.md) | Change history; [1.x archive](changelog/1.x.md) |
 | [TwitchVersus findings](01-findings-twitchversus.md) | Historical TwitchVersus and VersusMode audit |
@@ -57,8 +63,9 @@ They are not a list of currently installed or verified versions on every machine
 | Darktide source | `0f0cb45991e9305ef4a7b925370792d7d6035f95` (1.12.5); relevant hooks/calls re-checked at `419fe18d4` (1.13.0, 2026-09-29) |
 
 Eduardo's installed Realms metadata reports `1.0.0` as of 2026-10-03; it differs
-from the original audit snapshot. Recovery does not constitute a fresh audit of
-that release. Re-check relevant contracts when an implementation depends on them.
+from the original audit snapshot. The dated adversarial report re-checks the installed network routing, dispatch
+and delivery contracts against matching author source. It does not audit the
+whole release or its native DLLs.
 
 Historical mod paths are relative to `Content/mods/`; game paths marked `S/`
 are relative to `Content/Darktide-Source-Code/scripts/`. References to the

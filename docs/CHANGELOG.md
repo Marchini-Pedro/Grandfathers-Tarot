@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-03 - Execute the offline adversarial audit (documentation only)
+- Record the frozen baseline, complete 29-file/descriptor inventory, risk-to-test map, five detected mutations and two survivors, L1–L8 results/limits, measurements and real-widget previews.
+- Report seven reproduced lifecycle, control, aggregate-pressure, delivery and numeric-import defects; preserve runnable isolated diagnostics in Markdown and an exact native/multiplayer/eight-hour acceptance checklist.
+- Update current guidance, plan, verification, learnings and source/recovery notes. Runtime, tracked tests, configuration, interfaces and read-only references remain unchanged; fixes await the agreed review gate.
+- Final review corrects descriptor line count and live heap precision, and clarifies the injected rejection/native-delivery distinction. Subsequent authorization starts a separate remediation branch; this report preserves the pre-fix baseline.
+
 ## 2026-10-03 - Prepare an adversarial audit brief
 - Add an audit-only prompt covering meaningful test adequacy, repeated UI/reload/preset/mission lifecycles, wave-count scaling, Lua/native/process memory, Realms authority and asynchronous ordering, UI/coherence and selective BetterInventory reuse.
 - Require reproducible baselines, primary-source checks, fault-injection evidence, honest offline/live limits and ranked proposed fixes. Link the brief from the documentation index and CLAUDE.md; the audit has not been executed.
