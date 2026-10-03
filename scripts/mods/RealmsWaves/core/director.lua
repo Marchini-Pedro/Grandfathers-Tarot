@@ -152,23 +152,34 @@ Director.send_waves = function ()
 	local text = Presets.encode(preset)
 	local limit = Protocol.MAX_WAVES_TEXT or 90000
 
-	-- A hundred big cards may not fit in one message (the limit is Realms'): the first cards that fit are sent, and it is said once.
-	if #text > limit and #preset.waves > 1 then
-		local all, total = preset.waves, #preset.waves
-		local count = total
+	local function fits(value)
+		return #value <= limit and (not Protocol.waves_text_fits or Protocol.waves_text_fits(value))
+	end
 
-		for _ = 1, 8 do
-			count = math.max(1, math.min(count - 1, math.floor(count * limit / #text * 0.95)))
+	-- Find the largest prefix that fits after JSON escaping. Zero cards clears a previously shared pool.
+	if not fits(text) then
+		local all, total = preset.waves, #preset.waves
+		local count, low, high = 0, 0, total - 1
+		local function prefix(n)
 			preset.waves = {}
 
-			for i = 1, count do
+			for i = 1, n do
 				preset.waves[i] = all[i]
 			end
 
-			text = Presets.encode(preset)
+			return Presets.encode(preset)
+		end
 
-			if #text <= limit or count == 1 then
-				break
+		text = prefix(0)
+
+		while low <= high do
+			local middle = math.floor((low + high) / 2)
+			local candidate = prefix(middle)
+
+			if fits(candidate) then
+				count, text, low = middle, candidate, middle + 1
+			else
+				high = middle - 1
 			end
 		end
 
@@ -944,6 +955,7 @@ Director.stop = function ()
 	end
 
 	stopped, paused = true, false
+	last_card = nil
 	timers, timer_check = {}, 0
 	Execute.cancel()
 	Votes.close()
@@ -1160,7 +1172,7 @@ Director.on_state = function (sender, s)
 	-- the last fulfilled card: the same card as in the previous message keeps its table (the HUD window compares it), a new one is decoded
 	local last
 
-	if type(s.lc) == "table" then
+	if s.p ~= "off" and type(s.lc) == "table" then
 		local seq = tonumber(s.ls) or 0
 		local previous = client_state and client_state.last
 

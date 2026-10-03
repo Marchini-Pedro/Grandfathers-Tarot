@@ -1002,10 +1002,13 @@ do
   current_view = { phase = "off", last = nil, last_seq = 0, last_age = 0 }
   last_frame(el)
   check("last card: out of a mission the window is gone", w.visible == false)
+  current_view = last_view(tower, 7, 1)
+  last_frame(el)
   local errors_before = #errors_logged
   current_view = last_view({ name = "Broken", suit = "rage", threat = 2, breeds = 5, whisper = "x" }, 8, 1)
   last_frame(el); last_frame(el); last_frame(el)
   check("last card: a card that cannot be drawn is reported once (not every frame)", #errors_logged == errors_before + 1, #errors_logged - errors_before)
+  check("last card: refresh errors hide the partially painted widget", not w.visible and not el._visible)
   while #errors_logged > errors_before do table.remove(errors_logged) end -- (the deliberate error is not the guarded refresh's: the last check of this file stays strict)
   current_view = last_view(tower, 9, 1)
   last_frame(el)

@@ -31,6 +31,7 @@ random selection and player voting. No Twitch service is required.
   with a preview of its appearance in the hand.
 - **Last card window:** a HUD window with the card whose wave went out last and how long
   ago, the same on every player's screen (option "Last card", movable with Custom HUD).
+  Stopping the cycle clears the window on host and clients.
 - **Wave controls:** weights, spawn distances, spread, repeating groups, fixed
   timers, enemy-type multipliers and optional pooling of players' waves.
 - **Host controls:** pause, stop, resume or advance the cycle; configurable
@@ -87,6 +88,9 @@ and Improved Havoc Tags supply enemy/modifier colours when installed.
   and repeat ticks. Imports reject non-finite numeric fields. Size updates retry
   rejected peers with current living-unit values. All fixes await game acceptance.
 
+- Pooled decks send the first enabled cards that fit Realms' encoded message
+  limit and warn once when cards are omitted; if no card fits, the shared pool
+  is cleared. Local decks still hold up to 100 cards.
 - The recovered workshop, drag interactions and multiplayer changes have
   offline coverage; actual game rendering, frame time and process RAM remain
   unmeasured. Start with moderate enemy counts and restart for clean testing.

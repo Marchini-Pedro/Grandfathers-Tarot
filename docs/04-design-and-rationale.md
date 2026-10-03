@@ -2,6 +2,17 @@
 
 Written 2026-09-28. Findings backing each claim are in docs 01-03.
 
+## Heresy branch continuation (2026-10-03)
+
+The last-card state is cleared before stop is broadcast; off snapshots cannot
+retain a last card. Pooled presets must fit both the 90,000-byte raw bound and
+Realms' encoded 96 KiB envelope, including JSON escaping. Reserve 1 KiB for
+the envelope and select the largest fitting prefix in at most seven probes
+for 100 cards; an empty preset clears old pools when no card fits. Health
+synchronization commits locally after the native write succeeds. Facing and
+spawning share one protected call so the bypass is always released.
+See the [continuation review](audits/2026-10-03/heresy-review.md).
+
 ## Enemy colour experiments (2026-10-03)
 
 The [appearance implementation](enemy-appearance.md) adds per-group ARGB sliders

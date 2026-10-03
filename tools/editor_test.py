@@ -263,8 +263,8 @@ do
   lines = DM.comp_lines(many, fake_groups, nil, nil, nil, nil, function(n) return "+" .. n .. " more" end)
   check("comp lines: more than four groups: three lines and '+3 more'", #lines == 4 and lines[4] == "+3 more" and lines[1] == "1 Hound", table.concat(lines, "|"))
   local l1, l2, l3 = DM.layout(1), DM.layout(2), DM.layout(3)
-  check("deck math: layout: a one line name leaves room for four lines of enemies, two lines three, three lines two (the cooldown row took one); the divider follows the name", l1.divider_y == 64 and l1.comp_y == 71 and l1.comp_lines == 4 and l1.comp_h == 68 and l2.divider_y == 88 and l2.comp_y == 95 and l2.comp_lines == 3 and l2.comp_h == 51 and l3.divider_y == 112 and l3.comp_lines == 2 and DM.layout(0).comp_lines == 4 and DM.layout(9).comp_lines == 2 and DM.layout(nil).comp_lines == 4)
-  check("deck math: layout: the composition ends at the modifier line (146; a three line name keeps two lines and may reach 7 units into it, the glyphs stay clear) and the divider is clear of the name", l1.comp_y + l1.comp_h <= DM.COMP_BOTTOM and l2.comp_y + l2.comp_h <= DM.COMP_BOTTOM and l3.comp_y + l3.comp_h <= DM.COMP_BOTTOM + 7 and l1.divider_y >= DM.NAME_Y + DM.NAME_LINE and l2.divider_y >= DM.NAME_Y + 2 * DM.NAME_LINE)
+  check("deck math: layout: a one line name leaves room for four lines of enemies, two lines three, three lines one (the cooldown row took one); the divider follows the name", l1.divider_y == 64 and l1.comp_y == 71 and l1.comp_lines == 4 and l1.comp_h == 68 and l2.divider_y == 88 and l2.comp_y == 95 and l2.comp_lines == 3 and l2.comp_h == 51 and l3.divider_y == 112 and l3.comp_lines == 1 and DM.layout(0).comp_lines == 4 and DM.layout(9).comp_lines == 1 and DM.layout(nil).comp_lines == 4)
+  check("deck math: layout: the composition ends at the modifier line (146), including with a three-line name and the divider is clear of the name", l1.comp_y + l1.comp_h <= DM.COMP_BOTTOM and l2.comp_y + l2.comp_h <= DM.COMP_BOTTOM and l3.comp_y + l3.comp_h <= DM.COMP_BOTTOM and l1.divider_y >= DM.NAME_Y + DM.NAME_LINE and l2.divider_y >= DM.NAME_Y + 2 * DM.NAME_LINE)
   local more5 = {}
   for i = 1, 6 do more5[i] = { breed = "chaos_hound", count = i } end
   lines = DM.comp_lines(more5, fake_groups, nil, nil, nil, nil, function(n) return "+" .. n .. " more" end, 5)
@@ -481,6 +481,13 @@ do
   settings.cd_wave_small = 30; reload()
   tile(1).content.hotspot_cd_minus.is_hover = true; upd()
   check("cooldown: at the limit nothing is previewed (the minus at 30 s shows 0:30 and does not light)", tile(1).content.cd_value == "0:30" and tile(1).content.fx.cd_hover == 0)
+  do
+    local original, repaints = view._paint_cooldown, 0
+    view._paint_cooldown = function(self, ...) repaints = repaints + 1; return original(self, ...) end
+    for _ = 1, 100 do upd() end
+    view._paint_cooldown = original
+    check("cooldown: stationary hover at the minimum does not repaint every frame", repaints == 0, repaints)
+  end
   tile(1).content.hotspot_cd_minus.is_hover = false; upd()
   settings.cd_wave_small = nil; reload()
 
@@ -666,7 +673,7 @@ do
   check("name lines: with a renderer the game's measuring decides: The Fool (8 letters) one line, The Pilgrims (12) two lines, a long name three at most", tile(1).style.divider.offset[2] == 64 and tile(2).style.divider.offset[2] == 88 and tile(2).style.comp.size[2] == 51 and tile(5).style.divider.offset[2] == 88, tostring(tile(2).style.divider.offset[2]))
   settings.wave_def_custom_1 = "A Name That Is Very Long Indeed\t3 hounds"; settings.on_custom_1 = true
   reload()
-  check("name lines: three lines at most, the composition keeps two lines of room", tile(13).style.divider.offset[2] == 112 and tile(13).style.comp.size[2] == 34, tostring(tile(13).style.divider.offset[2]))
+  check("name lines: three lines at most, the composition keeps one line clear of modifiers", tile(13).style.divider.offset[2] == 112 and tile(13).style.comp.size[2] == 17, tostring(tile(13).style.divider.offset[2]))
   view._ui_renderer = { fail = true }
   reload()
   check("name lines: when measuring fails the estimate is used (The Fool 1 line, the 31 letter name 2 lines)", tile(1).style.divider.offset[2] == 64 and tile(13).style.divider.offset[2] == 88, tostring(tile(13).style.divider.offset[2]))

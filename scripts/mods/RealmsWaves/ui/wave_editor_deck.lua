@@ -323,6 +323,11 @@ DeckView.install = function (View, h)
 		local at_min, at_max = fx.cooldown <= Deck.COOLDOWN_STEP, fx.cooldown >= longest
 
 		hover = hover or 0
+		fx.cd_pointer = hover
+
+		if timed then
+			hover = 0
+		end
 
 		if (hover < 0 and at_min) or (hover > 0 and at_max) then
 			hover = 0
@@ -851,7 +856,7 @@ DeckView.install = function (View, h)
 				local cd_dir = content.hotspot_cd_minus.is_hover and -1 or content.hotspot_cd_plus.is_hover and 1 or 0
 				local fx = content.fx
 
-				if fx and (fx.cd_hover or 0) ~= cd_dir then
+				if fx and (fx.cd_pointer or 0) ~= cd_dir then
 					self:_paint_cooldown(widget, cd_dir)
 				end
 

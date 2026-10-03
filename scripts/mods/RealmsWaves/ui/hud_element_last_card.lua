@@ -353,7 +353,7 @@ HudElementRealmsWavesLast.update = function (self, dt, t, ui_renderer, render_se
 	local ok, err = pcall(self._refresh, self)
 
 	if not ok then
-		self._card, self._seq = nil, nil
+		self:_hide()
 
 		if not self._reported then
 			self._reported = true

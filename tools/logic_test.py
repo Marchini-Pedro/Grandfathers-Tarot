@@ -592,6 +592,17 @@ do
   for i = #sent, 1, -1 do if sent[i].state and sent[i].state.lc then state = sent[i].state break end end
   check("sync: the state carries the last card (name, suit, a number, its age in played seconds)", state ~= nil and state.lc.n == Director.view().last.name and state.lc.s == "swarm" and state.ls == seq and type(state.la) == "number" and state.la >= 2, state and tostring(state.la))
   local wire = { lc = state.lc, la = state.la, ls = state.ls }
+  -- stop while the last card is visible; deliver the final snapshot to a client
+  check("last card: the host stops and hides its card", Director.stop() == true and Director.view().last == nil)
+  local stopped_wire = sent[#sent].state
+  is_server = false
+  Director.on_state("host_peer", stopped_wire)
+  check("last card: the client also hides the last card after the host stops", Director.view().last == nil)
+  stopped_wire.lc, stopped_wire.la, stopped_wire.ls = wire.lc, wire.la, wire.ls
+  Director.on_state("host_peer", stopped_wire)
+  check("last card: off snapshots from older hosts cannot retain a last card", Director.view().last == nil)
+  is_server = true
+
   is_server = false
   Director.on_exit_gameplay(); Director.on_enter_gameplay()
   Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 50.0, b = 1, k = {}, z = 0, lc = wire.lc, la = wire.la, ls = wire.ls })
@@ -663,12 +674,26 @@ do
   Director.send_waves(); Director.send_waves()
   local said = 0; for i = echo_mark + 1, #echoes do if echoes[i]:find("enabled cards fit in one message", 1, true) then said = said + 1 end end
   check("cards: ...and it is said once, not at every send", said == 1, said)
-  Protocol.MAX_WAVES_TEXT = 300
+  Protocol.MAX_WAVES_TEXT = 50
   sent.waves = nil
   Director.send_waves()
   local one = sent.waves and Presets.decode(sent.waves, Events, Groups)
-  check("cards: a limit so small that not even one card fits still ends the trimming at one card (the protocol then refuses the oversized text), no endless loop", one ~= nil and #one.waves == 1 and one.waves[1].key == "wave_small", one and #one.waves)
+  check("cards: if no card fits, send an empty valid deck to clear the host's previous pool", one ~= nil and #one.waves == 0 and #sent.waves <= 50, one and #one.waves)
   Protocol.MAX_WAVES_TEXT = saved_limit
+  do
+    local saved_fits = Protocol.waves_text_fits
+    Protocol.waves_text_fits = function(text)
+      local escaped = text:gsub('["\\]', 'XX')
+      return #text <= (Protocol.MAX_WAVES_TEXT or 90000) and #escaped + 2 <= 96 * 1024 - 1024
+    end
+    for _, k in ipairs(keys) do settings["wave_def_" .. k] = string.rep('"', 750) .. "\t" .. big; settings["on_" .. k] = true end
+    local full_text = Presets.encode(Presets.enabled_waves(get, Events, Groups))
+    local sent_ok = Director.send_waves()
+    local escaped_deck = sent.waves and Presets.decode(sent.waves, Events, Groups)
+    check("cards: quote-heavy decks fit after transport escaping, not just as raw text", sent_ok and Protocol.waves_text_fits(sent.waves) and escaped_deck ~= nil and #escaped_deck.waves > 0 and #escaped_deck.waves < 100 and not Protocol.waves_text_fits(full_text))
+    Protocol.waves_text_fits = saved_fits
+    for _, k in ipairs(keys) do if not k:find("^custom_") then settings["wave_def_" .. k] = nil end end
+  end
 
   -- the host takes up to 100 cards of one player
   is_server = true

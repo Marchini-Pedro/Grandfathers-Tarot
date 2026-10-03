@@ -222,13 +222,12 @@ Deck.COMP_CHARS = 26 -- visible characters of a composition line
 Deck.NAME_Y, Deck.NAME_LINE = 38, 24
 Deck.COMP_LINE, Deck.COMP_BOTTOM = 17, 146 -- (164 before the cooldown row came in: the composition gives up one line for it)
 
--- { divider_y, comp_y, comp_lines, comp_h } of a tile whose name takes `name_lines` lines: 4, 3 or 2 composition lines
+-- { divider_y, comp_y, comp_lines, comp_h } of a tile whose name takes `name_lines` lines: 4, 3 or 1 composition lines
 Deck.layout = function (name_lines)
 	local lines = max(1, min(3, floor(tonumber(name_lines) or 1)))
 	local divider = Deck.NAME_Y + lines * Deck.NAME_LINE + 2
 	local comp_y = divider + 7
-	-- (a three line name keeps two lines of room even though the second one reaches into the modifier line a little)
-	local comp_lines = max(2, floor((Deck.COMP_BOTTOM - comp_y) / Deck.COMP_LINE))
+	local comp_lines = max(1, floor((Deck.COMP_BOTTOM - comp_y) / Deck.COMP_LINE))
 
 	return { divider_y = divider, comp_y = comp_y, comp_lines = comp_lines, comp_h = comp_lines * Deck.COMP_LINE }
 end

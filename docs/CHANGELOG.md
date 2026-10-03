@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-03 - Repair pooled decks and last-card/UI lifecycle
+- Count JSON escaping against Realms' 96 KiB envelope, keep 1 KiB of envelope headroom, and send the largest fitting prefix of enabled cards. An unshareable first card sends an empty sealed preset to clear stale host pools.
+- Stop clears the last card on host and clients, including old off snapshots carrying `lc`. Failed HUD refresh hides partial content and recovers on the next good card.
+- Three-line tile names get one composition line before modifiers; one/two-line names keep four/three. Cache pointer direction separately from clamped cooldown previews: a stationary limit hover repaints zero times over 100 frames instead of 100.
+- [Branch review](audits/2026-10-03/heresy-review.md) records eight confirmed findings, reproductions, strengthened fixtures, sixteen detected reverse mutations and native acceptance limits. No installed mod changes.
+
 ## 2026-10-03 - Correct exact health and contain vanished spawn targets
 - Match the game's nil weakened flag for initially normal bosses and refresh it after exact custom health. Commit local health only after the replicated field write succeeds.
 - Protect facing evaluation and the native spawn together so target destruction cannot leave the budget bypass active. Realistic nil/native-failure fixtures reproduce these defects; focused checks and all eight reverse mutations detect the intended behavior failures on both VMs. Offline only.
