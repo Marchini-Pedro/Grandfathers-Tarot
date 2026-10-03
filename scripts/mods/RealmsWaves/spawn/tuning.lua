@@ -215,7 +215,7 @@ end
 -- Applies the custom mods `tune` ({ speed = 120, ... }, percent) to a unit that has just spawned. Every step is guarded:
 -- a step that fails is logged once and never breaks the wave or the other steps.
 Tuning.apply = function (unit, tune, breed_name)
-	if not unit or not tune then
+	if Tuning.dead or not unit or not tune then
 		return
 	end
 
@@ -544,6 +544,8 @@ Tuning.install = function ()
 
 	if mod.hook_require then
 		mod:hook_require("scripts/utilities/minion_attack", function (MinionAttack)
+			if Tuning.dead then return end
+
 			mod:hook_safe(MinionAttack, "start_shooting", function (...)
 				Tuning.on_start_shooting(...)
 			end)
@@ -614,7 +616,7 @@ end
 
 Tuning.retire = function ()
 	Tuning.dead = true
-	tuned_by_extension = {}
+	Tuning.reset()
 end
 
 -- A stat of a tuned unit that the buff system has rewritten since we wrote it gets our factor on top again
@@ -681,6 +683,8 @@ end
 
 -- Host, every frame (cheap: two counters until something is due).
 Tuning.update = function (dt)
+	if Tuning.dead then return end
+
 	timer = timer + dt
 	send_timer = send_timer + dt
 
@@ -726,6 +730,8 @@ end
 
 -- Host: a player joined late; tell it the size of every living unit that has one.
 Tuning.send_all = function (peer_id)
+	if Tuning.dead then return end
+
 	local list = {}
 
 	for id, entry in pairs(scaled) do
@@ -737,13 +743,20 @@ Tuning.send_all = function (peer_id)
 	local sent, err = send_batches(list, peer_id)
 
 	if not sent and err ~= "target_rpc_unsupported" then
-		for i = 1, #list do queue_size(list[i][1], list[i][2]) end
+		for i = 1, #list do
+			local id = list[i][1]
+			local entry = scaled[id]
+
+			if entry and alive(entry.unit) then queue_size(id, entry.pct) end
+		end
 	end
 end
 
 -- ----------------------------------------------------------------------------------------- the clients
 -- `entries` = { { id = network id, pct = percent }, ... }, already validated by the protocol.
 Tuning.receive = function (entries)
+	if Tuning.dead then return end
+
 	for i = 1, #(entries or {}) do
 		local entry = entries[i]
 		local pending = inbox_by_id[entry.id]
@@ -760,7 +773,7 @@ end
 
 -- A client, every frame: puts the sizes on the units that have arrived here by now.
 Tuning.update_client = function (dt)
-	if #inbox == 0 then
+	if Tuning.dead or #inbox == 0 then
 		return
 	end
 

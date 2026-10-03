@@ -1027,17 +1027,19 @@ Director.on_welcome = function (sender, proto, version_text, ok)
 end
 
 Director.on_state = function (sender, s)
-	if Director.is_host() or client_disabled then
+	if type(s) ~= "table" or Director.is_host() or client_disabled then
 		return
 	end
 
 	local cands = {}
 
 	if type(s.k) == "table" then
-		for i = 1, #s.k do
+		for i = 1, math.min(#s.k, HAND_MAX) do
 			local item = s.k[i]
 
-			cands[i] = { key = tostring(item.k), name = tostring(item.n), pct = tonumber(item.p) or 0, votes = tonumber(item.v) or 0 }
+			if type(item) == "table" then
+				cands[#cands + 1] = { key = tostring(item.k), name = tostring(item.n), pct = tonumber(item.p) or 0, votes = tonumber(item.v) or 0 }
+			end
 		end
 	end
 

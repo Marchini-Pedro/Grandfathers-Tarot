@@ -15,7 +15,7 @@ kept separately under `.git/audit/2026-10-03-remediation/`.
 | 3 | F04 aggregate admission/repeat budget | Implemented; offline checks pass |
 | 4 | F07 finite numeric imports | Implemented; offline checks pass |
 | 5 | F06 recipient-aware size recovery | Implemented; offline and primary-contract checks pass |
-| 6 | Surviving retired-tuning/unload-reset mutations and final review | Pending |
+| 6 | Surviving retired-tuning/unload-reset mutations and final review | Implemented; all selected mutations detected on both runtimes |
 
 Batch 1 unregisters both mission events using the stored original manager,
 clears that reference, and protects captured objective/death/update callbacks.
@@ -37,7 +37,7 @@ explicitly use `/rw_start`; clients clear stale presentation/inbox and handshake
 The real entry fixture checks a 200-second pause, exact resume tick, live stat
 recompute, combined alive cap, disable/enable and pending-work unload. All six
 checks pass on both runtimes: entry 35, total 1,672 assertions each. This also
-closes the unload-reset mutation gap; retired-tuning coverage is still pending.
+closes the unload-reset mutation gap; batch 6 closes retired-tuning coverage.
 
 Batch 3 sets fixed internal limits of 64 jobs / 8,000 pending entries. Full
 admission rejects the whole wave before expanding it; repeat-only jobs consume
@@ -72,3 +72,39 @@ which is harmless for absolute-size updates. Raw integration results are
 `lua55_contract.json` / `luajit21_contract.json` in the separate remediation
 scratch directory. Native packet-loss acknowledgements, transport ordering and
 live overhead are still unverified.
+
+Batch 6 releases every tuning owner/queue and protocol handler/peer reference,
+blocks captured entry points and delayed hook registration, and rejects work
+from a retired executor. Gameplay entry attaches an event manager that appeared
+late or safely replaces the original owner. A failed snapshot returning after
+synchronous retirement cannot recreate outgoing work. Client state skips
+malformed candidate entries and caps iteration at the existing five-card bound.
+Additional aggregate tests reject a 500-entry initial batch with only 300 slots
+free, then clip a repeat to exactly 8,000. Unload clears pending jobs and units.
+
+Final required checks pass on Lua 5.5 and LuaJIT 2.1: 30 compilation inputs;
+828 logic, 694 editor, 45 entry and 179 HUD assertions (**1,746 each**).
+All seven original mutations now fail intended assertions, including both
+former survivors; ten additional mutations detect the new behavior. No harness
+error or unrelated failure is counted. The
+[validation companion](remediation-validation.md) preserves exact scripts,
+commands, mutation assertions and five-sample timing/heap measurements.
+
+The supported-max 32-timer workload finishes at 16 jobs / 8,000 entries in all
+20 samples (five per runtime/mode), then resets to zero. Tracing-off collected
+heap returns near its warm baseline. Normal-JIT residual heap includes compiler
+state. These are synthetic Lua costs; no game frame-time or process-memory
+improvement is claimed. The original L1–L8 audit evidence remains archived at
+its baseline rather than being overwritten with post-fix results.
+
+Final scope verification allows exactly seven affected Lua modules and two
+tracked test harnesses. Descriptor/options/serialization definitions, remaining
+runtime/tests, load order, saved configuration, installed mods and read-only
+source repositories retain their baseline hashes/revisions/state. Documentation
+links, embedded scripts and size checks pass. The unrelated enemy-appearance
+research prompt remains outside these commits.
+
+All confirmed audit fixes and both coverage gaps are complete within the
+offline envelope. Live installation, host/client and mixed-mod sessions, native
+input/rendering, tuned enemies and eight hours / ten consecutive missions still
+require the [live checklist](live-checklist.md) and user confirmation before merge.

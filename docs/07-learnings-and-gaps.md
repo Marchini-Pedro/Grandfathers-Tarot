@@ -9,7 +9,7 @@ Things we know are missing or unverified, each with the next concrete step.
 
 | Gap | Next step | Since |
 |---|---|---|
-| Adversarial audit F01–F07 plus two surviving mutations | Review [report](audits/2026-10-03/report.md), then approved root-cause batches and detecting regressions; no implementation yet | 2026-10-03 |
+| Adversarial audit F01–F07 plus two surviving mutations | Fixed and detected offline in six approved [remediation batches](audits/2026-10-03/remediation.md); native/multiplayer/eight-hour acceptance remains open | 2026-10-03 |
 | Nothing of 2.0.0 (Spread HUD options, Deck look, card builder, custom mods) has been checked in a real two-player game | the user plays; matrix rows 91-96 in `06` | 2026-10-01 |
 | Per-unit **animation speed** of attacks ("Animation attack speed") | CLOSED 2026-10-02 as not possible cleanly: `/rw_anim` found no speed variable on three breeds and the engine's speed functions are for simple animations only (docs/03). Reopen only if someone finds a state-machine variable by another route | 2026-10-01 |
 | **Gunner fire rate and shots per burst do nothing** on riflemen and scab gunners (the user, 2026-10-02) | FIXED offline 2026-10-02 (the recompute hook never reached `MinionBuffExtension`; see section 2). Waiting for the in-game run of matrix row 103 (fire 25 / burst 500 under Havoc and without): the log line "started shooting" must read x0.325 / x0.25 and the shots must be multiplied | 2026-10-02 |
@@ -20,6 +20,10 @@ Things we know are missing or unverified, each with the next concrete step.
 | `CHANGELOG.md` is 86 KB (limit 100) | split into `docs/changelog/` per major version when it passes 100 KB (`check_docs.py` warns from 80) | 2026-10-01 |
 
 ## 2. Discoveries (things the source or the game taught us)
+
+- **2026-10-03, final retirement review:** clearing the extension index alone leaves unit/scale/inbox/outbox owners alive. Retirement now resets all records and guards apply/receive/update/snapshot paths, delayed hook registration and captured protocol callbacks. A snapshot failure that returns after synchronous teardown must consult current live records before requeueing. Actual installed DMF `dmf_mod_manager.lua:45` creates a fresh `DMFMod` per load; the owner fixture's distinct generations match that contract.
+- **2026-10-03, missing-manager recovery and state validation:** defer event registration until a manager exists and retry on gameplay entry, releasing any replaced owner. A host-authenticated state with `k={false}` previously raised; skip malformed entries and cap work to the existing five-card bound. These guards keep the existing protocol.
+- **2026-10-03, remediation evidence:** all seven original mutations now fail behavioral assertions, closing both survivors; ten additional mutations detect the approved fixes and synchronous-send regressions. Five supported-max repetitions per VM/mode remain at 16 jobs / 8,000 entries; tracing-off collected heaps return near baseline after reset. Normal-JIT heaps include compiler state and native/process costs remain unmeasured.
 
 - **2026-10-03, F06 remediation:** Realms direct sends expose recipient failures, so fan out at the existing adapter and reuse current-size retry rather than adding per-peer schedulers. Successful peers may receive idempotent duplicates. Coalesce ids before admission and detach the outbox before sending so synchronous callbacks cannot lose new sizes. Refresh Realms peer replay after enable to remove missed disconnects and stale capability skips.
 
@@ -70,6 +74,11 @@ Things we know are missing or unverified, each with the next concrete step.
 - **2026-10-02, the log's numbers named the culprit**: speed 1.3 and 2.25x shots are exactly `havoc_ranged_attack_speed_05` (+0.3, x2.25). The user's own hint (a shooter that stims itself raises its volley) points at the same mechanism, a buff on the minion changing these stats. Not used as a feature (no new buffs), but our factor now stacks on top of any such buff.
 
 ## 3. Attempts and dead ends
+
+- **2026-10-03, snapshot retirement mutation:** the first new regression lacked the fixture's `gid` and still used a client-only spawner, so it never sent a snapshot. Restore the host id lookup, assert populated ownership before retirement and exactly one snapshot send alongside empty final ownership. The corrected unmutated check must pass before crediting any intended mutant failure. No setup/vacuous result receives credit.
+
+- **2026-10-03, randomized spread assertion:** one queue-cap mutant also produced 499 visibly moved points out of 500, a valid near-origin sample under uniform radial sampling. Require at least 490 visibly moved points while retaining every navmesh/radius check and the distribution assertion. This collateral sampling failure received no mutation-detection credit; only intended queue assertions count.
+- **2026-10-03, final read checks:** guessed documentation/DMF paths were absent; located the real names with `rg --files`. Disabling Git newline normalization made a review diff display unchanged CRLF lines; reviewed with normal repository settings. Neither attempt modified references. The new missing-manager fixture was split into initialization/unload and subsequent gameplay-entry cases before final verification. The staged whitespace check caught an extra EOF blank line in the generated validation companion; trim the generator output before staging.
 
 - **2026-10-03, F06 warning assertion:** the old warning-count check counted the whole harness history, including the new independent rejection fixture. Scope the count to its own failure experiment; retain the assertion of one warning despite repeated updates.
 

@@ -21,10 +21,8 @@ local tracked_count = 0
 
 Bypass.spawning = false
 
--- DMF hooks cannot be removed, so after a mod reload the OLD module instance's hooks stay
--- in the chain (each reload adds a set). `retire()` (called from mod.on_unload) turns this
--- instance's hooks into pass-throughs and drops its references, so stale hooks do nothing
--- and do not keep counting.
+-- DMF removes hooks on reload. Retirement also makes already captured callbacks
+-- pass through and releases their unit ownership.
 Bypass.dead = false
 
 Bypass.retire = function ()

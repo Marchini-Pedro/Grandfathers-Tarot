@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Close retirement coverage and complete remediation review
+- Release all tuning/protocol owners and guard captured callbacks, delayed hook registration and executors; retry missing/replaced event managers on gameplay entry.
+- Preserve current live records when a failed snapshot returns after synchronous teardown. Skip malformed host candidate entries within the existing five-card bound.
+- Add partial-budget and retirement regressions; all six checks pass on both runtimes (1,746 assertions each). All 17 selected mutations fail intended behavioral assertions; supported-max work stays bounded in five repetitions per runtime/mode. Saved data and read-only references remain unchanged; native acceptance is pending.
+
 ## 2026-10-03 - Recover recipient-specific size failures (F06)
 - Fan out sizes through direct Realms sends with a bounded peer registry, propagate failures into current-size retry, skip unsupported RPCs and refresh peers after enable.
 - Coalesce failed late-join snapshots and protect new updates during synchronous sends. Actual installed ModNetwork plus real Protocol/Tuning reproduces rejection/recovery on both runtimes.

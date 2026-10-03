@@ -154,9 +154,11 @@ See `04-design-and-rationale.md`.
 - [x] F04: cap aggregate work at 64 jobs / 8,000 entries; refuse full admissions before allocation and skip/clip repeat ticks to available room. Supported-max regression passes.
 - [x] F07: reject non-finite numeric preset/card fields atomically on both runtimes; preserve finite clamps and legacy optional threat.
 - [x] F06: expose direct-send peer failures to the existing bounded current-size retry; coalesce failed late-join snapshots and preserve reentrant updates. Actual Realms contract fixture passes.
-- [ ] Close the two surviving mutation gaps (retired tuning hooks and unload resets).
+- [x] Close the two surviving mutation gaps (retired tuning hooks and unload resets); add retirement/reentrancy, late-manager and partial aggregate-room regressions. All 17 selected mutations fail their intended assertions on both runtimes.
 - [ ] Run the [live acceptance checklist](audits/2026-10-03/live-checklist.md), including verified installed revisions and eight hours / ten consecutive missions; obtain user in-game confirmation before merge.
 
-Audit work changed Markdown only. Proposed fixes keep public APIs/settings,
-protocol 2 and existing serialization unchanged. Later approved batches start
-from then-current `main`; installation, publication and merging remain separate.
+The audit stage changed Markdown only. Approved fixes are implemented in six
+batches on `feature/audit-remediation`, created from current `main` at `3e6be46`.
+Public APIs/settings, protocol 2 and serialization remain compatible. See the
+[remediation results](audits/2026-10-03/remediation.md) and reproducible validation.
+Installation, publication and merging remain separate; game confirmation is pending.

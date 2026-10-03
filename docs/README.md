@@ -33,6 +33,7 @@ remains pending.
 | [Workshop redesign](08-workshop-redesign.md) | Cauldron/Mirror design and build log |
 | [Recovery review](09-recovery-review.md) | Recovered history, fixes, validation and remaining limits |
 | [Executed audit](audits/2026-10-03/report.md) | Baseline, ranked findings, reproductions, inventory, measurements and live acceptance |
+| [Approved remediation](audits/2026-10-03/remediation.md) | Six implementation batches, current results and [runnable validation](audits/2026-10-03/remediation-validation.md) |
 | [Adversarial audit prompt](audits/adversarial-audit-prompt.md) | Reusable audit-only brief: risk-based tests, lifecycle/scaling stress, measurements and evidence requirements; not an executed audit |
 | [Changelog](CHANGELOG.md) | Change history; [1.x archive](changelog/1.x.md) |
 | [TwitchVersus findings](01-findings-twitchversus.md) | Historical TwitchVersus and VersusMode audit |

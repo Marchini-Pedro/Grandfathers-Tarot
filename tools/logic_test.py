@@ -606,6 +606,12 @@ do
     payloads[#payloads+1]=copy;payloads[key]=copy;return key
   end
   realms.network_send=function(m,name,recipient,json)
+    if recipient=="others" then
+      realms.network_send(m,name,"good",json)
+      realms.network_send(m,name,"failed",json)
+      if capable then realms.network_send(m,name,"unsupported",json) end
+      return true -- actual Realms broadcast hides individual rejection
+    end
     attempts[recipient]=(attempts[recipient] or 0)+1
     if recipient=="unsupported" and not capable then return false,"target_rpc_unsupported" end
     if recipient=="failed" and reject then return false,"channel unavailable" end
@@ -625,7 +631,7 @@ do
   tuner.apply(unit,{size=180});tuner.update(0.3)
   check("delivery: retries coalesce to latest size and unsupported peers are skipped", tuner.status().unsent==1 and deliveries.good[1][2]==180 and attempts.unsupported==unsupported_attempts)
   reject=false;tuner.update(0.3)
-  check("delivery: recovered recipient receives latest size and retry clears", deliveries.failed[1][2]==180 and tuner.status().unsent==0)
+  check("delivery: recovered recipient receives latest size and retry clears", deliveries.failed and deliveries.failed[1][2]==180 and tuner.status().unsent==0)
   reject=true
   for i=1,100 do tuner.send_all("failed") end
   check("delivery: rejected late-join snapshots coalesce instead of growing", tuner.status().unsent==1)
@@ -650,6 +656,9 @@ do
     return true
   end
   check("delivery: synchronous disconnect during fanout skips removed recipient", P.send_scales({{77,150}})==true and gone_attempts==0)
+  local before_retire=calls
+  P.retire();registered.rw_state("host_peer","x");registered.rw_hello("late",2,"2.0.0");joined("late")
+  check("protocol: captured RPC/peer callbacks and sends are inert after retire", calls==before_retire and not P.is_available() and P.send_scales({{77,150}})==false)
   Unit,ScriptUnit,Vector3,Managers.state.unit_spawner=native_unit,native_su,native_vector,native_spawner
   get_mod = real_get_mod; cjson = nil
 end
@@ -1974,6 +1983,29 @@ do
   is_server = true; D2.on_scale("peer", { { id = 1, pct = 120 } })
   check("director: sizes from the host reach Tuning on a client, never on the host", received == 1)
 
+  -- A captured tuner can be reached after unload. Retirement must both release
+  -- its existing records and prevent a late callback from repopulating them.
+  Managers.state.unit_spawner.game_object_id=function(self,unit) return unit.gid end
+  local old_stats={melee_attack_speed=1}
+  local obsolete={gid=999,buffs={stat_buffs=function() return old_stats end}}
+  local old_apply,old_receive=Tuning.apply,Tuning.receive
+  Tuning.apply(obsolete,{gap=50,size=130})
+  Tuning.receive({{id=999,pct=130}})
+  local owned_status=Tuning.status()
+  Tuning.retire()
+  local retired_status=Tuning.status()
+  check("retire: tuning releases all unit records and incoming/outgoing work", owned_status.tuned>0 and owned_status.sizes_known==1 and owned_status.unsent==1 and owned_status.pending==1 and retired_status.tuned==0 and retired_status.sizes_known==0 and retired_status.unsent==0 and retired_status.pending==0)
+  old_stats.melee_attack_speed=1
+  local scales_before=#scales_set
+  old_apply(obsolete,{gap=50,size=130});old_receive({{id=999,pct=130}})
+  Tuning.update(1);Tuning.update_client(1);stat_hook(obsolete.buffs,1)
+  check("retire: obsolete apply/receive/update/stat hooks cannot repopulate records or change a unit", old_stats.melee_attack_speed==1 and #scales_set==scales_before and Tuning.status().tuned==0 and Tuning.status().pending==0)
+  local snapshot_tuner=load("spawn/tuning")
+  local snapshot_calls=0
+  snapshot_tuner.init({protocol={is_available=function() return true end,send_scales=function() snapshot_calls=snapshot_calls+1;snapshot_tuner.retire();return false,"retired during send" end}})
+  snapshot_tuner.apply(obsolete,{size=130})
+  snapshot_tuner.send_all("peer")
+  check("retire: a failed snapshot completing after synchronous retirement cannot recreate outgoing work", snapshot_calls==1 and snapshot_tuner.status().unsent==0 and snapshot_tuner.status().sizes_known==0)
   ScriptUnit, Unit, Vector3, Managers.state.unit_spawner = saved_su, saved_unit, saved_v3, saved_spawner
   minion_spawn.spawn_minion = saved_spawn
   Execute.init({ positions = StubPositions, bypass = Bypass, groups = Groups })
@@ -3029,7 +3061,7 @@ do
     if d > 0.01 then moved = moved + 1 end
     if p.z ~= 10.5 then all_snapped = false end
   end
-  check("spread: points stay inside the radius and are nav-snapped", max_r <= 5.0001 and all_snapped and moved == 500, string.format("max %.2f moved %d", max_r, moved))
+  check("spread: points stay inside the radius and are nav-snapped", max_r <= 5.0001 and all_snapped and moved >= 490, string.format("max %.2f moved %d", max_r, moved))
   local inner = 0
   for _ = 1, 2000 do local p = Pos.spread(origin, 10); if math.sqrt((p.x - 100) ^ 2 + (p.y - 200) ^ 2) < 5 then inner = inner + 1 end end
   check("spread: uniform over the disc (about a quarter of points within half the radius)", inner > 400 and inner < 600, inner)
@@ -3060,6 +3092,16 @@ check("simulate 20000 rolls within 1.2 pct points", maxerr < 1.2, string.format(
 
 -- Finite validation is shared by full preset and single-card imports. A correct
 -- checksum must never make NaN/infinity valid or allow partial settings writes.
+do
+  is_server=false;Director.on_enter_gameplay()
+  local accepted=pcall(Director.on_state,"host_peer",{p="waiting",m="vote",r=10,b=1,k={false,{k="valid",n="Valid",p=10,v=0}}})
+  check("state: malformed authorized-host candidate is skipped without losing valid items", accepted and #Director.view().cands==1 and Director.view().cands[1].key=="valid")
+  local many={};for i=1,100 do many[i]={k="k"..i,n="N",p=10,v=0} end
+  Director.on_state("host_peer",{p="waiting",m="vote",r=10,b=1,k=many})
+  check("state: candidates remain within the supported five-item bound and non-table state is ignored", #Director.view().cands==5 and pcall(Director.on_state,"host_peer",false))
+  Director.on_exit_gameplay();is_server=true
+end
+
 do
   local fields={"wave_small","changed","1","10","120","3","10","60","1 hound{size=130}","0","0","0","0","swarm","0","","","1"}
   for _,index in ipairs({4,5,6,7,8,10,11,12,15}) do

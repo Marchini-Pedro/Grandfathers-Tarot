@@ -168,12 +168,17 @@ The [dated report](audits/2026-10-03/report.md) records seven baseline defects,
 before remediation: event subscriptions survive unload; disabled
 updates still spawn; stop clears living-unit ownership; pause leaves Execute
 running; local queue caps lack an aggregate budget; partial broadcast rejection
-loses size recovery; LuaJIT preset numeric parsing admits NaN. Remediation is
-proposed at existing ownership/validation boundaries, preserving protocol 2,
-public options and serialization. Review is required before code changes.
+loses size recovery; LuaJIT preset numeric parsing admits NaN. The user approved
+implementation after reviewing the audit. Fixes use existing ownership and
+validation boundaries, preserving protocol 2, public options and serialization.
 The approved [remediation log](audits/2026-10-03/remediation.md) tracks current
 changes. Entry unload now releases both subscriptions from their stored original
 event manager; retired callbacks are inert even if already captured.
+Gameplay entry registers a manager that appeared after initialization or replaces
+the original owner safely. Retirement releases tuning records/queues and protocol
+peer/handler references, blocks captured entry points, and prevents delayed
+hook-require callbacks from installing hooks. A failed late-join send checks
+current live records before retrying, including synchronous teardown during send.
 Scheduling cancellation now drops jobs/cache without discarding living unit
 records. Pause freezes feed/repeat/timeout clocks while maintenance continues;
 stop retains tracking/tuning and prunes dead units even without jobs. Disable
@@ -197,5 +202,7 @@ unsupported RPCs are skipped until a compatible hello or peer refresh. Re-enable
 replays Realms peers to discard missed disconnects. Failed late-join snapshots
 coalesce into the same outbox, and synchronous sends cannot clear newly queued
 sizes. No new protocol fields or per-peer scheduler is introduced.
+Client state skips malformed candidate entries and reads at most five candidates,
+matching the existing hand/ballot bounds. No message schema changes are required.
 Full mission teardown works in the Lua fixtures; actual engine resources and
 eight-hour acceptance remain pending.

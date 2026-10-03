@@ -10,6 +10,25 @@ mod.rw = {}
 
 local RW = mod.rw
 
+local function release_events()
+	if RW.event_manager then
+		pcall(RW.event_manager.unregister, RW.event_manager, mod, "event_mission_objective_start")
+		pcall(RW.event_manager.unregister, RW.event_manager, mod, "event_player_died")
+		RW.event_manager = nil
+	end
+end
+
+local function register_events()
+	local manager = Managers.event
+
+	if manager and manager ~= RW.event_manager then
+		release_events()
+		RW.event_manager = manager
+		manager:register(mod, "event_mission_objective_start", "_on_mission_objective_start")
+		manager:register(mod, "event_player_died", "_on_player_died")
+	end
+end
+
 -- Registered at load so DMF injects it whenever the HUD is built.
 pcall(function ()
 	mod:register_hud_element({
@@ -123,13 +142,7 @@ mod.on_all_mods_loaded = function ()
 	})
 
 	-- Same "first objective started" signal RealmsEvent uses to begin its rolls.
-	RW.event_manager = Managers.event
-
-	if RW.event_manager then
-		RW.event_manager:register(mod, "event_mission_objective_start", "_on_mission_objective_start")
-		-- fired by PlayerDeath.die on the host: used by the anti-snowball option
-		RW.event_manager:register(mod, "event_player_died", "_on_player_died")
-	end
+	register_events()
 
 	-- Wave editor view (structure copied from RealmsEvent's editor registration).
 	local UISoundEvents = require("scripts/settings/ui/ui_sound_events")
@@ -183,11 +196,7 @@ mod.on_unload = function ()
 	RW.dead = true
 	RW.text_input_active = false
 
-	if RW.event_manager then
-		pcall(RW.event_manager.unregister, RW.event_manager, mod, "event_mission_objective_start")
-		pcall(RW.event_manager.unregister, RW.event_manager, mod, "event_player_died")
-		RW.event_manager = nil
-	end
+	release_events()
 
 	if RW.bypass then
 		RW.bypass.retire()
@@ -195,6 +204,10 @@ mod.on_unload = function ()
 
 	if RW.tuning then
 		RW.tuning.retire()
+	end
+
+	if RW.protocol then
+		RW.protocol.retire()
 	end
 
 	if RW.execute then
@@ -224,6 +237,7 @@ mod.on_game_state_changed = function (status, state_name)
 	end
 
 	if status == "enter" then
+		register_events()
 		RW.director.on_enter_gameplay()
 	else
 		RW.director.on_exit_gameplay()

@@ -248,7 +248,7 @@ end
 Execute.over_heap_guard = over_heap_guard
 
 Execute.has_authority = function ()
-	if mod.is_enabled and not mod:is_enabled() then
+	if (mod.rw and mod.rw.dead) or (mod.is_enabled and not mod:is_enabled()) then
 		return false
 	end
 

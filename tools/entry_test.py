@@ -27,7 +27,8 @@ local mod = {}
 mod.hook = function(self, obj, method, fn) hooks[#hooks + 1] = { obj = obj, method = method, fn = fn, safe = false } end
 mod.hook_safe = function(self, obj, method, fn) hooks[#hooks + 1] = { obj = obj, method = method, fn = fn, safe = true } end
 local hook_requires = {}
-mod.hook_require = function(self, path, fn) hook_requires[#hook_requires + 1] = path end
+local require_callbacks = {}
+mod.hook_require = function(self, path, fn) hook_requires[#hook_requires + 1] = path;require_callbacks[#require_callbacks+1]=fn end
 mod.register_hud_element = function() end
 mod.add_require_path = function() end
 mod.register_view = function(self, def) views[#views + 1] = def end
@@ -142,15 +143,20 @@ for i=1,100 do
   if i % 2 == 0 then Managers.event = nil end
   mod.on_unload(); mod.on_unload()
   Managers.event = manager
-  hooks, views, commands, hook_requires = {}, {}, {}, {}
+  hooks, views, commands, hook_requires, require_callbacks = {}, {}, {}, {}, {}
 end
 mod = nil
 collectgarbage("collect"); collectgarbage("collect")
 check("reload: 100 generations release strong event keys and obsolete weak mod references", next(weak) == nil and next(manager._events.event_mission_objective_start) == nil and next(manager._events.event_player_died) == nil)
 mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
 Managers.event = nil
-local missing_ok = pcall(function() dofile(BASE .. "/RealmsWaves.lua"); mod.on_all_mods_loaded(); mod.on_unload() end)
+local missing_ok = pcall(function() dofile(BASE .. "/RealmsWaves.lua"); mod.on_all_mods_loaded();mod.on_unload() end)
 check("reload: missing event manager is safe at initialization and unload", missing_ok)
+dofile(BASE .. "/RealmsWaves.lua");mod.on_all_mods_loaded()
+Managers.event=event_manager()
+mod.on_game_state_changed("enter","GameplayStateRun")
+check("reload: a manager that appears after initialization registers on gameplay entry", Managers.event._events.event_mission_objective_start[mod]~=nil and Managers.event._events.event_player_died[mod]~=nil)
+mod.on_unload()
 if tracing then jit.on() end
 
 -- Real entry + director + executor + tuning, with only native minion/position
@@ -161,7 +167,7 @@ local enabled, server = true, true
 mod.get = function(self,id) return settings[id] end
 mod.set = function(self,id,value) settings[id] = value end
 mod.is_enabled = function() return enabled end
-hooks, views, commands, hook_requires = {}, {}, {}, {}
+hooks, views, commands, hook_requires, require_callbacks = {}, {}, {}, {}, {}
 Managers.event = event_manager()
 local spawned, dead = {}, {}
 ALIVE = setmetatable({}, {__index=function(_,unit) return not dead[unit] end})
@@ -248,6 +254,15 @@ local before_jobs,before_queue=RW.execute.status().jobs,RW.execute.status().queu
 local admitted=RW.execute.start_wave({parts=RW.groups.parse("1 hound")})
 check("aggregate: admission rejects a full budget atomically", not admitted and RW.execute.status().jobs==before_jobs and RW.execute.status().queued==before_queue)
 RW.execute.reset()
+for i=1,10 do RW.bypass.track({id=2000+i}) end
+for i=1,14 do RW.execute.start_wave({parts=RW.groups.parse("60 hounds, 60 poxwalkers")}) end
+RW.execute.start_wave({parts=RW.groups.parse("60 hounds")})
+RW.execute.start_wave({parts=RW.groups.parse("44 hounds@60, 36 poxwalkers@60"),rep_every=1,rep_for=30})
+local partial_admitted=RW.execute.start_wave({parts=RW.groups.parse("60 hounds, 60 poxwalkers")})
+check("aggregate: insufficient partial admission room rejects the whole initial batch", not partial_admitted and RW.execute.status().queued==7700)
+RW.execute.update(1)
+check("aggregate: repeat clips to remaining shared capacity without overshoot", RW.execute.status().queued==8000)
+RW.execute.reset()
 local accepted=0
 for i=1,65 do if RW.execute.start_wave({parts=RW.groups.parse("0 hounds@1"),rep_every=1,rep_for=60}) then accepted=accepted+1 end end
 check("aggregate: repeat-only jobs cannot evade the 64-job limit", accepted==64 and RW.execute.status().jobs==64)
@@ -255,6 +270,10 @@ for i=1,20 do RW.execute.update(1) end
 check("aggregate: bounded repeat-only jobs still make progress", RW.execute.status().tracked>0 and RW.execute.status().queued<=8000)
 mod.on_unload()
 check("aggregate: unload releases both budgets and all owned units", RW.execute.status().jobs==0 and RW.execute.status().queued==0 and RW.bypass.count()==0)
+local installed_hooks=#hooks
+require_callbacks[#require_callbacks]({})
+check("retire: delayed hook-require callback cannot install new hooks after unload", #hooks==installed_hooks)
+check("retire: captured executor cannot admit work after unload", not RW.execute.start_wave({parts=RW.groups.parse("1 hound")}) and RW.execute.status().jobs==0)
 
 return table.concat(results, "\n")
 '''

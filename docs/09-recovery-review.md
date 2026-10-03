@@ -3,8 +3,10 @@
 Current status: [PR #1](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/1)
 merged the recovery into `main` at `64f76f3` on 2026-10-03. The remote recovery
 branch was deleted. The recorded recovery checks passed; the subsequent
-[adversarial audit](audits/2026-10-03/report.md) identifies seven open defects
-and two surviving mutation gaps. The game checks below remain open. No new release or runtime version bump accompanied the merge.
+[adversarial audit](audits/2026-10-03/report.md) identified seven baseline defects
+and two surviving mutation gaps. The approved [remediation](audits/2026-10-03/remediation.md)
+fixes all seven and closes both gaps offline on a separate feature branch.
+The game checks below remain open. No new release or runtime version bump accompanied the merge.
 
 Remote baseline: `Marchini-Pedro/Grandfathers-Tarot`, `main` at
 `1460711a046f3d8949e5546335a296fd4216c5f3`.

@@ -38,6 +38,7 @@ local _realms = nil
 local _handlers = {}
 local peers, scale_unsupported = {}, {}
 local MAX_PEERS = 16 -- native sessions have three remote players; keep the registry bounded
+local retired = false
 
 local function valid_sender(peer_id)
 	return type(peer_id) == "string" and peer_id ~= ""
@@ -65,12 +66,16 @@ local function remember_peer(peer_id)
 end
 
 local function on_peer_joined(peer_id)
+	if retired then return end
+
 	if remember_peer(peer_id) and _handlers.on_peer_joined then
 		_handlers.on_peer_joined(peer_id)
 	end
 end
 
 local function on_peer_left(peer_id)
+	if retired then return end
+
 	if valid_sender(peer_id) then
 		peers[peer_id:lower()], scale_unsupported[peer_id:lower()] = nil, nil
 	end
@@ -81,6 +86,8 @@ end
 -- Realms replays its current peers when this callback is registered. Refresh
 -- after enable to discard disconnects/capability changes missed while disabled.
 Protocol.refresh_peers = function ()
+	if retired then return end
+
 	local previous = peers
 	peers, scale_unsupported = {}, {}
 
@@ -157,7 +164,7 @@ end
 local function on_hello(sender, proto, version)
 	proto = tonumber(proto)
 
-	if not valid_sender(sender) or not proto or type(version) ~= "string" then
+	if retired or not valid_sender(sender) or not proto or type(version) ~= "string" then
 		return
 	end
 
@@ -173,7 +180,7 @@ end
 local function on_welcome(sender, proto, version, ok)
 	proto, ok = tonumber(proto), tonumber(ok)
 
-	if not valid_host_sender(sender) or not proto or not ok or type(version) ~= "string" then
+	if retired or not valid_host_sender(sender) or not proto or not ok or type(version) ~= "string" then
 		return
 	end
 
@@ -183,7 +190,7 @@ local function on_welcome(sender, proto, version, ok)
 end
 
 local function on_state(sender, state_json)
-	local state = valid_host_sender(sender) and decode(state_json)
+	local state = not retired and valid_host_sender(sender) and decode(state_json)
 
 	if state and _handlers.on_state then
 		_handlers.on_state(sender, state)
@@ -193,7 +200,7 @@ end
 local function on_vote(sender, ballot_id, option)
 	ballot_id, option = tonumber(ballot_id), tonumber(option)
 
-	if not valid_sender(sender) or not ballot_id or not option then
+	if retired or not valid_sender(sender) or not ballot_id or not option then
 		return
 	end
 
@@ -203,7 +210,7 @@ local function on_vote(sender, ballot_id, option)
 end
 
 local function on_waves(sender, text)
-	if not valid_sender(sender) or type(text) ~= "string" or #text > MAX_WAVES_TEXT then
+	if retired or not valid_sender(sender) or type(text) ~= "string" or #text > MAX_WAVES_TEXT then
 		return
 	end
 
@@ -214,7 +221,7 @@ end
 
 -- every entry is checked: a whole network id and a size in percent, clamped to the allowed range
 local function on_scale(sender, text)
-	local list = valid_host_sender(sender) and decode(text)
+	local list = not retired and valid_host_sender(sender) and decode(text)
 
 	if not list then
 		return
@@ -239,6 +246,7 @@ end
 
 -- handlers: { on_hello, on_welcome, on_state, on_vote, on_waves, on_scale, on_peer_joined, on_peer_left }
 Protocol.init = function (handlers)
+	retired = false
 	_handlers = handlers or {}
 	_realms = get_mod("Realms")
 	peers, scale_unsupported = {}, {}
@@ -272,6 +280,12 @@ Protocol.init = function (handlers)
 	if _realms.network_on_peer_left then
 		_realms.network_on_peer_left(mod, on_peer_left)
 	end
+end
+
+Protocol.retire = function ()
+	retired = true
+	_handlers, peers, scale_unsupported = {}, {}, {}
+	_realms = nil
 end
 
 Protocol.send_hello = function ()

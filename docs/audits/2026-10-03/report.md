@@ -1,11 +1,15 @@
 # RealmsWaves adversarial audit — 2026-10-03
 
 Offline audit of `8c81c1bbfb6107788dafa98f56c6194dcaa80421`, dated in
-America/Sao_Paulo. **Seven findings were reproduced; fixes have not been applied.**
+America/Sao_Paulo. **Seven findings were reproduced at this frozen revision.**
 The existing checks pass, but they miss event-manager retention, disabled
 spawning, stop/pause ownership boundaries, aggregate queue pressure and Realms
 partial-delivery semantics. Game rendering, multiplayer and the eight-hour
 session remain pending. This is an offline report, not release acceptance.
+
+After review, the user authorized code changes. The separate
+[remediation log](remediation.md) records implemented fixes and current checks;
+findings, line references and diagnostic expectations below retain the pre-fix baseline.
 
 Companions: [inventory and test map](inventory-and-tests.md),
 [measurements](measurements.md), [reproduction scripts](reproduction.md),
