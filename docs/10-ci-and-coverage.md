@@ -2,8 +2,9 @@
 
 ## Enemy appearance branch integration (2026-10-03)
 
-`feature/enemy-appearance` integrates this CI work at `fd56262` in its own
-worktree; the CI checkout and `main` are unchanged. The runner discovers
+`feature/enemy-appearance` integrated this CI work at `fd56262` in its own
+worktree, then synchronized with `main` at `06c2b3a` after PRs #5 and #6.
+The separate CI checkout is untouched. The runner discovers
 `appearance_test.py` and instruments its schema/runtime, editor and entry VMs
 through the existing helper. The protocol failure fixture now supplies DMF's
 module loader and expects seven registered endpoints.
@@ -16,7 +17,9 @@ scope is 1,916 printed assertions per backend; native behaviour remains pending.
 Feature behaviour and acceptance: [enemy-appearance.md](enemy-appearance.md).
 
 Reviewed 2026-10-03 from merged `main` at `6d5756d`, after fetching origin.
-Work lives on `feature/ci-coverage`. Production Lua is unchanged.
+The CI implementation was merged into `main` at `03785e3` through
+[PR #5](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/5).
+Production Lua is unchanged; live-game acceptance remains separate.
 
 The existing 1,746 assertions covered many catalog/editor/HUD behaviors and
 PR #4's ownership, retirement, queue-budget, numeric-import and size-retry
@@ -146,10 +149,30 @@ and uploads logs/reports even when verification fails. Failures, timeouts,
 missing coverage, collector errors, inventory mismatches and low scores return
 nonzero. Action revisions are pinned and repository permissions are read-only.
 
-This feature is committed locally; the first hosted run awaits publication.
+The branch is published and push/PR workflows started automatically. Hosted
+results are recorded in the [verification log](06-verification-and-open-issues.md).
+The [first PR run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37153728118)
+at `fd56262` passes both Ubuntu/Python 3.13 jobs: 1,837 assertions per runtime,
+with the same 81.56% / 78.30% scores as the local baseline. Downloaded artifacts
+contain passing reports and no coverage failures.
+The [first main run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37153916183)
+at merge `03785e3` also passes both runtimes.
 A failing workflow blocks merging when required checks are configured.
-The owner should require **`Offline verification (lua55)`** and
-**`Offline verification (luajit21)`** for `main` after their first hosted run.
+The owner should configure `main` after the first successful hosted run:
+
+1. In **Settings > Branches**, add a branch protection rule for `main`, or use
+   a branch ruleset targeting `main`.
+2. Require pull requests and require both status checks:
+   **`Offline verification (lua55)`** and **`Offline verification (luajit21)`**.
+3. Disable bypass (or select **Do not allow bypassing the above settings**) if
+   the checks should also apply to administrators.
+
+Write access is sufficient to maintain workflows, tests and coverage floors;
+repository enforcement remains an owner task. If Actions is restricted, the
+owner must allow the GitHub-owned checkout/setup-python/upload-artifact actions
+under **Settings > Actions > General**. Manual dispatch is now available because
+the workflow exists on the default branch; automatic branch/PR runs also work.
+
 Rechecking access after the user's request still reports `EduardoKenji` with
 the `write` role, `admin: false`, `maintain: false`, and no pending invitation.
 Branch-rules lookup returned no rules and classic-protection lookup returned

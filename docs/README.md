@@ -28,6 +28,10 @@ The reusable audit brief was merged into `main` through
 `6d5756d`, retaining the completed audit and six remediation batches.
 The [post-merge coverage review](10-ci-and-coverage.md) records the standalone
 CI runner, measured Lua module floors, added regressions and remaining limits.
+These changes were merged through
+[PR #5](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/5) at `03785e3`;
+the first hosted PR and main runs pass both runtimes. Required merge checks
+await owner setup.
 
 ## References
 

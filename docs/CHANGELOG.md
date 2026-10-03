@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Synchronize enemy appearance with merged CI work
+- Fetch origin and fast-forward `main` to `06c2b3a` in a dedicated worktree after PRs #5 and #6; merge that main history into `feature/enemy-appearance` while preserving the other agent's checkout.
+- Resolve the changelog conflict by retaining both feature and CI publication entries; update branch status to distinguish CI already on main from appearance pending review and game acceptance. Runtime, test code and CI configuration are unchanged by this synchronization.
+- Rerun both aggregate checks: 1,916 assertions per runtime and all gates pass; Lua 5.5 source-line score 81.80%, LuaJIT 2.1 78.54%. Native acceptance remains pending.
+
 ## 2026-10-03 - Integrate CI verification into the enemy appearance branch
 - Merge CI commits through `fd56262` into `feature/enemy-appearance` only; preserve the CI checkout and `main`. Resolve README/changelog conflicts with both histories and the aggregate runner.
 - Instrument/discover the appearance harness with the existing CI helper; report all focused checks and extend readiness/default/unsupported-stim cases to 79 assertions. Update the protocol failure fixture for DMF schema loading and the seventh endpoint.
@@ -15,6 +20,10 @@
 - Implement natural stimm using supported vanilla actions/buffs, visual-only applied/explicit-slot stimm and private-map local outlines. Surface/private shader choices display their prerequisites and perform no operation.
 - Add optional host-authorized appearance replication with capability, mission token, late-join snapshots, bounded queues/renewal and cleanup. Keep HUD protocol/version 2 / 2.0.0. Preserve concurrent CI work in a separate worktree; native acceptance remains pending.
 - Document the implementation, advanced gates and restoration limits; preserve the earlier read-only research reports. Baseline regression checks pass, with the RPC inventory assertion updated for the appearance endpoint.
+
+## 2026-10-03 - Record CI merge and verify hosted checks
+- Publish `feature/ci-coverage` as PR #5 and document the owner's steps to require both runtime checks and pull requests for `main`.
+- Record the first successful hosted PR run and downloaded reports: 1,837 assertions per runtime, 81.56% Lua 5.5 / 78.30% LuaJIT source-line scores, and no coverage failures. PR #5 was merged by the user at `03785e3`; both checks also pass on main. Merge enforcement awaits owner setup and game acceptance remains separate.
 
 ## 2026-10-03 - Add CI and enforce measured Lua coverage floors
 - Add GitHub Actions on pushes, pull requests and manual dispatch, with Lua 5.5/LuaJIT 2.1 jobs, pinned action revisions, read-only repository permissions and uploaded logs/JSON reports.

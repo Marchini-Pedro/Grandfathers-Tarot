@@ -1,10 +1,11 @@
 # Enemy colour experiments
 
-Implemented on `feature/enemy-appearance`, in its own worktree based on `main` at
-`6d5756d`. This preserves the separate CI/coverage checkout. Offline validation is
-complete; native rendering and multiplayer acceptance are pending. The feature
-has not been merged into `main`, pushed or installed. The committed CI work at
-`fd56262` is integrated into this feature branch only; its checkout remains untouched.
+Implemented on `feature/enemy-appearance`, in its own worktree, originally based
+on `main` at `6d5756d` and synchronized with `06c2b3a` after PRs #5 and #6.
+This preserves the separate CI/coverage checkout. Offline validation is complete;
+native rendering and multiplayer acceptance are pending. The feature has not
+been merged into `main` or installed. CI and its publication documentation are
+already on `main`; the appearance changes are being prepared for PR review.
 
 The preceding [research findings](research/enemy-appearance/findings.md) and
 [experiment plan](research/enemy-appearance/experiments-and-recommendation.md)
