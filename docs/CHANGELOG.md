@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Recover recipient-specific size failures (F06)
+- Fan out sizes through direct Realms sends with a bounded peer registry, propagate failures into current-size retry, skip unsupported RPCs and refresh peers after enable.
+- Coalesce failed late-join snapshots and protect new updates during synchronous sends. Actual installed ModNetwork plus real Protocol/Tuning reproduces rejection/recovery on both runtimes.
+- All six checks pass (1,735 assertions each); native rejection frequency and multiplayer overhead remain pending.
+
 ## 2026-10-03 - Reject non-finite imported numbers (F07)
 - Validate all nine numeric fields in preset/card imports before rounding/clamping; retain finite clamps and legacy absent/empty threat.
 - Add valid-checksum NaN/infinity/overflow and atomic-write regressions on both runtimes. All six checks pass (1,724 assertions each); native paste workflow remains pending.

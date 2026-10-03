@@ -71,8 +71,8 @@ and Improved Havoc Tags supply enemy/modifier colours when installed.
   while surviving units remain counted and tuned. Disable suspends tuning/hooks
   and cancels jobs; re-enable needs `/rw_start` on the host and resyncs clients.
   Pending work is capped at 64 jobs / 8,000 entries; full budgets skip new waves
-  and repeat ticks. Imports reject non-finite numeric fields. Peer-specific size
-  recovery remains pending.
+  and repeat ticks. Imports reject non-finite numeric fields. Size updates retry
+  rejected peers with current living-unit values. All fixes await game acceptance.
 
 - The recovered workshop, drag interactions and multiplayer changes have
   offline coverage; actual game rendering, frame time and process RAM remain

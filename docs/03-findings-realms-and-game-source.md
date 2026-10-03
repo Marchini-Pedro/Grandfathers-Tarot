@@ -174,6 +174,8 @@ The [current audit](audits/2026-10-03/report.md) compares the installed Realms
 `a4564b7dda7c6fdbd92eb633c1931b1a51a749ae`. Sender-preserving routing,
 synchronous local dispatch, owner-enabled gating and capability checks hold.
 Broadcast delivery logs individual peer rejection and returns true (F06).
+The remediation adapter now uses direct size sends for known peers and aggregates
+failures into the existing current-size retry; unsupported RPCs are skipped.
 Native framed RPC reliability/order is not established by that script source.
 
 Installed DMF events/toggling/loader match upstream

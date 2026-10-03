@@ -190,5 +190,12 @@ Both preset and single-card import validate finiteness of every numeric field
 before rounding/clamping. Supplied invalid threat is rejected; absent/empty
 legacy threat stays zero. Huge finite numbers still clamp, and validation
 completes before settings writes. Serialization is unchanged.
+Size replication now tracks at most 16 known Realms peers, fan-outs through
+direct sends, and aggregates recipient failures into the existing coalesced
+current-size retry. Successful recipients can receive idempotent duplicates;
+unsupported RPCs are skipped until a compatible hello or peer refresh. Re-enable
+replays Realms peers to discard missed disconnects. Failed late-join snapshots
+coalesce into the same outbox, and synchronous sends cannot clear newly queued
+sizes. No new protocol fields or per-peer scheduler is introduced.
 Full mission teardown works in the Lua fixtures; actual engine resources and
 eight-hour acceptance remain pending.

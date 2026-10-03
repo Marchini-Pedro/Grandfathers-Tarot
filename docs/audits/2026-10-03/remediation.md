@@ -14,7 +14,7 @@ kept separately under `.git/audit/2026-10-03-remediation/`.
 | 2 | F02/F03/F05 disable, stop, pause and living units | Implemented; offline checks pass |
 | 3 | F04 aggregate admission/repeat budget | Implemented; offline checks pass |
 | 4 | F07 finite numeric imports | Implemented; offline checks pass |
-| 5 | F06 recipient-aware size recovery | Pending |
+| 5 | F06 recipient-aware size recovery | Implemented; offline and primary-contract checks pass |
 | 6 | Surviving retired-tuning/unload-reset mutations and final review | Pending |
 
 Batch 1 unregisters both mission events using the stored original manager,
@@ -54,3 +54,21 @@ threat remains zero; huge finite numbers clamp and round-trip. Forty-five
 valid-checksum field/value combinations test both import formats and zero
 settings writes, plus the exact audit text and a finite extreme. All six checks
 pass on both runtimes: logic 811, total 1,724 assertions each.
+
+Batch 5 uses direct Realms sends for at most 16 known peers and aggregates
+recipient failures into the existing retry. Unsupported RPCs are skipped;
+compatible hello/peer refresh rearms them. Successful peers may receive
+idempotent duplicates, trading a small retry cost for avoiding per-peer queues.
+Pending ids and failed late-join snapshots coalesce at admission. Detaching the
+outbox before synchronous sends preserves new values queued by callbacks.
+Refresh after enable removes peers missed while disabled. All six checks pass
+on both runtimes: logic 822, total 1,735 assertions each.
+
+A separate installed-ModNetwork integration loads the real adapter and tuning,
+with only SessionControl rejection injected: the failed recipient has one
+initial attempt, a second attempt after recovery, and receives latest size 180;
+its retry queue clears. Both runtimes agree. The good peer receives twice,
+which is harmless for absolute-size updates. Raw integration results are
+`lua55_contract.json` / `luajit21_contract.json` in the separate remediation
+scratch directory. Native packet-loss acknowledgements, transport ordering and
+live overhead are still unverified.

@@ -21,6 +21,8 @@ Things we know are missing or unverified, each with the next concrete step.
 
 ## 2. Discoveries (things the source or the game taught us)
 
+- **2026-10-03, F06 remediation:** Realms direct sends expose recipient failures, so fan out at the existing adapter and reuse current-size retry rather than adding per-peer schedulers. Successful peers may receive idempotent duplicates. Coalesce ids before admission and detach the outbox before sending so synchronous callbacks cannot lose new sizes. Refresh Realms peer replay after enable to remove missed disconnects and stale capability skips.
+
 - **2026-10-03, finite imports:** chance/cooldown/spread/repeat/distances/timer and optional threat share finite-value rejection before rounding. Preserve absent/empty legacy threat as zero, but reject malformed supplied threat. Test both complete preset and single-card formats with valid checksums and isolated settings writes.
 
 - **2026-10-03, aggregate budget:** derive the pending count from at most 64 owned jobs to avoid fragile mutable counters. Refuse an entire initial wave before expansion if it cannot fit in 8,000 entries; repeat-only jobs still consume a job slot. Full repeat ticks skip before constructing a batch; partial ticks clip to available room. Normal pressure must not flood timed-wave warnings.
@@ -68,6 +70,8 @@ Things we know are missing or unverified, each with the next concrete step.
 - **2026-10-02, the log's numbers named the culprit**: speed 1.3 and 2.25x shots are exactly `havoc_ranged_attack_speed_05` (+0.3, x2.25). The user's own hint (a shooter that stims itself raises its volley) points at the same mechanism, a buff on the minion changing these stats. Not used as a feature (no new buffs), but our factor now stacks on top of any such buff.
 
 ## 3. Attempts and dead ends
+
+- **2026-10-03, F06 warning assertion:** the old warning-count check counted the whole harness history, including the new independent rejection fixture. Scope the count to its own failure experiment; retain the assertion of one warning despite repeated updates.
 
 - **2026-10-03, F07 threat fallback:** the first threat check still used `tonumber(...) or 0`; Lua 5.5 converted unrecognized non-finite text to the zero fallback. Reject invalid supplied text explicitly, reserving the fallback for absent/empty legacy fields.
 

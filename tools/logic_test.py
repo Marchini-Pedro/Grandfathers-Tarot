@@ -543,11 +543,12 @@ end
 -- protocol layer: RPCs registered, rw_waves send/receive validation ------------------------------------------------
 do
   local registered, sent_rpcs = {}, {}
+  local joined, left
   local realms = {
     network_is_available = function() return true end,
     network_register = function(m, name, handler) registered[name] = handler; return true end,
     network_send = function(m, name, recipient, ...) sent_rpcs[#sent_rpcs + 1] = { name = name, recipient = recipient, args = { ... }, mod = m }; return true end,
-    network_on_peer_joined = function() end, network_on_peer_left = function() end,
+    network_on_peer_joined = function(m,fn) joined=fn end, network_on_peer_left = function(m,fn) left=fn end,
   }
   local real_get_mod = get_mod
   get_mod = function(name) if name == "Realms" then return realms end return real_get_mod(name) end
@@ -594,6 +595,62 @@ do
   realms.network_send=function() error("connection closed during send") end
   local send_ok, sent, why=pcall(P.send_hello)
   check("protocol: a disconnect during any RPC send returns a failure without raising", send_ok and sent==false and tostring(why):find("connection closed",1,true))
+
+  -- Match Realms' asymmetric contract: broadcast is true despite one rejected
+  -- peer, while a direct send exposes false. Use the real protocol and tuning.
+  local attempts, deliveries, payloads = {}, {}, {}
+  local reject, capable = true, false
+  cjson.encode=function(list)
+    local key="sizes:"..(#payloads+1);local copy={}
+    for i,item in ipairs(list) do copy[i]={item[1],item[2]} end
+    payloads[#payloads+1]=copy;payloads[key]=copy;return key
+  end
+  realms.network_send=function(m,name,recipient,json)
+    attempts[recipient]=(attempts[recipient] or 0)+1
+    if recipient=="unsupported" and not capable then return false,"target_rpc_unsupported" end
+    if recipient=="failed" and reject then return false,"channel unavailable" end
+    deliveries[recipient]=payloads[json];return true
+  end
+  joined("good");joined("failed");joined("unsupported")
+  local native_unit,native_su,native_vector,native_spawner=Unit,ScriptUnit,Vector3,Managers.state.unit_spawner
+  Unit={alive=function() return true end,set_local_scale=function() end}
+  Vector3=function(x,y,z) return {x=x,y=y,z=z} end
+  ScriptUnit={has_extension=function() return nil end}
+  Managers.state.unit_spawner={game_object_id=function(self,unit) return unit.id end}
+  local tuner=load("spawn/tuning");tuner.init({protocol=P})
+  local unit={id=77}
+  tuner.apply(unit,{size=130});tuner.update(0.3)
+  check("delivery: partial direct rejection retains current-size retry while good peer is served", tuner.status().unsent==1 and deliveries.good[1][2]==130 and deliveries.failed==nil)
+  local unsupported_attempts=attempts.unsupported
+  tuner.apply(unit,{size=180});tuner.update(0.3)
+  check("delivery: retries coalesce to latest size and unsupported peers are skipped", tuner.status().unsent==1 and deliveries.good[1][2]==180 and attempts.unsupported==unsupported_attempts)
+  reject=false;tuner.update(0.3)
+  check("delivery: recovered recipient receives latest size and retry clears", deliveries.failed[1][2]==180 and tuner.status().unsent==0)
+  reject=true
+  for i=1,100 do tuner.send_all("failed") end
+  check("delivery: rejected late-join snapshots coalesce instead of growing", tuner.status().unsent==1)
+  left("failed");tuner.update(0.3)
+  check("delivery: disconnect removes failed recipient from retries", tuner.status().unsent==0)
+  capable=true;registered.rw_hello("unsupported",2,"2.0.0")
+  tuner.apply(unit,{size=150});tuner.update(0.3)
+  check("delivery: compatible hello rearms previously unsupported recipient", deliveries.unsupported[1][2]==150)
+  realms.network_on_peer_joined=function(m,fn) joined=fn;fn("good") end
+  P.refresh_peers();attempts={}
+  P.send_scales({{77,150}})
+  check("delivery: refresh discards peers missed while disabled and replays current peers", attempts.good==1 and attempts.unsupported==nil and attempts.failed==nil)
+  for i=1,30 do joined("synthetic_"..i) end
+  attempts={};P.send_scales({{77,150}})
+  local peer_count=0;for _ in pairs(attempts) do peer_count=peer_count+1 end
+  check("delivery: recipient registry is bounded at 16", peer_count==16)
+  P.refresh_peers();joined("zz_gone")
+  local gone_attempts=0
+  realms.network_send=function(m,name,recipient)
+    if recipient=="good" then left("zz_gone") end
+    if recipient=="zz_gone" then gone_attempts=gone_attempts+1 end
+    return true
+  end
+  check("delivery: synchronous disconnect during fanout skips removed recipient", P.send_scales({{77,150}})==true and gone_attempts==0)
+  Unit,ScriptUnit,Vector3,Managers.state.unit_spawner=native_unit,native_su,native_vector,native_spawner
   get_mod = real_get_mod; cjson = nil
 end
 -- fixed-timer waves: ignore the chance, run on their own clock, independent of the draw -----------------------------
@@ -1720,13 +1777,14 @@ do
     check("join: ...and the host forgets them (no growth over a long mission)", Tuning.status().sizes_known == to_joiner - 100, Tuning.status().sizes_known)
 
     -- a peer that left, or a network that fails, while sizes are going out
+    local warning_start = #echoes
     fake_protocol.send_scales = function() error("peer is gone") end
     local failed_ok = pcall(Tuning.send_all, "crashed_player")
     Tuning.apply(crowd[200], { size = 120 }, "crowd")
     local update_ok = pcall(function () Tuning.update(0.3); Tuning.update(0.3) end)
     check("leave: a send to a player who crashed or left raises nothing (not in send_all, not in the host's update)", failed_ok and update_ok)
     local warned_send = 0
-    for _, e in ipairs(echoes) do if e:find("sizes could not be sent", 1, true) then warned_send = warned_send + 1 end end
+    for i=warning_start+1,#echoes do if echoes[i]:find("sizes could not be sent", 1, true) then warned_send = warned_send + 1 end end
     check("leave: ...and it is logged once, not every frame", warned_send == 1, warned_send)
     fake_protocol.send_scales = function(list, recipient) sent_scales[#sent_scales + 1] = { list = list, recipient = recipient }; return true end
     sent_scales = {}
@@ -1747,6 +1805,16 @@ do
     fake_protocol.send_scales=function(list,recipient) sent_scales[#sent_scales+1]={list=list,recipient=recipient}; return true end
     Tuning.update(0.3)
     check("network: retries send the latest live value and clear the queue", Tuning.status().unsent==0 and sent_scales[#sent_scales].list[1][2]==125)
+    local reentered=false
+    fake_protocol.send_scales=function(list)
+      sent_scales[#sent_scales+1]={list=list}
+      if not reentered then reentered=true;Tuning.apply(crowd[201],{size=180},"crowd") end
+      return true
+    end
+    Tuning.apply(crowd[201],{size=130},"crowd");Tuning.update(0.3)
+    check("network: synchronous new size survives completion of the previous send", Tuning.status().unsent==1)
+    Tuning.update(0.3)
+    check("network: next cadence delivers reentrant latest value once", Tuning.status().unsent==0 and sent_scales[#sent_scales].list[1][2]==180)
 
     -- a unit that died: the stat hook and the end-of-attack hook no longer know it
     local gone = crowd[1]

@@ -272,6 +272,8 @@ mod.on_enabled = function (initial_call)
 			-- Discard stale client state and re-handshake if already in a mission.
 			RW.director.on_enter_gameplay()
 		end
+
+		RW.protocol.refresh_peers()
 	end
 end
 

@@ -64,10 +64,23 @@ local last_shot = setmetatable({}, { __mode = "k" }) -- host: unit -> what its l
 local shoot_logged = {} -- breed name -> how many shooting starts were written to the log
 local apply_logged = {} -- breed name -> how many tuned units were written to the log
 local outbox = {} -- host: sizes not sent yet, { id, pct }
+local outbox_by_id = {}
 local inbox = {} -- client: sizes waiting for their unit, { id, pct, age }
 local inbox_by_id = {} -- one pending value per unit; a later message replaces the earlier one
 local timer, send_timer = 0, 0
 local warned = {}
+
+local function queue_size(id, pct)
+	local entry = outbox_by_id[id]
+
+	if entry then
+		entry[2] = pct
+	else
+		entry = { id, pct }
+		outbox[#outbox + 1] = entry
+		outbox_by_id[id] = entry
+	end
+end
 
 Tuning.init = function (deps)
 	Protocol = deps and deps.protocol or nil
@@ -321,7 +334,7 @@ Tuning.apply = function (unit, tune, breed_name)
 
 			if id then
 				scaled[id] = { unit = unit, pct = size }
-				outbox[#outbox + 1] = { id, size }
+				queue_size(id, size)
 			end
 		end)
 
@@ -653,11 +666,11 @@ local function send_batches(list, recipient)
 		-- a peer that left or a network that fails is not our business: skip the rest, never break the frame
 		local ok, sent, err = pcall(Protocol.send_scales, batch, recipient)
 
-		if not ok or sent == false then
+		if not ok or sent ~= true then
 			err = not ok and sent or err
 			warn_once(string.format("sizes could not be sent to the other players: %s", tostring(err)))
 
-			return false
+			return false, err
 		end
 
 		from = from + SEND_BATCH
@@ -683,10 +696,12 @@ Tuning.update = function (dt)
 		send_timer = 0
 
 		if #outbox > 0 then
+			local pending = outbox
+			outbox, outbox_by_id = {}, {} -- preserve new sizes queued by synchronous callbacks
 			local list, seen = {}, {}
 
-			for i = 1, #outbox do
-				local item = outbox[i]
+			for i = 1, #pending do
+				local item = pending[i]
 				local entry = scaled[item[1]]
 
 				if entry and alive(entry.unit) and not seen[item[1]] then
@@ -697,7 +712,14 @@ Tuning.update = function (dt)
 			end
 
 			-- Retry failures next cadence. Prune dead units and duplicates so an outage cannot grow the queue forever.
-			outbox = send_batches(list) and {} or list
+			if not send_batches(list) then
+				for i = 1, #list do
+					local id = list[i][1]
+					local entry = scaled[id]
+
+					if entry and alive(entry.unit) then queue_size(id, entry.pct) end
+				end
+			end
 		end
 	end
 end
@@ -712,7 +734,11 @@ Tuning.send_all = function (peer_id)
 		end
 	end
 
-	send_batches(list, peer_id)
+	local sent, err = send_batches(list, peer_id)
+
+	if not sent and err ~= "target_rpc_unsupported" then
+		for i = 1, #list do queue_size(list[i][1], list[i][2]) end
+	end
 end
 
 -- ----------------------------------------------------------------------------------------- the clients
@@ -900,6 +926,7 @@ end
 
 Tuning.reset = function ()
 	tuned, scaled, outbox, inbox = {}, {}, {}, {}
+	outbox_by_id = {}
 	inbox_by_id = {}
 	sized = {}
 	tuned_by_extension = {}
