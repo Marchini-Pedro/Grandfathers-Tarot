@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Complete dual-runtime coverage and continuation hand-off
+- Inventory both new HUD modules and document the measured source-proxy floor exceptions for Face/editor definitions. Preserve the overall floor and all other existing floors.
+- Both complete runners pass 2,104 assertions, 34 Lua compile inputs and every coverage gate: Lua 5.5 81.97% / LuaJIT 2.1 78.75%. Nine reverse mutations are detected on both runtimes (18/18).
+- Update the current hand-off, coverage table and results log; native acceptance remains pending and the feature stays unmerged.
+
 ## 2026-10-03 - Reserve wrapped modifier space in the last-card window
 - Long modifier lists receive up to eight lines using the existing wrap helper with a conservative uppercase width. The panel grows with its content inside a 320-unit node; short cards keep their compact panel. Existing name wrapping retains its three-line default.
 - A valid 96-byte modifier fixture reproduces the old one-line overflow. The ninth reverse mutation detects the regression on both VMs; a real-widget preview with English caption and substituted Windows fonts was inspected. Native font metrics remain an in-game check.

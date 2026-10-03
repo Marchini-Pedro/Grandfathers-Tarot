@@ -116,13 +116,15 @@ python tools/run_tests.py --runtime lua55 --output-dir test-results/lua55 --time
 python tools/run_tests.py --runtime luajit21 --output-dir test-results/luajit21 --timeout-seconds 280
 ```
 
-The full runners, reverse mutations, Markdown/link/whitespace checks and real
-widget previews are the offline acceptance evidence. The largest-prefix search
+Both full runners pass 2,104 assertions, 34 compilation inputs and all module
+coverage gates: Lua 5.5 81.97% / LuaJIT 2.1 78.75%. All nine compiling reverse mutations
+are detected on both runtimes (18/18). Markdown/link/whitespace checks and real
+widget previews complete the offline acceptance evidence. The largest-prefix search
 needs at most seven prefix probes for 100 cards, plus the original encode;
 existing 64-job / 8,000-entry queue caps still bound spawning. No throughput,
 native memory-retention or end-to-end multiplayer performance claim is made.
 
-Create a draft PR and keep the branch unmerged. Game matrix rows 114-121 and
+Publish a draft PR and keep the branch unmerged. Game matrix rows 114-121 and
 the [enemy appearance checks](../../enemy-appearance.md) remain pending.
 Add stop-after-draw on both peers, quote-heavy pooled decks, long tile names
 with modifiers, limit-hover stability, vanished targets and recovery after
