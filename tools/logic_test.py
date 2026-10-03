@@ -1384,6 +1384,14 @@ do
   }
   Vector3 = function(x, y, z) return { x = x, y = y, z = z } end
   Managers.state.unit_spawner = { game_object_id = function(self, unit) return unit.gid end }
+  -- health: the game ADDS the Havoc / mission share to the spawn parameter (minion_spawn_manager.lua:137-165)
+  local saved_difficulty, saved_gamesession = Managers.state.difficulty, GameSession
+  local normal_hp = { chaos_plague_ogryn = 1000, chaos_beast_of_nurgle = 2000, chaos_poxwalker = 100 }
+  Managers.state.difficulty = { get_minion_max_health = function(self, breed) return normal_hp[breed] or 400 end }
+  local synced_health = {}
+  GameSession = { set_game_object_field = function(session, id, field, value) synced_health[#synced_health + 1] = { session = session, id = id, field = field, value = value } end }
+  local havoc_extra = 0
+  local no_game_object = nil -- a breed whose units come without a game object
   local boss_breeds = {}
   local function make_unit(breed, param)
     local unit = { breed = breed, gid = next_gid, health_mod = param.optional_health_modifier, buffs = make_buff_ext(breed) }
@@ -1391,14 +1399,19 @@ do
     unit.buffs.stats = {}
     unit.buffs.stat_buffs = function(self) return self.stats end
     unit.ext = {
-      health_system = { mass = 2, hit_mass = function(self) return self.mass end, set_hit_mass = function(self, v) self.mass = v end },
+      health_system = {
+        mass = 2, hit_mass = function(self) return self.mass end, set_hit_mass = function(self, v) self.mass = v end,
+        _health = (normal_hp[breed] or 400) * ((param.optional_health_modifier or 1) + havoc_extra),
+        max_health = function(self) return self._health end,
+        _game_session = breed ~= no_game_object and "session" or nil, _game_object_id = breed ~= no_game_object and unit.gid or nil,
+      },
       navigation_system = { mods = {}, add_movement_modifier = function(self, m) self.mods[#self.mods + 1] = m; return #self.mods end },
       unit_data_system = { breed = function() return { name = breed } end },
     }
     if breed == "chaos_hound" then unit.ext.navigation_system = nil end -- a unit without navigation: that step fails alone
     -- bosses: the game marks one spawned with less than its normal health as weakened (boss_extension.lua:61-66)
     if breed == "chaos_plague_ogryn" or breed == "chaos_beast_of_nurgle" then
-      unit.ext.boss_system = { _is_weakened = (param.optional_health_modifier or 1) < 1 }
+      unit.ext.boss_system = { _is_weakened = unit.ext.health_system._health < normal_hp[breed] }
       unit.ext.unit_data_system = { breed = function() return boss_breeds[breed] end }
       boss_breeds[breed] = boss_breeds[breed] or { name = breed }
     end
@@ -1609,36 +1622,67 @@ do
   check("tuning: a missing extension only skips that step (hit mass still changed) and is logged once", #spawned == 2 and spawned[1].ext.health_system.mass == 4 and logged == 1, logged)
   check("tuning: health_modifier is nil for 100 or nothing", Tuning.health_modifier({ health = 100 }) == nil and Tuning.health_modifier(nil) == nil and Tuning.health_modifier({ health = 250 }) == 2.5)
 
-  -- a boss with less health than normal is "weakened" for the game (its bar says so, the pacing counts a fifth of it): not for a boss
-  -- whose health the player set, the number is the player's
-  run_wave({ name = "t", parts = Groups.parse("1 plague ogryn{health=50}, 1 beast of nurgle{health=150}, 2 poxwalker{health=50}") })
-  local ogryn, beast, pox_tuned = nil, nil, 0
-  for _, u in ipairs(spawned) do
-    if u.breed == "chaos_plague_ogryn" then ogryn = u elseif u.breed == "chaos_beast_of_nurgle" then beast = u else pox_tuned = pox_tuned + 1 end
+  -- health is exact: the game adds the Havoc / mission share to the spawn parameter, the player's number must come out as it is, and
+  -- the game's own "weakened" word for a boss with less than its normal health stays
+  local function run_hp(recipe, extra)
+    havoc_extra = extra or 0
+    synced_health = {}
+    run_wave({ name = "t", parts = Groups.parse(recipe) })
+    havoc_extra = 0
   end
-  check("weakened: a boss spawned with the player's health of 50 percent has its health set (x0.5) and the game's weakened mark cleared", ogryn and ogryn.health_mod == 0.5 and ogryn.ext.boss_system._is_weakened == false and Tuning.is_health_tuned(ogryn) == true)
-  check("weakened: a boss with more health (150) was never weakened and is not touched; units that are not bosses are fine", beast and beast.health_mod == 1.5 and beast.ext.boss_system._is_weakened == false and Tuning.is_health_tuned(beast) == false and pox_tuned == 2)
-  local hud_hook = hooks["HudElementBossHealth.event_boss_encounter_start"]
-  check("weakened: a hook on the boss health bar is installed", hud_hook ~= nil)
-  local seen, calls = "unset", 0
-  local function bar(self, unit, ext, extra) calls = calls + 1; seen = boss_breeds[unit.breed].ignore_weakened_boss_name; return extra end
-  local back = hud_hook(bar, {}, ogryn, {}, "extra")
-  check("weakened: while the bar of a tuned boss is made the breed says to leave the 'Weakened' out, afterwards it is as before", seen == true and boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == nil and calls == 1)
-  hud_hook(bar, {}, beast, {})
-  check("weakened: another boss is left alone (the game's own rule stays for it)", seen == nil and calls == 2)
-  boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name = false
-  hud_hook(bar, {}, ogryn, {})
-  check("weakened: a breed that had its own value gets it back", boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == false)
-  boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name = nil
-  local ok_boom = pcall(hud_hook, function() error("boom") end, {}, ogryn, {})
-  check("weakened: when the bar fails the error goes on and the breed is restored all the same", not ok_boom and boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == nil)
-  local unknown = { breed = "chaos_plague_ogryn", ext = {} }
-  check("weakened: a unit the hook cannot read the breed of just runs the bar", (function() local ran = false; hud_hook(function() ran = true end, {}, unknown, {}); return ran end)())
-  Tuning.dead = true
-  local ran_dead = false
-  hud_hook(function() ran_dead = true end, {}, ogryn, {})
-  Tuning.dead = false
-  check("weakened: after a hot reload (the old module retired) the hook does nothing but run the bar", ran_dead and boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == nil)
+  local function first(breed) for _, u in ipairs(spawned) do if u.breed == breed then return u end end end
+
+  run_hp("1 plague ogryn{health=50}, 1 beast of nurgle{health=150}, 2 poxwalker{health=50}")
+  local ogryn, beast = first("chaos_plague_ogryn"), first("chaos_beast_of_nurgle")
+  check("health: a boss at 50 percent has half its normal health (500 of 1000), a boss at 150 one and a half (3000 of 2000), a poxwalker half", ogryn.ext.health_system._health == 500 and beast.ext.health_system._health == 3000 and first("chaos_poxwalker").ext.health_system._health == 50)
+  check("weakened: the game's own mark stays: a boss with less than its normal health is weakened, one with more is not", ogryn.ext.boss_system._is_weakened == true and beast.ext.boss_system._is_weakened == false)
+  check("weakened: nothing hooks the boss health bar any more (the 'Weakened' name is the game's), and the old helpers are gone", hooks["HudElementBossHealth.event_boss_encounter_start"] == nil and Tuning.is_health_tuned == nil)
+  check("health: when the game already made the exact number nothing is written to the game object", #synced_health == 0)
+
+  run_hp("1 plague ogryn{health=50}", 0.3)
+  ogryn = first("chaos_plague_ogryn")
+  check("health: Havoc's +30 percent no longer changes the number: 50 percent is 500 (not 800); the extension and the synced field agree", ogryn.ext.health_system._health == 500 and #synced_health == 1 and synced_health[1].field == "health" and synced_health[1].value == 500 and synced_health[1].id == ogryn.gid and synced_health[1].session == "session", #synced_health)
+  check("weakened: that boss is weakened (500 < 1000)", ogryn.ext.boss_system._is_weakened == true)
+
+  run_hp("1 plague ogryn{health=80}", 0.5)
+  ogryn = first("chaos_plague_ogryn")
+  check("weakened: the mark is read again from the exact health (the game had made it from 1.3x: not weakened; 80 percent is weakened)", ogryn.ext.health_system._health == 800 and ogryn.ext.boss_system._is_weakened == true)
+
+  run_hp("1 plague ogryn{health=150}", -0.6)
+  ogryn = first("chaos_plague_ogryn")
+  check("weakened: a modifier that LOWERED the health (the game made 0.9x: weakened) does not keep the mark once the exact 150 percent is set", ogryn.ext.health_system._health == 1500 and ogryn.ext.boss_system._is_weakened == false)
+
+  run_hp("1 plague ogryn, 2 poxwalkers", 0.3)
+  ogryn = first("chaos_plague_ogryn")
+  check("health: a group without custom health keeps Havoc's share untouched (1.3x), nothing is written", ogryn.ext.health_system._health == 1300 and #synced_health == 0 and ogryn.ext.boss_system._is_weakened == false)
+
+  run_hp("1 plague ogryn{health=100}", 0.3)
+  check("health: 100 percent is 'unchanged' too, Havoc's share stays", first("chaos_plague_ogryn").ext.health_system._health == 1300 and #synced_health == 0)
+
+  -- a unit whose game object does not exist yet, or without a health extension, or a game without a difficulty manager: logged once, the
+  -- other steps (hit mass) still happen and the wave goes on
+  local before = #echoes
+  no_game_object = "chaos_spawn"
+  run_hp("2 chaos spawn{health=50 mass=200}", 0.3)
+  no_game_object = nil
+  local logged = 0; for i = before + 1, #echoes do if echoes[i]:find("the exact health of chaos_spawn was not set", 1, true) and echoes[i]:find("the unit has no game object yet", 1, true) then logged = logged + 1 end end
+  check("health: a unit without a game object is logged once, its hit mass is still changed and the wave goes on", #spawned == 2 and logged == 1 and first("chaos_spawn").ext.health_system.mass == 4, logged)
+  check("health: ...and its health was not half-written (the extension keeps the value the game made)", math.abs(first("chaos_spawn").ext.health_system._health - 320) < 1e-6 and #synced_health == 0)
+
+  before = #echoes
+  local saved_diff = Managers.state.difficulty
+  Managers.state.difficulty = nil
+  run_hp("1 hound{health=50}")
+  Managers.state.difficulty = saved_diff
+  logged = 0; for i = before + 1, #echoes do if echoes[i]:find("the exact health of chaos_hound was not set", 1, true) and echoes[i]:find("no difficulty manager", 1, true) then logged = logged + 1 end end
+  check("health: no difficulty manager (a hub, a hot reload in a menu) is logged and the spawn parameter's own health stays", #spawned == 1 and logged == 1 and first("chaos_hound").health_mod == 0.5)
+
+  local exact_unit = { ext = { unit_data_system = { breed = function() return { name = "chaos_poxwalker" } end } } }
+  check("health: a unit without a health extension raises (the caller logs it)", not pcall(Tuning.set_exact_health, exact_unit, "chaos_poxwalker", 0.5))
+  local pox = { ext = { health_system = { _health = 100, max_health = function(self) return self._health end, _game_session = "s", _game_object_id = 7 }, unit_data_system = { breed = function() return { name = "chaos_poxwalker" } end } } }
+  synced_health = {}
+  check("health: an extreme factor never gives a unit less than 1 health, and the real breed of the unit decides the normal health", Tuning.set_exact_health(pox, "other_breed_name", 0.0001) == 1 and pox.ext.health_system._health == 1 and synced_health[1].value == 1)
+  check("health: exact already -> returns the health, writes nothing", (function() synced_health = {}; return Tuning.set_exact_health(pox, "x", 0.01) == 1 and #synced_health == 0 end)())
 
   -- ----------------------------------------------------------------------------- the burster's explosion follows its size
   do
@@ -2007,6 +2051,7 @@ do
   snapshot_tuner.send_all("peer")
   check("retire: a failed snapshot completing after synchronous retirement cannot recreate outgoing work", snapshot_calls==1 and snapshot_tuner.status().unsent==0 and snapshot_tuner.status().sizes_known==0)
   ScriptUnit, Unit, Vector3, Managers.state.unit_spawner = saved_su, saved_unit, saved_v3, saved_spawner
+  Managers.state.difficulty, GameSession = saved_difficulty, saved_gamesession
   minion_spawn.spawn_minion = saved_spawn
   Execute.init({ positions = StubPositions, bypass = Bypass, groups = Groups })
   Tuning.reset(); Bypass.reset()
