@@ -541,6 +541,95 @@ do
   Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
 end
 
+-- the last fulfilled card: remembered by the host when a wave of the cycle goes out, synced to the clients, shown by the HUD window -------
+do
+  local keys = Events.keys()
+  local function only(list) for _, k in ipairs(keys) do settings["on_" .. k] = false end for _, e in ipairs(list) do settings["on_" .. e[1]] = true; settings["pct_" .. e[1]] = e[2] or 5; settings["cd_" .. e[1]] = e[3] or 0 end end
+  local function clean()
+    for _, k in ipairs(keys) do settings["on_" .. k] = nil; settings["pct_" .. k] = nil; settings["cd_" .. k] = nil end
+    settings.mode, settings.tarot_cards, settings.tarot_seconds, settings.interval_min, settings.interval_max, settings.interval_random, settings.initial_delay = nil, nil, nil, nil, nil, nil, nil
+  end
+  local function start()
+    started_waves = {}; started_defs = {}
+    Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01)
+    return Director.view()
+  end
+  local function skip() Director.skip(); Director.update(0.01) end -- /rw_skip sets the countdown to zero, the pick happens on the next tick
+  is_server = true
+  settings.tarot_cards = 1; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100; settings.interval_random = false; settings.initial_delay = 0
+  only({ { "wave_medium", 5, 0 } })
+  local v = start()
+  check("last card: before the first card goes out there is none (and the age is 0)", v.last == nil and v.last_seq == 0 and v.last_age == 0)
+  skip()
+  v = Director.view()
+  local first_card = v.last
+  check("last card: the card whose wave went out is the last one (its name, suit, threat, a first number, age 0)", first_card ~= nil and first_card.name == started_waves[#started_waves] and first_card.key == "wave_medium" and first_card.suit == "swarm" and first_card.threat >= 1 and first_card.threat <= 5 and #first_card.breeds >= 1 and v.last_seq == 1 and v.last_age == 0, started_waves[#started_waves])
+  Director.update(30)
+  check("last card: its age counts the played seconds", math.abs(Director.view().last_age - 30) < 0.01 and Director.view().last == first_card, Director.view().last_age)
+  Director.pause(true)
+  Director.update(25)
+  check("last card: a paused game does not age it", math.abs(Director.view().last_age - 30) < 0.01)
+  Director.pause(false)
+  skip()
+  v = Director.view()
+  check("last card: the next card replaces it (a new number, a new table, age 0 again)", v.last_seq == 2 and v.last ~= first_card and v.last_age == 0 and v.last.key == "wave_medium")
+
+  -- a wave that did not start is not a fulfilled card
+  local real_start = Execute.start_wave
+  Execute.start_wave = function() return false, "pending-wave budget is full" end
+  skip()
+  check("last card: a wave that could not start does not change it", Director.view().last_seq == 2)
+  Execute.start_wave = real_start
+
+  -- not a test wave, not a fixed timer
+  local seq = Director.view().last_seq
+  Director.fire_now("wave_small")
+  Director.fire_now("wave_small", { close = true })
+  check("last card: /rw_test and /rw_test_close do not change it", Director.view().last_seq == seq)
+
+  -- sync: the host's state carries it, a client shows it
+  Director.update(2)
+  local state
+  for i = #sent, 1, -1 do if sent[i].state and sent[i].state.lc then state = sent[i].state break end end
+  check("sync: the state carries the last card (name, suit, a number, its age in played seconds)", state ~= nil and state.lc.n == Director.view().last.name and state.lc.s == "swarm" and state.ls == seq and type(state.la) == "number" and state.la >= 2, state and tostring(state.la))
+  local wire = { lc = state.lc, la = state.la, ls = state.ls }
+  is_server = false
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 50.0, b = 1, k = {}, z = 0, lc = wire.lc, la = wire.la, ls = wire.ls })
+  local cv = Director.view()
+  local client_card = cv.last
+  check("sync: a client shows the last card (the fields, the number, the age the host sent)", client_card ~= nil and client_card.name == wire.lc.n and client_card.suit == "swarm" and client_card.threat == wire.lc.t and cv.last_seq == wire.ls and cv.last_age >= wire.la and cv.last_age < wire.la + 5, cv.last and cv.last.name)
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 49.0, b = 1, k = {}, z = 0, lc = wire.lc, la = wire.la + 1, ls = wire.ls })
+  check("sync: the same card in the next message keeps its table (the window does not rebuild) and gets the new age", Director.view().last == client_card and Director.view().last_age >= wire.la + 1)
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 48.0, b = 1, k = {}, z = 0, lc = { k = "custom_2", n = "Other", s = "rage", t = 3, b = { "chaos_hound" }, q = "x", m = "", r = 0, c = 90 }, la = 0, ls = wire.ls + 1 })
+  check("sync: another card (a new number) replaces it", Director.view().last ~= client_card and Director.view().last.name == "Other" and Director.view().last_seq == wire.ls + 1 and Director.view().last.suit == "rage")
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 47.0, b = 1, k = {}, z = 0, lc = { k = "old", n = "Old Pox", s = "fester", t = 2, b = {} }, la = 1, ls = 99 })
+  check("sync: a host that still says fester sends a Heresy card", Director.view().last and Director.view().last.suit == "heresy")
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 46.0, b = 1, k = {}, z = 0, lc = "junk", la = "x", ls = {} })
+  check("sync: junk instead of a card shows no last card and breaks nothing", Director.view().last == nil and Director.view().last_seq == 0)
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 45.0, b = 1, k = {}, z = 0, lc = { k = "a", n = "A", s = "rage", t = 99, b = { 5, "ok" }, q = 12, c = -4 }, la = -50, ls = 5 })
+  local clean_card = Director.view().last
+  check("sync: every field is validated (threat 99 -> 5, a non-string enemy dropped, the whisper a string, the age never negative)", clean_card and clean_card.threat == 5 and #clean_card.breeds == 1 and clean_card.whisper == "12" and clean_card.cooldown == 0 and Director.view().last_age >= 0)
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 44.0, b = 1, k = {} })
+  check("sync: a host without the feature (an older version) sends none: no last card", Director.view().last == nil)
+  Director.on_exit_gameplay()
+  check("last card: out of a mission the view has none (a stale card is never shown)", Director.view().last == nil and Director.view().last_seq == 0 and Director.view().last_age == 0)
+
+  -- the other modes: a random wave and a voted wave are fulfilled cards too
+  is_server = true
+  settings.mode = "random"
+  only({ { "wave_small", 5, 0 } })
+  v = start()
+  Director.update(50); Director.update(50.5)
+  v = Director.view()
+  check("last card: in the random mode the wave that came is the last card", v.phase == "incoming" and v.last ~= nil and v.last.name == started_waves[1] and v.last_seq == 1, tostring(started_waves[1]))
+  Director.on_exit_gameplay()
+  check("last card: a new mission starts without one (the previous mission's card is gone)", (function() started_waves = {}; Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01); return Director.view().last == nil and Director.view().last_seq == 0 end)())
+  Director.on_exit_gameplay()
+  clean()
+  started_waves = {}; started_defs = {}
+end
+
 -- 100 cards: the deck, and the message that tells the host which cards a client has ----------------------------------------------
 do
   local Presets = PresetsMod
