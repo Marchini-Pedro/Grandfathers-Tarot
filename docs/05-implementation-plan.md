@@ -137,3 +137,5 @@ See `04-design-and-rationale.md`.
 ## Recovery review (2026-10-03)
 - [x] Preserve remote baseline, 25 unpublished commits and eight uncommitted files on feature/workshop-recovery.
 - [ ] Complete sorting/drag behavior, review runtime and multiplayer edge cases, run offline checks, synchronize the feature branch. See 09-recovery-review.md.
+
+- [x] Complete persistent sorting and drag-to-swap, cancel stale interactions, and cover them with meaningful regression/mutation checks (2026-10-03).

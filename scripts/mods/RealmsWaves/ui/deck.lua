@@ -41,6 +41,7 @@ end
 -- ------------------------------------------------------------------------------------------------- sorting and moving
 Deck.SORTS = { "threat", "rarity", "enemies", "face" }
 Deck.DRAG_HOLD = 0.3 -- seconds a card is held before it is lifted
+local SORT_TIES = { "threat", "enemies", "chance" }
 
 -- The cards of the Deck in the order of `sort` ("threat": the hardest last; "rarity": the rarest, the lowest chance, first; "enemies":
 -- the fewest first; "face": by suit in the order of the suit list), `desc` turns it round. `items` = list of { key, threat, chance, enemies,
@@ -77,7 +78,7 @@ Deck.sorted = function (items, sort, desc)
 		end
 
 		-- the tie breakers follow the direction of the sort too
-		for _, field in ipairs({ "threat", "enemies", "chance" }) do
+		for _, field in ipairs(SORT_TIES) do
 			local x, y = a.item[field], b.item[field]
 
 			if x ~= y then

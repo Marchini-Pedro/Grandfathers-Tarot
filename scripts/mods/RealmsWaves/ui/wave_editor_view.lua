@@ -197,6 +197,7 @@ RealmsWavesView.on_enter = function (self)
 end
 
 RealmsWavesView.on_exit = function (self)
+	self:_end_drag()
 	self._screen = "list"
 	Popup.cancel(self)
 	self:_refresh_text_flag()
@@ -354,13 +355,17 @@ RealmsWavesView._create_editor_widgets = function (self)
 		-- card. A right click anywhere on the tile opens it too. A second left click inside the double-click time only calls
 		-- double_click_callback: the pips and the pill repeat their action (a fast second click is not lost), the toggles do
 		-- not (two toggles in a row would cancel out).
-		local toggle = callback(self, "cb_tile_toggle", i)
+		local toggle = callback(self, "cb_tile_release", i)
 		local edit = callback(self, "cb_tile_edit", i)
 
 		-- the toggles act when the button is let go (a card held down for a while is being dragged to swap places, see
 		-- _update_deck_drag, and must not switch): a quick click is the same as it was
 		content.hotspot_top.released_callback, content.hotspot_top.right_pressed_callback = toggle, edit
 		content.hotspot_state.released_callback, content.hotspot_state.right_pressed_callback = toggle, edit
+		for _, id in ipairs({ "hotspot_top", "hotspot_state" }) do
+			content[id].pressed_callback = callback(self, "cb_tile_press", i, true)
+			content[id].double_click_callback = callback(self, "cb_tile_press", i, false)
+		end
 		content.hotspot_edit.pressed_callback, content.hotspot_edit.right_pressed_callback = edit, edit
 		content.hotspot_edit.double_click_callback = edit
 
@@ -443,6 +448,7 @@ end
 -- ----------------------------------------------------------------------- model
 
 RealmsWavesView._reload = function (self)
+	self:_end_drag()
 	local rw = mod.rw
 	local keys = rw.events.ordered_keys(get_setting)
 	local waves, total, deleted = {}, 0, 0
@@ -703,6 +709,7 @@ end
 -- --------------------------------------------------------------------- display
 
 RealmsWavesView._apply_screen = function (self, keep_offset)
+	self:_end_drag()
 	local widgets = self._widgets_by_name
 	local screen = self._screen
 	local rw = mod.rw

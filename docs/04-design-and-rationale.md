@@ -155,3 +155,6 @@ Mode (random/vote); interval min/max; vote duration; candidates per ballot; no-v
 
 ## Reuse map
 See `05-implementation-plan.md`.
+
+### Deck order (2026-10-03 recovery)
+`deck_order` stores visual card keys as a comma-separated string, normalized against the current catalog on load. Missing/deleted keys never erase a card; absent/new keys append. `deck_sort` and `deck_sort_desc` mark the last ascending/descending sort (threat, rarity/chance, enemies, face); manual swaps clear the mark. This order has no effect on the director pool or probability. Dragging starts after a real face/state press held 0.3 seconds, swaps within the visible page on release over another card, and cancels everywhere else. A popup, page/screen change, reload or editor exit cancels before reusing widgets. The quick click acts on release; a double-click arms a hold but suppresses its second toggle.

@@ -660,6 +660,7 @@ DeckView.install = function (View, h)
 	-- ------------------------------------------------------------------------------------- the screen
 	-- (Re)builds the whole Deck page: the header texts, the strip, the tiles of this page and the blank tile.
 	View._refresh_deck = function (self)
+		self:_end_drag()
 		local widgets = self._widgets_by_name
 		local Cards = mod.rw.cards
 
@@ -871,13 +872,7 @@ DeckView.install = function (View, h)
 	-- The keys of every card in the order shown now (the empty slots of custom cards and the blank tile are not in the Deck, they
 	-- keep their place among the others).
 	local function current_order(self)
-		local keys = {}
-
-		for i = 1, #self._waves do
-			keys[i] = self._waves[i].key
-		end
-
-		return keys
+		return mod.rw.events.ordered_keys(function (id) return mod:get(id) end)
 	end
 
 	local function save_order(self, keys, sort, desc)
@@ -891,7 +886,7 @@ DeckView.install = function (View, h)
 	-- A Sort button: the cards go in that order; a second click on the same button turns it round. The order is saved (the draw does
 	-- not care about it), moving a card by hand afterwards leaves the sort button unlit.
 	View.cb_sort = guarded(function (self, mode)
-		if self._screen ~= "list" then
+		if self._screen ~= "list" or (mode ~= "threat" and mode ~= "rarity" and mode ~= "enemies" and mode ~= "face") then
 			return
 		end
 
@@ -966,15 +961,30 @@ DeckView.install = function (View, h)
 	-- A tile of the Deck held with the left button for Deck.DRAG_HOLD seconds is lifted and follows the pointer; where it is let go
 	-- over another tile the two cards swap places. Let go anywhere else it goes back. (Only the cards of the page shown.)
 	View._end_drag = function (self)
+		local drag, widgets = self._drag, self._widgets_by_name
+
+		if drag and widgets then
+			local widget = widgets[TILE_PREFIX .. drag.slot]
+
+			if widget then
+				local x, y = Deck.tile_pos(drag.slot)
+
+				self:_set_scenegraph_position(TILE_PREFIX .. drag.slot, x, y, 3)
+				widget.alpha_multiplier = drag.alpha
+			end
+
+			local target = drag.target and widgets[TILE_PREFIX .. drag.target]
+
+			if target then
+				target.alpha_multiplier = drag.target_alpha
+			end
+		end
+
 		self._press, self._drag = nil, nil
 	end
 
 	View._update_deck_drag = function (self, input_service, dt)
-		if (self._drag_cool or 0) > 0 then
-			self._drag_cool = self._drag_cool - 1
-		end
-
-		if self._popup or not self._deck then
+		if self._popup or not self._deck or self._screen ~= "list" then
 			if self._drag then
 				self:_end_drag()
 				self:_apply_screen(true)
@@ -988,30 +998,24 @@ DeckView.install = function (View, h)
 		local widgets = self._widgets_by_name
 		local held = input_service ~= nil and input_service:get("left_hold") == true
 		local x, y = self:_cursor_point(input_service)
+		self._deck_cursor_x, self._deck_cursor_y = x, y
 		local drag = self._drag
 
 		if not drag then
+			local press = self._press
+
 			if not held then
-				self._press = nil
+				-- Hotspot releases run during drawing, after update. Retain an armed click for that frame only.
+				if press and not press.released then
+					press.released = true
+				else
+					self._press = nil
+				end
 
 				return
 			end
 
-			local press = self._press
-
-			if not press then
-				for slot = 1, Deck.CAPACITY do
-					local widget = widgets[TILE_PREFIX .. slot]
-
-					if widget and widget.visible and (widget.content.hotspot_top.is_held or widget.content.hotspot_state.is_held) and x then
-						local tx, ty = Deck.tile_pos(slot)
-
-						self._press = { slot = slot, t = 0, gx = x - tx, gy = y - ty }
-
-						break
-					end
-				end
-
+			if not press or not x then
 				return
 			end
 
@@ -1021,11 +1025,20 @@ DeckView.install = function (View, h)
 				return
 			end
 
-			drag = { slot = press.slot, gx = press.gx, gy = press.gy }
+			local tx, ty = Deck.tile_pos(press.slot)
+
+			drag = { slot = press.slot, gx = (press.x or x) - tx, gy = (press.y or y) - ty, alpha = widgets[TILE_PREFIX .. press.slot].alpha_multiplier }
 			self._drag, self._press = drag, nil
 		end
 
 		local widget = widgets[TILE_PREFIX .. drag.slot]
+
+		if not x then
+			self:_end_drag()
+			self:_apply_screen(true)
+
+			return
+		end
 
 		if held and x then
 			-- the lifted tile follows the pointer above the others; the tile under it is dimmed: the one it would swap with
@@ -1042,10 +1055,11 @@ DeckView.install = function (View, h)
 				local old = drag.target and widgets[TILE_PREFIX .. drag.target]
 
 				if old then
-					old.alpha_multiplier = old.content.card_state == "off" and 0.55 or 1
+					old.alpha_multiplier = drag.target_alpha
 				end
 
 				if target then
+					drag.target_alpha = widgets[TILE_PREFIX .. target].alpha_multiplier
 					widgets[TILE_PREFIX .. target].alpha_multiplier = 0.45
 				end
 
@@ -1058,14 +1072,13 @@ DeckView.install = function (View, h)
 		end
 
 		-- let go: swap with the tile it is over (the pointer where it was last seen), or go back
-		local target = x and self:_tile_slot_at(x, y) or drag.target
+		local target = self:_tile_slot_at(x, y)
 
 		if target == drag.slot then
 			target = nil
 		end
 
 		self:_end_drag()
-		self._drag_cool = 3 -- (the release over the tile it came from is not a click)
 
 		local a, b = self._deck[self._offset + drag.slot], target and self._deck[self._offset + target]
 
@@ -1088,10 +1101,29 @@ DeckView.install = function (View, h)
 	end
 
 	-- ------------------------------------------------------------------------------------- callbacks
+	View.cb_tile_press = guarded(function (self, slot, toggle)
+		local wave = self._deck[self._offset + slot]
+
+		if self._screen == "list" and not self._drag and wave and not wave.blank then
+			self._press = { slot = slot, key = wave.key, toggle = toggle, t = 0, x = self._deck_cursor_x, y = self._deck_cursor_y }
+		end
+	end)
+
+	View.cb_tile_release = guarded(function (self, slot)
+		local press = self._press
+		local wave = self._deck[self._offset + slot]
+
+		self._press = nil
+
+		if press and press.slot == slot and press.toggle and wave and wave.key == press.key and self._screen == "list" then
+			self:cb_tile_toggle(slot)
+		end
+	end)
+
 	-- a click on a tile (the face or the left of the state line): the card goes in or out of the draw
 	View.cb_tile_toggle = guarded(function (self, slot)
 		-- (the release that ends a drag is not a click)
-		if self._drag or (self._drag_cool or 0) > 0 then
+		if self._drag then
 			return
 		end
 

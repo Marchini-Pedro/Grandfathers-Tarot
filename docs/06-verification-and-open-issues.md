@@ -222,3 +222,5 @@
 - 2026-10-03: integrating feature/attack-timing with workshop recovery (nine additional unpublished commits). Shared conflicts resolved; running compile, logic, editor, entry, HUD and docs checks on Lua 5.5 and LuaJIT. No game test.
 
 - 2026-10-03: integrated branches pass all six offline scripts on Lua 5.5 and LuaJIT 2.1 (30 compiled, editor 650, entry 18, HUD 179; logic zero failures). Preserved histories and resolved conflicts; gameplay remains pending.
+
+- 2026-10-03: 44 new editor checks (694 total) pass on Lua 5.5 and LuaJIT 2.1. Restoring the stale outside target, removing page-change cancellation, or re-enabling the double-click toggle causes the checks to fail. Idle stubbed editor measured about 0.007 ms/update and 0.053 bytes/update on Lua 5.5, 0.006 ms and 0 bytes on LuaJIT with tracing disabled for heap measurement. These are harness costs, not engine/render CPU time. Remaining game checks: all four sorts/reopening, drag within each visible page, quick click vs hold, scaling at 1080p/1440p/4k, scrolling, popup and right-click cancellation, cooldown opacity.

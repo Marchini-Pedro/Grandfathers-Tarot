@@ -206,3 +206,8 @@ Everything from 1.13.0 down to 1.0.0 is in [changelog/1.x.md](changelog/1.x.md) 
 ## 2026-10-03 - Integrate the second unpublished feature branch
 - Preserve nine attack-timing commits through c7141cb alongside the workshop history. Resolve shared tuning, entry and logic tests while retaining custom boss naming and multi-batch scale validation.
 - Includes gap terminology and safe boss combos, burster radius scaling, gunner diagnostics, minion stat hooks with modified-stat bookkeeping, and guarded size sends. Offline validation below; no merge into main.
+
+## 2026-10-03 - Complete and harden Deck sorting and dragging
+- Persistent ascending/descending sorts by threat, chance (rarity), enemy count and face; manual swaps clear the active sort. Hidden/deleted keys remain in the saved order and new keys append safely. Sort tie-breakers reuse one table instead of allocating in each comparison.
+- Only an actual face/state press arms a toggle or drag. Double-click releases never undo the first toggle; drops outside the grid or with no cursor cancel. Scrolling, sorting, popups, screen changes and closing restore positions/layers/opacity before reusing slots.
+- 44 additional editor checks cover persistence, all sorts, stable ties, draw independence, releases and cancellation. Reintroducing the outside-drop, scroll or double-click bugs fails the regression checks. Stubbed idle updates remain below 1 byte/frame.

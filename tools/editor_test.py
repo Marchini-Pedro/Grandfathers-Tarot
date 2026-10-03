@@ -154,7 +154,11 @@ local function click_row(i, hotspot) row(i).content[hotspot].pressed_callback() 
 local D = view._widgets_by_name
 local function tile(i) return view._widgets_by_name["rw_tile_" .. i] end
 -- the toggles of a tile act when the button is let go (released_callback: a card held down is being dragged), the Edit pill and the pips when it is pressed
-local function click_tile(i, hotspot) local hs = tile(i).content[hotspot or "hotspot_top"]; (hs.released_callback or hs.pressed_callback)() end
+local function click_tile(i, hotspot)
+  local hs = tile(i).content[hotspot or "hotspot_top"]
+  hs.pressed_callback()
+  if hs.released_callback then hs.released_callback() end
+end
 local function open_card(i) click_tile(i, "hotspot_edit") end
 local function blank_tile() return view._widgets_by_name.rw_tile_blank end
 local function plain(text) return (text:gsub("{#[^}]*}", "")) end
@@ -475,7 +479,10 @@ do
     click("btn_back")
   end
   check("right click: back on the Deck", view._screen == "list")
-  check("double click: the pips and the Edit pill repeat their action, the toggles do not (two toggles in a row would cancel out)", tile(2).content.hotspot_pip4.double_click_callback ~= nil and tile(2).content.hotspot_edit.double_click_callback ~= nil and tile(2).content.hotspot_top.double_click_callback == nil and tile(2).content.hotspot_state.double_click_callback == nil)
+  local was_enabled = view._deck[2].enabled
+  tile(2).content.hotspot_top.double_click_callback()
+  tile(2).content.hotspot_top.released_callback()
+  check("double click: a second release does not toggle the card again; pips and Edit still repeat", view._deck[2].enabled == was_enabled and tile(2).content.hotspot_pip4.double_click_callback ~= nil and tile(2).content.hotspot_edit.double_click_callback ~= nil)
   tile(2).content.hotspot_pip4.double_click_callback()
   check("double click: the second click on a pip sets the chance too", settings.pct_wave_medium ~= nil and filled(tile(2)) >= 1)
   settings.pct_wave_medium = nil; reload()
@@ -2497,6 +2504,129 @@ do
   settings.wave_def_custom_1 = nil; settings.on_custom_1 = nil; settings.su_custom_1 = nil; settings.th_custom_1 = nil; settings.pct_custom_1 = nil; settings.shelf_faction = nil
   view._faction = "scab"
   view:_reload(); view:_apply_screen()
+end
+
+-- Persistent Deck order and the actual hold/release path, including cancellation and stale hotspot releases.
+do
+  local saved_settings = table.clone(settings)
+  local DM, Events = dofile(BASE .. "/ui/deck.lua"), mod.rw.events
+  local PP = dofile(BASE .. "/ui/wave_editor_components.lua").Popup
+  local function reset_deck()
+    PP.cancel(view)
+    for k in pairs(settings) do settings[k] = nil end
+    mod.rw.director = nil
+    view._screen = "list"; view._key = nil; view._offset = 0
+    view:_reload(); view:_apply_screen()
+  end
+  reset_deck()
+  local keys = Events.keys()
+  settings.deck_order = keys[3] .. ",missing," .. keys[3] .. "," .. keys[1]
+  local recovered = Events.ordered_keys(function(id) return settings[id] end)
+  local seen, complete = {}, #recovered == #keys
+  for _, k in ipairs(recovered) do if seen[k] then complete = false end; seen[k] = true end
+  check("order: duplicates and deleted keys are ignored; missing/new cards are appended once", complete and recovered[1] == keys[3] and recovered[2] == keys[1])
+  settings.deck_order = 42
+  check("order: a damaged non-string setting restores the default order", table.concat(Events.ordered_keys(function(id) return settings[id] end), ",") == table.concat(keys, ","))
+  settings.deck_order = nil
+  local original_pool = mod.rw.events.build_pool(function(id) return settings[id] end, mod.rw.groups)
+  local items = {
+    {key="a", threat=2, chance=3, enemies=8, suit=12},
+    {key="b", threat=1, chance=7, enemies=3, suit=1},
+    {key="c", threat=2, chance=3, enemies=8, suit=12},
+  }
+  for _, mode in ipairs(DM.SORTS) do
+    local field = ({ threat="threat", rarity="chance", enemies="enemies", face="suit" })[mode]
+    for _, desc in ipairs({false, true}) do
+      local sorted = DM.sorted(items, mode, desc)
+      local ordered = true
+      for i=2,#sorted do if (not desc and sorted[i-1][field] > sorted[i][field]) or (desc and sorted[i-1][field] < sorted[i][field]) then ordered=false end end
+      local a,c
+      for i,item in ipairs(sorted) do if item.key=="a" then a=i elseif item.key=="c" then c=i end end
+      check("sort: " .. mode .. (desc and " descending" or " ascending") .. " is stable and leaves input alone", ordered and a<c and items[1].key=="a")
+    end
+    reset_deck()
+    view:cb_sort(mode)
+    check("sort button: " .. mode .. " stores the order and lights only on the Deck", settings.deck_sort==mode and settings.deck_sort_desc==false and tile(1).visible and D["btn_sort_"..mode].content.hotspot_on)
+    view:cb_sort(mode)
+    check("sort button: a second " .. mode .. " click reverses the direction", settings.deck_sort_desc==true)
+  end
+  local sorted_pool = mod.rw.events.build_pool(function(id) return settings[id] end, mod.rw.groups)
+  local unchanged = #original_pool == #sorted_pool
+  for i=1,#original_pool do if original_pool[i].key~=sorted_pool[i].key or original_pool[i].raw~=sorted_pool[i].raw then unchanged=false end end
+  check("sort: visual order never changes the director's weights or its default pool ordering", unchanged)
+  local saved_order = settings.deck_order
+  view:_reload()
+  check("order: a reload reads the saved order", view._deck[1].key == settings.deck_order:match("[^,]+"))
+  view:cb_sort("bad mode")
+  check("sort: an invalid mode does not overwrite the saved order", settings.deck_order==saved_order)
+
+  reset_deck()
+  local cursor, held = {146,210}, false
+  local inp = {get=function(self,id) if id=="cursor" then return cursor elseif id=="left_hold" then return held end end, is_null_service=function() return false end}
+  local function step(dt) view:update(dt or 0.016, 0, inp) end
+  local function point(slot)
+    local x,y=DM.tile_pos(slot); cursor[1],cursor[2]=x+20,y+20
+  end
+  local function lift(slot)
+    point(slot); held=false; step()
+    tile(slot).content.hotspot_top.pressed_callback()
+    held=true; step(DM.DRAG_HOLD+0.01)
+    check("drag: an actual face press held for the threshold lifts a card", view._drag and view._drag.slot==slot)
+  end
+  local function order() return table.concat(Events.ordered_keys(function(id) return settings[id] end), ",") end
+  local before, a, b = order(), view._deck[1].key, view._deck[2].key
+  lift(1); point(2); step(); held=false; step()
+  tile(2).content.hotspot_top.released_callback()
+  check("drag: dropping swaps just the two cards, persists, and never toggles them", view._deck[1].key==b and view._deck[2].key==a and settings.deck_order~=nil and settings["on_"..a]==nil and settings["on_"..b]==nil and view._drag==nil)
+  check("drag: a manual swap clears the selected sort", settings.deck_sort=="" and settings.deck_sort_desc==false)
+  before=order(); lift(1); point(2); step(); cursor[1],cursor[2]=1900,1000; held=false; step()
+  check("drag: dropping outside the grid after hovering a target cancels, keeping the order", order()==before and view._drag==nil)
+  local pos=view._sg.rw_tile_1
+  check("drag: cancellation restores the card position and layer", pos[1]==126 and pos[2]==190 and pos[3]==3)
+  before=order(); lift(1); point(2); step(); cursor=nil; step()
+  check("drag: losing the cursor cancels without using the last hovered target", view._drag==nil and order()==before)
+  cursor={146,210}; held=false; step()
+  lift(1); point(2); step(); PP.open(view,{label="x",value="",set=function() end})
+  step()
+  check("drag: opening a popup cancels and restores dimmed targets", view._drag==nil and view._press==nil and tile(2).alpha_multiplier==1)
+  PP.cancel(view)
+  lift(1); tile(1).content.hotspot_top.right_pressed_callback()
+  check("drag: right click switches to the card screen and cancels the drag", view._screen=="detail" and view._drag==nil and view._press==nil)
+  view:cb_back(); held=false; step()
+  before=order(); lift(1); view:cb_sort("threat")
+  check("drag: sorting during a drag cancels it before reusing tile slots", view._drag==nil and settings.deck_sort=="threat")
+  reset_deck(); held=false; step()
+  for i=1,20 do settings["wave_def_custom_"..i]="Extra "..i.."\t1 hound" end
+  view:_reload(); view:_apply_screen()
+  before=order(); lift(1); point(2); step(); view:cb_scroll(1)
+  held=false; step(); tile(1).content.hotspot_top.released_callback()
+  check("drag: scrolling cancels before the visible slots acquire different cards", view._offset>0 and view._drag==nil and order()==before and settings.on_wave_small==nil)
+  reset_deck(); held=false; step()
+  tile(1).content.hotspot_top.released_callback()
+  check("click: an unarmed release cannot toggle a card", settings.on_wave_small==nil)
+  tile(1).content.hotspot_top.pressed_callback(); held=false; step(); tile(1).content.hotspot_top.released_callback()
+  check("click: a quick press/release toggles once despite update preceding the release callback", settings.on_wave_small==false)
+  tile(1).content.hotspot_top.double_click_callback(); step(); tile(1).content.hotspot_top.released_callback()
+  check("click: the double-click release leaves the first toggle intact", settings.on_wave_small==false)
+  view._render_settings={inverse_scale=0.5}; cursor={292,420}
+  local x,y=view:_cursor_point(inp)
+  check("drag: cursor coordinates follow UI scaling", x==146 and y==210)
+  view._render_settings=nil; reset_deck(); held=false
+  lift(1); view:on_exit()
+  check("drag: closing the editor discards the drag and armed press", view._drag==nil and view._press==nil)
+  reset_deck(); held=false; cursor={1900,1000}
+  if jit then jit.off(); jit.flush() end
+  for i=1,100 do step() end
+  collectgarbage("collect"); collectgarbage("stop")
+  local heap_before=collectgarbage("count"); local clock=os.clock()
+  for i=1,2000 do step() end
+  local seconds=os.clock()-clock
+  local bytes=(collectgarbage("count")-heap_before)*1024/2000
+  collectgarbage("restart"); if jit then jit.on() end
+  check("deck: idle updates allocate under 1 byte/frame in the stubbed view", bytes<1,string.format("%.3f bytes/frame; %.3f ms/update (stubbed, interpreted)",bytes,seconds/2))
+  for k in pairs(settings) do settings[k]=nil end
+  for k,v in pairs(saved_settings) do settings[k]=v end
+  view:on_enter()
 end
 
 -- last: closing the whole editor while a popup is open must release the keybinds
