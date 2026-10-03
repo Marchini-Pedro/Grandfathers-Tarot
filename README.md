@@ -8,7 +8,7 @@ random selection and player voting. No Twitch service is required.
 > into `main` through [PR #4](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/4).
 > Offline checks pass; the recovered changes still need in-game and multiplayer
 > verification. The runtime reports `2.0.0`; the last tagged release is `v1.13.0`.
-> Enemy colour experiments are available on `feature/enemy-appearance` for testing;
+> Enemy colour experiments are available in [PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7) for testing;
 > see the [methods and remaining prerequisites](docs/enemy-appearance.md).
 
 ## Features

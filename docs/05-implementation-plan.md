@@ -12,7 +12,8 @@
 - [x] Focused schema/runtime/protocol, editor and actual spawn/cleanup checks on Lua 5.5 and LuaJIT 2.1; render/inspect the real-English panel and dropdown.
 - [x] Integrate committed CI work into this feature branch only; discover/instrument the appearance harness and assign measured floors to all three new modules, preserving existing thresholds.
 - [x] Fetch origin, pull `main` in a separate worktree and synchronize the feature with `06c2b3a` after merged PRs #5 and #6.
-- [ ] Publish the enemy appearance branch as a pull request and verify its hosted runtime checks.
+- [x] Publish the enemy appearance branch as [PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7).
+- [x] Verify both hosted runtime checks on the published PR at `0103281`; download reports matching the local counts/scores.
 - [ ] In-game acceptance: visuals/LOD/equipment, natural action/buffs, tags/other mods, cleanup, host/client joins/leave/reload and performance.
 - [ ] Verify a surface colour property/type/default/coverage before implementing the surface method.
 - [ ] Build compatible private assets and verify isolation/restoration before implementing shader/material patching.

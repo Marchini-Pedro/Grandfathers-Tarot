@@ -33,6 +33,11 @@ These changes were merged through
 the first hosted PR and main runs pass both runtimes. Required merge checks
 await owner setup.
 
+Enemy colour experiments are published in
+[PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7), synchronized
+with main after PRs #5 and #6. The [method guide](enemy-appearance.md) distinguishes
+usable experiments from advanced prerequisites; in-game acceptance is pending.
+
 ## References
 
 | Document | Purpose |

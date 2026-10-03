@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Record enemy appearance PR publication
+- Push `feature/enemy-appearance` and open [PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7) against main after PRs #5 and #6, as requested. Record the publication in the README, index, method guide, plan and verification log.
+- Verify the first hosted PR run at `0103281` and download reports: 1,916 assertions per runtime, 81.80% Lua 5.5 / 78.54% LuaJIT source-line scores and no coverage failures; the results match local runs.
+- Keep native/multiplayer/performance acceptance pending and the feature unmerged; publication does not change installed mods.
+
 ## 2026-10-03 - Synchronize enemy appearance with merged CI work
 - Fetch origin and fast-forward `main` to `06c2b3a` in a dedicated worktree after PRs #5 and #6; merge that main history into `feature/enemy-appearance` while preserving the other agent's checkout.
 - Resolve the changelog conflict by retaining both feature and CI publication entries; update branch status to distinguish CI already on main from appearance pending review and game acceptance. Runtime, test code and CI configuration are unchanged by this synchronization.

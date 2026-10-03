@@ -2,6 +2,11 @@
 
 ## 2026-10-03 - Synchronizing the appearance PR
 
+- Push `feature/enemy-appearance` and open PR #7 with the authenticated account's
+  write permission, as requested. GitHub reports no merge conflicts. Its first
+  hosted PR reports match local counts/scores on both runtimes: 1,916 assertions,
+  Lua 5.5 81.80% and LuaJIT 2.1 78.54%, with no coverage failures;
+  native acceptance remains separate from publication and CI.
 - GitHub confirms PRs #5 and #6 are merged; `origin/main` is `06c2b3a`.
   Pulling main in a dedicated worktree leaves the other agent's branch intact.
   Merge main into the feature branch so publication retains both ancestries;

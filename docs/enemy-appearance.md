@@ -5,7 +5,8 @@ on `main` at `6d5756d` and synchronized with `06c2b3a` after PRs #5 and #6.
 This preserves the separate CI/coverage checkout. Offline validation is complete;
 native rendering and multiplayer acceptance are pending. The feature has not
 been merged into `main` or installed. CI and its publication documentation are
-already on `main`; the appearance changes are being prepared for PR review.
+already on `main`; the appearance branch is pushed and open as
+[PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7).
 
 The preceding [research findings](research/enemy-appearance/findings.md) and
 [experiment plan](research/enemy-appearance/experiments-and-recommendation.md)

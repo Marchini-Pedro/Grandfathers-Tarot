@@ -1,5 +1,17 @@
 # 06. Verification, risks, open issues
 
+## 2026-10-03 - Publish enemy appearance PR #7
+
+Push `feature/enemy-appearance` at `0103281` and open
+[PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7) against main
+at `06c2b3a`, as requested by the user. GitHub reports the PR conflict-free.
+Its [first hosted PR run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37155162068)
+passes both runtimes: 1,916 assertions each, all module gates and source-line
+scores of 81.80% on Lua 5.5 / 78.54% on LuaJIT 2.1. Downloaded test/coverage
+reports match local results with no coverage failures. This publication record
+updates documentation only. Publication does not establish native acceptance;
+the feature remains unmerged and no installed mod files were changed.
+
 ## 2026-10-03 - Synchronize appearance with merged PRs #5 and #6
 
 Fetch origin, pull main to `06c2b3a` in a separate worktree and merge main into
