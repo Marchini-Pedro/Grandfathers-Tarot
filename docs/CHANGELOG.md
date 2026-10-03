@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Refresh README and documentation maintenance
+- Add a concise root README with current features, installation, controls and known limits; keep the docs README as a technical index instead of duplicating release history.
+- Require same-session README review for user-visible changes in CLAUDE.md, with source checks, links to detailed docs and removal of superseded text.
+- Correct current recovery/plan status after PR #1 merged into main; distinguish the runtime version, historical workshop milestone and pending in-game verification. Mark installed Realms 1.0.0 as different from the historical audit snapshot.
+
 ## 2026-10-03 - Recover unpublished workshop work
 - Preserve 25 local commits after remote main and the eight-file unfinished Deck sorting/drag changes on `feature/workshop-recovery`.
 - Recovery provenance and review status: `09-recovery-review.md`. Validation pending; no in-game claim.

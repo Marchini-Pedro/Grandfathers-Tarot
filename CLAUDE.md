@@ -1,6 +1,6 @@
 # RealmsWaves (Darktide mod)
 
-Read `docs\README.md` first, then `docs\04-design-and-rationale.md` and `docs\05-implementation-plan.md`.
+Read `README.md` and `docs\README.md` first, then `docs\04-design-and-rationale.md` and `docs\05-implementation-plan.md`.
 
 ## Standing rules (from the user)
 1. **Keep the docs current, continuously.** Every change to code, behaviour, settings, protocol, or a finding must be reflected in `docs\` in the SAME work session, before you report back: update the affected findings/design docs, tick or add items in `docs\05-implementation-plan.md`, and append a dated line to the results log in `docs\06-verification-and-open-issues.md` (what changed, why, what was or was not tested). Add a `docs\CHANGELOG.md` entry per commit. Never leave docs describing old behaviour.
@@ -8,11 +8,34 @@ Read `docs\README.md` first, then `docs\04-design-and-rationale.md` and `docs\05
    - Every new feature (and every batch of fixes to a feature the user has not yet confirmed) lives on its own branch `feature/<name>`, created from an UP-TO-DATE `main`: `git fetch origin`, make sure `main` equals `origin/main`, then `git switch -c feature/<name>`. Docs-only or process fixes may go straight to `main`.
    - Separate coherent sets of changes into well-delimited commits (a fix, a rename, a new option, the tests, the docs are not one blob). Small commits, clear messages. Commit messages go through `git commit -F <file>` (no BOM).
    - **Merge a feature branch into `main` only after the USER confirms the feature works 100 percent in game.** Until then the branch stays open and later fixes go on it. Never merge on your own judgement, even when all offline tests pass.
-   - Git is at `C:\Program Files\Git\cmd\git.exe` (may not be on PATH). Repo-local identity is configured. `origin` is the user's private GitHub repo (credentials saved); push only when it makes sense (a milestone or when asked) and say what was pushed.
+   - Git is at `C:\Program Files\Git\cmd\git.exe` (may not be on PATH). Use the configured repo-local identity. Check `git remote -v` and authenticated push permissions; do not assume repository ownership or visibility. Push at an authorized milestone or when asked, and say what was pushed.
 3. **Record what you learn, in .md files**: every attempt and error, discovery, actionable gap and insight goes into `docs\07-learnings-and-gaps.md` (dead ends too, with what was tried), besides the CHANGELOG and the results log in doc 06. **Keep every .md under 100 KB**: `python tools\check_docs.py` lists sizes and fails at 100 KB; when a file reaches it, split it into granular files (keep the old name as the index).
 4. **Tests must be extensive and meaningful, including the edge cases that can emerge in a real game**: a player joining mid-match, a non-host player crashing, leaving or dying, players with different mod combinations (RealmsWaves missing, older version, other mods hooking the same functions), host-only code running on a client, a unit despawning or dying in the middle of an effect, nil targets, restarts and hot reloads. When you add a feature, add tests for these, not only for the happy path.
 5. Do NOT re-audit TwitchVersus, RealmsEvent, VersusMode, Realms or the game source. Their findings are in `docs\01`-`03` with file:line citations. Only re-check when a doc's audited version (see `docs\README.md`) no longer matches the install; then fix the doc in place. (New questions about game behaviour that the docs do not answer are fine to look up; write the answer into the docs.)
 6. Never edit `mods\TwitchVersus` or `mods\RealmsEvent` (Vortex-managed). Copy code from them instead.
+
+## README maintenance
+
+- Review the root `README.md` in the same session as any change to user-visible
+  behavior, settings/defaults, installation, dependencies, commands,
+  compatibility, release status or known limits. Include necessary README
+  edits with the corresponding change; internal changes need no cosmetic edit.
+- Keep the README useful to a new player: short description and development
+  status, main features, requirements/install, first use, essential commands,
+  current limits and links for contributors. Aim for about 120 lines; clarity
+  and essential caveats take priority over an exact count.
+- Edit the existing section and remove superseded or redundant text. Combine
+  overlapping bullets, use tables for comparisons, and link detailed option
+  references, audits, test counts and release history instead of copying them.
+  Do not append a "What's new" section for every commit or release.
+- Keep `docs\README.md` a compact technical index. Put change history in
+  `docs\CHANGELOG.md`, current work in doc 05, verification in doc 06 and
+  discoveries in doc 07. Preserve useful details in the appropriate document
+  before removing their only explanation from a README.
+- Verify names, defaults, commands, paths and versions against code/metadata.
+  Check relative links and snippets. Distinguish implementation, offline tests,
+  in-game acceptance, merge status and published releases; none implies another.
+  Do not copy machine-specific paths or old branch status as current guidance.
 
 ## Practical notes
 - Game source clone for reference: `..\..\Darktide-Source-Code\scripts\` (relative to this folder).
