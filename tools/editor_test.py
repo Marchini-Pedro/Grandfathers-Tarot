@@ -25,6 +25,7 @@ function math.clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 ferror = error
 dofile(MODROOT .. "/../../Darktide-Source-Code/scripts/foundation/utilities/callback.lua")
 unpack = unpack or table.unpack
+table.unpack = table.unpack or unpack
 
 local UIWidget = {}
 UIWidget.create_definition = function(passes, node_id, content, size)
@@ -107,7 +108,7 @@ mod.set = function(self, id, v) settings[id] = v end
 mod.echo = function(self, fmt, ...) echoes[#echoes+1] = string.format(fmt, ...) end
 mod.error = function(self, fmt, ...) echoes[#echoes+1] = "ERROR " .. string.format(fmt, ...) end
 mod.localize = function(self, id, ...) local a = { ... } for i = 1, #a do a[i] = tostring(a[i]) end return id .. (#a > 0 and (":" .. table.concat(a, ",")) or "") end
-mod.io_dofile = function(self, path) return dofile(MODROOT .. "/../" .. path .. ".lua") end
+mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
 get_mod = function(name) return mod end
 Managers = { ui = { closed = nil, close_view = function(self, n) self.closed = n end } }
 
@@ -632,7 +633,7 @@ do
       local p = k / 8
       rem.wave_medium = C * (1 - p); step(0.01)
       local w = tile(2).content.whisper:gsub("^\"", ""):gsub("\"$", "")
-      if not utf8.len(w) then return false end
+      if w:sub(-1) == "\195" then return false end -- a cut after the first byte of the umlaut is invalid in LuaJIT too
     end
     return true
   end)())

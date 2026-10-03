@@ -2,7 +2,7 @@ import sys, os
 sys.path.insert(0, os.environ.get("PYLIBS", r"C:\Users\ayko4\AppData\Local\Temp\claude\c--XboxGames-Warhammer-40-000--Darktide-Content\9da40c72-f459-4d9d-ab4b-3023fa21e2f5\scratchpad\pylibs"))
 from lupa import LuaRuntime
 
-ROOT = r"C:\XboxGames\Warhammer 40,000- Darktide\Content\mods\RealmsWaves\scripts\mods\RealmsWaves"
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "mods", "RealmsWaves")
 lua = LuaRuntime(unpack_returned_tuples=True)
 
 harness = r'''
@@ -19,7 +19,7 @@ mod.echo = function(self, fmt, ...) echoes[#echoes+1] = string.format(fmt, ...) 
 mod.warning = function(self, fmt, ...) echoes[#echoes+1] = "WARN " .. string.format(fmt, ...) end
 mod.error = mod.warning
 mod.localize = function(self, id, ...) if select("#", ...) > 0 then return id .. ":" .. table.concat({...}, ",") end return id end
-mod.io_dofile = function(self, path) return dofile(ROOT .. "/../../../" .. path .. ".lua") end
+mod.io_dofile = function(self, path) return dofile(ROOT .. "/../../../" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
 get_mod = function(name) return mod end
 
 local is_server = true
@@ -2195,7 +2195,7 @@ do
   check("float trap: 20 x 115 percent is exactly 23, 3 x 110 is 3 (3.3), 7 x 130 is 9 (9.1)", sa(20, 115) == 23 and sa(3, 110) == 3 and sa(7, 130) == 9, sa(20, 115) .. "/" .. sa(3, 110) .. "/" .. sa(7, 130))
   local exact = true
   for base = 0, 60 do for percent = 0, 500, 5 do
-    local want = (base * percent) // 100
+    local want = math.floor(base * percent / 100)
     if sa(base, percent) ~= want then exact = false end
   end end
   check("scaled_amount equals integer floor(base * percent / 100) for every base 0-60 and every slider step", exact)

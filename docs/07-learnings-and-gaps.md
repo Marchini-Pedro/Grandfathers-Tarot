@@ -51,3 +51,5 @@ Things we know are missing or unverified, each with the next concrete step.
 - When a feature cannot be proven offline, ship a probe (a debug command that prints facts) in the same change, so the first in-game run answers the open question.
 
 - 2026-10-03: the supplied copy has 25 commits after remote 1460711 and eight dirty files. Its origin is a different repo; preserve the ancestry in the requested Grandfathers-Tarot repo. Sorting and dragging have no added regression tests. check_lua.py and logic_test.py point at an installed mod, and the other harnesses assume the repo directory is named RealmsWaves; these can validate the wrong tree or fail on a fresh clone. Fix test paths before trusting results.
+
+- 2026-10-03: Lua 5.5-only harness syntax (floor division), utf8.len and table.unpack prevented LuaJIT checks although the mod compiled. Warming the identical loop alone was still intermittently noisy due to new LuaJIT side traces; heap checks disable tracing during measurement. Supplied feature/attack-timing has fixes absent from feature/workshop-redesign; recover that branch too before evaluating custom stats.

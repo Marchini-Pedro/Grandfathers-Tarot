@@ -37,7 +37,7 @@ mod.echo = function() end
 mod.warning = function() end
 mod.error = function() end
 mod.localize = function(self, id) return id end
-mod.io_dofile = function(self, path) return dofile(MODROOT .. "/../" .. path .. ".lua") end
+mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
 get_mod = function(name)
   if name == "DMF" then return dmf_mod end
   if name == "Realms" then return nil end

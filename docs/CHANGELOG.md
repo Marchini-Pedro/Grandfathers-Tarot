@@ -171,3 +171,8 @@ Backup before the rebuild: git tag `v1.13.0` and `Content\backups\RealmsWaves-1.
 
 ## Older versions
 Everything from 1.13.0 down to 1.0.0 is in [changelog/1.x.md](changelog/1.x.md) (split out on 2026-10-02 to keep every .md file under 100 KB; the rule and the check are in `CLAUDE.md` and `tools/check_docs.py`).
+
+## 2026-10-03 - Validate the actual checkout on Lua 5.5 and LuaJIT
+- Compile and logic checks resolve this checkout; DMF file loads in every harness resolve independently of the directory name.
+- Harness integer division, UTF-8 check and unpack alias now work under LuaJIT 2.1 too. Allocation checks warm the measured loop; LuaJIT trace compilation is disabled only during heap measurement to remove unpredictable compiler allocations.
+- All six checks pass on both runtimes: 30 compiled files, 650 editor, 14 entry, 179 HUD; logic has zero failures.

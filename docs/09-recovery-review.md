@@ -9,8 +9,7 @@ origin points to a different repository (`The-grandfather-s-Tarot`);
 the recovery clone uses the repository requested by Eduardo.
 
 The recovered history implements the Cauldron/Mirror workshop redesign,
-enemy shelf and factions, scalable live card previews, attack timing and
-gunner stat fixes, custom boss health naming, and one random enemy choice
+enemy shelf and factions, scalable live card previews, custom boss health naming, and one random enemy choice
 per group retained through a wave's repeats.
 
 Eight uncommitted files add Deck sorting (threat, rarity, enemy count,
@@ -24,3 +23,5 @@ the supplied project's process rules. Eduardo authorized committing and
 synchronizing the recovery branch with GitHub; his account has push
 permission. Offline validation cannot establish engine frame time,
 rendering correctness, or multiplayer behavior in a real mission.
+
+Harness repair: all six tools now validate this checkout. Lua 5.5 and LuaJIT 2.1 pass the existing checks (30 compiled files, editor 650, entry 14, HUD 179, logic zero failures). Editor tests require the adjacent Darktide-Source-Code clone for the real engine callback helper. LuaJIT heap checks exclude compiler allocations; game frame time remains unmeasured.
