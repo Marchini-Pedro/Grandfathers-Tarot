@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 - Record CI merge and verify hosted checks
+- Publish `feature/ci-coverage` as PR #5 and document the owner's steps to require both runtime checks and pull requests for `main`.
+- Record the first successful hosted PR run and downloaded reports: 1,837 assertions per runtime, 81.56% Lua 5.5 / 78.30% LuaJIT source-line scores, and no coverage failures. PR #5 was merged by the user at `03785e3`; both checks also pass on main. Merge enforcement awaits owner setup and game acceptance remains separate.
+
 ## 2026-10-03 - Add CI and enforce measured Lua coverage floors
 - Add GitHub Actions on pushes, pull requests and manual dispatch, with Lua 5.5/LuaJIT 2.1 jobs, pinned action revisions, read-only repository permissions and uploaded logs/JSON reports.
 - Run compilation, discovered behavior harnesses, 11 coverage/runner contracts and documentation size checks through `tools/run_tests.py`. Require a 78% overall source-line execution score and explicit floors for all 29 Lua modules; missing evidence, collector errors, unknown/stale modules, failures and timeouts fail the job.

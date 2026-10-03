@@ -172,4 +172,7 @@ Installation, publication and merging remain separate; game confirmation is pend
 - [x] Select Lua 5.5/LuaJIT 2.1 explicitly with a shared test runtime; suspend coverage hooks during allocation probes without weakening assertions.
 - [x] Add hidden-position, explicit-test ring, native-query failure, command-input and protocol serialization/availability regressions. Six selected regressions are detected on both runtimes.
 - [x] Add repository-owned CI, measured module floors and fail-closed coverage reports; verify a standalone checkout on both runtimes. See [CI and coverage](10-ci-and-coverage.md).
+- [x] Publish `feature/ci-coverage` and open [PR #5](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/5) with owner-side merge enforcement instructions; merged by the user at `03785e3`.
+- [x] Verify the first hosted PR run at `fd56262`: both runtimes pass 1,837 assertions and all coverage floors; downloaded artifact scores match the local baseline.
+- [x] Verify both jobs on the first `main` run at `03785e3` and synchronize local `main` after the PR #5 merge.
 - [ ] Have the repository owner require `Offline verification (lua55)` and `Offline verification (luajit21)` for merges to `main` after the first hosted run.
