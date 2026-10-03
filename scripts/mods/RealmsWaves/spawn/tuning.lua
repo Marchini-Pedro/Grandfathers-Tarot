@@ -3,7 +3,8 @@
 -- spawned; nothing here adds a breed or a buff template (see docs/03, "Enemy variants without new breeds"): every
 -- one is a value the game itself already reads.
 --
---   health  a spawn parameter (`optional_health_modifier`, read when the unit's health is created: Execute passes it)
+--   health  a spawn parameter (`optional_health_modifier`, read when the unit's health is created: Execute passes it), then made
+--           exact right after the spawn: the game ADDS the Havoc / mission health modifier to the parameter (see set_exact_health)
 --   speed   `navigation_extension:add_movement_modifier(m)`: the game's own way to slow or hasten a minion (it multiplies
 --           whatever maximum speed the current action asks for, and is synced to the other players by the game)
 --   mass    `health_extension:set_hit_mass(...)`: what the Enraged buff does to its unit (also synced by the game)
@@ -186,30 +187,66 @@ Tuning.health_modifier = function (tune)
 	return tune and percent_of(tune.health) or nil
 end
 
--- Units whose health the player set below normal (host: the units this mod spawned with health under 100 percent). The game calls a
--- boss that has less than its normal health "weakened": its health bar says "Weakened <name>" and the pacing counts it as a fifth of a
--- boss (boss_extension.lua:61-66, hud_element_boss_health.lua:132-141, pacing_manager.lua:853-858). That is the game's reading of "less
--- health", not a different boss, so for a boss the player tuned on purpose the flag is cleared at once and the name is shown plain.
-local tuned_health = setmetatable({}, { __mode = "k" })
+-- The health the player asked for is NOT what the game builds from the spawn parameter: MinionSpawnManager.spawn_minion adds the
+-- Havoc / mission modifier of the breed to it, `(optional_health_modifier or 1) + additional` (minion_spawn_manager.lua:137-165), and the
+-- mods that rewrite that modifier (Ultra Havoc and the like, `get_minion_health_modifier`) make it bigger or smaller still. A boss set
+-- to 50 percent came out at 50 percent PLUS the Havoc share, so the config was never 1:1. Right after the spawn the unit's maximum
+-- health is therefore set to exactly its normal health x the player's percent: the same two writes the game's own
+-- HealthExtension.init makes (the extension's `_health` and the game object's "health" field, which is what the other players read).
+-- A boss with less health than normal stays "weakened" for the game (its bar says "Weakened <name>", the pacing counts a fifth of a
+-- boss: boss_extension.lua:61-66, hud_element_boss_health.lua:132-141, pacing_manager.lua:853-858): that is the game's own word for
+-- "less health than normal" and it is kept. Only the boss's mark is re-read, because the game made it from the health BEFORE this fix.
+local HEALTH_EPSILON = 0.01
 
-Tuning.is_health_tuned = function (unit)
-	return tuned_health[unit] == true
+-- The normal maximum health of a breed on this mission's difficulty (what the game compares a boss against to call it weakened).
+local function normal_health(breed_name)
+	local difficulty = Managers.state and Managers.state.difficulty
+
+	if not difficulty or not difficulty.get_minion_max_health then
+		error("no difficulty manager")
+	end
+
+	return difficulty:get_minion_max_health(breed_name)
 end
 
--- Clears the "weakened" mark the game put on a boss spawned with less health (a no-op for units that are not bosses).
-local function clear_weakened(unit, label)
-	local ok, err = pcall(function ()
-		local boss = ScriptUnit.has_extension(unit, "boss_system")
+-- Sets the maximum health of a freshly spawned unit to normal health x `factor`. Returns the requested health, including when the unit
+-- already had exactly that. Errors (caller guards them) when the unit has no readable health.
+Tuning.set_exact_health = function (unit, breed_name, factor)
+	local health = ScriptUnit.has_extension(unit, "health_system")
 
-		if boss then
-			boss._is_weakened = false
-			tuned_health[unit] = true
-		end
-	end)
-
-	if not ok then
-		warn_once(string.format("the weakened mark of %s was not cleared: %s", label, tostring(err)))
+	if not health or type(health.max_health) ~= "function" then
+		error("no health extension")
 	end
+
+	local ok_breed, breed = pcall(function ()
+		return ScriptUnit.extension(unit, "unit_data_system"):breed()
+	end)
+	local name = ok_breed and type(breed) == "table" and breed.name or breed_name
+	local base = tonumber(normal_health(name))
+
+	if not base or base ~= base or base <= 0 then
+		error("no normal health for " .. tostring(name))
+	end
+
+	local wanted = math.max(1, base * factor)
+
+	if math.abs(health:max_health() - wanted) > HEALTH_EPSILON then
+		if not health._game_session or not health._game_object_id then
+			error("the unit has no game object yet")
+		end
+
+		GameSession.set_game_object_field(health._game_session, health._game_object_id, "health", wanted)
+		health._health = wanted
+	end
+
+	-- the game made the boss's "weakened" mark from the health it had BEFORE this fix: read it again with the same rule
+	local boss = ScriptUnit.has_extension(unit, "boss_system")
+
+	if boss then
+		boss._is_weakened = wanted < base
+	end
+
+	return wanted
 end
 
 -- Applies the custom mods `tune` ({ speed = 120, ... }, percent) to a unit that has just spawned. Every step is guarded:
@@ -221,11 +258,15 @@ Tuning.apply = function (unit, tune, breed_name)
 
 	local label = tostring(breed_name or "enemy")
 
-	-- health under 100 percent: the game would call a boss "weakened" (see tuned_health above)
-	local health = Tuning.health_modifier(tune)
+	-- health: the spawn parameter already went in, make it exact (see set_exact_health above)
+	local health_factor = Tuning.health_modifier(tune)
 
-	if health and health < 1 then
-		clear_weakened(unit, label)
+	if health_factor then
+		local ok, err = pcall(Tuning.set_exact_health, unit, breed_name, health_factor)
+
+		if not ok then
+			warn_once(string.format("the exact health of %s was not set: %s", label, tostring(err)))
+		end
 	end
 
 	-- hit mass: relative to what the unit has now (an Enraged modifier added before this has already raised it)
@@ -582,36 +623,6 @@ Tuning.install = function ()
 			record.recomputed = true
 		end
 	end)
-
-	-- the boss health bar writes "Weakened" before the name of a boss with less than its normal health: not for a boss whose health the
-	-- player set (the breed's own flag for this is switched on while the bar is made, then put back)
-	if mod.hook then
-		mod:hook("HudElementBossHealth", "event_boss_encounter_start", function (func, self, unit, ...)
-			if Tuning.dead or not tuned_health[unit] then
-				return func(self, unit, ...)
-			end
-
-			local ok_breed, breed = pcall(function ()
-				return ScriptUnit.extension(unit, "unit_data_system"):breed()
-			end)
-
-			if not ok_breed or type(breed) ~= "table" then
-				return func(self, unit, ...)
-			end
-
-			local had = breed.ignore_weakened_boss_name
-
-			breed.ignore_weakened_boss_name = true
-
-			local ok, err = pcall(func, self, unit, ...)
-
-			breed.ignore_weakened_boss_name = had
-
-			if not ok then
-				error(err, 0)
-			end
-		end)
-	end
 end
 
 Tuning.retire = function ()
@@ -943,7 +954,6 @@ Tuning.reset = function ()
 	inbox_by_id = {}
 	sized = {}
 	tuned_by_extension = {}
-	tuned_health = setmetatable({}, { __mode = "k" })
 	timer, send_timer = 0, 0
 end
 

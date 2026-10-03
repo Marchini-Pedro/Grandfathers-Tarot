@@ -2,6 +2,15 @@
 
 Spec and build log for the redesign of the card editor that followed the Deck (2.0.0). Origin: the user's request of 2026-10-01 ("integrate the rest of the mod into the same palette", "all buttons need to be remade", "the preview of the card in the enemies edit page on the right side, with an easy way to change the faces/enemies and the changes shown in real time"), a design page with every decision (https://claude.ai/artifact/JZKnq3YvrtZHk66zRgBBsv, private; the source HTML is not in the repo) and the user's answers to it. Historical branch: `feature/workshop-redesign`; recovered and merged into `main` through PR #1 on 2026-10-03. Offline build checks are complete; in-game verification remains open (doc 06).
 
+## Heresy continuation layout repair (2026-10-03)
+
+Cooldown tiles now keep the composition strictly above modifiers: one-, two-
+and three-line names leave four, three and one composition lines respectively.
+Extra groups remain summarized. Limit-hover pointer state is cached separately
+from the clamped preview, so an unchanged hover does not repaint every frame.
+The real-widget Deck and Cauldron previews were inspected offline; native
+fonts and input remain live checks.
+
 ## 1. Decisions
 
 From the design page (accepted: "I really enjoyed it"):
@@ -56,6 +65,12 @@ Not built (decided against or left for later): animated look plates (they are st
 - [x] 4. The Cauldron (rows, shelf, spawn block, action bar, stage, quick face, tabs). Done offline. What differs from the design page: the shelf has 30 chips (the page had 25) and its head row carries the Dreg | Scab switch; five enemy rows, not four; Back is in the action row of every card screen (the page had it only on the Cauldron); the chip shows a tag letter and lights when the card has the enemy (no count badge: the row has it); the quiet button "Whisper and cooldown" opens the Face tab. Coordinates: left pane rows y 164-420, summary 428, shelf 472-806, spawn label 818, steppers 840 and 888, action bar 946; right pane caption 134, plate 164-604, toolbar 612, quick face 672, suits 712 and 782, threat 858, chance 910.
 - [x] 5. The Mirror (suit plates, threat, whisper, cooldown, looks). Done offline. What differs from the design page: the whisper is changed in the box (Change, or a click on the field) that shows its text live on the card, not typed inline; the look plates show a static picture (stripes, a faded line, a half-filled vial), not an animation (Preview cooldown plays the real look on the card); the threat sum is one line of text. Coordinates: headers y 134 / 460 / 566 / 664; suit plates 4 x 3 from y 170 (274 x 66); description y 396; threat row y 494 (diamonds 26 in a row of 54, Auto and By hand at x 387 and 463); whisper field y 600 (700 x 44) with Change and Use the suit's line; cooldown stepper y 698; look plates y 756 (365 x 110); Automatic y 876; the action bar is the Cauldron's (y 946): Back at the left, Reset face (170 wide) at the right. Right pane: the stage and toolbar as on the Cauldron, "In the hand" caption y 684, the card at y 716.
 - [x] 6. Preview tool for any screen (`tools/ui_preview.py`), tests, docs. Done. Everything is offline only: the in-game checks are `06` rows 97-113.
+
+### 2026-10-03 follow-up on the branch `feature/heresy-card-and-ui-pass`
+
+- **Page theme.** The Mods, Custom, picker, Cauldron and Mirror pages take the card's face: `Components.set_theme(suit)` writes the suit's colours into one table on the mod object (`mod.rw_theme`, like the accent) that the static widgets read every frame: the background texture is multiplied with the card's face colour, the panels and rows are darker steps of it (0.65 and 0.8, which keeps Plague at the numbers the page always had), the hover and frames are the suit's own, the titles and headings take the accent. The Deck, options and presets use the default table.
+- **Shelf chips** are smaller now that the D/S tags are gone (height 30, pitch 36, dot column 22, padding 10, gap 6); the Cauldron shows six enemy rows instead of five (the freed 52 units).
+- **The Deck tile** has a cooldown row under the pips (`[-] COOLDOWN 2:30 [+]`; the stage card shows the value alone); the lower part of the tile moved up 18 units and the composition shows one line less (four, three or two). HERESY draws its frame and glow on the tile, the stage card and the hand preview.
 
 ## 5. Tests
 

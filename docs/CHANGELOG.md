@@ -1,5 +1,66 @@
 # Changelog
 
+## 2026-10-03 - Publish the reviewed Heresy continuation
+- Push the completed continuation and open draft [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8) against main as requested. GitHub reports no merge conflicts; the branch remains unmerged pending game acceptance.
+- First hosted PR run at `a163552` passes both runtimes: 2,104 assertions each, all coverage gates and Lua 5.5 81.97% / LuaJIT 2.1 78.75%. Downloaded reports confirm the counts/scores. Update current README/plan/hand-off status and preserve native checks.
+
+## 2026-10-03 - Complete dual-runtime coverage and continuation hand-off
+- Inventory both new HUD modules and document the measured source-proxy floor exceptions for Face/editor definitions. Preserve the overall floor and all other existing floors.
+- Both complete runners pass 2,104 assertions, 34 Lua compile inputs and every coverage gate: Lua 5.5 81.97% / LuaJIT 2.1 78.75%. Nine reverse mutations are detected on both runtimes (18/18).
+- Update the current hand-off, coverage table and results log; native acceptance remains pending and the feature stays unmerged.
+
+## 2026-10-03 - Reserve wrapped modifier space in the last-card window
+- Long modifier lists receive up to eight lines using the existing wrap helper with a conservative uppercase width. The panel grows with its content inside a 320-unit node; short cards keep their compact panel. Existing name wrapping retains its three-line default.
+- A valid 96-byte modifier fixture reproduces the old one-line overflow. The ninth reverse mutation detects the regression on both VMs; a real-widget preview with English caption and substituted Windows fonts was inspected. Native font metrics remain an in-game check.
+
+## 2026-10-03 - Repair pooled decks and last-card/UI lifecycle
+- Count JSON escaping against Realms' 96 KiB envelope, keep 1 KiB of envelope headroom, and send the largest fitting prefix of enabled cards. An unshareable first card sends an empty sealed preset to clear stale host pools.
+- Stop clears the last card on host and clients, including old off snapshots carrying `lc`. Failed HUD refresh hides partial content and recovers on the next good card.
+- Three-line tile names get one composition line before modifiers; one/two-line names keep four/three. Cache pointer direction separately from clamped cooldown previews: a stationary limit hover repaints zero times over 100 frames instead of 100.
+- [Branch review](audits/2026-10-03/heresy-review.md) records eight confirmed findings, reproductions, strengthened fixtures, sixteen detected reverse mutations and native acceptance limits. No installed mod changes.
+
+## 2026-10-03 - Correct exact health and contain vanished spawn targets
+- Match the game's nil weakened flag for initially normal bosses and refresh it after exact custom health. Commit local health only after the replicated field write succeeds.
+- Protect facing evaluation and the native spawn together so target destruction cannot leave the budget bypass active. Realistic nil/native-failure fixtures reproduce these defects; focused checks and all eight reverse mutations detect the intended behavior failures on both VMs. Offline only.
+
+## 2026-10-03 - Synchronize the Heresy branch with current main
+- Merge main at `1290abc`; preserve the branch features and the accurate merged status of enemy appearance PR #7. Resolve additive README/changelog conflicts. Existing audit fixes remain unstaged. Both baseline behavior suites passed; their coverage failures are recorded for remediation.
+
+## 2026-10-03 - Merge `main` (PRs #5, #6, #7) into `feature/heresy-card-and-ui-pass` (`56062d3`)
+- One code conflict (`spawn/execute.lua`: `spawn_one` takes both `appearance` from PR #7 and `face_target` from `/rw_test_close`) and three additive documentation conflicts; the old README bullet about host-local "Weakened" naming is replaced by the exact-health bullet.
+- PR #5's entry test treated slot 21 as the first invalid custom slot; it now uses `CUSTOM_SLOTS + 1` (89) and checks slot 88. The last-card window's allocation probe suspends the coverage line hook like `growth()` does.
+- `Events.is_empty_slot` (two settings) lets the draw (`build_pool`) and the fixed timers (`timed_waves`) skip the empty custom slots instead of reading ~25 settings each, and the slot key strings are built once: with 88 slots the draw, the once-a-second cooldown map and the timers walked all of them. Same results; `logic_test` under the CI runner's coverage hook: 245 s before, 77 s after (main alone: 81 s; the runner's default timeout is 120 s).
+- Open, written in [11-handoff-2026-10-03.md](11-handoff-2026-10-03.md): the coverage policy needs floors for the two new HUD files and `ui/wave_editor_face.lua` is 0.02 percent under its floor; the LuaJIT run of the runner has not been done since the merge.
+
+## 2026-10-03 - Every card shows its cooldown and changes it in the Deck (`341093e`, branch `feature/heresy-card-and-ui-pass`)
+- Each Deck tile has a cooldown row under the chance pips: `[-] COOLDOWN 2:30 [+]` in the card's own colours. A click takes 30 s (shortest 30 s, longest the "Longest cooldown" option), the value opens the number box, the pointer on a plate previews the new value, a right click opens the card, a plate at its limit is dimmed. Cards with a fixed timer say EVERY and have no plates; the stage card shows the value without plates. The Mirror keeps its stepper and shares `Deck.cooldown_after`.
+- To make room the lower part of the tile moved up 18 units and the composition lost one line (four lines for a one-line name, three for two, two for three). Offline only: layout tests follow the new numbers; hover/click behaviour is in `06` row 121.
+
+## 2026-10-03 - A HUD window shows the last fulfilled card (`06b0112`, `37b4d59`)
+- New HUD element `HudElementRealmsWavesLast` (own node, so Custom HUD moves it separately; default right of the Spread): "LAST CARD", how long ago, the card as the Spread draws it, its whisper and modifiers. It stays until the next card goes out. Option "Last card" (on by default); a sample shows while Custom HUD is edited.
+- The director remembers the card whose wave really started (tarot pick, random wave, voted wave; not `/rw_test`, not fixed timers) and syncs it (`lc`, `la`, `ls` in the state, decoded with the same validator as the hand, `decode_card`). `Director.view()` gains `last`, `last_seq`, `last_age`.
+
+## 2026-10-03 - A deck holds up to 100 cards (`e16bd3c`)
+- `Events.MAX_CARDS = 100`; the custom slots are the rest (88, keys `custom_1`...`custom_88`; it was 20). The Deck's odds strip has 100 segments, the host takes up to 100 cards per player in the pooled draw (it was 40), `/rw_custom` takes slots 1-88.
+- The client-to-host waves message limit is 90000 bytes (it was 60000; Realms allows 96 KiB); a client whose enabled cards do not fit sends the first ones that do and logs it once. 100 cards of twelve groups with modifiers and custom mods measured 34 KB.
+
+## 2026-10-03 - Fester becomes HERESY (`c8b955b`)
+- The Fester suit is replaced by Heresy, the last of the twelve and the only `special` one: black red face, blood-red frame, gilded accent, a broken-halo-and-blade mark, the whisper "He does not answer.". It has a frame at rest and a smouldering glow on the Spread, the Deck tile, the Cauldron's stage card and the Mirror's hand preview, and the banner says "Heresy is drawn".
+- `fester` stays an alias (`Cards.SUIT_ALIAS`, `Events.SUIT_ALIAS`): saved cards, presets, shared texts and hands synced by an older host become Heresy.
+
+## 2026-10-03 - `/rw_test_close <wave>` (`d1c35a0`)
+- Spawns the wave 3.5 to 8 m in front of the player who typed it (where the camera looks, on walkable ground, closer if a wall is in the way), spread at most 2 m, facing and aggroed on the player. Host only. `/rw_test` is unchanged.
+
+## 2026-10-03 - Deck presets (`d19a314`)
+- The Deck's top button, "Spreads", is called "Deck presets": it holds the five whole-deck slots. "Spread" now only means the HUD's hand.
+
+## 2026-10-03 - Card pages take the colours of the card's face; tighter shelf chips (`af83310`)
+- The Mods and Custom pages (and the picker, Cauldron and Mirror) took only their buttons from the suit; now the ground, panels, rows, frames, titles and headings do too (`Components.set_theme`, one shared table that the static widgets read every frame). The Deck, options and presets keep the default palette.
+- With the D/S tags gone the shelf chips are smaller (height 30, pitch 36); the room that freed is a sixth enemy row in the Cauldron.
+
+## 2026-10-03 - Custom health is exact and the game's "Weakened" name is back (`d8e57bf`)
+- `MinionSpawnManager.spawn_minion` adds the Havoc / mission health modifier to the custom health spawn parameter, and mods such as Ultra Havoc rewrite that modifier, so a boss set to 50 percent was 50 percent plus Havoc's share. `Tuning.set_exact_health` now sets maximum health to exactly normal health x the player's percent right after the spawn (the extension's `_health` and the game object's `health` field) and re-reads the boss's weakened mark.
+- The workaround that cleared the mark and hooked the boss health bar (`b5a41c5`) is removed: a boss with less than its normal health is "Weakened" again, the game's own word.
 ## 2026-10-03 - Record PR #7 merge status
 - Record GitHub's PR #7 merge by `EduardoKenji` at `c7cf1da` and refresh local main after final PR/push checks pass on Lua 5.5 and LuaJIT 2.1.
 - Correct current open/unmerged guidance in the README, index, method guide, plan and CI log; preserve historical publication records and pending native acceptance. This is a documentation-only follow-up with size/whitespace checks; runtime, tests and workflow match the verified PR head.

@@ -39,6 +39,16 @@ pcall(function ()
 	})
 end)
 
+-- The window of the last fulfilled card: its own element, so custom_hud moves it on its own.
+pcall(function ()
+	mod:register_hud_element({
+		class_name = "HudElementRealmsWavesLast",
+		filename = BASE .. "/ui/hud_element_last_card",
+		use_hud_scale = true,
+		visibility_groups = { "alive", "dead", "communication_wheel", "tactical_overlay" },
+	})
+end)
+
 mod.on_all_mods_loaded = function ()
 	RW.events = mod:io_dofile(BASE .. "/catalog/events")
 	RW.groups = mod:io_dofile(BASE .. "/catalog/groups")
@@ -451,9 +461,10 @@ mod:command("rw_skip", "RealmsWaves: (host) skip the countdown and resolve the c
 end)
 
 -- /rw_test <wave key or wave name>: "custom_1", "hound_frenzy", or a name from the editor
--- ("Mutants Everywhere" can be typed mutants_everywhere or with spaces).
-mod:command("rw_test", "RealmsWaves: (host) spawn a wave now: /rw_test <wave key or wave name>, e.g. /rw_test mutants_everywhere", function (...)
+-- ("Mutants Everywhere" can be typed mutants_everywhere or with spaces). /rw_test_close is the same wave right in front of you.
+local function test_command(close, ...)
 	local query = table.concat({ ... }, " ")
+	local command = close and "rw_test_close" or "rw_test"
 
 	if query:match("^%s*$") then
 		local names = {}
@@ -466,18 +477,26 @@ mod:command("rw_test", "RealmsWaves: (host) spawn a wave now: /rw_test <wave key
 			end
 		end
 
-		mod:echo("RealmsWaves: usage /rw_test <wave name or key>. Waves: %s", table.concat(names, ", "))
+		mod:echo("RealmsWaves: usage /%s <wave name or key>. Waves: %s", command, table.concat(names, ", "))
 
 		return
 	end
 
-	local ok, note = RW.director.fire_now(query)
+	local ok, note = RW.director.fire_now(query, { close = close })
 
 	if ok then
 		mod:echo("RealmsWaves: wave \"%s\" queued%s", query, note and (" - " .. note) or "")
 	else
 		mod:echo("RealmsWaves: %s", tostring(note))
 	end
+end
+
+mod:command("rw_test", "RealmsWaves: (host) spawn a wave now: /rw_test <wave key or wave name>, e.g. /rw_test mutants_everywhere", function (...)
+	test_command(false, ...)
+end)
+
+mod:command("rw_test_close", "RealmsWaves: (host) spawn a wave right in front of you, facing you: /rw_test_close <wave key or wave name>, e.g. /rw_test_close the_devil", function (...)
+	test_command(true, ...)
 end)
 
 mod:command("rw_vote", "RealmsWaves: cast a vote from the console: /rw_vote <option number>", function (option)
@@ -502,7 +521,7 @@ mod:command("rw_roll", "RealmsWaves: simulate N weighted rolls to check the perc
 	end
 end)
 
-mod:command("rw_custom", "RealmsWaves: set a custom wave: /rw_custom <slot 1-20> <recipe, e.g. 5 trappers, 5 mutants, 10 hounds>", function (slot, ...)
+mod:command("rw_custom", "RealmsWaves: set a custom wave: /rw_custom <slot number of a custom card, 1 to 88> <recipe, e.g. 5 trappers, 5 mutants, 10 hounds>", function (slot, ...)
 	slot = tonumber(slot)
 
 	if not slot or slot < 1 or slot > RW.events.CUSTOM_SLOTS or slot ~= math.floor(slot) then

@@ -123,9 +123,9 @@ WB.shelf_panel = function (node_id, layout)
 	local W, H = Workshop.LEFT_W, layout.height
 
 	rect(passes, "shelf_fill", 0, 0, W, H, 0, function (content, style)
-		put_rgb(style.color, 230, PANEL)
+		put_rgb(style.color, 230, Components.theme.panel)
 	end)
-	Components.frame_passes(passes, "shelf_frame", W, H, 1, { rgb = R.frame })
+	Components.frame_passes(passes, "shelf_frame", W, H, 1, { rgb = Components.theme.frame })
 	text(passes, "shelf_title", Workshop.SHELF_PAD, 12, 220, 24, 2, 15, "left", "center", function (content, style)
 		put_rgb(style.text_color, 255, R.text)
 	end)
@@ -202,7 +202,7 @@ WB.shelf_chip = function (node_id, w)
 		passes[#passes + 1] = {
 			pass_type = "circle",
 			style_id = halo and "chip_dot_h" or "chip_dot",
-			style = { offset = { 13 - r, H / 2 - r, halo and 3.5 or 4 }, size = { r * 2, r * 2 }, color = shape_color() },
+			style = { offset = { Workshop.CHIP_DOT / 2 - r, H / 2 - r, halo and 3.5 or 4 }, size = { r * 2, r * 2 }, color = shape_color() },
 			change_function = function (content, style)
 				local rgb = content.dot_rgb or R.muted
 
@@ -577,6 +577,11 @@ WB.hand_card = function (node_id, tile_ids)
 
 	passes[#passes + 1] = { pass_type = "rect", style_id = "hand_bg", style = { offset = { 0, 0, 0 }, size = { H.w, H.max_h }, color = shape_color() } }
 	passes[#passes + 1] = { pass_type = "rect", style_id = "hand_bar", style = { offset = { 0, 0, 1 }, size = { H.bar * H.scale, H.max_h }, color = shape_color() } }
+
+	-- the frame of a Heresy card (hidden for every other suit): four lines, placed by View._paint_hand
+	for _, side in ipairs({ "t", "b", "l", "r" }) do
+		passes[#passes + 1] = { pass_type = "rect", style_id = "hand_edge_" .. side, style = { offset = { 0, 0, 2 }, size = { 1, 1 }, color = shape_color(), visible = false } }
+	end
 	mark_passes(passes, tile_ids)
 	passes[#passes + 1] = {
 		pass_type = "text",

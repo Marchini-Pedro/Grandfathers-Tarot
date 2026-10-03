@@ -35,7 +35,10 @@ local appearance_peers, appearance_epoch = {}, nil
 local AppearanceSchema = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/appearance")
 local MAX_SCALES = 200
 Protocol.MIN_SCALE, Protocol.MAX_SCALE = 25, 300 -- percent (the range of the custom mod "size")
-local MAX_WAVES_TEXT = 60000 -- the Realms limit is 96 KiB per message; a full setup is about 15 KB
+local MAX_WAVES_TEXT = 90000 -- raw preset bytes; transport escaping is checked separately
+local MAX_WAVES_JSON = 96 * 1024 - 1024 -- reserve 1 KiB for Realms request/delivery envelopes
+
+Protocol.MAX_WAVES_TEXT = MAX_WAVES_TEXT
 
 local _realms = nil
 local _handlers = {}
@@ -410,8 +413,19 @@ Protocol.send_scales = function (list, recipient)
 	return success, first_error
 end
 
-Protocol.send_waves = function (text)
+-- Realms caps the encoded envelope, so quotes/backslashes in legal card names also count.
+Protocol.waves_text_fits = function (text)
 	if type(text) ~= "string" or #text > MAX_WAVES_TEXT then
+		return false
+	end
+
+	local json = encode(text)
+
+	return json ~= nil and #json <= MAX_WAVES_JSON
+end
+
+Protocol.send_waves = function (text)
+	if not Protocol.waves_text_fits(text) then
 		return false, "waves text too long"
 	end
 

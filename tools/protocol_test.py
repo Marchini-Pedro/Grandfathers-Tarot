@@ -75,6 +75,18 @@ P.send_welcome("specific",true);P.send_welcome("specific",false);P.send_vote(7,3
 check("protocol sends: state defaults to others and explicit recipient is preserved", sends[1].recipient=="others" and sends[2].recipient=="specific" and sends[2].owner==mod and sends[2].args[1]=="payload")
 check("protocol sends: welcome includes protocol/version and boolean acceptance", sends[3].args[1]==2 and sends[3].args[2]=="2.0.0" and sends[3].args[3]==1 and sends[4].args[3]==0)
 check("protocol sends: vote routes ballot and option to the host", sends[5].name=="rw_vote" and sends[5].recipient=="host" and sends[5].args[1]==7 and sends[5].args[2]==3)
+do
+  local saved_encode = cjson.encode
+  cjson.encode = function(text) return '"' .. text:gsub('["\\]', 'XX') .. '"' end
+  local plain = string.rep("a", 90000)
+  local quoted = string.rep('"', 50000)
+  local before = #sends
+  check("protocol: a plain deck near the raw limit fits the Realms envelope", P.send_waves(plain) == true)
+  check("protocol: an escaped deck over the transport limit is refused", P.send_waves(quoted) == false and #sends == before + 1)
+  cjson.encode = function() error("JSON unavailable") end
+  check("protocol: waves encoding failure does not send a packet", P.send_waves("RW1|x") == false and #sends == before + 1)
+  cjson.encode = saved_encode
+end
 realms.network_send=function() return false,"channel rejected" end
 local sent,reason=P.send_hello()
 check("protocol failures: direct rejection exposes its reason and debug diagnostic", sent==false and reason=="channel rejected" and #warnings==2)

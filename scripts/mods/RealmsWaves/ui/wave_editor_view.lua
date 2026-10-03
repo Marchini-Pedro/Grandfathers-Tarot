@@ -1,4 +1,4 @@
--- Wave editor: lists every wave (standard + 20 custom slots), shows its
+-- Wave editor: lists every wave (the standard cards + the custom slots, 100 in all), shows its
 -- composition, and lets you rename it, change its enemies (stepper, add,
 -- remove, or edit as text), and set its chance, cooldown and enabled state.
 -- Everything is written straight to DMF settings (see catalog/events.lua), so
@@ -383,6 +383,14 @@ RealmsWavesView._create_editor_widgets = function (self)
 			hotspot.pressed_callback, hotspot.double_click_callback, hotspot.right_pressed_callback = set, set, edit
 		end
 
+		-- the cooldown row: the minus and the plus take a step (a fast second click repeats it), the value opens a number box, a
+		-- right click anywhere on it opens the card like on the pips
+		local less, more = callback(self, "cb_tile_cooldown", i, -1), callback(self, "cb_tile_cooldown", i, 1)
+
+		content.hotspot_cd_minus.pressed_callback, content.hotspot_cd_minus.double_click_callback, content.hotspot_cd_minus.right_pressed_callback = less, less, edit
+		content.hotspot_cd_plus.pressed_callback, content.hotspot_cd_plus.double_click_callback, content.hotspot_cd_plus.right_pressed_callback = more, more, edit
+		content.hotspot_cd_value.pressed_callback, content.hotspot_cd_value.right_pressed_callback = callback(self, "cb_tile_cooldown_input", i), edit
+
 		widget.visible = false
 	end
 
@@ -744,7 +752,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	self._offset = self:_clamp_offset(self._offset)
 
 	widgets.title_text.content.title_text = mod:localize(CARD_SCREEN_TITLE[screen] or "view_title")
-	Components.set_accent(CARD_SCREEN_TITLE[screen] and self._wave and rw.cards.suit(self._wave.suit).accent or Components.BILE)
+	Components.set_theme(CARD_SCREEN_TITLE[screen] and self._wave and rw.cards.suit(self._wave.suit) or nil)
 
 	local header = widgets.list_header.content
 
@@ -1314,9 +1322,11 @@ DeckView.install(RealmsWavesView, {
 	BLANK_NAME = BLANK_NAME,
 	guarded = guarded,
 	set_setting = set_setting,
+	Popup = Popup,
 })
 
 FaceView.install(RealmsWavesView, {
+	Deck = Deck,
 	guarded = guarded,
 	set_setting = set_setting,
 	Popup = Popup,

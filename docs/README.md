@@ -38,6 +38,11 @@ Enemy colour experiments were merged through
 after PRs #5 and #6. The [method guide](enemy-appearance.md) distinguishes
 usable experiments from advanced prerequisites; in-game acceptance is pending.
 
+The open branch `feature/heresy-card-and-ui-pass` (2026-10-03; ten requested changes: exact custom
+health, card-coloured pages, tighter shelf chips, Deck presets, `/rw_test_close`, HERESY, 100 cards,
+the last-card window, cooldowns on the Deck tiles) is documented in the changelog, doc 05 and the new
+rows 114-121 of the verification matrix. It has offline tests only and is not merged.
+
 ## References
 
 | Document | Purpose |
@@ -49,6 +54,8 @@ usable experiments from advanced prerequisites; in-game acceptance is pending.
 | [Verification and open issues](06-verification-and-open-issues.md) | Game test matrix, risks and dated results |
 | [Learnings and gaps](07-learnings-and-gaps.md) | Discoveries, failed approaches and actionable gaps |
 | [Workshop redesign](08-workshop-redesign.md) | Cauldron/Mirror design and build log |
+| [Heresy continuation review](audits/2026-10-03/heresy-review.md) | Branch-wide adversarial findings, fixes, detecting regressions and remaining native checks |
+| [Hand-off 2026-10-03](11-handoff-2026-10-03.md) | State of `feature/heresy-card-and-ui-pass`, what is left (CI coverage floors, in-game checks) and a prompt to resume the work |
 | [Recovery review](09-recovery-review.md) | Recovered history, fixes, validation and remaining limits |
 | [CI and coverage](10-ci-and-coverage.md) | Post-PR #4 measurements, gate policy, local commands and required GitHub checks |
 | [Executed audit](audits/2026-10-03/report.md) | Baseline, ranked findings, reproductions, inventory, measurements and live acceptance |

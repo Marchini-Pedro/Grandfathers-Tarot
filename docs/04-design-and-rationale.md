@@ -2,6 +2,17 @@
 
 Written 2026-09-28. Findings backing each claim are in docs 01-03.
 
+## Heresy branch continuation (2026-10-03)
+
+The last-card state is cleared before stop is broadcast; off snapshots cannot
+retain a last card. Long modifier lists grow the last-card panel inside its 320-unit node; existing names retain their three-line estimate. Pooled presets must fit both the 90,000-byte raw bound and
+Realms' encoded 96 KiB envelope, including JSON escaping. Reserve 1 KiB for
+the envelope and select the largest fitting prefix in at most seven probes
+for 100 cards; an empty preset clears old pools when no card fits. Health
+synchronization commits locally after the native write succeeds. Facing and
+spawning share one protected call so the bypass is always released.
+See the [continuation review](audits/2026-10-03/heresy-review.md).
+
 ## Enemy colour experiments (2026-10-03)
 
 The [appearance implementation](enemy-appearance.md) adds per-group ARGB sliders
@@ -71,7 +82,7 @@ No HTTP, OAuth or `Managers.backend:url_request`. Triggers = timer + in-game vot
 ### 5. Voting (two modes)
 - `random`: host rolls by weight, broadcasts the pending wave with countdown, then spawns.
 - `vote`: host draws N distinct candidates by weight, broadcasts ballot, opens a vote window (configurable seconds). `rw_vote(ballot_id, option)` from clients; host votes locally. One vote per peer id, changeable until close. Live counts broadcast. Ties random. Zero votes -> weighted-random pick (or skip wave; setting).
-- Event sources: standard events (RealmsEvent 5 spawn events, TwitchVersus wave tiers, some single-breed groups) and up to 20 custom recipe slots (`"5 trappers, 5 mutants, 10 hounds"`, parser from TwitchVersus `Groups.parse`).
+- Event sources: standard events (RealmsEvent 5 spawn events, TwitchVersus wave tiers, some single-breed groups) and custom recipe slots up to 100 cards in all (88 slots since 2.1, `Events.MAX_CARDS`; `"5 trappers, 5 mutants, 10 hounds"`, parser from TwitchVersus `Groups.parse`).
 
 ### 6. Percent chances
 Per-event percent setting (stored as raw weight). Normalised across enabled events to total 100 for display and rolls. Per-event cooldown prevents immediate repeats. Persist as a flat string setting like RealmsEvent's `event_pool_state` (nested tables crash DMF sjson save).
@@ -87,6 +98,8 @@ Per-event percent setting (stored as raw weight). Normalised across enabled even
 - **Cooldown**: `last_fired[key]` is stamped with `cd_clock` (seconds of played time: it advances only when the director is not paused and a player is alive) and a card is eligible again only when `cd_clock - last_fired >= cooldown`. Nothing eligible: `empty` state (`e = 1` nothing in the draw, `e = 2` all cooling down), retry after 10 s.
 - **Clients** never run the draw: they render the last hand, keep the cooldown map (`cd`: seconds left per cooling card) and count it down locally.
 - Everything a card shows comes from `Cards.describe` on the host (name, suit, threat, enemy kinds, whisper, rarity, modifiers), so a client without a card's wave (a friend's custom card) still draws it. A card never carries its chance.
+
+**2.1 additions to the tarot.** (a) HERESY replaced Fester as the twelfth suit (`special = true`): black red face, blood-red frame, gilded accent, `lit` red for words; every card painter gives a `special` suit a frame at rest, a smouldering glow and its own banner line; `fester` is kept as an alias so older data and hosts keep working. (b) The director keeps the last fulfilled card (the cycle's own picks that really started) outside the cycle's state and syncs it in every mode (`lc`, `la`, `ls`); the window `HudElementRealmsWavesLast` shows it with its age in played seconds. (c) The most cards a deck holds is `Events.MAX_CARDS = 100`. (d) A custom health is set exactly after the spawn because the game adds the Havoc / mission modifier to the spawn parameter (docs/07, 2026-10-03).
 
 ### 10. The Deck (2.0.0, the editor's home screen; the card's own screens, the Cauldron and the Mirror, are in `08-workshop-redesign.md`)
 - **Screen id** stays `"list"` (Back, the presets and every other flow still return to it), but what it shows is the Deck. `_source()` returns `self._deck`: the standard cards (also when emptied) and the custom cards with enemies, then a blank sentinel while a custom slot is free. Pages are whole rows: `Deck.max_offset`, `Deck.clamp_offset`; the scroll buttons and the wheel move seven cards.

@@ -317,7 +317,7 @@ for _, suit_name in ipairs(Cards.SUIT_ORDER) do
   if n == 0 then icons_ok = false end
 end
 check("icons: every suit mark draws something and stays inside its 18 px box", icons_ok, "plague " .. used.plague .. " murmur " .. used.murmur .. " rage " .. used.rage .. " blight " .. used.blight .. " swarm " .. used.swarm .. " fateful " .. used.fateful)
-check("icons: twelve suits, and the new six use their own slots (volley 7, snare 4, brute 5, fester 4, dusk 5, warp 5)", #Cards.SUIT_ORDER == 12 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.fester == 4 and used.dusk == 5 and used.warp == 5, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " fester " .. used.fester .. " dusk " .. used.dusk .. " warp " .. used.warp)
+check("icons: twelve suits, and the new six use their own slots (volley 7, snare 4, brute 5, dusk 5, warp 5, heresy 6)", #Cards.SUIT_ORDER == 12 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.dusk == 5 and used.warp == 5 and used.heresy == 6, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " dusk " .. used.dusk .. " warp " .. used.warp .. " heresy " .. tostring(used.heresy))
 check("icons: at the Deck's 26 units every mark also stays inside its box", (function()
   for _, suit_name in ipairs(Cards.SUIT_ORDER) do
     Spread.icon(Cards.SUITS[suit_name].icon, 26, icon)
@@ -848,6 +848,195 @@ local function growth(fixed_view, step, frames)
   if hook then debug.sethook(hook, mask, count) end
   return (after - before) * 1024 / frames
 end
+-- HERESY, the card apart: a frame at rest, a smouldering glow, its own line when it is drawn
+do
+  local e = new_element()
+  local special_hand = {
+    card("h", "The Turncoat", "heresy", 4, { "renegade_shocktrooper" }, "The Emperor does not answer."),
+    card("f", "Old Pox", "fester", 3, { "chaos_poxwalker" }, "an older host still says fester"),
+    card("p", "The Fool", "swarm", 1, { "chaos_poxwalker" }, "Too many to count."),
+  }
+  current_view = view_of({ hand = special_hand, remaining = 9.5, hand_seq = 40, win = 3 })
+  frame(e)
+  local h = function(i) return e._widgets_by_name["card_" .. i] end
+  check("heresy: at rest the frame is on, two units thick, in the suit's blood red (a swarm card has none)", h(1).style.rare_t.visible and h(1).style.rare_t.size[2] == 2 and h(1).style.rare_l.size[1] == 2 and h(1).style.rare_t.color[2] == 0xa3 and h(1).style.rare_t.color[3] == 0x20 and not h(3).style.rare_t.visible)
+  check("heresy: the glow smoulders at rest (visible, blood red, low); the other suits glow only when highlighted", h(1).style.glow.visible and h(1).style.glow.color[1] == 110 and h(1).style.glow.color[2] == 0xa3 and not h(3).style.glow.visible)
+  check("heresy: the face is the black red, the bar gilded, the name bone-coloured", h(1).style.bg.color[2] == 0x14 and h(1).style.bg.color[3] == 0x07 and h(1).style.accent.color[2] == 0xe5 and h(1).style.accent.color[3] == 0xb9 and h(1).style.name.text_color[2] == 0xf3)
+  check("heresy: a card an older host calls fester is drawn as Heresy", h(2).style.bg.color[2] == 0x14 and h(2).style.rare_t.visible and h(2).style.glow.visible)
+  check("heresy: its suit mark is the broken halo (six shapes) and it stays inside the card", (function()
+    local tris, circs = 0, 0
+    for i = 1, Spread.ICON_TRIS do if h(1).style["icon_t" .. i].visible then tris = tris + 1 end end
+    for i = 1, Spread.ICON_CIRCS do if h(1).style["icon_c" .. i].visible then circs = circs + 1 end end
+    return tris == 3 and circs == 3
+  end)())
+  audit_ok("heresy hand", e)
+
+  current_view = view_of({ hand = special_hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.05, win = 1, hand_seq = 41 })
+  frame(e)
+  local bn = e._widgets_by_name.banner
+  check("heresy: drawn, the banner says 'Heresy is drawn' in the lit red and the name is gilded; the card's glow flares", bn.content.kicker == "HUD_CARD_DRAWN_SPECIAL" and bn.style.kicker.text_color[2] == 0xe8 and bn.style.name.text_color[2] == 0xe5 and h(1).style.glow.color[1] == 220, tostring(bn.content.kicker))
+  current_view = view_of({ hand = special_hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.05, win = 3, hand_seq = 42 })
+  frame(e)
+  check("heresy: another card drawn keeps the ordinary banner line", bn.content.kicker == "HUD_CARD_DRAWN" and bn.style.kicker.text_color[2] ~= 0xe8)
+  audit_ok("heresy reveal", e)
+end
+
+-- the window of the last fulfilled card (ui/hud_element_last_card.lua)
+do
+  local LastDefs = dofile(BASE .. "/ui/hud_element_last_card_definitions.lua")
+  local LastElement = dofile(BASE .. "/ui/hud_element_last_card.lua")
+  local function new_last()
+    local el = setmetatable({}, LastElement)
+    LastElement.init(el, nil, 0, 1)
+    return el
+  end
+  local function last_frame(el) LastElement.update(el, 1 / 60, 0, nil, nil, nil) end
+  local function lc(key, name, suit, threat, breeds, whisper, mods, rare) return { key = key, name = name, suit = suit, threat = threat, breeds = breeds, whisper = whisper, modifiers = mods or "", rare = rare or false, cooldown = 120 } end
+  local function last_view(card, seq, age) return view_of({ phase = "waiting", hand = nil, remaining = 60, hand_seconds = 0, last = card, last_seq = seq, last_age = age }) end
+  local function inside(el)
+    local bad = {}
+    local w = el._widgets_by_name.last
+    for _, p in ipairs(w.passes) do
+      local st = w.style[p.style_id]
+      if st.visible ~= false and (p.pass_type == "rect" or p.pass_type == "circle" or p.pass_type == "text") then
+        if st.offset[1] < -0.01 or st.offset[2] < -0.01 or st.offset[1] + st.size[1] > LastDefs.WIDTH + 0.01 or st.offset[2] + st.size[2] > LastDefs.HEIGHT + 0.01 then bad[#bad + 1] = p.style_id .. "@" .. st.offset[1] .. "," .. st.offset[2] .. " " .. st.size[1] .. "x" .. st.size[2] end
+      end
+    end
+    return #bad == 0, table.concat(bad, " | ")
+  end
+
+  -- the definitions
+  local sg_nodes = 0
+  for id in pairs(LastDefs.scenegraph_definition) do if id ~= "screen" then sg_nodes = sg_nodes + 1 end end
+  local hidden, fonts_known = true, true
+  for _, def in pairs(LastDefs.widget_definitions) do
+    for _, st in pairs(def.style) do
+      if st.visible ~= false then hidden = false end
+      if st.font_type and not known_fonts[st.font_type] then fonts_known = false end
+    end
+  end
+  check("last card: one movable node (custom_hud lists every non-root node), one widget, every pass starts hidden, only fonts that exist", sg_nodes == 1 and LastDefs.scenegraph_definition.panel ~= nil and LastDefs.widget_definitions.last ~= nil and hidden and fonts_known, sg_nodes)
+  check("last card: the node sits to the right of the Spread and reserves room for wrapped modifiers", LastDefs.scenegraph_definition.panel.position[1] >= 610 + 700 and LastDefs.scenegraph_definition.panel.size[1] == 200 and LastDefs.scenegraph_definition.panel.size[2] == 320)
+
+  settings.hud_last_card, settings.hud_enabled, settings.tarot_font = nil, nil, nil
+  local el = new_last()
+  local w = el._widgets_by_name.last
+  current_view = last_view(nil, 0, 0)
+  last_frame(el)
+  check("last card: no card yet -> no window", w.visible == false and not el._visible)
+
+  local tower = lc("c", "The Tower", "blight", 3, { "chaos_poxwalker_bomber", "renegade_shocktrooper" }, "Pop, pop, pop.", "Enraged \194\183 Custom")
+  current_view = last_view(tower, 1, 5.9)
+  last_frame(el)
+  check("last card: the window shows when a card went out: caption, how long ago (rounded down), name, whisper in quotes, modifiers in capitals", w.visible and w.content.kicker == "HUD_LAST_CARD" and w.content.age == "hud_last_ago:0:05" and w.content.name == "The Tower" and w.content.whisper == "\"Pop, pop, pop.\"" and w.content.mods == "ENRAGED \194\183 CUSTOM", tostring(w.content.age))
+  check("last card: the card takes its suit's colours (blight: face #25240c, bar #e3cf4a, name #ebe6bf) and the window's frame is the suit's", w.style.card_bg.color[2] == 0x25 and w.style.card_bg.color[3] == 0x24 and w.style.card_accent.color[2] == 0xe3 and w.style.name.text_color[2] == 0xeb and w.style.win_t.color[2] == 0x3a and w.style.win_l.color[3] == 0x44 and w.style.bg.color[2] == 10)
+  check("last card: the card has an outline of its own in the suit's frame colour (blight #5c5a1e), the window a neutral line and a panel darker than any card", w.style.rare_t.visible and w.style.rare_t.color[2] == 0x5c and w.style.rare_t.color[3] == 0x5a and w.style.rare_t.size[2] == 1 and w.style.rare_l.size[1] == 1)
+  check("last card: a card is 176 wide, the window 200 wide and as tall as its content, the card inside it", w.style.card_bg.size[1] == 176 and w.style.card_bg.offset[1] == 12 and w.style.card_bg.offset[2] == 34 and w.style.bg.size[1] == 200 and w.style.bg.size[2] > w.style.card_bg.offset[2] + w.style.card_bg.size[2] and w.style.bg.size[2] <= 196 and w.style.win_b.offset[2] == w.style.bg.size[2] - 1)
+  local ok_in, why_in = inside(el)
+  check("last card: nothing is drawn outside the node", ok_in, why_in)
+  check("last card: threat diamonds are filled up to the threat in its colour (3: light yellow) and the rest dimmed; one dot per enemy colour", w.style.th_o3.color[2] == 227 and w.style.th_o3.color[1] == 255 and w.style.th_o4.visible and w.style.th_o4.color[1] == 64 and (function() local n = 0 for j = 1, 6 do if w.style["dot_" .. j].visible then n = n + 1 end end return n == 2 end)())
+  check("last card: the suit mark is drawn (blight: a drop of triangles and circles) and an ordinary card does not glow", (function() local any = false for i = 1, Spread.ICON_TRIS do if w.style["icon_t" .. i].visible then any = true end end for i = 1, Spread.ICON_CIRCS do if w.style["icon_c" .. i].visible then any = true end end return any end)() and not w.style.glow.visible)
+  audit_ok("last card", el)
+
+  -- it ages once a second; the card is only laid out again when another one goes out
+  w.style.card_bg.color[2] = 1
+  current_view = last_view(tower, 1, 65.4)
+  last_frame(el)
+  check("last card: the age follows (65 seconds: 1:05) without laying the card out again", w.content.age == "hud_last_ago:1:05" and w.style.card_bg.color[2] == 1, tostring(w.content.age))
+  current_view = last_view(tower, 1, 65.9)
+  local age_before = w.content.age
+  last_frame(el)
+  check("last card: within the same second nothing is rewritten", w.content.age == age_before)
+  current_view = last_view(lc("d", "Death", "fateful", 5, { "chaos_plague_ogryn" }, "It was always going to end here.", "", true), 2, 0.2)
+  last_frame(el)
+  check("last card: another card (a new number) is laid out at once, the age starts again, a rare card has the pus-yellow outline", w.content.name == "Death" and w.style.card_bg.color[2] ~= 1 and w.content.age == "hud_last_ago:0:00" and w.style.rare_t.visible and w.style.rare_t.size[2] == 1 and w.style.rare_l.color[2] == 227 and w.style.mods.visible == false)
+
+  -- Heresy: the frame at rest and the glow, as in the Spread
+  current_view = last_view(lc("h", "The Turncoat", "heresy", 4, { "renegade_shocktrooper" }, "He does not answer."), 3, 1)
+  last_frame(el)
+  check("last card: a Heresy card keeps its blood-red frame (two units) and its glow that smoulders in the window too, and the window's own line stays neutral", w.style.rare_t.visible and w.style.rare_t.size[2] == 2 and w.style.rare_t.color[2] == 0xa3 and w.style.glow.visible and w.style.glow.color[2] == 0xa3 and w.style.win_t.color[2] == 0x3a and w.style.card_bg.color[2] == 0x14)
+  current_view = last_view(lc("f", "Old Pox", "fester", 2, {}, ""), 4, 1)
+  last_frame(el)
+  check("last card: a card an older host calls fester is Heresy", w.style.card_bg.color[2] == 0x14 and w.style.rare_t.visible and w.style.whisper.visible == false and w.style.mods.visible == false)
+  audit_ok("last card (heresy)", el)
+
+  -- a three-line name, the longest whisper and modifiers: everything still fits the node
+  current_view = last_view(lc("m", "The Watching Moon", "murmur", 2, { "renegade_sniper", "chaos_poxwalker" }, "Someone is counting you, forever.", "Purple \194\183 Enraged \194\183 Custom"), 5, 12)
+  last_frame(el)
+  local ok_in2, why_in2 = inside(el)
+  check("last card: a three-line name with a two-line whisper and modifiers fits the node (the window is as tall as it needs)", ok_in2 and w.style.bg.size[2] <= LastDefs.HEIGHT and w.style.whisper.visible and w.style.mods.visible and w.style.whisper.offset[2] > w.style.card_bg.offset[2] + w.style.card_bg.size[2] and w.style.mods.offset[2] > w.style.whisper.offset[2], why_in2)
+
+  current_view = last_view(lc("long-mods", "The Watching Moon", "murmur", 2, {}, "Someone is counting you, forever.", string.rep("Enraged ", 12)), 51, 12)
+  last_frame(el)
+  check("last card: a 96-byte modifier list has six lines of room and stays inside its panel", w.style.mods.size[2] >= 96 and w.style.mods.offset[2] + w.style.mods.size[2] + 8 <= w.style.bg.size[2] and w.style.bg.size[2] <= LastDefs.HEIGHT)
+
+  -- the player's options
+  settings.tarot_font = "machine_medium"
+  current_view = last_view(tower, 6, 3)
+  last_frame(el)
+  check("last card: the name takes the font chosen for the Spread; an unknown font falls back to the default", w.style.name.font_type == "machine_medium" and (function() settings.tarot_font = "no_such_font"; last_frame(el); return w.style.name.font_type == "itc_novarese_bold" end)())
+  settings.tarot_font = nil
+  settings.hud_last_card = false
+  last_frame(el)
+  check("last card: the option 'Show the last card window' off hides it", w.visible == false)
+  settings.hud_last_card = nil
+  last_frame(el)
+  check("last card: ...and back on shows it again", w.visible == true and w.content.name == "The Tower")
+  settings.hud_enabled = false
+  last_frame(el)
+  check("last card: the master option 'Show wave panel' off hides it too", w.visible == false)
+  settings.hud_enabled = nil
+
+  -- custom_hud's edit mode: a sample card, even with the option off
+  current_view = last_view(nil, 0, 0)
+  last_frame(el)
+  check("last card: still hidden when there is no card", w.visible == false)
+  custom_hud.is_customizing = true
+  settings.hud_last_card = false
+  last_frame(el)
+  check("last card: while custom_hud is being edited a sample card is shown so the window can be moved (even with the option off)", w.visible and w.content.name == "The Chariot" and w.content.age == "hud_last_ago:2:34")
+  custom_hud.is_customizing = false
+  settings.hud_last_card = nil
+  last_frame(el)
+  check("last card: and it goes away when the edit mode closes", w.visible == false)
+
+  -- leaving the mission clears it; a broken card is reported once and the window recovers
+  current_view = last_view(tower, 7, 1)
+  last_frame(el)
+  current_view = { phase = "off", last = nil, last_seq = 0, last_age = 0 }
+  last_frame(el)
+  check("last card: out of a mission the window is gone", w.visible == false)
+  current_view = last_view(tower, 7, 1)
+  last_frame(el)
+  local errors_before = #errors_logged
+  current_view = last_view({ name = "Broken", suit = "rage", threat = 2, breeds = 5, whisper = "x" }, 8, 1)
+  last_frame(el); last_frame(el); last_frame(el)
+  check("last card: a card that cannot be drawn is reported once (not every frame)", #errors_logged == errors_before + 1, #errors_logged - errors_before)
+  check("last card: refresh errors hide the partially painted widget", not w.visible and not el._visible)
+  while #errors_logged > errors_before do table.remove(errors_logged) end -- (the deliberate error is not the guarded refresh's: the last check of this file stays strict)
+  current_view = last_view(tower, 9, 1)
+  last_frame(el)
+  check("last card: ...and the next good card is drawn", w.visible and w.content.name == "The Tower")
+
+  -- no allocation per frame while a card is shown (the age text changes once a second)
+  current_view = last_view(tower, 10, 10)
+  last_frame(el)
+  -- (as growth() above: the coverage line hook allocates debug-info tables, suspend it for the probe; no trace compiler either)
+  local hook_fn, hook_mask, hook_count = debug.gethook()
+  debug.sethook()
+  local jit_was_on = jit and jit.status()
+  if jit then jit.off(); jit.flush() end
+  for _ = 1, 600 do last_frame(el) end -- warm the same loop
+  collectgarbage("collect"); collectgarbage("stop")
+  local before_heap = collectgarbage("count")
+  for _ = 1, 600 do last_frame(el) end
+  local grown = (collectgarbage("count") - before_heap) * 1024 / 600
+  collectgarbage("restart")
+  if jit_was_on then jit.on() end
+  if hook_fn then debug.sethook(hook_fn, hook_mask, hook_count) end
+  check("last card: no allocation per frame while a card is shown", grown < 1, string.format("%.2f bytes/frame", grown))
+end
+
 local per_frame_hand = growth(view_of({ remaining = 9.5, hand_seq = 30 }), function(v, i) end, 600)
 check("no allocation per frame while a hand is shown (idle)", per_frame_hand < 1, string.format("%.2f bytes/frame", per_frame_hand))
 local per_frame_run = growth(view_of({ remaining = 9.5, hand_seq = 31 }), function(v, i) v.remaining = math.max(0, 9.5 - i / 60 / 3) end, 600)

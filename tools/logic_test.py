@@ -539,6 +539,180 @@ do
   settings.interval_min = 100; settings.interval_max = 100
   Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
 end
+
+-- the last fulfilled card: remembered by the host when a wave of the cycle goes out, synced to the clients, shown by the HUD window -------
+do
+  local keys = Events.keys()
+  local function only(list) for _, k in ipairs(keys) do settings["on_" .. k] = false end for _, e in ipairs(list) do settings["on_" .. e[1]] = true; settings["pct_" .. e[1]] = e[2] or 5; settings["cd_" .. e[1]] = e[3] or 0 end end
+  local function clean()
+    for _, k in ipairs(keys) do settings["on_" .. k] = nil; settings["pct_" .. k] = nil; settings["cd_" .. k] = nil end
+    settings.mode, settings.tarot_cards, settings.tarot_seconds, settings.interval_min, settings.interval_max, settings.interval_random, settings.initial_delay = nil, nil, nil, nil, nil, nil, nil
+  end
+  local function start()
+    started_waves = {}; started_defs = {}
+    Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01)
+    return Director.view()
+  end
+  local function skip() Director.skip(); Director.update(0.01) end -- /rw_skip sets the countdown to zero, the pick happens on the next tick
+  is_server = true
+  settings.tarot_cards = 1; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100; settings.interval_random = false; settings.initial_delay = 0
+  only({ { "wave_medium", 5, 0 } })
+  local v = start()
+  check("last card: before the first card goes out there is none (and the age is 0)", v.last == nil and v.last_seq == 0 and v.last_age == 0)
+  skip()
+  v = Director.view()
+  local first_card = v.last
+  check("last card: the card whose wave went out is the last one (its name, suit, threat, a first number, age 0)", first_card ~= nil and first_card.name == started_waves[#started_waves] and first_card.key == "wave_medium" and first_card.suit == "swarm" and first_card.threat >= 1 and first_card.threat <= 5 and #first_card.breeds >= 1 and v.last_seq == 1 and v.last_age == 0, started_waves[#started_waves])
+  Director.update(30)
+  check("last card: its age counts the played seconds", math.abs(Director.view().last_age - 30) < 0.01 and Director.view().last == first_card, Director.view().last_age)
+  Director.pause(true)
+  Director.update(25)
+  check("last card: a paused game does not age it", math.abs(Director.view().last_age - 30) < 0.01)
+  Director.pause(false)
+  skip()
+  v = Director.view()
+  check("last card: the next card replaces it (a new number, a new table, age 0 again)", v.last_seq == 2 and v.last ~= first_card and v.last_age == 0 and v.last.key == "wave_medium")
+
+  -- a wave that did not start is not a fulfilled card
+  local real_start = Execute.start_wave
+  Execute.start_wave = function() return false, "pending-wave budget is full" end
+  skip()
+  check("last card: a wave that could not start does not change it", Director.view().last_seq == 2)
+  Execute.start_wave = real_start
+
+  -- not a test wave, not a fixed timer
+  local seq = Director.view().last_seq
+  Director.fire_now("wave_small")
+  Director.fire_now("wave_small", { close = true })
+  check("last card: /rw_test and /rw_test_close do not change it", Director.view().last_seq == seq)
+
+  -- sync: the host's state carries it, a client shows it
+  Director.update(2)
+  local state
+  for i = #sent, 1, -1 do if sent[i].state and sent[i].state.lc then state = sent[i].state break end end
+  check("sync: the state carries the last card (name, suit, a number, its age in played seconds)", state ~= nil and state.lc.n == Director.view().last.name and state.lc.s == "swarm" and state.ls == seq and type(state.la) == "number" and state.la >= 2, state and tostring(state.la))
+  local wire = { lc = state.lc, la = state.la, ls = state.ls }
+  -- stop while the last card is visible; deliver the final snapshot to a client
+  check("last card: the host stops and hides its card", Director.stop() == true and Director.view().last == nil)
+  local stopped_wire = sent[#sent].state
+  is_server = false
+  Director.on_state("host_peer", stopped_wire)
+  check("last card: the client also hides the last card after the host stops", Director.view().last == nil)
+  stopped_wire.lc, stopped_wire.la, stopped_wire.ls = wire.lc, wire.la, wire.ls
+  Director.on_state("host_peer", stopped_wire)
+  check("last card: off snapshots from older hosts cannot retain a last card", Director.view().last == nil)
+  is_server = true
+
+  is_server = false
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 50.0, b = 1, k = {}, z = 0, lc = wire.lc, la = wire.la, ls = wire.ls })
+  local cv = Director.view()
+  local client_card = cv.last
+  check("sync: a client shows the last card (the fields, the number, the age the host sent)", client_card ~= nil and client_card.name == wire.lc.n and client_card.suit == "swarm" and client_card.threat == wire.lc.t and cv.last_seq == wire.ls and cv.last_age >= wire.la and cv.last_age < wire.la + 5, cv.last and cv.last.name)
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 49.0, b = 1, k = {}, z = 0, lc = wire.lc, la = wire.la + 1, ls = wire.ls })
+  check("sync: the same card in the next message keeps its table (the window does not rebuild) and gets the new age", Director.view().last == client_card and Director.view().last_age >= wire.la + 1)
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 48.0, b = 1, k = {}, z = 0, lc = { k = "custom_2", n = "Other", s = "rage", t = 3, b = { "chaos_hound" }, q = "x", m = "", r = 0, c = 90 }, la = 0, ls = wire.ls + 1 })
+  check("sync: another card (a new number) replaces it", Director.view().last ~= client_card and Director.view().last.name == "Other" and Director.view().last_seq == wire.ls + 1 and Director.view().last.suit == "rage")
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 47.0, b = 1, k = {}, z = 0, lc = { k = "old", n = "Old Pox", s = "fester", t = 2, b = {} }, la = 1, ls = 99 })
+  check("sync: a host that still says fester sends a Heresy card", Director.view().last and Director.view().last.suit == "heresy")
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 46.0, b = 1, k = {}, z = 0, lc = "junk", la = "x", ls = {} })
+  check("sync: junk instead of a card shows no last card and breaks nothing", Director.view().last == nil and Director.view().last_seq == 0)
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 45.0, b = 1, k = {}, z = 0, lc = { k = "a", n = "A", s = "rage", t = 99, b = { 5, "ok" }, q = 12, c = -4 }, la = -50, ls = 5 })
+  local clean_card = Director.view().last
+  check("sync: every field is validated (threat 99 -> 5, a non-string enemy dropped, the whisper a string, the age never negative)", clean_card and clean_card.threat == 5 and #clean_card.breeds == 1 and clean_card.whisper == "12" and clean_card.cooldown == 0 and Director.view().last_age >= 0)
+  Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 44.0, b = 1, k = {} })
+  check("sync: a host without the feature (an older version) sends none: no last card", Director.view().last == nil)
+  Director.on_exit_gameplay()
+  check("last card: out of a mission the view has none (a stale card is never shown)", Director.view().last == nil and Director.view().last_seq == 0 and Director.view().last_age == 0)
+
+  -- the other modes: a random wave and a voted wave are fulfilled cards too
+  is_server = true
+  settings.mode = "random"
+  only({ { "wave_small", 5, 0 } })
+  v = start()
+  Director.update(50); Director.update(50.5)
+  v = Director.view()
+  check("last card: in the random mode the wave that came is the last card", v.phase == "incoming" and v.last ~= nil and v.last.name == started_waves[1] and v.last_seq == 1, tostring(started_waves[1]))
+  Director.on_exit_gameplay()
+  check("last card: a new mission starts without one (the previous mission's card is gone)", (function() started_waves = {}; Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01); return Director.view().last == nil and Director.view().last_seq == 0 end)())
+  Director.on_exit_gameplay()
+  clean()
+  started_waves = {}; started_defs = {}
+end
+
+-- 100 cards: the deck, and the message that tells the host which cards a client has ----------------------------------------------
+do
+  local Presets = PresetsMod
+  local keys = Events.keys()
+  local function get(id) return settings[id] end
+  local function w(key, name, recipe, pct) return { key = key, name = name, recipe = recipe, enabled = true, pct = pct, cd = 0, sp = 3, re = 10, rf = 60, dmin = 0, dmax = 0 } end
+  check("cards: a deck holds 100 cards: the 12 standard ones and 88 custom slots, every key valid and unique", Events.MAX_CARDS == 100 and Events.CUSTOM_SLOTS == 88 and #keys == 100 and (function() local seen = {} for _, k in ipairs(keys) do if seen[k] then return false end seen[k] = true end return seen.custom_88 == true and not seen.custom_89 end)())
+  check("cards: slot 88 is a card, slot 89 and slot 0 are not", Events.get("custom_88", get, Groups) ~= nil and Events.get("custom_89", get, Groups) == nil and Events.get("custom_0", get, Groups) == nil)
+  check("cards: the Deck's odds strip has a segment for every card that can be in the draw", load("ui/deck").STRIP_MAX == Events.MAX_CARDS)
+  check("cards: the order of the Deck keeps all 100 (a saved order that lacks the new slots gets them in their usual place)", (function() local ordered = Events.ordered_keys(function(id) return id == "deck_order" and "custom_3,wave_small,custom_3,gone" or nil end); return #ordered == 100 and ordered[1] == "custom_3" and ordered[2] == "wave_small" and ordered[100] == "custom_88" end)())
+
+  -- a client with many cards: one message to the host; when they do not all fit, the first cards that do
+  local big = "3 crusher[enraged+purple+blight]{health=150 size=130 speed=120 gap=40 fire=200 burst=300 mass=250}, 2 mauler[red]{health=80 size=90}, 4 rager[orange+toughened], 3 gunner[fire]{fire=120}, 2 hound, 5 poxwalker@3, 2 mutant|trapper|flamer[parasite], 1 plague ogryn, 2 sniper, 3 bomber, 2 burster, 1 chaos spawn"
+  check("cards: the big recipe of the tests parses to the twelve groups a card holds", #Groups.parse(big) == 12, #Groups.parse(big))
+  for i = 1, Events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = "Card " .. i .. "\t" .. big; settings["on_custom_" .. i] = true; settings["pct_custom_" .. i] = 5 end
+  local full = #Presets.encode(Presets.enabled_waves(get, Events, Groups))
+  local saved_limit = Protocol.MAX_WAVES_TEXT
+  is_server = false
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  Director.on_welcome("host_peer", 1, "1.0.0", true)
+  local decoded = sent.waves and Presets.decode(sent.waves, Events, Groups)
+  check("cards: with room (the real limit) a client sends all of its cards, 100 of them, in one message", decoded ~= nil and #decoded.waves == 100 and #sent.waves == full and full < 90000, tostring(full) .. " " .. tostring(decoded and #decoded.waves))
+
+  Protocol.MAX_WAVES_TEXT = 20000
+  local echo_mark = #echoes
+  sent.waves, sent.waves_count = nil, nil
+  check("cards: the premise of the next test: the cards are more than the message can hold", full > 20000, full)
+  local ok_sent = Director.send_waves()
+  local text = sent.waves
+  local trimmed = text and Presets.decode(text, Events, Groups)
+  check("cards: 100 big cards do not fit in one message: the first cards that fit are sent, an intact preset under the limit, not nothing", ok_sent == true and text ~= nil and #text <= 20000 and trimmed ~= nil and #trimmed.waves >= 10 and #trimmed.waves < 100 and trimmed.waves[1].key == "wave_small" and trimmed.waves[#trimmed.waves].key == keys[#trimmed.waves], text and #text)
+  Director.send_waves(); Director.send_waves()
+  local said = 0; for i = echo_mark + 1, #echoes do if echoes[i]:find("enabled cards fit in one message", 1, true) then said = said + 1 end end
+  check("cards: ...and it is said once, not at every send", said == 1, said)
+  Protocol.MAX_WAVES_TEXT = 50
+  sent.waves = nil
+  Director.send_waves()
+  local one = sent.waves and Presets.decode(sent.waves, Events, Groups)
+  check("cards: if no card fits, send an empty valid deck to clear the host's previous pool", one ~= nil and #one.waves == 0 and #sent.waves <= 50, one and #one.waves)
+  Protocol.MAX_WAVES_TEXT = saved_limit
+  do
+    local saved_fits = Protocol.waves_text_fits
+    Protocol.waves_text_fits = function(text)
+      local escaped = text:gsub('["\\]', 'XX')
+      return #text <= (Protocol.MAX_WAVES_TEXT or 90000) and #escaped + 2 <= 96 * 1024 - 1024
+    end
+    for _, k in ipairs(keys) do settings["wave_def_" .. k] = string.rep('"', 750) .. "\t" .. big; settings["on_" .. k] = true end
+    local full_text = Presets.encode(Presets.enabled_waves(get, Events, Groups))
+    local sent_ok = Director.send_waves()
+    local escaped_deck = sent.waves and Presets.decode(sent.waves, Events, Groups)
+    check("cards: quote-heavy decks fit after transport escaping, not just as raw text", sent_ok and Protocol.waves_text_fits(sent.waves) and escaped_deck ~= nil and #escaped_deck.waves > 0 and #escaped_deck.waves < 100 and not Protocol.waves_text_fits(full_text))
+    Protocol.waves_text_fits = saved_fits
+    for _, k in ipairs(keys) do if not k:find("^custom_") then settings["wave_def_" .. k] = nil end end
+  end
+
+  -- the host takes up to 100 cards of one player
+  is_server = true
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  is_server = true
+  for _, k in ipairs(keys) do settings["on_" .. k] = false end
+  settings.pool_all_players = true
+  local many = {}; for i = 1, 100 do many[i] = w(keys[i], "P" .. i, "1 hound", 5) end
+  Director.on_waves("peer_d", Presets.encode({ name = "waves", waves = many }))
+  check("cards: the host takes all 100 cards of one player into the pool (the limit was 40)", #Director.extra_waves() == 100, #Director.extra_waves())
+  local more = {}; for i = 1, 150 do more[i] = w(keys[(i - 1) % 100 + 1], "Q" .. i, "1 hound", 5) end
+  Director.on_waves("peer_e", Presets.encode({ name = "waves", waves = more }))
+  check("cards: a second player never adds more than 100 of their own", #Director.extra_waves() <= 200, #Director.extra_waves())
+
+  for i = 1, Events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil; settings["pct_custom_" .. i] = nil end
+  for _, k in ipairs(keys) do settings["on_" .. k] = nil end
+  settings.pool_all_players = nil
+  Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
+end
 -- protocol layer: RPCs registered, rw_waves send/receive validation ------------------------------------------------
 do
   local registered, sent_rpcs = {}, {}
@@ -559,9 +733,10 @@ do
   check("protocol: seven RPCs registered (appearance, hello, scale, state, vote, waves, welcome)", table.concat(names, ",") == "rw_appearance,rw_hello,rw_scale,rw_state,rw_vote,rw_waves,rw_welcome", table.concat(names, ","))
   check("protocol: send_waves goes to the host with the text as one argument (dot call: mod first)", P.send_waves("RW1|x") == true and sent_rpcs[#sent_rpcs].name == "rw_waves" and sent_rpcs[#sent_rpcs].recipient == "host" and sent_rpcs[#sent_rpcs].args[1] == "RW1|x" and sent_rpcs[#sent_rpcs].mod == mod)
   local n = #sent_rpcs
-  check("protocol: a text over the size limit is not sent", P.send_waves(string.rep("x", 60001)) == false and #sent_rpcs == n and P.send_waves(42) == false)
+  check("protocol: a text over the size limit is not sent", P.send_waves(string.rep("x", P.MAX_WAVES_TEXT + 1)) == false and #sent_rpcs == n and P.send_waves(42) == false)
+  check("protocol: a text of exactly the limit (90000) is still sent", P.send_waves(string.rep("x", P.MAX_WAVES_TEXT)) == true and P.MAX_WAVES_TEXT == 90000)
   registered.rw_waves("peer_a", "RW1|ok")
-  registered.rw_waves("", "RW1|no sender"); registered.rw_waves(nil, "x"); registered.rw_waves("peer_a", 42); registered.rw_waves("peer_a", string.rep("y", 60001))
+  registered.rw_waves("", "RW1|no sender"); registered.rw_waves(nil, "x"); registered.rw_waves("peer_a", 42); registered.rw_waves("peer_a", string.rep("y", P.MAX_WAVES_TEXT + 1))
   check("protocol: received waves are validated (sender, type, size) before the handler runs", #received == 1 and received[1][1] == "peer_a" and received[1][2] == "RW1|ok", #received)
 
   -- rw_scale: sizes of units (custom mods)
@@ -703,6 +878,10 @@ do
   check("timer: applying a preset writes it (and 0 for the others)", applied.ev_custom_2 == 60 and applied.ev_wave_small == 0)
   local one = Presets.decode_wave(Presets.encode_wave(Presets.capture_wave(g, "custom_2", Events, Groups)), Events, Groups)
   check("timer: a shared single wave carries it", one and one.timer == 60)
+  local fe_old = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~0~0~fester~0~~"), Events, Groups)
+  local fe_new = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~0~0~heresy~0~~"), Events, Groups)
+  local fe_bad = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~0~0~bogus~0~~"), Events, Groups)
+  check("heresy: a shared card or an old preset that says fester arrives as Heresy, heresy as heresy, an unknown suit as plague", fe_old and fe_old.suit == "heresy" and fe_new and fe_new.suit == "heresy" and fe_bad and fe_bad.suit == "plague", fe_old and tostring(fe_old.suit))
   local old11 = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0"), Events, Groups)
   local old9 = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds"), Events, Groups)
   check("timer: texts from before 1.11.0 (9 or 11 fields) import with no timer", old11 and old11.timer == 0 and old9 and old9.timer == 0)
@@ -1109,6 +1288,11 @@ do
   local cv = Director.view()
   check("client: the tarot hand is rendered from the synced state (winner, sequence, cards)", cv.mode == "tarot" and cv.phase == "hand" and #cv.hand == 2 and cv.win == 2 and cv.hand_seq == 7 and cv.hand[1].name == "The Devil" and cv.hand[1].suit == "fateful" and cv.hand[1].rare == true and cv.hand[1].modifiers == "Purple", tostring(cv.win))
   check("client: every field is validated (unknown suit -> plague, threat capped at 5, non-string enemies dropped, whisper made a string)", cv.hand[2].suit == "plague" and cv.hand[2].threat == 5 and #cv.hand[1].breeds == 2 and cv.hand[2].whisper == "12")
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  Director.on_state("host_peer", { p = "hand", m = "tarot", r = 8.0, b = 3, c = "", k = {}, e = 0, z = 0, sq = 1, w = 1, dn = 0, y = 10,
+    h = { { k = "a", n = "Old", s = "fester", t = 2, b = {} }, { k = "b", n = "New", s = "heresy", t = 2, b = {} } } })
+  local hv = Director.view()
+  check("client: a host that still says fester (an older version) gets the Heresy card, and heresy arrives as heresy", hv.hand and #hv.hand == 2 and hv.hand[1].suit == "heresy" and hv.hand[2].suit == "heresy", hv.hand and tostring(hv.hand[1].suit))
   Director.on_state("host_peer", { p = "hand", m = "tarot", r = 8.0, b = 3, k = {}, sq = 8, w = 9, h = { { k = "a", n = "x", s = "rage", t = 1, b = {} }, 5, "junk" } })
   check("client: a winner index outside the hand is pulled inside it, junk cards are skipped", Director.view().win == 1 and #Director.view().hand == 1)
   local many = {}; for i = 1, 9 do many[i] = { k = "k" .. i, n = "N" .. i, s = "swarm", t = 1, b = {} } end
@@ -1214,6 +1398,14 @@ do
   local rok, rnote = Director.fire_now("dog party")
   check("director.fire_now warns when the level has no spawn points (ring used)", rok and type(rnote) == "string" and rnote:find("ring") ~= nil, tostring(rnote))
   ring_level = false
+  local cok, cnote = Director.fire_now("dog party", { close = true })
+  check("director.fire_now with close: the wave is marked close (and still a test), and the answer says where it spawns", cok and started_defs[#started_defs].close == true and started_defs[#started_defs].test == true and cnote == "spawning right in front of you", tostring(cnote))
+  ring_level = true
+  local _, cnote2 = Director.fire_now("dog party", { close = true })
+  check("director.fire_now with close never talks about the ring, even on a level without spawn points", cnote2 == "spawning right in front of you", tostring(cnote2))
+  ring_level = false
+  Director.fire_now("dog party")
+  check("director.fire_now without options is not close", started_defs[#started_defs].close == nil)
   local fok2, ferr2 = Director.fire_now("nope")
   check("director.fire_now reports an unknown name", fok2 == false and ferr2:find("no wave named") ~= nil, ferr2)
   Events.reset(set, "custom_2"); Events.reset(set, "custom_5")
@@ -1284,7 +1476,7 @@ local spawned = {}
 local minion_spawn = {
   request_param_table = function() return {} end,
   spawn_minion = function(self, breed, pos, rot, side_id, param)
-    local unit = { breed = breed, buffs = make_buff_ext(breed), aggro = param.optional_aggro_state, init_toughness = param.optional_init_toughness, side = side_id, spawn_flag = Bypass.spawning }
+    local unit = { breed = breed, buffs = make_buff_ext(breed), aggro = param.optional_aggro_state, init_toughness = param.optional_init_toughness, side = side_id, spawn_flag = Bypass.spawning, pos = pos, rot = rot, target = param.optional_target_unit }
     spawned[#spawned + 1] = unit
     return unit
   end,
@@ -1299,7 +1491,12 @@ local spread_calls = {}
 local cand_calls, cand_fail = 0, false
 local cand_reason, ring_fail, ring_calls = "no hidden points near players", false, 0
 local last_range = nil
+local CS = { calls = 0, fail = false, reason = nil } -- /rw_test_close stub state (one local: the harness chunk is near Lua's limit of 200)
 local StubPositions = {
+  -- /rw_test_close: the local player's own spot, no cache, facing them
+  close_candidates = function() CS.calls = CS.calls + 1; if CS.fail then return nil, CS.reason end return { "front" } end,
+  local_player_unit = function() return "me" end,
+  rotation_towards = function(position, unit) return "faces:" .. tostring(unit) end,
   candidates = function(min_d, max_d) cand_calls = cand_calls + 1; last_range = { min_d, max_d }; if cand_fail then return nil, cand_reason end return { "a", "b" } end,
   test_candidates = function() ring_calls = ring_calls + 1; if ring_fail then return nil, "no walkable ground within reach of the player" end return { "ring" } end,
   pick = function(list) return "pos" end,
@@ -1331,6 +1528,15 @@ check("execute: hounds get no buffs", hounds_clean)
 check("execute: units aggroed, villain side, tracked by bypass", spawned[1].aggro == "aggroed" and spawned[1].side == 2 and spawned[1].spawn_flag == true and Bypass.count() == 5, Bypass.count())
 
 -- Havoc-only modifier is skipped outside Havoc, applied inside it
+do
+  local fault = { rotation = Unit.world_rotation, facing = StubPositions.rotation_towards }
+  Unit.world_rotation = function() error("target unit despawned") end
+  StubPositions.rotation_towards = function() return nil end
+  fault.ok = pcall(run_wave, { name = "gone target", close = true, parts = Groups.parse("1 hound") })
+  check("execute: a despawn during close-wave facing is contained and releases the spawn bypass", fault.ok and not Bypass.spawning and #spawned == 0)
+  Unit.world_rotation, StubPositions.rotation_towards = fault.rotation, fault.facing
+  Execute.cancel(); Bypass.reset()
+end
 run_wave({ name = "t", parts = Groups.parse("2 crushers[toughened]") })
 check("execute: toughened skipped outside Havoc", #spawned == 2 and #spawned[1].buffs.added == 0)
 havoc_present = true
@@ -1364,6 +1570,53 @@ spread_calls = {}
 run_wave({ name = "t", parts = Groups.parse("2 hounds") })
 check("execute: no spread configured -> radius 0", #spread_calls == 2 and spread_calls[1] == 0)
 
+-- /rw_test_close: right in front of the local player, facing them
+do
+  Execute.reset(); Bypass.reset()
+  CS.calls, cand_calls, ring_calls, spread_calls = 0, 0, 0, {}
+  run_wave({ name = "t", test = true, close = true, spread = 6, parts = Groups.parse("3 hounds") })
+  check("close: the units come from the close candidates, never from the hidden-point search or the ring", #spawned == 3 and CS.calls >= 1 and cand_calls == 0 and ring_calls == 0, #spawned .. " " .. CS.calls .. " " .. cand_calls)
+  check("close: the units face the local player and aggro on them (a random player is not used)", spawned[1].rot == "faces:me" and spawned[1].target == "me" and spawned[1].pos == "pos+2", tostring(spawned[1].rot) .. " " .. tostring(spawned[1].pos))
+  local capped = #spread_calls == 3
+  for _, r in ipairs(spread_calls) do if r ~= 2 then capped = false end end
+  check("close: a wave's own spread (6) is capped at 2 m so the units stay in front of the player", capped)
+  spread_calls = {}
+  run_wave({ name = "t", test = true, close = true, spread = 1, parts = Groups.parse("1 hound") })
+  check("close: a smaller spread than the cap is kept", spread_calls[1] == 1)
+  CS.calls, cand_calls = 0, 0
+  run_wave({ name = "t", test = true, spread = 6, parts = Groups.parse("2 hounds") })
+  check("close: an ordinary test wave is untouched (hidden-point search, random player, the player's rotation)", CS.calls == 0 and cand_calls >= 1 and spawned[1].rot == "rot" and spawned[1].target == "player")
+
+  -- no walkable ground in front of the player: nothing spawns, the reason is said once, spawning resumes when the way is clear
+  Execute.reset(); Bypass.reset()
+  CS.fail, CS.reason = true, "no walkable ground right in front of you (a wall?): turn towards open ground"
+  local before = #echoes
+  spawned = {}
+  Execute.start_wave({ name = "Wall", test = true, close = true, parts = Groups.parse("4 hounds") })
+  for _ = 1, 30 do Execute.update(0.2) end
+  local said = 0; for i = before + 1, #echoes do if echoes[i]:find("Wall", 1, true) and echoes[i]:find("turn towards open ground", 1, true) then said = said + 1 end end
+  check("close: with a wall in front nothing spawns and the reason is echoed exactly once", #spawned == 0 and said == 1, #spawned .. " " .. said)
+  CS.fail = false
+  for _ = 1, 30 do Execute.update(0.2) end
+  check("close: ...and the wave spawns by itself once there is room", #spawned == 4, #spawned)
+  Execute.reset(); Bypass.reset()
+
+  -- the local player is gone mid-wave: no unit, nothing spawns, nothing breaks
+  local saved_local, saved_random = StubPositions.local_player_unit, StubPositions.random_player_unit
+  StubPositions.local_player_unit = function() return nil end
+  StubPositions.random_player_unit = function() return nil end
+  CS.fail, CS.reason = true, "no living players"
+  spawned = {}
+  local ok_gone = Execute.start_wave({ name = "t", test = true, close = true, parts = Groups.parse("2 hounds") })
+  for _ = 1, 10 do Execute.update(0.2) end
+  check("close: with no local player unit the wave waits quietly (no crash, nothing spawned)", ok_gone and #spawned == 0)
+  StubPositions.local_player_unit, StubPositions.random_player_unit = saved_local, saved_random
+  CS.fail = false
+  for _ = 1, 20 do Execute.update(0.2) end
+  check("close: ...and goes on when the player is back", #spawned == 2, #spawned)
+  Execute.reset(); Bypass.reset()
+end
+
 -- custom mods on spawned units (spawn/tuning.lua) against stubbed extensions ---------------------------------------------
 do
   local Tuning = load("spawn/tuning")
@@ -1383,6 +1636,14 @@ do
   }
   Vector3 = function(x, y, z) return { x = x, y = y, z = z } end
   Managers.state.unit_spawner = { game_object_id = function(self, unit) return unit.gid end }
+  -- health: the game ADDS the Havoc / mission share to the spawn parameter (minion_spawn_manager.lua:137-165)
+  local saved_difficulty, saved_gamesession = Managers.state.difficulty, GameSession
+  local normal_hp = { chaos_plague_ogryn = 1000, chaos_beast_of_nurgle = 2000, chaos_poxwalker = 100 }
+  Managers.state.difficulty = { get_minion_max_health = function(self, breed) return normal_hp[breed] or 400 end }
+  local synced_health = {}
+  GameSession = { set_game_object_field = function(session, id, field, value) synced_health[#synced_health + 1] = { session = session, id = id, field = field, value = value } end }
+  local havoc_extra = 0
+  local no_game_object = nil -- a breed whose units come without a game object
   local boss_breeds = {}
   local function make_unit(breed, param)
     local unit = { breed = breed, gid = next_gid, health_mod = param.optional_health_modifier, buffs = make_buff_ext(breed) }
@@ -1390,14 +1651,19 @@ do
     unit.buffs.stats = {}
     unit.buffs.stat_buffs = function(self) return self.stats end
     unit.ext = {
-      health_system = { mass = 2, hit_mass = function(self) return self.mass end, set_hit_mass = function(self, v) self.mass = v end },
+      health_system = {
+        mass = 2, hit_mass = function(self) return self.mass end, set_hit_mass = function(self, v) self.mass = v end,
+        _health = (normal_hp[breed] or 400) * ((param.optional_health_modifier or 1) + havoc_extra),
+        max_health = function(self) return self._health end,
+        _game_session = breed ~= no_game_object and "session" or nil, _game_object_id = breed ~= no_game_object and unit.gid or nil,
+      },
       navigation_system = { mods = {}, add_movement_modifier = function(self, m) self.mods[#self.mods + 1] = m; return #self.mods end },
       unit_data_system = { breed = function() return { name = breed } end },
     }
     if breed == "chaos_hound" then unit.ext.navigation_system = nil end -- a unit without navigation: that step fails alone
     -- bosses: the game marks one spawned with less than its normal health as weakened (boss_extension.lua:61-66)
     if breed == "chaos_plague_ogryn" or breed == "chaos_beast_of_nurgle" then
-      unit.ext.boss_system = { _is_weakened = (param.optional_health_modifier or 1) < 1 }
+      unit.ext.boss_system = { _is_weakened = unit.ext.health_system._health < normal_hp[breed] and true or nil }
       unit.ext.unit_data_system = { breed = function() return boss_breeds[breed] end }
       boss_breeds[breed] = boss_breeds[breed] or { name = breed }
     end
@@ -1608,36 +1874,75 @@ do
   check("tuning: a missing extension only skips that step (hit mass still changed) and is logged once", #spawned == 2 and spawned[1].ext.health_system.mass == 4 and logged == 1, logged)
   check("tuning: health_modifier is nil for 100 or nothing", Tuning.health_modifier({ health = 100 }) == nil and Tuning.health_modifier(nil) == nil and Tuning.health_modifier({ health = 250 }) == 2.5)
 
-  -- a boss with less health than normal is "weakened" for the game (its bar says so, the pacing counts a fifth of it): not for a boss
-  -- whose health the player set, the number is the player's
-  run_wave({ name = "t", parts = Groups.parse("1 plague ogryn{health=50}, 1 beast of nurgle{health=150}, 2 poxwalker{health=50}") })
-  local ogryn, beast, pox_tuned = nil, nil, 0
-  for _, u in ipairs(spawned) do
-    if u.breed == "chaos_plague_ogryn" then ogryn = u elseif u.breed == "chaos_beast_of_nurgle" then beast = u else pox_tuned = pox_tuned + 1 end
+  -- health is exact: the game adds the Havoc / mission share to the spawn parameter, the player's number must come out as it is, and
+  -- the game's own "weakened" word for a boss with less than its normal health stays
+  local function run_hp(recipe, extra)
+    havoc_extra = extra or 0
+    synced_health = {}
+    run_wave({ name = "t", parts = Groups.parse(recipe) })
+    havoc_extra = 0
   end
-  check("weakened: a boss spawned with the player's health of 50 percent has its health set (x0.5) and the game's weakened mark cleared", ogryn and ogryn.health_mod == 0.5 and ogryn.ext.boss_system._is_weakened == false and Tuning.is_health_tuned(ogryn) == true)
-  check("weakened: a boss with more health (150) was never weakened and is not touched; units that are not bosses are fine", beast and beast.health_mod == 1.5 and beast.ext.boss_system._is_weakened == false and Tuning.is_health_tuned(beast) == false and pox_tuned == 2)
-  local hud_hook = hooks["HudElementBossHealth.event_boss_encounter_start"]
-  check("weakened: a hook on the boss health bar is installed", hud_hook ~= nil)
-  local seen, calls = "unset", 0
-  local function bar(self, unit, ext, extra) calls = calls + 1; seen = boss_breeds[unit.breed].ignore_weakened_boss_name; return extra end
-  local back = hud_hook(bar, {}, ogryn, {}, "extra")
-  check("weakened: while the bar of a tuned boss is made the breed says to leave the 'Weakened' out, afterwards it is as before", seen == true and boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == nil and calls == 1)
-  hud_hook(bar, {}, beast, {})
-  check("weakened: another boss is left alone (the game's own rule stays for it)", seen == nil and calls == 2)
-  boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name = false
-  hud_hook(bar, {}, ogryn, {})
-  check("weakened: a breed that had its own value gets it back", boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == false)
-  boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name = nil
-  local ok_boom = pcall(hud_hook, function() error("boom") end, {}, ogryn, {})
-  check("weakened: when the bar fails the error goes on and the breed is restored all the same", not ok_boom and boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == nil)
-  local unknown = { breed = "chaos_plague_ogryn", ext = {} }
-  check("weakened: a unit the hook cannot read the breed of just runs the bar", (function() local ran = false; hud_hook(function() ran = true end, {}, unknown, {}); return ran end)())
-  Tuning.dead = true
-  local ran_dead = false
-  hud_hook(function() ran_dead = true end, {}, ogryn, {})
-  Tuning.dead = false
-  check("weakened: after a hot reload (the old module retired) the hook does nothing but run the bar", ran_dead and boss_breeds.chaos_plague_ogryn.ignore_weakened_boss_name == nil)
+  local function first(breed) for _, u in ipairs(spawned) do if u.breed == breed then return u end end end
+
+  run_hp("1 plague ogryn{health=50}, 1 beast of nurgle{health=150}, 2 poxwalker{health=50}")
+  local ogryn, beast = first("chaos_plague_ogryn"), first("chaos_beast_of_nurgle")
+  check("health: a boss at 50 percent has half its normal health (500 of 1000), a boss at 150 one and a half (3000 of 2000), a poxwalker half", ogryn.ext.health_system._health == 500 and beast.ext.health_system._health == 3000 and first("chaos_poxwalker").ext.health_system._health == 50)
+  check("weakened: the game's own mark stays: a boss with less than its normal health is weakened, one with more is not", ogryn.ext.boss_system._is_weakened == true and not beast.ext.boss_system._is_weakened)
+  check("weakened: nothing hooks the boss health bar any more (the 'Weakened' name is the game's), and the old helpers are gone", hooks["HudElementBossHealth.event_boss_encounter_start"] == nil and Tuning.is_health_tuned == nil)
+  check("health: when the game already made the exact number nothing is written to the game object", #synced_health == 0)
+
+  run_hp("1 plague ogryn{health=50}", 0.3)
+  ogryn = first("chaos_plague_ogryn")
+  check("health: Havoc's +30 percent no longer changes the number: 50 percent is 500 (not 800); the extension and the synced field agree", ogryn.ext.health_system._health == 500 and #synced_health == 1 and synced_health[1].field == "health" and synced_health[1].value == 500 and synced_health[1].id == ogryn.gid and synced_health[1].session == "session", #synced_health)
+  check("weakened: that boss is weakened (500 < 1000)", ogryn.ext.boss_system._is_weakened == true)
+
+  run_hp("1 plague ogryn{health=80}", 0.5)
+  ogryn = first("chaos_plague_ogryn")
+  check("weakened: the mark is read again from the exact health (the game had made it from 1.3x: not weakened; 80 percent is weakened)", ogryn.ext.health_system._health == 800 and ogryn.ext.boss_system._is_weakened == true)
+
+  run_hp("1 plague ogryn{health=150}", -0.6)
+  ogryn = first("chaos_plague_ogryn")
+  check("weakened: a modifier that LOWERED the health (the game made 0.9x: weakened) does not keep the mark once the exact 150 percent is set", ogryn.ext.health_system._health == 1500 and not ogryn.ext.boss_system._is_weakened)
+
+  run_hp("1 plague ogryn, 2 poxwalkers", 0.3)
+  ogryn = first("chaos_plague_ogryn")
+  check("health: a group without custom health keeps Havoc's share untouched (1.3x), nothing is written", ogryn.ext.health_system._health == 1300 and #synced_health == 0 and ogryn.ext.boss_system._is_weakened == nil)
+
+  run_hp("1 plague ogryn{health=100}", 0.3)
+  check("health: 100 percent is 'unchanged' too, Havoc's share stays", first("chaos_plague_ogryn").ext.health_system._health == 1300 and #synced_health == 0)
+
+  -- a unit whose game object does not exist yet, or without a health extension, or a game without a difficulty manager: logged once, the
+  -- other steps (hit mass) still happen and the wave goes on
+  local before = #echoes
+  no_game_object = "chaos_spawn"
+  run_hp("2 chaos spawn{health=50 mass=200}", 0.3)
+  no_game_object = nil
+  local logged = 0; for i = before + 1, #echoes do if echoes[i]:find("the exact health of chaos_spawn was not set", 1, true) and echoes[i]:find("the unit has no game object yet", 1, true) then logged = logged + 1 end end
+  check("health: a unit without a game object is logged once, its hit mass is still changed and the wave goes on", #spawned == 2 and logged == 1 and first("chaos_spawn").ext.health_system.mass == 4, logged)
+  check("health: ...and its health was not half-written (the extension keeps the value the game made)", math.abs(first("chaos_spawn").ext.health_system._health - 320) < 1e-6 and #synced_health == 0)
+
+  before = #echoes
+  local saved_diff = Managers.state.difficulty
+  Managers.state.difficulty = nil
+  run_hp("1 hound{health=50}")
+  Managers.state.difficulty = saved_diff
+  logged = 0; for i = before + 1, #echoes do if echoes[i]:find("the exact health of chaos_hound was not set", 1, true) and echoes[i]:find("no difficulty manager", 1, true) then logged = logged + 1 end end
+  check("health: no difficulty manager (a hub, a hot reload in a menu) is logged and the spawn parameter's own health stays", #spawned == 1 and logged == 1 and first("chaos_hound").health_mod == 0.5)
+
+  local exact_unit = { ext = { unit_data_system = { breed = function() return { name = "chaos_poxwalker" } end } } }
+  check("health: a unit without a health extension raises (the caller logs it)", not pcall(Tuning.set_exact_health, exact_unit, "chaos_poxwalker", 0.5))
+  local pox = { ext = { health_system = { _health = 100, max_health = function(self) return self._health end, _game_session = "s", _game_object_id = 7 }, unit_data_system = { breed = function() return { name = "chaos_poxwalker" } end } } }
+  synced_health = {}
+  check("health: an extreme factor never gives a unit less than 1 health, and the real breed of the unit decides the normal health", Tuning.set_exact_health(pox, "other_breed_name", 0.0001) == 1 and pox.ext.health_system._health == 1 and synced_health[1].value == 1)
+  check("health: exact already -> returns the health, writes nothing", (function() synced_health = {}; return Tuning.set_exact_health(pox, "x", 0.01) == 1 and #synced_health == 0 end)())
+
+  do
+    local saved_set = GameSession.set_game_object_field
+    GameSession.set_game_object_field = function() error("unit despawned during sync") end
+    local hp = pox.ext.health_system._health
+    check("health: a rejected native write leaves local health unchanged", not pcall(Tuning.set_exact_health, pox, "chaos_poxwalker", 0.5) and pox.ext.health_system._health == hp)
+    GameSession.set_game_object_field = saved_set
+  end
 
   -- ----------------------------------------------------------------------------- the burster's explosion follows its size
   do
@@ -2006,6 +2311,7 @@ do
   snapshot_tuner.send_all("peer")
   check("retire: a failed snapshot completing after synchronous retirement cannot recreate outgoing work", snapshot_calls==1 and snapshot_tuner.status().unsent==0 and snapshot_tuner.status().sizes_known==0)
   ScriptUnit, Unit, Vector3, Managers.state.unit_spawner = saved_su, saved_unit, saved_v3, saved_spawner
+  Managers.state.difficulty, GameSession = saved_difficulty, saved_gamesession
   minion_spawn.spawn_minion = saved_spawn
   Execute.init({ positions = StubPositions, bypass = Bypass, groups = Groups })
   Tuning.reset(); Bypass.reset()
@@ -2349,7 +2655,7 @@ do
   local Presets = PresetsMod
   local function rec(r) return Groups.parse(r) end
   -- the palette is the reference page's, exactly
-  check("tarot: twelve suits in order (the six of the reference, then volley, snare, brute, fester, dusk, warp), every colour a 3-number rgb", #Cards.SUIT_ORDER == 12 and Cards.SUIT_ORDER[7] == "volley" and Cards.SUIT_ORDER[12] == "warp" and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
+  check("tarot: twelve suits in order (the six of the reference, then volley, snare, brute, dusk, warp, and HERESY last), every colour a 3-number rgb", #Cards.SUIT_ORDER == 12 and Cards.SUIT_ORDER[7] == "volley" and Cards.SUIT_ORDER[10] == "dusk" and Cards.SUIT_ORDER[11] == "warp" and Cards.SUIT_ORDER[12] == "heresy" and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
   check("tarot: plague suit values from the palette", table.concat(Cards.SUITS.plague.card, ",") == "30,36,19" and table.concat(Cards.SUITS.plague.accent, ",") == "183,194,58" and table.concat(Cards.SUITS.fateful.frame, ",") == "138,122,74" and table.concat(Cards.SUITS.murmur.frame, ",") == "85,96,58")
   check("tarot: threat colours 1..5", table.concat(Cards.THREAT_COLORS[1], ",") == "167,194,124" and table.concat(Cards.THREAT_COLORS[3], ",") == "227,207,74" and table.concat(Cards.THREAT_COLORS[5], ",") == "207,74,48")
   check("tarot: the suit ids of the catalog and of the card module are the same set", (function() for id in pairs(Events.SUITS) do if not Cards.SUITS[id] then return false end end for id in pairs(Cards.SUITS) do if not Events.SUITS[id] then return false end end return true end)())
@@ -2359,7 +2665,23 @@ do
     for _ in pairs(Events.SUITS) do n = n + 1 end
     return n == #Cards.SUIT_ORDER
   end)())
-  check("suits: the new ones have their own whisper, name and mark", Cards.SUITS.volley.whisper == "Something is aiming at you." and Cards.SUITS.snare.whisper == "You cannot run from this." and Cards.SUITS.brute.whisper == "It does not stop for walls." and Cards.SUITS.fester.whisper == "It swells, and it bursts." and Cards.SUITS.dusk.whisper == "Do not look away." and Cards.SUITS.warp.whisper == "It knows your name." and Cards.SUITS.warp.name == "Warp" and Cards.SUITS.warp.icon == "warp" and Cards.SUITS.volley.icon == "crosshair")
+  check("suits: the new ones have their own whisper, name and mark", Cards.SUITS.volley.whisper == "Something is aiming at you." and Cards.SUITS.snare.whisper == "You cannot run from this." and Cards.SUITS.brute.whisper == "It does not stop for walls." and Cards.SUITS.heresy.whisper == "He does not answer." and Cards.SUITS.heresy.name == "Heresy" and Cards.SUITS.heresy.icon == "heresy" and Cards.SUITS.fester == nil and Cards.SUITS.dusk.whisper == "Do not look away." and Cards.SUITS.warp.whisper == "It knows your name." and Cards.SUITS.warp.name == "Warp" and Cards.SUITS.warp.icon == "warp" and Cards.SUITS.volley.icon == "crosshair")
+
+  -- HERESY replaced Fester: the one card that is special; the old name stays an alias everywhere it may still be written
+  do
+    local plain_sets_equal = true
+    for from, to in pairs(Cards.SUIT_ALIAS) do if Events.SUIT_ALIAS[from] ~= to then plain_sets_equal = false end end
+    for from, to in pairs(Events.SUIT_ALIAS) do if Cards.SUIT_ALIAS[from] ~= to then plain_sets_equal = false end end
+    check("heresy: only Heresy is special; its palette is its own (black red face, blood frame, gilded accent, a lit red for words)", Cards.SUITS.heresy.special == true and (function() local n = 0 for _, def in pairs(Cards.SUITS) do if def.special then n = n + 1 end end return n end)() == 1 and #Cards.SUITS.heresy.lit == 3 and Cards.SUITS.heresy.frame[1] == 0xa3 and Cards.SUITS.heresy.accent[1] == 0xe5)
+    check("heresy: Cards.is_special says it for Heresy and for its old name, not for the others or for nothing", Cards.is_special("heresy") and Cards.is_special("fester") and not Cards.is_special("warp") and not Cards.is_special(nil) and not Cards.is_special("nonsense"))
+    check("heresy: the old name is an alias in the card module and in the catalog (the same list), an unknown name is plague", Cards.normalize_suit("fester") == "heresy" and Events.normalize_suit("fester") == "heresy" and Cards.normalize_suit("heresy") == "heresy" and Events.normalize_suit("heresy") == "heresy" and Events.normalize_suit("nonsense") == "plague" and Events.normalize_suit(nil) == "plague" and Cards.suit_index("fester") == 12 and Cards.suit_index("heresy") == 12 and plain_sets_equal)
+    local function getter(id) return settings[id] end
+    settings.wave_def_custom_5 = "Mine\t3 hounds"; settings.su_custom_5 = "fester"
+    check("heresy: a card saved with suit fester is a Heresy card now", Events.get("custom_5", getter, Groups).suit == "heresy")
+    settings.su_custom_5 = "heresy"
+    check("heresy: and one saved as heresy stays one", Events.get("custom_5", getter, Groups).suit == "heresy")
+    settings.wave_def_custom_5 = nil; settings.su_custom_5 = nil
+  end
   check("suits: every whisper fits the 40 letters of a whisper", (function() for _, id in ipairs(Cards.SUIT_ORDER) do if #Cards.SUITS[id].whisper > Cards.MAX_WHISPER then return false end end return true end)())
   check("suits: every suit has its own accent colour and its own mark", (function()
     local accents, icons = {}, {}
@@ -2980,6 +3302,13 @@ do
   local spread_ids = {}
   for _, w in ipairs(spread_group and spread_group.sub_widgets or {}) do spread_ids[w.setting_id] = true end
   check("options: the look options sit in the group 'The Spread (your screen)'", spread_ids.tarot_scale and spread_ids.tarot_opacity and spread_ids.tarot_timer_below and spread_ids.tarot_hide_icon and spread_ids.tarot_ping and spread_ids.tarot_font and spread_ids.tarot_roulette)
+  -- the window of the last card
+  do
+    local hl, hud_group = find("hud_last_card", all), find("group_hud", all)
+    local listed = false
+    for _, w in ipairs(hud_group and hud_group.sub_widgets or {}) do if w.setting_id == "hud_last_card" then listed = true end end
+    check("options: 'Last card' (the window of the last fulfilled card) is a checkbox, on by default, in the HUD group, with its texts (the age text takes one %s)", hl and hl.type == "checkbox" and hl.default_value == true and listed and loc.hud_last_card and loc.hud_last_card_description and loc.hud_last_ago and select(2, loc.hud_last_ago.en:gsub("%%s", "")) == 1 and not loc.hud_last_ago.en:find("%%[^s]"))
+  end
   -- the default cooldown of a card of your own
   do
     local dc = find("tarot_default_cooldown", all)
@@ -3073,6 +3402,112 @@ do
   check("spread: no nav mesh -> original point", Pos.spread(origin, 5) == origin)
   Managers.state.nav_mesh = saved_nav_mesh
   Vector3 = saved_vector3
+end
+
+-- /rw_test_close: Positions.close_candidates / local_player_unit / rotation_towards with stubbed nav queries and players ----------
+do
+  local atan2 = math.atan2 or math.atan
+  local V = {}
+  V.__add = function(a, b) return setmetatable({ x = a.x + b.x, y = a.y + b.y, z = a.z + b.z }, V) end
+  V.__sub = function(a, b) return setmetatable({ x = a.x - b.x, y = a.y - b.y, z = a.z - b.z }, V) end
+  local saved = { v3 = Vector3, box = Vector3Box, q = Quaternion, unit = Unit, su = ScriptUnit, player = Managers.player, nav_mesh = Managers.state.nav_mesh, ext = Managers.state.extension }
+  Vector3 = function(x, y, z) return setmetatable({ x = x, y = y, z = z }, V) end
+  Vector3Box = function(v) return { unbox = function() return v end } end
+  local look_args = {}
+  Quaternion = { forward = function(rot) return rot.forward end, look = function(direction) look_args[#look_args + 1] = direction; return { look = direction } end }
+  local dead, broken = {}, {}
+  Unit = {
+    alive = function(u) return not dead[u] end,
+    world_position = function(u) if broken[u] then error("unit destroyed") end return u.pos end,
+    world_rotation = function(u) return u.body end,
+  }
+  ScriptUnit = { has_extension = function(u, sys) return sys == "first_person_system" and u.fp or nil end }
+  local function hero(forward_body, forward_look)
+    local u = { pos = Vector3(0, 0, 5), body = { forward = forward_body } }
+    if forward_look then u.fp = { extrapolated_rotation = function() return { forward = forward_look } end } end
+    return u
+  end
+  local me, other = hero(Vector3(0, 1, 0.4), Vector3(1, 0, -0.3)), hero(Vector3(0, 1, 0))
+  other.pos = Vector3(50, 50, 5)
+  local heroes = { me, other }
+  local local_unit = me
+  Managers.player = { local_player = function(self, i) return local_unit and { player_unit = local_unit } or nil end }
+  Managers.state.extension = { system = function() return { get_side_from_name = function() return { valid_player_units = heroes } end } end }
+  Managers.state.nav_mesh = { nav_world = function() return "world" end }
+  local nav = require("scripts/utilities/nav_queries")
+  local saved_nav = { snap = nav.position_on_mesh, ray = nav.ray_can_go }
+  local blocked = function() return false end
+  nav.position_on_mesh = function(world, pos, above, below) if blocked(pos) then return nil end return Vector3(pos.x, pos.y, pos.z + 0.5) end
+  nav.ray_can_go = function(world, a, b) return not blocked(b) end
+  local Pos = load("spawn/positions")
+  local function dist(p) return math.sqrt(p.x ^ 2 + p.y ^ 2) end
+  local function all(list, fn) for i = 1, #list do if not fn(list[i]:unbox()) then return false end end return true end
+
+  local list = Pos.close_candidates()
+  check("close: points right in front of the player: 3.5 to 8 m away, inside a 70 degree arc round the camera's direction (+x), snapped to the mesh", list and #list >= 1 and #list <= 16 and all(list, function(p) local a = atan2(p.y, p.x); return dist(p) >= 3.49 and dist(p) <= 8.01 and math.abs(a) <= math.rad(35) + 1e-6 and p.z == 5.5 end), list and #list)
+  check("close: the camera wins over the body (the body looks +y, the camera +x: no point lies behind the camera)", list and all(list, function(p) return p.x > 0 end))
+  check("close: pick unboxes a candidate", (function() local p = Pos.pick(list); return type(p) == "table" and p.z == 5.5 end)())
+
+  me.fp = nil
+  list = Pos.close_candidates()
+  check("close: without a first person view the body's direction is used (+y)", list and #list >= 1 and all(list, function(p) return p.y > 0 and math.abs(atan2(p.x, p.y)) <= math.rad(35) + 1e-6 end))
+  me.fp = { extrapolated_rotation = function() return { forward = Vector3(0, 0, 1) } end }
+  list = Pos.close_candidates()
+  check("close: a camera looking straight up has no horizontal direction: the body decides", list and all(list, function(p) return p.y > 0 end))
+  me.fp = { extrapolated_rotation = function() error("no camera yet") end }
+  list = Pos.close_candidates()
+  check("close: a camera that cannot be read falls back to the body", list and #list >= 1 and all(list, function(p) return p.y > 0 end))
+  me.fp = nil; me.body = { forward = Vector3(0, 0, -1) }
+  list = Pos.close_candidates()
+  check("close: when nothing gives a direction the wave goes in front along +y, never nowhere", list and #list >= 1 and all(list, function(p) return p.y > 0 end))
+  me.body = { forward = Vector3(0, 1, 0.4) }; me.fp = { extrapolated_rotation = function() return { forward = Vector3(1, 0, -0.3) } end }
+
+  -- a wall in the way: only the near stage (1.5 to 3.5 m) is open
+  blocked = function(p) return dist(p) > 3.5 end
+  list = Pos.close_candidates()
+  check("close: with a wall 3.5 m ahead the points come closer (1.5 to 3.5 m)", list and #list >= 1 and all(list, function(p) return dist(p) >= 1.49 and dist(p) <= 3.51 end), list and #list)
+  blocked = function() return true end
+  local none, reason = Pos.close_candidates()
+  check("close: walls everywhere -> no points and a reason that says what to do", none == nil and type(reason) == "string" and reason:find("no walkable ground right in front of you", 1, true) ~= nil, tostring(reason))
+  blocked = function() return false end
+
+  Managers.state.nav_mesh = nil
+  local _, nav_reason = Pos.close_candidates()
+  check("close: no nav mesh (a hub) -> a reason, no error", nav_reason == "no nav mesh on this level")
+  Managers.state.nav_mesh = { nav_world = function() return "world" end }
+
+  -- who is "the player": the local one, else any living hero, else nobody; a unit that disappears mid-call is not an error
+  check("close: the local player's unit is the one", Pos.local_player_unit() == me)
+  dead[me] = true
+  heroes = { other }
+  check("close: a dead local player -> another living hero (the one of the hero side list)", Pos.local_player_unit() == other)
+  local_unit = nil
+  check("close: no local player at all (dedicated host) -> a living hero", Pos.local_player_unit() == other)
+  heroes = {}
+  check("close: nobody alive -> nil, and the search says so", Pos.local_player_unit() == nil and select(2, Pos.close_candidates()) == "no living players")
+  dead[me] = nil; local_unit = me; heroes = { me, other }
+  broken[me] = true
+  local gone, gone_reason = Pos.close_candidates()
+  check("close: a unit destroyed in the middle of the search is a reason, not an error", gone == nil and gone_reason == "no living players", tostring(gone_reason))
+  broken[me] = nil
+  local saved_manager = Managers.player
+  Managers.player = nil
+  local picked = Pos.local_player_unit()
+  check("close: no player manager (a menu) is handled: a living hero", picked == me or picked == other)
+  Managers.player = saved_manager
+
+  -- facing the player
+  look_args = {}
+  local rot = Pos.rotation_towards(Vector3(10, 0, 5), me)
+  check("close: a unit at +10 x faces the player: a flat unit direction towards -x (z is left out)", rot and look_args[1] and math.abs(look_args[1].x + 1) < 1e-9 and look_args[1].y == 0 and look_args[1].z == 0)
+  check("close: standing on the player gives no rotation (the unit keeps its own)", Pos.rotation_towards(Vector3(0, 0, 5), me) == nil)
+  broken[me] = true
+  check("close: a player that is gone gives no rotation and no error", Pos.rotation_towards(Vector3(3, 3, 5), me) == nil)
+  broken[me] = nil
+
+  nav.position_on_mesh, nav.ray_can_go = saved_nav.snap, saved_nav.ray
+  Vector3, Vector3Box, Quaternion, Unit, ScriptUnit = saved.v3, saved.box, saved.q, saved.unit, saved.su
+  Managers.player, Managers.state.nav_mesh, Managers.state.extension = saved.player, saved.nav_mesh, saved.ext
 end
 
 Managers.state.minion_spawn, Managers.state.extension, Managers.state.game_mode = saved_state.minion_spawn, saved_state.extension, saved_state.game_mode

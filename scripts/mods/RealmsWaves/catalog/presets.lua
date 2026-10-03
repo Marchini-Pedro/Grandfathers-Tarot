@@ -31,8 +31,16 @@ Presets.UNDO_ID = "preset_undo"
 -- inclusive ranges, the same as the editor's steppers/popups
 local SUITS = {
 	plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true,
-	volley = true, snare = true, brute = true, fester = true, dusk = true, warp = true,
+	volley = true, snare = true, brute = true, dusk = true, warp = true, heresy = true,
 }
+local SUIT_ALIAS = { fester = "heresy" } -- the old name of Heresy: old presets and texts from friends still say it
+
+-- a suit name as stored (an old name becomes its new one), nil for a name nobody knows
+local function suit_of(name)
+	name = SUIT_ALIAS[name] or name
+
+	return SUITS[name] and name or nil
+end
 local LOOKS = { rot = true, whisper = true, vial = true }
 local MAX_WHISPER = 40 -- same limit as Cards.MAX_WHISPER
 
@@ -160,7 +168,7 @@ local function snapshot(key, wave, Groups)
 		dmax = whole(wave.dmax),
 		timer = whole(wave.timer),
 		deleted = wave.deleted == true,
-		suit = SUITS[wave.suit] and wave.suit or "plague",
+		suit = suit_of(wave.suit) or "plague",
 		thr = math.max(0, math.min(5, whole(wave.threat_override))),
 		whisper = clean_whisper(wave.whisper),
 		look = LOOKS[wave.look] and wave.look or "",
@@ -274,12 +282,12 @@ Presets.enabled_waves = function (get_setting, Events, Groups)
 end
 
 -- A decoded preset as wave-likes the draw can use (Events.build_pool's `extra`). `owner` (a peer id) goes
--- into each key so waves of different players never collide. At most `limit` waves (default 40).
+-- into each key so waves of different players never collide. At most `limit` waves (default: the most cards a deck holds).
 Presets.pool_waves = function (preset, owner, Events, Groups, limit)
 	local list = {}
 
 	for i, wave in ipairs(preset.waves or {}) do
-		if i > (limit or 40) then
+		if i > (limit or Events.MAX_CARDS) then
 			break
 		end
 
@@ -397,7 +405,7 @@ local function parse_wave(text, Groups)
 		timer = numbers.timer,
 		deleted = parts[13] == "1",
 		-- 17 fields = with the tarot data; an unknown suit from a friend becomes plague, an unknown look is dropped
-		suit = parts[14] ~= nil and (SUITS[parts[14]] and parts[14] or (parts[14] ~= "" and "plague" or nil)) or nil,
+		suit = parts[14] ~= nil and (suit_of(parts[14]) or (parts[14] ~= "" and "plague" or nil)) or nil,
 		thr = math.max(0, math.min(5, whole(threat))),
 		whisper = clean_whisper(unescape(parts[16] or "")),
 		look = LOOKS[parts[17]] and parts[17] or "",

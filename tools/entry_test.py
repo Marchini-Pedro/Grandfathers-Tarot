@@ -28,7 +28,8 @@ mod.hook_safe = function(self, obj, method, fn) hooks[#hooks + 1] = { obj = obj,
 local hook_requires = {}
 local require_callbacks = {}
 mod.hook_require = function(self, path, fn) hook_requires[#hook_requires + 1] = path;require_callbacks[#require_callbacks+1]=fn end
-mod.register_hud_element = function() end
+local hud_elements = {}
+mod.register_hud_element = function(self, spec) hud_elements[#hud_elements + 1] = spec end
 mod.add_require_path = function() end
 mod.register_view = function(self, def) views[#views + 1] = def end
 mod.command = function(self, name, desc, fn) commands[name] = fn end
@@ -147,9 +148,17 @@ do
   RW.director.fire_now=function() return false,"host only" end;echoed={};commands.rw_test("hound_frenzy")
   check("test command: rejected wave reports the director reason", echoed[1]:find("host only",1,true)~=nil)
   RW.director.fire_now=original_fire
-  for _,slot in ipairs({"x","0","21","1.5"}) do
+  -- the deck holds 100 cards: 88 custom slots (it was 20, so 21 used to be the first invalid one)
+  for _,slot in ipairs({"x","0",tostring(RW.events.CUSTOM_SLOTS+1),"1.5"}) do
     local before=stored.wave_def_custom_3;echoed={};commands.rw_custom(slot,"1 hound")
     check("custom command: invalid slot "..slot.." makes no settings writes", stored.wave_def_custom_3==before and echoed[1]:find("slot must be",1,true)~=nil)
+  end
+  do
+    local top=tostring(RW.events.CUSTOM_SLOTS);echoed={};commands.rw_custom(top,"2","hounds")
+    check("custom command: the last slot ("..top..") is valid and the message of a wrong slot names the range", RW.events.CUSTOM_SLOTS==88 and stored["wave_def_custom_"..top]~=nil and stored["on_custom_"..top]==true)
+    stored["wave_def_custom_"..top],stored["on_custom_"..top]=nil,nil
+    echoed={};commands.rw_custom("0","1 hound")
+    check("custom command: ...which is 1-88", echoed[1]:find("1-88",1,true)~=nil, echoed[1])
   end
   local old_def,old_on=stored.wave_def_custom_3,stored.on_custom_3
   commands.rw_custom("3","2","hounds")
@@ -207,9 +216,11 @@ check("unload: captured objective, death and update callbacks are inert", obsole
 local names = {}
 for _, h in ipairs(hooks) do if type(h.obj) == "string" then names[#names + 1] = h.obj .. "." .. h.method end end
 table.sort(names)
-check("entry: the four budget-bypass hooks and the custom-mods hooks (stat recompute on both buff classes, melee attack start, burster explosion) are installed", table.concat(names, ",") == "BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BuffExtensionBase._update_stat_buffs_and_keywords,HudElementBossHealth.event_boss_encounter_start,MinionBuffExtension._reset_stat_buffs,MinionBuffExtension._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion", table.concat(names, ","))
+check("entry: the four budget-bypass hooks and the custom-mods hooks (stat recompute on both buff classes, melee attack start, burster explosion) are installed", table.concat(names, ",") == "BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BuffExtensionBase._update_stat_buffs_and_keywords,MinionBuffExtension._reset_stat_buffs,MinionBuffExtension._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion", table.concat(names, ","))
 check("entry: MinionAttack is hooked through hook_require (it may load after the mod)", #hook_requires == 1 and hook_requires[1] == "scripts/utilities/minion_attack", table.concat(hook_requires, ","))
 check("entry: editor view registered under its name with the right class", #views == 1 and views[1].view_name == "realms_waves_editor" and views[1].view_settings.class == "RealmsWavesView")
+check("entry: /rw_test_close is registered too", type(commands.rw_test_close) == "function")
+check("entry: two HUD elements are registered, the Spread and the window of the last card (own node, so custom_hud moves it on its own)", #hud_elements == 2 and hud_elements[1].class_name == "HudElementRealmsWavesPanel" and hud_elements[2].class_name == "HudElementRealmsWavesLast" and hud_elements[2].filename:find("hud_element_last_card$") ~= nil and hud_elements[2].use_hud_scale == true, #hud_elements)
 check("entry: commands registered (rw_test, rw_editor, rw_status, rw_custom, rw_roll, rw_start, rw_skip, rw_vote)", commands.rw_test and commands.rw_editor and commands.rw_status and commands.rw_custom and commands.rw_roll and commands.rw_start and commands.rw_skip and commands.rw_vote ~= nil)
 check("entry: keybind functions exist (open_editor, vote_1..vote_5)", type(mod.open_editor) == "function" and type(mod.vote_1) == "function" and type(mod.vote_5) == "function")
 

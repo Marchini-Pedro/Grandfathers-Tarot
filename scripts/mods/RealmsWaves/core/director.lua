@@ -43,6 +43,11 @@ local start_signal = false
 local recheck_timer = 0
 local ballot_seq = 0
 local last_fired = {} -- wave key -> cd_clock when it was drawn
+-- The last fulfilled card: the card whose wave the cycle sent out last (a drawn card, a random wave, a voted wave: not /rw_test and not
+-- a fixed timer, and only when the wave really started). { card = { key, name, suit, threat, breeds, whisper, modifiers, rare, cooldown },
+-- at = cd_clock when it went out, seq = how many cards have gone out }; the HUD window of the last card shows it.
+local last_card = nil
+local last_card_seq = 0
 local cd_clock = 0 -- seconds of PLAYED time (frozen by /rw_pause, stopped without a living player): cooldowns run on it
 local my_vote, my_vote_ballot = nil, nil
 local peer_waves = {} -- host: peer id -> that player's enabled waves (pool-ready), see Director.on_waves
@@ -135,13 +140,54 @@ Director.on_waves = function (sender, text)
 	end
 end
 
+local warned_waves_size = false
+
 -- Client: tell the host which waves are enabled here. Sent after the handshake and whenever the editor closes.
 Director.send_waves = function ()
 	if Director.is_host() or client_disabled or not in_mission or not Presets or not Protocol.is_available() then
 		return false
 	end
 
-	local text = Presets.encode(Presets.enabled_waves(get_setting, Events, Groups))
+	local preset = Presets.enabled_waves(get_setting, Events, Groups)
+	local text = Presets.encode(preset)
+	local limit = Protocol.MAX_WAVES_TEXT or 90000
+
+	local function fits(value)
+		return #value <= limit and (not Protocol.waves_text_fits or Protocol.waves_text_fits(value))
+	end
+
+	-- Find the largest prefix that fits after JSON escaping. Zero cards clears a previously shared pool.
+	if not fits(text) then
+		local all, total = preset.waves, #preset.waves
+		local count, low, high = 0, 0, total - 1
+		local function prefix(n)
+			preset.waves = {}
+
+			for i = 1, n do
+				preset.waves[i] = all[i]
+			end
+
+			return Presets.encode(preset)
+		end
+
+		text = prefix(0)
+
+		while low <= high do
+			local middle = math.floor((low + high) / 2)
+			local candidate = prefix(middle)
+
+			if fits(candidate) then
+				count, text, low = middle, candidate, middle + 1
+			else
+				high = middle - 1
+			end
+		end
+
+		if not warned_waves_size then
+			warned_waves_size = true
+			mod:warning("RealmsWaves: only %d of your %d enabled cards fit in one message to the host (limit %d bytes): the others are not part of the pooled draw", count, total, limit)
+		end
+	end
 
 	return Protocol.send_waves(text) == true
 end
@@ -364,6 +410,18 @@ local function deal(state)
 	return true
 end
 
+-- Writes down the card of the wave that just went out as the last fulfilled card (see last_card above).
+local function remember_card(card)
+	last_card_seq = last_card_seq + 1
+	last_card = {
+		card = { key = card.key, name = card.name, suit = card.suit, threat = card.threat, breeds = card.breeds, whisper = card.whisper, modifiers = card.modifiers, rare = card.rare == true, cooldown = card.cooldown },
+		at = cd_clock,
+		seq = last_card_seq,
+	}
+
+	mark_changed()
+end
+
 -- The wave of the picked card goes out; its cooldown starts now.
 local function pick_card(state)
 	local card = state.hand.cards[state.hand.win]
@@ -371,6 +429,8 @@ local function pick_card(state)
 
 	if not ok then
 		mod:warning("RealmsWaves: card %s not started: %s", tostring(card.key), tostring(err))
+	else
+		remember_card(card)
 	end
 
 	last_fired[card.key] = cd_clock
@@ -506,6 +566,12 @@ local function fire(cand)
 
 	if not ok then
 		mod:warning("RealmsWaves: wave %s not started: %s", tostring(cand.key), tostring(err))
+	else
+		local described, card = pcall(card_of, cand)
+
+		if described then
+			remember_card(card)
+		end
 	end
 
 	last_fired[cand.key] = cd_clock
@@ -578,6 +644,15 @@ local function snapshot()
 	end
 
 	local snap = { p = state.phase, m = state.mode, r = round1(state.remaining), b = state.ballot_id, c = state.chosen, k = k, e = state.empty and 1 or 0, z = paused and 1 or 0 }
+
+	-- the last fulfilled card (any mode): the card, how long ago it went out in played seconds, and which card it was (a number that changes)
+	if last_card then
+		local c = last_card.card
+
+		snap.lc = { k = c.key, n = c.name, s = c.suit, t = c.threat, b = c.breeds, q = c.whisper, m = c.modifiers, r = c.rare and 1 or 0, c = c.cooldown }
+		snap.la = round1(cd_clock - last_card.at)
+		snap.ls = last_card.seq
+	end
 
 	if state.mode == "tarot" then
 		-- the hand (cards, the winner, a number that identifies this hand), whether it is already resolved, the
@@ -799,6 +874,7 @@ Director.reset = function ()
 	changed = true
 	send_timer = 0
 	last_fired = {}
+	last_card, last_card_seq = nil, 0
 	cd_clock = 0
 	cool_map, cool_map_at = {}, -math.huge
 	client_cooldowns = {}
@@ -879,6 +955,7 @@ Director.stop = function ()
 	end
 
 	stopped, paused = true, false
+	last_card = nil
 	timers, timer_check = {}, 0
 	Execute.cancel()
 	Votes.close()
@@ -1027,6 +1104,35 @@ Director.on_welcome = function (sender, proto, version_text, ok)
 	end
 end
 
+-- A card of a synced state (a hand card, the last fulfilled card) with every field validated; nil when it is not a table.
+local function decode_card(item)
+	if type(item) ~= "table" then
+		return nil
+	end
+
+	local breeds = {}
+
+	if type(item.b) == "table" then
+		for j = 1, math.min(#item.b, 8) do
+			if type(item.b[j]) == "string" then
+				breeds[#breeds + 1] = item.b[j]:sub(1, 48)
+			end
+		end
+	end
+
+	return {
+		key = tostring(item.k):sub(1, 64),
+		name = tostring(item.n):sub(1, 60),
+		suit = Events.normalize_suit(item.s),
+		threat = math.max(1, math.min(5, math.floor(tonumber(item.t) or 1))),
+		breeds = breeds,
+		whisper = tostring(item.q or ""):sub(1, 60),
+		modifiers = tostring(item.m or ""):sub(1, 100),
+		rare = item.r == 1,
+		cooldown = math.max(0, math.min(86400, tonumber(item.c) or 0)),
+	}
+end
+
 Director.on_state = function (sender, s)
 	if type(s) ~= "table" or Director.is_host() or client_disabled then
 		return
@@ -1051,30 +1157,10 @@ Director.on_state = function (sender, s)
 		local cards = {}
 
 		for i = 1, math.min(#s.h, HAND_MAX) do
-			local item = s.h[i]
+			local card = decode_card(s.h[i])
 
-			if type(item) == "table" then
-				local breeds = {}
-
-				if type(item.b) == "table" then
-					for j = 1, math.min(#item.b, 8) do
-						if type(item.b[j]) == "string" then
-							breeds[#breeds + 1] = item.b[j]:sub(1, 48)
-						end
-					end
-				end
-
-				cards[#cards + 1] = {
-					key = tostring(item.k):sub(1, 64),
-					name = tostring(item.n):sub(1, 60),
-					suit = Events.SUITS[item.s] and item.s or "plague",
-					threat = math.max(1, math.min(5, math.floor(tonumber(item.t) or 1))),
-					breeds = breeds,
-					whisper = tostring(item.q or ""):sub(1, 60),
-					modifiers = tostring(item.m or ""):sub(1, 100),
-					rare = item.r == 1,
-						cooldown = math.max(0, math.min(86400, tonumber(item.c) or 0)),
-				}
+			if card then
+				cards[#cards + 1] = card
 			end
 		end
 
@@ -1083,7 +1169,28 @@ Director.on_state = function (sender, s)
 		end
 	end
 
+	-- the last fulfilled card: the same card as in the previous message keeps its table (the HUD window compares it), a new one is decoded
+	local last
+
+	if s.p ~= "off" and type(s.lc) == "table" then
+		local seq = tonumber(s.ls) or 0
+		local previous = client_state and client_state.last
+
+		if previous and previous.seq == seq then
+			last = previous
+		else
+			local card = decode_card(s.lc)
+
+			last = card and { card = card, seq = seq } or nil
+		end
+
+		if last then
+			last.age = math.max(0, math.min(86400, tonumber(s.la) or 0))
+		end
+	end
+
 	client_state = {
+		last = last,
 		phase = tostring(s.p),
 		mode = tostring(s.m),
 		remaining = tonumber(s.r) or 0,
@@ -1199,6 +1306,7 @@ Director.view = function ()
 	if not source or client_disabled or not in_mission then
 		view.phase = "off"
 		view.cands = view.cands
+		view.last, view.last_seq, view.last_age = nil, 0, 0
 
 		return view
 	end
@@ -1218,6 +1326,15 @@ Director.view = function ()
 	-- seconds since the pick: the host's own clock, or the synced age plus the time since it arrived (frozen while paused)
 	view.drawn_age = Director.is_host() and (source.drawn_age or 0) or (source.paused and (source.drawn_age or 0) or (source.drawn_age or 0) + (now() - client_received_at))
 	view.hand_seconds = source.hand_seconds or 0
+
+	-- the last fulfilled card (nil before the first): its table stays the same until another card goes out (last_seq changes with it);
+	-- the age is in played seconds: the host's own clock, a client's synced age plus the time since it arrived (frozen while paused)
+	local last = Director.is_host() and last_card or source.last
+
+	view.last = last and last.card or nil
+	view.last_seq = last and last.seq or 0
+	view.last_age = last and (Director.is_host() and (cd_clock - last.at) or (source.paused and last.age or last.age + (now() - client_received_at))) or 0
+
 	view.paused = Director.is_host() and paused or source.paused == true
 	view.version = version
 	view.my_vote = my_vote_ballot == source.ballot_id and my_vote or nil
@@ -1227,7 +1344,8 @@ end
 
 -- ---------------------------------------------------------------- debug helpers
 
-Director.fire_now = function (key)
+-- `options.close`: the wave appears right in front of the local player (/rw_test_close) instead of hidden near the squad
+Director.fire_now = function (key, options)
 	if not Director.is_host() then
 		return false, "only the host can start waves"
 	end
@@ -1246,10 +1364,15 @@ Director.fire_now = function (key)
 	local def = Events.spawn_def(wave)
 
 	def.test = true -- explicit test: allowed to use the ring fallback on levels without spawn points
+	def.close = options and options.close == true or nil
 
 	local ok, err = Execute.start_wave(def)
 
 	if ok then
+		if def.close then
+			return true, "spawning right in front of you"
+		end
+
 		return true, Execute.uses_ring() and "no spawn points on this level (Psykhanium?): spawning on a ring 10-30 m around you, NOT hidden" or nil
 	end
 

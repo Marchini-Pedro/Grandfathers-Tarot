@@ -187,6 +187,28 @@ Public APIs/settings, protocol 2 and serialization remain compatible. See the
 [remediation results](audits/2026-10-03/remediation.md) and reproducible validation.
 Installation, publication and merging remain separate; game confirmation is pending.
 
+## 2.1 batch: `feature/heresy-card-and-ui-pass` (2026-10-03, from `main` at `6d5756d`)
+
+Ten changes the user asked for in one list. Everything below is implemented and tested offline (Lua 5.5 and LuaJIT 2.1) and committed on the branch; none is merged or played. In-game checks: `06` rows 114-121.
+
+- [x] Adversarial spawn review: nil weakened flags, native health-write rejection and target destruction during facing are repaired with regressions.
+- [x] Custom health 1:1 with the config under Havoc (`Tuning.set_exact_health`); the game's "Weakened" name kept for bosses below normal health.
+- [x] The Mods and Custom pages (and every card screen) in the colours of the card's face (`Components.set_theme`).
+- [x] Smaller shelf chips now that the D/S tags are gone; the freed room is a sixth enemy row in the Cauldron.
+- [x] The Deck's top button renamed "Deck presets".
+- [x] `/rw_test_close <wave>`: the wave in front of the player.
+- [x] Fester replaced by HERESY (special colours, frame, glow, mark, banner line; `fester` stays an alias).
+- [x] 100 cards (88 custom slots), the waves message trims instead of failing.
+- [x] A HUD window for the last fulfilled card (own element, synced, option, Custom HUD sample).
+- [x] A cooldown row on every Deck tile (`-` / `+` / number box / hover preview).
+- [x] Merge `main` (PRs #5-#7) into the branch (`56062d3`), resolving one code and three documentation conflicts; `Events.is_empty_slot` keeps the draw cheap with 88 slots.
+- [x] Synchronize with current `main` at `1290abc` (documentation only); preserve accurate PR #7 status.
+- [x] Adversarial review of all branch changes; repair nine reproduced health/spawn/network/HUD/layout gaps, including long modifier wrapping, strengthen regressions and detect nine reverse mutations on both VMs ([review](audits/2026-10-03/heresy-review.md)).
+- [x] Complete CI coverage inventory and justified source-proxy floor exceptions on both runtimes; 2,104 assertions each and all 34 module gates pass ([coverage](10-ci-and-coverage.md)).
+- [x] Publish the continuation in draft [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8); both first hosted runtime checks pass at `a163552`, 2,104 assertions each.
+- [ ] GitHub: admin permission for EduardoKenji remains an owner task. The authenticated identity has write/push access and neither admin nor maintain; no settings were changed.
+- [ ] The in-game run of rows 114-121; the user's "100 percent working" merges the branch into `main`.
+
 ## Post-PR #4 test coverage (2026-10-03)
 
 - [x] Remove the editor harness's sibling game-source dependency; retain callback binding, nil, dynamic-method and return-value contracts in a test-only fixture.

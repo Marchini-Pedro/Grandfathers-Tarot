@@ -14,7 +14,7 @@ Workshop.TOP = 134
 Workshop.BOTTOM = 1014 -- nothing of a pane goes below this (the input legend is under it)
 
 -- ------------------------------------------------------------------------------------------------- enemy rows
-Workshop.ROWS = 5 -- enemy rows visible at once
+Workshop.ROWS = 6 -- enemy rows visible at once (5 while the shelf chips were taller: the room the smaller chips free is the sixth row)
 Workshop.ROW_H = 48
 Workshop.ROW_PITCH = 52
 Workshop.HEADER_Y, Workshop.HEADER_H = 134, 22
@@ -41,9 +41,9 @@ Workshop.SUMMARY_Y = Workshop.ROW_Y0 + Workshop.ROWS * Workshop.ROW_PITCH + 4
 Workshop.SUMMARY_H = 34
 
 -- ------------------------------------------------------------------------------------------------- the shelf
-Workshop.CHIP_H = 34
-Workshop.CHIP_GAP = 8 -- between chips of a row
-Workshop.CHIP_PITCH = 42 -- between rows of chips
+Workshop.CHIP_H = 30 -- (34 while a chip also carried a D / S tag: without it the chips are tighter)
+Workshop.CHIP_GAP = 6 -- between chips of a row
+Workshop.CHIP_PITCH = 36 -- between rows of chips
 Workshop.SHELF_PAD = 16
 Workshop.SHELF_HEAD = 56 -- the panel's title row (title, hint, the faction switch, Search all enemies)
 Workshop.GROUP_LABEL_W = 100
@@ -57,8 +57,8 @@ Workshop.text_width = function (text, font_size)
 	return ceil(#tostring(text) * font_size * Workshop.GLYPH)
 end
 
--- width of a chip: the dot (26 up to the label), the label and 14 of padding
-Workshop.CHIP_DOT, Workshop.CHIP_PAD = 26, 14
+-- width of a chip: the dot (22 up to the label), the label and 10 of padding
+Workshop.CHIP_DOT, Workshop.CHIP_PAD = 22, 10
 
 Workshop.chip_width = function (label)
 	return Workshop.CHIP_DOT + Workshop.text_width(label, Workshop.CHIP_FONT) + Workshop.CHIP_PAD

@@ -26,10 +26,16 @@ Cards.BASE = {
 	murmur_line = hex("#55603a"),
 }
 
--- the suits: card, selected card, frame, text, accent. The first six are the reference page's exact values; the next five
--- (volley, snare, brute, fester, dusk) are the same kind of colours (dark, desaturated, one accent), and "warp" is the
--- purple one, the Daemonhost's own card (Cards.suggest_suit gives it to every card that holds a Daemonhost).
-Cards.SUIT_ORDER = { "plague", "murmur", "rage", "blight", "swarm", "fateful", "volley", "snare", "brute", "fester", "dusk", "warp" }
+-- the suits: card, selected card, frame, text, accent. The first six are the reference page's exact values; the next four
+-- (volley, snare, brute, dusk) are the same kind of colours (dark, desaturated, one accent), "warp" is the purple one, the
+-- Daemonhost's own card (Cards.suggest_suit gives it to every card that holds a Daemonhost), and HERESY, last, is the one card that
+-- is not just another suit (it replaced "fester"): black and blood with a gilded accent, `special = true`, and every place that
+-- draws a card gives it what no other suit has: a frame at rest, a glow that smoulders, a line of its own when it is drawn.
+Cards.SUIT_ORDER = { "plague", "murmur", "rage", "blight", "swarm", "fateful", "volley", "snare", "brute", "dusk", "warp", "heresy" }
+
+-- Names a suit used to have: cards saved, presets, shared texts and the hands other players sync may still say them (Fester became
+-- Heresy). Catalog/events.lua keeps the same list for the settings.
+Cards.SUIT_ALIAS = { fester = "heresy" }
 
 Cards.SUITS = {
 	plague = { name = "Plague", card = hex("#1e2413"), hi = hex("#2a3219"), frame = hex("#3a4421"), text = hex("#e6dfc3"), accent = hex("#b7c23a"), whisper = "Something is growing.", icon = "eye" },
@@ -41,9 +47,10 @@ Cards.SUITS = {
 	volley = { name = "Volley", card = hex("#121a1d"), hi = hex("#1b2a30"), frame = hex("#3d5963"), text = hex("#d5dfe0"), accent = hex("#7fb2c2"), whisper = "Something is aiming at you.", icon = "crosshair" },
 	snare = { name = "Snare", card = hex("#0f1b18"), hi = hex("#17302a"), frame = hex("#2f5f55"), text = hex("#d3e1db"), accent = hex("#5fbfa5"), whisper = "You cannot run from this.", icon = "links" },
 	brute = { name = "Brute", card = hex("#241311"), hi = hex("#35201b"), frame = hex("#74352b"), text = hex("#efdcd4"), accent = hex("#cf5c45"), whisper = "It does not stop for walls.", icon = "plate" },
-	fester = { name = "Fester", card = hex("#22141a"), hi = hex("#331f28"), frame = hex("#6a3a4c"), text = hex("#edd8df"), accent = hex("#d4829a"), whisper = "It swells, and it bursts.", icon = "boil" },
 	dusk = { name = "Dusk", card = hex("#14152a"), hi = hex("#1f2142"), frame = hex("#3e4380"), text = hex("#d9dbef"), accent = hex("#8e97e3"), whisper = "Do not look away.", icon = "dusk" },
 	warp = { name = "Warp", card = hex("#1a1127"), hi = hex("#281a3b"), frame = hex("#5e408f"), text = hex("#e9dff5"), accent = hex("#b184e0"), whisper = "It knows your name.", icon = "warp" },
+	-- HERESY: blackened red, a frame the colour of dried blood, a gilded accent; `lit` is the brighter red of its words on a dark ground
+	heresy = { name = "Heresy", special = true, card = hex("#14070a"), hi = hex("#260c11"), frame = hex("#a3202f"), text = hex("#f3e1d3"), accent = hex("#e5b94c"), lit = hex("#e8505f"), whisper = "He does not answer.", icon = "heresy" },
 }
 
 -- one colour per threat level 1..5 (unfilled diamonds are an outline in the muted colour)
@@ -52,7 +59,7 @@ Cards.THREAT_COLORS = { hex("#a7c27c"), hex("#74b22c"), hex("#e3cf4a"), hex("#d9
 -- a card with this weight or less is "rare": pus-yellow outline (the old, absolute rule: only used where no deck is known)
 Cards.RARE_WEIGHT = 2
 
--- the place of a suit in Cards.SUIT_ORDER (1 to 12; an unknown suit is plague, 1)
+-- the place of a suit in Cards.SUIT_ORDER (1 to 12; an unknown suit is plague, 1; an old name counts as its new one)
 Cards.suit_index = function (suit)
 	local wanted = Cards.normalize_suit(suit)
 
@@ -66,7 +73,14 @@ Cards.suit_index = function (suit)
 end
 
 Cards.normalize_suit = function (suit)
+	suit = Cards.SUIT_ALIAS[suit] or suit
+
 	return Cards.SUITS[suit] and suit or "plague"
+end
+
+-- True for the suit that is a card apart (Heresy): the places that draw a card give it its own frame and glow.
+Cards.is_special = function (suit)
+	return Cards.suit(suit).special == true
 end
 
 Cards.suit = function (suit)

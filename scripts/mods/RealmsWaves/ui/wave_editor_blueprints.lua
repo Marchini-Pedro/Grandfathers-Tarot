@@ -24,6 +24,10 @@ blueprints.row = function (node_id)
 		pass_type = "rect",
 		style_id = "row_frame",
 		style = { size = { 1710, 46 }, offset = { 0, 0, 0 }, color = { 190, 58, 68, 33 } },
+		-- the frame of the page's theme (the card's suit on its screens)
+		change_function = function (content, style)
+			Components.put_rgb(style.color, 190, Components.theme.frame)
+		end,
 	}
 	passes[#passes + 1] = {
 		pass_type = "rect",
@@ -32,9 +36,9 @@ blueprints.row = function (node_id)
 		-- highlight the whole row while the pointer is over its name/composition area: a wash of the accent
 		change_function = function (content, style)
 			if content.hotspot_name.is_hover then
-				Components.put_mix(style.color, 250, Components.rgb.plate, Components.accent, 0.10)
+				Components.put_mix(style.color, 250, Components.theme.hi, Components.accent, 0.10)
 			else
-				Components.color_into(style.color, colors.normal)
+				Components.put_rgb(style.color, colors.normal[1], Components.theme.row)
 			end
 		end,
 	}
@@ -193,20 +197,30 @@ blueprints.tile_metrics = function (k)
 		-- the divider and the composition sit under the name, wherever Deck.layout puts them (these are the one-line values)
 		divider = box(14, 64, 200, 1),
 		comp = box(14, 71, 200, 85),
-		mods = box(14, 166, 200, 16),
-		whisper = box(14, 184, 200, 32),
-		row_y = 226 * k, -- centre of the bottom row (threat diamonds left, dots right)
+		mods = box(14, 148, 200, 16),
+		whisper = box(14, 166, 200, 32),
+		row_y = 208 * k, -- centre of the bottom row (threat diamonds left, dots right)
 		diamonds_x = (14 + 4) * k, -- centre of the first diamond
 		dots_right = 214 * k,
-		pips_y = 238 * k,
+		pips_y = 220 * k,
 		pips_x = 14 * k,
 		pip = { 16 * k, 7 * k, 4 * k }, -- width, height, gap
-		pip_hit_y = 235 * k,
-		pip_hit_h = 14 * k,
+		pip_hit_y = 217 * k,
+		pip_hit_h = 15 * k,
+		-- the cooldown row under the pips: a plate with a minus, the label and the value, a plate with a plus (30 s a click; the
+		-- plates only on the Deck's own tiles, the stage card shows the value alone)
+		cd_minus = box(14, 232, 24, 17),
+		cd_plus = box(190, 232, 24, 17),
+		cd_label = box(44, 232, 70, 17),
+		cd_value = box(114, 232, 72, 17),
 		state_left = box(14, 250, 100, 16),
 		state_clock = box(100, 250, 62, 16),
 		edit = box(168, 250, 46, 16), -- the pill: lit while the pointer is on it, and exactly its click area
-		hot_top = box(0, 0, TILE_W, 235),
+		hot_top = box(0, 0, TILE_W, 217),
+		-- the click areas of the cooldown row fill the row edge to edge (no dead strip), the middle one is the value (a number box)
+		hot_cd_minus = box(0, 232, 42, 17),
+		hot_cd_value = box(42, 232, 144, 17),
+		hot_cd_plus = box(186, 232, 42, 17),
 		hot_state = box(0, 249, 166, 21),
 		hot_edit = box(168, 250, 46, 16),
 	}
@@ -414,6 +428,15 @@ blueprints.tile = function (node_id, k, interactive)
 		rect_pass(passes, blueprints.TILE_IDS.pip[i], T.pips_x + (i - 1) * (T.pip[1] + T.pip[3]), T.pips_y, T.pip[1], T.pip[2], 4)
 	end
 
+	-- the cooldown row: the plates of the minus and the plus with their glyphs (bars placed by the painting), the label and the value
+	rect_pass(passes, "cd_minus_bg", T.cd_minus[1], T.cd_minus[2] + 1 * T.k, T.cd_minus[3], T.cd_minus[4] - 2 * T.k, 3)
+	rect_pass(passes, "cd_plus_bg", T.cd_plus[1], T.cd_plus[2] + 1 * T.k, T.cd_plus[3], T.cd_plus[4] - 2 * T.k, 3)
+	rect_pass(passes, "cd_minus_h", 0, 0, 1, 1, 5)
+	rect_pass(passes, "cd_plus_h", 0, 0, 1, 1, 5)
+	rect_pass(passes, "cd_plus_v", 0, 0, 1, 1, 5)
+	tile_text(passes, "cd_label", T.cd_label, "proxima_nova_bold", font(11), "left", "center", 4)
+	tile_text(passes, "cd_value", T.cd_value, "proxima_nova_bold", font(13), "right", "center", 4)
+
 	-- the state line: what the card is doing, the cooldown clock, and the Edit pill
 	tile_text(passes, "state_left", T.state_left, "proxima_nova_bold", font(12), "left", "center", 4)
 	tile_text(passes, "state_clock", T.state_clock, "proxima_nova_bold", font(12), "right", "center", 4)
@@ -429,6 +452,9 @@ blueprints.tile = function (node_id, k, interactive)
 	Components.hotspot_pass(passes, "hotspot_top", { T.hot_top[1], T.hot_top[2], 6 }, { T.hot_top[3], T.hot_top[4] })
 	Components.hotspot_pass(passes, "hotspot_state", { T.hot_state[1], T.hot_state[2], 6 }, { T.hot_state[3], T.hot_state[4] })
 	Components.hotspot_pass(passes, "hotspot_edit", { T.hot_edit[1], T.hot_edit[2], 6 }, { T.hot_edit[3], T.hot_edit[4] })
+	Components.hotspot_pass(passes, "hotspot_cd_minus", { T.hot_cd_minus[1], T.hot_cd_minus[2], 6 }, { T.hot_cd_minus[3], T.hot_cd_minus[4] })
+	Components.hotspot_pass(passes, "hotspot_cd_value", { T.hot_cd_value[1], T.hot_cd_value[2], 6 }, { T.hot_cd_value[3], T.hot_cd_value[4] })
+	Components.hotspot_pass(passes, "hotspot_cd_plus", { T.hot_cd_plus[1], T.hot_cd_plus[2], 6 }, { T.hot_cd_plus[3], T.hot_cd_plus[4] })
 
 	for i = 1, Deck.PIPS do
 		local x, y, w, h = blueprints.pip_hit(i, T)

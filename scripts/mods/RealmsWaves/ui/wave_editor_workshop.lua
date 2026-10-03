@@ -487,6 +487,18 @@ WorkshopView.install = function (View, h)
 		Spread.set_color(style.hand_bg.color, 255, suit.card)
 		Spread.set_color(style.hand_bar.color, 255, suit.accent)
 
+		-- Heresy: the two unit thick frame the HUD gives it (the HUD's scale is k)
+		local line, special = 2 * k, suit.special == true
+		local edges = { t = { 0, 0, H.w, line }, b = { 0, height - line, H.w, line }, l = { 0, 0, line, height }, r = { H.w - line, 0, line, height } }
+
+		for side, box in pairs(edges) do
+			local edge = style["hand_edge_" .. side]
+
+			edge.visible = special
+			edge.offset[1], edge.offset[2], edge.size[1], edge.size[2] = box[1], box[2], box[3], box[4]
+			Spread.set_color(edge.color, 255, suit.frame)
+		end
+
 		content.hand_name = card.name
 		style.hand_name.offset[1], style.hand_name.offset[2] = (H.bar + pad) * k, Spread.PAD_Y * k
 		style.hand_name.size[1], style.hand_name.size[2] = name_w * k, lines * Spread.NAME_LINE * k

@@ -2,14 +2,16 @@
 -- and data files can load it too).
 --
 -- Built-in ("standard") waves are data below; the user can override name and
--- composition of any wave, and fill 20 custom slots, from the in-game editor.
+-- composition of any wave, and fill the custom slots (up to Events.MAX_CARDS cards in all), from the in-game editor.
 -- part = { breed = "name", count = n }  or  { one_of = { "a", "b" }, count = n }
 -- monster = true uses the monster distance range.
 -- The standard waves are tarot cards (names, suits and whispers: catalog/cards.lua); their keys never change, so saved
 -- settings keep working. default_pct is the card's chance on the 1-10 scale of the editor's chance pips.
 local Events = {}
 
-Events.CUSTOM_SLOTS = 20
+-- The most cards a deck holds: the standard cards and the custom slots together (the keys custom_1 ... custom_N, N = CUSTOM_SLOTS, are
+-- fixed names that saved settings, presets and shared texts use). It was 32 (20 custom slots) until 2.1.
+Events.MAX_CARDS = 100
 
 Events.STANDARD = {
 	{
@@ -113,6 +115,9 @@ Events.STANDARD = {
 	},
 }
 
+-- the custom slots fill the deck up to MAX_CARDS (a standard card the player deleted keeps its place: its key stays reserved)
+Events.CUSTOM_SLOTS = Events.MAX_CARDS - #Events.STANDARD
+
 local by_key = {}
 
 for i = 1, #Events.STANDARD do
@@ -121,6 +126,18 @@ end
 
 Events.get_standard = function (key)
 	return by_key[key]
+end
+
+-- The key strings of the custom slots and of their settings, built once: there are 88 slots and the loops that look at every card
+-- (the draw, the timers, the Deck) would otherwise concatenate them again on every pass.
+local CUSTOM_KEY, DEF_KEY, LEGACY_KEY = {}, {}, {}
+
+for slot = 1, Events.CUSTOM_SLOTS do
+	local key = "custom_" .. slot
+
+	CUSTOM_KEY[slot] = key
+	DEF_KEY[key] = "wave_def_" .. key
+	LEGACY_KEY[key] = "custom_" .. slot .. "_recipe"
 end
 
 -- Every wave key: the standard events, then the custom slots.
@@ -132,10 +149,31 @@ Events.keys = function ()
 	end
 
 	for slot = 1, Events.CUSTOM_SLOTS do
-		keys[#keys + 1] = "custom_" .. slot
+		keys[#keys + 1] = CUSTOM_KEY[slot]
 	end
 
 	return keys
+end
+
+-- True for a custom slot nobody has filled: no definition (Events.get would give it no enemies) and no recipe from 1.0.0. It costs two
+-- settings instead of the twenty-odd that Events.get reads, and most of the 88 slots are empty: the loops that only want waves with
+-- enemies (the draw, the timers) skip these slots with it.
+Events.is_empty_slot = function (key, get_setting)
+	local def_key = DEF_KEY[key]
+
+	if not def_key then
+		return false
+	end
+
+	local def = get_setting(def_key)
+
+	if type(def) == "string" and def ~= "" then
+		return false
+	end
+
+	local legacy = get_setting(LEGACY_KEY[key])
+
+	return not (type(legacy) == "string" and legacy ~= "")
 end
 
 -- The order the Deck shows the cards in: the keys of Events.keys() arranged by the player's saved order ("deck_order", the keys
@@ -195,8 +233,17 @@ Events.DEFAULT_REPEAT_FOR = 60 -- seconds the repeats keep coming
 -- the suits of the Tarot (visuals: catalog/cards.lua) and the cooldown looks
 Events.SUITS = {
 	plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true,
-	volley = true, snare = true, brute = true, fester = true, dusk = true, warp = true,
+	volley = true, snare = true, brute = true, dusk = true, warp = true, heresy = true,
 }
+-- names a suit used to have (Fester became Heresy): saved settings, presets, shared texts and synced hands may still say them
+Events.SUIT_ALIAS = { fester = "heresy" }
+
+-- A suit as the Tarot knows it: an old name becomes its new one, an unknown suit is plague.
+Events.normalize_suit = function (suit)
+	suit = Events.SUIT_ALIAS[suit] or suit
+
+	return Events.SUITS[suit] and suit or "plague"
+end
 Events.LOOKS = { rot = true, whisper = true, vial = true }
 
 -- Settings per wave (all plain values so DMF can persist them):
@@ -328,7 +375,7 @@ Events.get = function (key, get_setting, Groups)
 		suit = std and std.suit or has_daemonhost(wave.parts) and "warp" or "plague"
 	end
 
-	wave.suit = Events.SUITS[suit] and suit or "plague"
+	wave.suit = Events.normalize_suit(suit)
 	wave.threat_override = math.max(0, math.min(5, math.floor(tonumber(get_setting("th_" .. key)) or 0)))
 
 	local whisper = get_setting("wh_" .. key)
@@ -510,7 +557,7 @@ Events.timed_waves = function (get_setting, Groups)
 	local keys = Events.keys()
 
 	for i = 1, #keys do
-		local wave = Events.get(keys[i], get_setting, Groups)
+		local wave = not Events.is_empty_slot(keys[i], get_setting) and Events.get(keys[i], get_setting, Groups) or nil
 
 		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.timer > 0 then
 			list[#list + 1] = { key = wave.key, name = wave.name, def = Events.spawn_def(wave), every = wave.timer }
@@ -532,7 +579,7 @@ Events.build_pool = function (get_setting, Groups, extra)
 	local keys = Events.keys()
 
 	for i = 1, #keys do
-		local wave = Events.get(keys[i], get_setting, Groups)
+		local wave = not Events.is_empty_slot(keys[i], get_setting) and Events.get(keys[i], get_setting, Groups) or nil
 
 		-- a wave with a fixed timer runs on its own clock (Events.timed_waves), it is never drawn
 		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 and not (wave.timer > 0) then
