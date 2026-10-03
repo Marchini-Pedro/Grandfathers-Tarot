@@ -17,6 +17,7 @@ local Positions, Bypass, Groups, Tuning
 
 local FEED_INTERVAL = 0.15
 local FEED_BATCH = 2
+local CLOSE_SPREAD = 2 -- a wave in front of the player (/rw_test_close) never scatters wider than this, whatever its own radius
 local CANDIDATE_TTL = 1.5
 local FAILED_SEARCH_TTL = 1.5 -- do not repeat a failed hidden-position search more often than this
 local JOB_TIMEOUT = 60 -- seconds a wave may stay unfinished (repeating waves add their repeat time)
@@ -380,6 +381,7 @@ Execute.start_wave = function (def)
 	jobs[#jobs + 1] = {
 		name = def.name,
 		test = def.test == true, -- explicit /rw_test: may fall back to a ring around the player where no hidden points exist
+		close = def.close == true, -- /rw_test_close: right in front of the local player, facing them (no hidden points, no ring)
 		monster = def.monster == true,
 		spread = tonumber(def.spread) or 0,
 		dmin = math.max(0, tonumber(def.dmin) or 0),
@@ -468,6 +470,19 @@ end
 
 -- Returns the candidate list for a job, or nil. Sets job.reason when it fails.
 local function candidates_for(job)
+	-- in front of the player: where they look right now, so never cached
+	if job.close and Positions.close_candidates then
+		local list, reason = Positions.close_candidates()
+
+		job.reason = (not list) and reason or nil
+
+		if not list then
+			throttled_log("spawn", reason)
+		end
+
+		return list
+	end
+
 	-- waves with their own spawn distances must not share cached positions with the others
 	local key = (job.test and "test_" or "") .. (job.monster and "monster" or "normal") .. ":" .. job.dmin .. ":" .. job.dmax
 	local entry = cache[key]
@@ -577,7 +592,8 @@ local function needs_shield_init(breed_name)
 end
 
 -- Returns true, or false and a reason. `tune` = the group's custom mods (Groups.TUNE, percent), see spawn/tuning.lua.
-local function spawn_one(breed_name, position, target_unit, mod_ids, tune)
+-- `face_target` (a wave in front of the player): the unit looks at the target instead of looking where the target looks
+local function spawn_one(breed_name, position, target_unit, mod_ids, tune, face_target)
 	local spawn_manager = Managers.state.minion_spawn
 	local side_system = Managers.state.extension:system("side_system")
 	local villains = side_system and side_system:get_side_from_name("villains")
@@ -604,7 +620,9 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune)
 
 	Bypass.begin_spawn()
 
-	local ok, unit = pcall(spawn_manager.spawn_minion, spawn_manager, breed_name, position, Unit.world_rotation(target_unit, 1), villains.side_id, param)
+	local rotation = face_target and Positions and Positions.rotation_towards and Positions.rotation_towards(position, target_unit) or nil
+
+	local ok, unit = pcall(spawn_manager.spawn_minion, spawn_manager, breed_name, position, rotation or Unit.world_rotation(target_unit, 1), villains.side_id, param)
 
 	Bypass.end_spawn(ok and unit or nil)
 
@@ -717,7 +735,7 @@ Execute.update = function (dt, paused)
 
 	job.stuck_since = nil
 
-	local target = Positions.random_player_unit()
+	local target = job.close and Positions.local_player_unit and Positions.local_player_unit() or Positions.random_player_unit()
 
 	if not target then
 		return
@@ -730,13 +748,13 @@ Execute.update = function (dt, paused)
 		job.queue[#job.queue] = nil
 
 		if position then
-			position = Positions.spread(position, job.spread)
+			position = Positions.spread(position, job.close and math.min(job.spread, CLOSE_SPREAD) or job.spread)
 		end
 
 		local ok, why
 
 		if position then
-			ok, why = spawn_one(entry.breed, position, target, entry.mods, entry.tune)
+			ok, why = spawn_one(entry.breed, position, target, entry.mods, entry.tune, job.close)
 		end
 
 		if ok then

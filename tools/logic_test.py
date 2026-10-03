@@ -1215,6 +1215,14 @@ do
   local rok, rnote = Director.fire_now("dog party")
   check("director.fire_now warns when the level has no spawn points (ring used)", rok and type(rnote) == "string" and rnote:find("ring") ~= nil, tostring(rnote))
   ring_level = false
+  local cok, cnote = Director.fire_now("dog party", { close = true })
+  check("director.fire_now with close: the wave is marked close (and still a test), and the answer says where it spawns", cok and started_defs[#started_defs].close == true and started_defs[#started_defs].test == true and cnote == "spawning right in front of you", tostring(cnote))
+  ring_level = true
+  local _, cnote2 = Director.fire_now("dog party", { close = true })
+  check("director.fire_now with close never talks about the ring, even on a level without spawn points", cnote2 == "spawning right in front of you", tostring(cnote2))
+  ring_level = false
+  Director.fire_now("dog party")
+  check("director.fire_now without options is not close", started_defs[#started_defs].close == nil)
   local fok2, ferr2 = Director.fire_now("nope")
   check("director.fire_now reports an unknown name", fok2 == false and ferr2:find("no wave named") ~= nil, ferr2)
   Events.reset(set, "custom_2"); Events.reset(set, "custom_5")
@@ -1285,7 +1293,7 @@ local spawned = {}
 local minion_spawn = {
   request_param_table = function() return {} end,
   spawn_minion = function(self, breed, pos, rot, side_id, param)
-    local unit = { breed = breed, buffs = make_buff_ext(breed), aggro = param.optional_aggro_state, init_toughness = param.optional_init_toughness, side = side_id, spawn_flag = Bypass.spawning }
+    local unit = { breed = breed, buffs = make_buff_ext(breed), aggro = param.optional_aggro_state, init_toughness = param.optional_init_toughness, side = side_id, spawn_flag = Bypass.spawning, pos = pos, rot = rot, target = param.optional_target_unit }
     spawned[#spawned + 1] = unit
     return unit
   end,
@@ -1300,7 +1308,12 @@ local spread_calls = {}
 local cand_calls, cand_fail = 0, false
 local cand_reason, ring_fail, ring_calls = "no hidden points near players", false, 0
 local last_range = nil
+local CS = { calls = 0, fail = false, reason = nil } -- /rw_test_close stub state (one local: the harness chunk is near Lua's limit of 200)
 local StubPositions = {
+  -- /rw_test_close: the local player's own spot, no cache, facing them
+  close_candidates = function() CS.calls = CS.calls + 1; if CS.fail then return nil, CS.reason end return { "front" } end,
+  local_player_unit = function() return "me" end,
+  rotation_towards = function(position, unit) return "faces:" .. tostring(unit) end,
   candidates = function(min_d, max_d) cand_calls = cand_calls + 1; last_range = { min_d, max_d }; if cand_fail then return nil, cand_reason end return { "a", "b" } end,
   test_candidates = function() ring_calls = ring_calls + 1; if ring_fail then return nil, "no walkable ground within reach of the player" end return { "ring" } end,
   pick = function(list) return "pos" end,
@@ -1364,6 +1377,53 @@ check("execute: each unit goes through Positions.spread with the wave radius", a
 spread_calls = {}
 run_wave({ name = "t", parts = Groups.parse("2 hounds") })
 check("execute: no spread configured -> radius 0", #spread_calls == 2 and spread_calls[1] == 0)
+
+-- /rw_test_close: right in front of the local player, facing them
+do
+  Execute.reset(); Bypass.reset()
+  CS.calls, cand_calls, ring_calls, spread_calls = 0, 0, 0, {}
+  run_wave({ name = "t", test = true, close = true, spread = 6, parts = Groups.parse("3 hounds") })
+  check("close: the units come from the close candidates, never from the hidden-point search or the ring", #spawned == 3 and CS.calls >= 1 and cand_calls == 0 and ring_calls == 0, #spawned .. " " .. CS.calls .. " " .. cand_calls)
+  check("close: the units face the local player and aggro on them (a random player is not used)", spawned[1].rot == "faces:me" and spawned[1].target == "me" and spawned[1].pos == "pos+2", tostring(spawned[1].rot) .. " " .. tostring(spawned[1].pos))
+  local capped = #spread_calls == 3
+  for _, r in ipairs(spread_calls) do if r ~= 2 then capped = false end end
+  check("close: a wave's own spread (6) is capped at 2 m so the units stay in front of the player", capped)
+  spread_calls = {}
+  run_wave({ name = "t", test = true, close = true, spread = 1, parts = Groups.parse("1 hound") })
+  check("close: a smaller spread than the cap is kept", spread_calls[1] == 1)
+  CS.calls, cand_calls = 0, 0
+  run_wave({ name = "t", test = true, spread = 6, parts = Groups.parse("2 hounds") })
+  check("close: an ordinary test wave is untouched (hidden-point search, random player, the player's rotation)", CS.calls == 0 and cand_calls >= 1 and spawned[1].rot == "rot" and spawned[1].target == "player")
+
+  -- no walkable ground in front of the player: nothing spawns, the reason is said once, spawning resumes when the way is clear
+  Execute.reset(); Bypass.reset()
+  CS.fail, CS.reason = true, "no walkable ground right in front of you (a wall?): turn towards open ground"
+  local before = #echoes
+  spawned = {}
+  Execute.start_wave({ name = "Wall", test = true, close = true, parts = Groups.parse("4 hounds") })
+  for _ = 1, 30 do Execute.update(0.2) end
+  local said = 0; for i = before + 1, #echoes do if echoes[i]:find("Wall", 1, true) and echoes[i]:find("turn towards open ground", 1, true) then said = said + 1 end end
+  check("close: with a wall in front nothing spawns and the reason is echoed exactly once", #spawned == 0 and said == 1, #spawned .. " " .. said)
+  CS.fail = false
+  for _ = 1, 30 do Execute.update(0.2) end
+  check("close: ...and the wave spawns by itself once there is room", #spawned == 4, #spawned)
+  Execute.reset(); Bypass.reset()
+
+  -- the local player is gone mid-wave: no unit, nothing spawns, nothing breaks
+  local saved_local, saved_random = StubPositions.local_player_unit, StubPositions.random_player_unit
+  StubPositions.local_player_unit = function() return nil end
+  StubPositions.random_player_unit = function() return nil end
+  CS.fail, CS.reason = true, "no living players"
+  spawned = {}
+  local ok_gone = Execute.start_wave({ name = "t", test = true, close = true, parts = Groups.parse("2 hounds") })
+  for _ = 1, 10 do Execute.update(0.2) end
+  check("close: with no local player unit the wave waits quietly (no crash, nothing spawned)", ok_gone and #spawned == 0)
+  StubPositions.local_player_unit, StubPositions.random_player_unit = saved_local, saved_random
+  CS.fail = false
+  for _ = 1, 20 do Execute.update(0.2) end
+  check("close: ...and goes on when the player is back", #spawned == 2, #spawned)
+  Execute.reset(); Bypass.reset()
+end
 
 -- custom mods on spawned units (spawn/tuning.lua) against stubbed extensions ---------------------------------------------
 do
@@ -3119,6 +3179,112 @@ do
   check("spread: no nav mesh -> original point", Pos.spread(origin, 5) == origin)
   Managers.state.nav_mesh = saved_nav_mesh
   Vector3 = saved_vector3
+end
+
+-- /rw_test_close: Positions.close_candidates / local_player_unit / rotation_towards with stubbed nav queries and players ----------
+do
+  local atan2 = math.atan2 or math.atan
+  local V = {}
+  V.__add = function(a, b) return setmetatable({ x = a.x + b.x, y = a.y + b.y, z = a.z + b.z }, V) end
+  V.__sub = function(a, b) return setmetatable({ x = a.x - b.x, y = a.y - b.y, z = a.z - b.z }, V) end
+  local saved = { v3 = Vector3, box = Vector3Box, q = Quaternion, unit = Unit, su = ScriptUnit, player = Managers.player, nav_mesh = Managers.state.nav_mesh, ext = Managers.state.extension }
+  Vector3 = function(x, y, z) return setmetatable({ x = x, y = y, z = z }, V) end
+  Vector3Box = function(v) return { unbox = function() return v end } end
+  local look_args = {}
+  Quaternion = { forward = function(rot) return rot.forward end, look = function(direction) look_args[#look_args + 1] = direction; return { look = direction } end }
+  local dead, broken = {}, {}
+  Unit = {
+    alive = function(u) return not dead[u] end,
+    world_position = function(u) if broken[u] then error("unit destroyed") end return u.pos end,
+    world_rotation = function(u) return u.body end,
+  }
+  ScriptUnit = { has_extension = function(u, sys) return sys == "first_person_system" and u.fp or nil end }
+  local function hero(forward_body, forward_look)
+    local u = { pos = Vector3(0, 0, 5), body = { forward = forward_body } }
+    if forward_look then u.fp = { extrapolated_rotation = function() return { forward = forward_look } end } end
+    return u
+  end
+  local me, other = hero(Vector3(0, 1, 0.4), Vector3(1, 0, -0.3)), hero(Vector3(0, 1, 0))
+  other.pos = Vector3(50, 50, 5)
+  local heroes = { me, other }
+  local local_unit = me
+  Managers.player = { local_player = function(self, i) return local_unit and { player_unit = local_unit } or nil end }
+  Managers.state.extension = { system = function() return { get_side_from_name = function() return { valid_player_units = heroes } end } end }
+  Managers.state.nav_mesh = { nav_world = function() return "world" end }
+  local nav = require("scripts/utilities/nav_queries")
+  local saved_nav = { snap = nav.position_on_mesh, ray = nav.ray_can_go }
+  local blocked = function() return false end
+  nav.position_on_mesh = function(world, pos, above, below) if blocked(pos) then return nil end return Vector3(pos.x, pos.y, pos.z + 0.5) end
+  nav.ray_can_go = function(world, a, b) return not blocked(b) end
+  local Pos = load("spawn/positions")
+  local function dist(p) return math.sqrt(p.x ^ 2 + p.y ^ 2) end
+  local function all(list, fn) for i = 1, #list do if not fn(list[i]:unbox()) then return false end end return true end
+
+  local list = Pos.close_candidates()
+  check("close: points right in front of the player: 3.5 to 8 m away, inside a 70 degree arc round the camera's direction (+x), snapped to the mesh", list and #list >= 1 and #list <= 16 and all(list, function(p) local a = atan2(p.y, p.x); return dist(p) >= 3.49 and dist(p) <= 8.01 and math.abs(a) <= math.rad(35) + 1e-6 and p.z == 5.5 end), list and #list)
+  check("close: the camera wins over the body (the body looks +y, the camera +x: no point lies behind the camera)", list and all(list, function(p) return p.x > 0 end))
+  check("close: pick unboxes a candidate", (function() local p = Pos.pick(list); return type(p) == "table" and p.z == 5.5 end)())
+
+  me.fp = nil
+  list = Pos.close_candidates()
+  check("close: without a first person view the body's direction is used (+y)", list and #list >= 1 and all(list, function(p) return p.y > 0 and math.abs(atan2(p.x, p.y)) <= math.rad(35) + 1e-6 end))
+  me.fp = { extrapolated_rotation = function() return { forward = Vector3(0, 0, 1) } end }
+  list = Pos.close_candidates()
+  check("close: a camera looking straight up has no horizontal direction: the body decides", list and all(list, function(p) return p.y > 0 end))
+  me.fp = { extrapolated_rotation = function() error("no camera yet") end }
+  list = Pos.close_candidates()
+  check("close: a camera that cannot be read falls back to the body", list and #list >= 1 and all(list, function(p) return p.y > 0 end))
+  me.fp = nil; me.body = { forward = Vector3(0, 0, -1) }
+  list = Pos.close_candidates()
+  check("close: when nothing gives a direction the wave goes in front along +y, never nowhere", list and #list >= 1 and all(list, function(p) return p.y > 0 end))
+  me.body = { forward = Vector3(0, 1, 0.4) }; me.fp = { extrapolated_rotation = function() return { forward = Vector3(1, 0, -0.3) } end }
+
+  -- a wall in the way: only the near stage (1.5 to 3.5 m) is open
+  blocked = function(p) return dist(p) > 3.5 end
+  list = Pos.close_candidates()
+  check("close: with a wall 3.5 m ahead the points come closer (1.5 to 3.5 m)", list and #list >= 1 and all(list, function(p) return dist(p) >= 1.49 and dist(p) <= 3.51 end), list and #list)
+  blocked = function() return true end
+  local none, reason = Pos.close_candidates()
+  check("close: walls everywhere -> no points and a reason that says what to do", none == nil and type(reason) == "string" and reason:find("no walkable ground right in front of you", 1, true) ~= nil, tostring(reason))
+  blocked = function() return false end
+
+  Managers.state.nav_mesh = nil
+  local _, nav_reason = Pos.close_candidates()
+  check("close: no nav mesh (a hub) -> a reason, no error", nav_reason == "no nav mesh on this level")
+  Managers.state.nav_mesh = { nav_world = function() return "world" end }
+
+  -- who is "the player": the local one, else any living hero, else nobody; a unit that disappears mid-call is not an error
+  check("close: the local player's unit is the one", Pos.local_player_unit() == me)
+  dead[me] = true
+  heroes = { other }
+  check("close: a dead local player -> another living hero (the one of the hero side list)", Pos.local_player_unit() == other)
+  local_unit = nil
+  check("close: no local player at all (dedicated host) -> a living hero", Pos.local_player_unit() == other)
+  heroes = {}
+  check("close: nobody alive -> nil, and the search says so", Pos.local_player_unit() == nil and select(2, Pos.close_candidates()) == "no living players")
+  dead[me] = nil; local_unit = me; heroes = { me, other }
+  broken[me] = true
+  local gone, gone_reason = Pos.close_candidates()
+  check("close: a unit destroyed in the middle of the search is a reason, not an error", gone == nil and gone_reason == "no living players", tostring(gone_reason))
+  broken[me] = nil
+  local saved_manager = Managers.player
+  Managers.player = nil
+  local picked = Pos.local_player_unit()
+  check("close: no player manager (a menu) is handled: a living hero", picked == me or picked == other)
+  Managers.player = saved_manager
+
+  -- facing the player
+  look_args = {}
+  local rot = Pos.rotation_towards(Vector3(10, 0, 5), me)
+  check("close: a unit at +10 x faces the player: a flat unit direction towards -x (z is left out)", rot and look_args[1] and math.abs(look_args[1].x + 1) < 1e-9 and look_args[1].y == 0 and look_args[1].z == 0)
+  check("close: standing on the player gives no rotation (the unit keeps its own)", Pos.rotation_towards(Vector3(0, 0, 5), me) == nil)
+  broken[me] = true
+  check("close: a player that is gone gives no rotation and no error", Pos.rotation_towards(Vector3(3, 3, 5), me) == nil)
+  broken[me] = nil
+
+  nav.position_on_mesh, nav.ray_can_go = saved_nav.snap, saved_nav.ray
+  Vector3, Vector3Box, Quaternion, Unit, ScriptUnit = saved.v3, saved.box, saved.q, saved.unit, saved.su
+  Managers.player, Managers.state.nav_mesh, Managers.state.extension = saved.player, saved.nav_mesh, saved.ext
 end
 
 Managers.state.minion_spawn, Managers.state.extension, Managers.state.game_mode = saved_state.minion_spawn, saved_state.extension, saved_state.game_mode

@@ -1226,7 +1226,8 @@ end
 
 -- ---------------------------------------------------------------- debug helpers
 
-Director.fire_now = function (key)
+-- `options.close`: the wave appears right in front of the local player (/rw_test_close) instead of hidden near the squad
+Director.fire_now = function (key, options)
 	if not Director.is_host() then
 		return false, "only the host can start waves"
 	end
@@ -1245,10 +1246,15 @@ Director.fire_now = function (key)
 	local def = Events.spawn_def(wave)
 
 	def.test = true -- explicit test: allowed to use the ring fallback on levels without spawn points
+	def.close = options and options.close == true or nil
 
 	local ok, err = Execute.start_wave(def)
 
 	if ok then
+		if def.close then
+			return true, "spawning right in front of you"
+		end
+
 		return true, Execute.uses_ring() and "no spawn points on this level (Psykhanium?): spawning on a ring 10-30 m around you, NOT hidden" or nil
 	end
 

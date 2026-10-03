@@ -231,6 +231,153 @@ Positions.test_candidates = function (min_d, max_d)
 	return list
 end
 
+-- ---------------------------------------------------------------------------------- right in front of the player
+-- /rw_test_close: the wave appears right in front of the player who typed the command (the local player), where they are looking, on
+-- open walkable ground, 3.5 to 8 metres ahead over a 70 degree arc; with a wall in the way, closer (1.5 to 3.5 m). Not hidden, not near
+-- the other players: it is a test, to look at the units at once.
+Positions.CLOSE_NEAR, Positions.CLOSE_FAR, Positions.CLOSE_NEAREST, Positions.CLOSE_ARC = 3.5, 8, 1.5, math.rad(70)
+
+local function unit_alive(unit)
+	if not unit then
+		return false
+	end
+
+	local ok, alive = pcall(Unit.alive, unit)
+
+	return ok and alive == true
+end
+
+-- The unit of the player at this machine (the host who typed the command); another living hero when that one has no unit or is dead.
+Positions.local_player_unit = function ()
+	local ok, unit = pcall(function ()
+		local player = Managers.player and Managers.player:local_player(1)
+
+		return player and player.player_unit
+	end)
+
+	if ok and unit_alive(unit) then
+		return unit
+	end
+
+	return Positions.random_player_unit()
+end
+
+-- The horizontal direction a unit looks in as a unit vector (x, y): the first person camera of the player, else the body; nil when
+-- neither can be read or the player looks straight up or down.
+local function look_direction(unit)
+	local function read(rotation_of)
+		local ok, x, y = pcall(function ()
+			local forward = Quaternion.forward(rotation_of())
+
+			return forward.x, forward.y
+		end)
+
+		if not ok or type(x) ~= "number" or type(y) ~= "number" then
+			return nil
+		end
+
+		local length = math.sqrt(x * x + y * y)
+
+		if length < 0.01 then
+			return nil
+		end
+
+		return x / length, y / length
+	end
+
+	local x, y = read(function ()
+		local first_person = ScriptUnit.has_extension(unit, "first_person_system")
+
+		return first_person:extrapolated_rotation()
+	end)
+
+	if x then
+		return x, y
+	end
+
+	return read(function ()
+		return Unit.world_rotation(unit, 1)
+	end)
+end
+
+-- Boxed walkable points right in front of the local player, or nil and a reason. Not cached: the player moves and turns.
+Positions.close_candidates = function ()
+	local nav_mesh = Managers.state and Managers.state.nav_mesh
+	local nav_world = nav_mesh and nav_mesh:nav_world()
+
+	if not nav_world then
+		return nil, "no nav mesh on this level"
+	end
+
+	local unit = Positions.local_player_unit()
+	local ok_position, origin = pcall(function ()
+		return unit and Unit.world_position(unit, 1)
+	end)
+
+	if not ok_position or not origin then
+		return nil, "no living players"
+	end
+
+	local dx, dy = look_direction(unit)
+
+	if not dx then
+		dx, dy = 0, 1
+	end
+
+	for stage = 1, 2 do
+		local near, far = Positions.CLOSE_NEAR, Positions.CLOSE_FAR
+
+		if stage == 2 then
+			near, far = Positions.CLOSE_NEAREST, Positions.CLOSE_NEAR
+		end
+
+		local list = {}
+
+		for _ = 1, 40 do
+			local angle = (math.random() - 0.5) * Positions.CLOSE_ARC
+			local distance = near + math.random() * (far - near)
+			local c, s = math.cos(angle), math.sin(angle)
+			local candidate = origin + Vector3((dx * c - dy * s) * distance, (dx * s + dy * c) * distance, 0)
+			local ok, snapped = pcall(NavQueries.position_on_mesh, nav_world, candidate, 3, 3)
+
+			if ok and snapped then
+				local can_ok, can_go = pcall(NavQueries.ray_can_go, nav_world, origin, snapped, nil, 3, 3)
+
+				if can_ok and can_go then
+					list[#list + 1] = Vector3Box(snapped)
+				end
+			end
+
+			if #list >= 16 then
+				break
+			end
+		end
+
+		if #list > 0 then
+			return list
+		end
+	end
+
+	return nil, "no walkable ground right in front of you (a wall?): turn towards open ground"
+end
+
+-- The rotation that makes a unit at `position` face `unit` (flat), or nil: what appears in front of the player looks at the player.
+Positions.rotation_towards = function (position, unit)
+	local ok, rotation = pcall(function ()
+		local to = Unit.world_position(unit, 1) - position
+		local x, y = to.x, to.y
+		local length = math.sqrt(x * x + y * y)
+
+		if length < 0.01 then
+			return nil
+		end
+
+		return Quaternion.look(Vector3(x / length, y / length, 0))
+	end)
+
+	return ok and rotation or nil
+end
+
 -- Random point within `radius` metres of `position`, on the nav mesh and reachable
 -- in a straight line from `position` (no wall in between). Falls back to `position`.
 -- Uniform over the disc (sqrt of the random radius). Used so a wave does not stack
