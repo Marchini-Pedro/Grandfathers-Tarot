@@ -200,6 +200,8 @@ Ten changes the user asked for in one list. Everything below is implemented and 
 - [x] 100 cards (88 custom slots), the waves message trims instead of failing.
 - [x] A HUD window for the last fulfilled card (own element, synced, option, Custom HUD sample).
 - [x] A cooldown row on every Deck tile (`-` / `+` / number box / hover preview).
+- [x] Merge `main` (PRs #5-#7) into the branch (`56062d3`), resolving one code and three documentation conflicts; `Events.is_empty_slot` keeps the draw cheap with 88 slots.
+- [ ] CI coverage policy on both runtimes: floors for `ui/hud_element_last_card.lua` and `ui/hud_element_last_card_definitions.lua`, `ui/wave_editor_face.lua` at 81.98 percent against 82, the LuaJIT run after the merge ([hand-off](11-handoff-2026-10-03.md)).
 - [ ] GitHub: admin permission for EduardoKenji. NOT done: a personal-account repository has no admin collaborator role and no API credential was available to me (see `07`, open gaps).
 - [ ] The in-game run of rows 114-121; the user's "100 percent working" merges the branch into `main`.
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-03 - Merge `main` (PRs #5, #6, #7) into `feature/heresy-card-and-ui-pass` (`56062d3`)
+- One code conflict (`spawn/execute.lua`: `spawn_one` takes both `appearance` from PR #7 and `face_target` from `/rw_test_close`) and three additive documentation conflicts; the old README bullet about host-local "Weakened" naming is replaced by the exact-health bullet.
+- PR #5's entry test treated slot 21 as the first invalid custom slot; it now uses `CUSTOM_SLOTS + 1` (89) and checks slot 88. The last-card window's allocation probe suspends the coverage line hook like `growth()` does.
+- `Events.is_empty_slot` (two settings) lets the draw (`build_pool`) and the fixed timers (`timed_waves`) skip the empty custom slots instead of reading ~25 settings each, and the slot key strings are built once: with 88 slots the draw, the once-a-second cooldown map and the timers walked all of them. Same results; `logic_test` under the CI runner's coverage hook: 245 s before, 77 s after (main alone: 81 s; the runner's default timeout is 120 s).
+- Open, written in [11-handoff-2026-10-03.md](11-handoff-2026-10-03.md): the coverage policy needs floors for the two new HUD files and `ui/wave_editor_face.lua` is 0.02 percent under its floor; the LuaJIT run of the runner has not been done since the merge.
+
 ## 2026-10-03 - Every card shows its cooldown and changes it in the Deck (`341093e`, branch `feature/heresy-card-and-ui-pass`)
 - Each Deck tile has a cooldown row under the chance pips: `[-] COOLDOWN 2:30 [+]` in the card's own colours. A click takes 30 s (shortest 30 s, longest the "Longest cooldown" option), the value opens the number box, the pointer on a plate previews the new value, a right click opens the card, a plate at its limit is dimmed. Cards with a fixed timer say EVERY and have no plates; the stage card shows the value without plates. The Mirror keeps its stepper and shares `Deck.cooldown_after`.
 - To make room the lower part of the tile moved up 18 units and the composition lost one line (four lines for a one-line name, three for two, two for three). Offline only: layout tests follow the new numbers; hover/click behaviour is in `06` row 121.
