@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-10-03 - Synchronize the Heresy branch with current main
+- Merge main at `1290abc`; preserve the branch features and the accurate merged status of enemy appearance PR #7. Resolve additive README/changelog conflicts. Existing audit fixes remain unstaged. Both baseline behavior suites passed; their coverage failures are recorded for remediation.
+
 ## 2026-10-03 - Merge `main` (PRs #5, #6, #7) into `feature/heresy-card-and-ui-pass` (`56062d3`)
 - One code conflict (`spawn/execute.lua`: `spawn_one` takes both `appearance` from PR #7 and `face_target` from `/rw_test_close`) and three additive documentation conflicts; the old README bullet about host-local "Weakened" naming is replaced by the exact-health bullet.
 - PR #5's entry test treated slot 21 as the first invalid custom slot; it now uses `CUSTOM_SLOTS + 1` (89) and checks slot 88. The last-card window's allocation probe suspends the coverage line hook like `growth()` does.
@@ -35,6 +38,9 @@
 ## 2026-10-03 - Custom health is exact and the game's "Weakened" name is back (`d8e57bf`)
 - `MinionSpawnManager.spawn_minion` adds the Havoc / mission health modifier to the custom health spawn parameter, and mods such as Ultra Havoc rewrite that modifier, so a boss set to 50 percent was 50 percent plus Havoc's share. `Tuning.set_exact_health` now sets maximum health to exactly normal health x the player's percent right after the spawn (the extension's `_health` and the game object's `health` field) and re-reads the boss's weakened mark.
 - The workaround that cleared the mark and hooked the boss health bar (`b5a41c5`) is removed: a boss with less than its normal health is "Weakened" again, the game's own word.
+## 2026-10-03 - Record PR #7 merge status
+- Record GitHub's PR #7 merge by `EduardoKenji` at `c7cf1da` and refresh local main after final PR/push checks pass on Lua 5.5 and LuaJIT 2.1.
+- Correct current open/unmerged guidance in the README, index, method guide, plan and CI log; preserve historical publication records and pending native acceptance. This is a documentation-only follow-up with size/whitespace checks; runtime, tests and workflow match the verified PR head.
 
 ## 2026-10-03 - Record enemy appearance PR publication
 - Push `feature/enemy-appearance` and open [PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7) against main after PRs #5 and #6, as requested. Record the publication in the README, index, method guide, plan and verification log.

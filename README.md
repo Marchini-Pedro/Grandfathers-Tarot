@@ -11,7 +11,7 @@ random selection and player voting. No Twitch service is required.
 > The open branch `feature/heresy-card-and-ui-pass` (exact custom health, the HERESY suit, 100 cards,
 > a last-card window, cooldowns on the Deck tiles, `/rw_test_close`, card-coloured pages) has offline
 > tests only: it is not merged and nothing of it has been played yet.
-> Enemy colour experiments are available in [PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7) for testing;
+> Enemy colour experiments are merged through [PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7);
 > see the [methods and remaining prerequisites](docs/enemy-appearance.md).
 
 ## Features

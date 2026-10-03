@@ -3,10 +3,11 @@
 Implemented on `feature/enemy-appearance`, in its own worktree, originally based
 on `main` at `6d5756d` and synchronized with `06c2b3a` after PRs #5 and #6.
 This preserves the separate CI/coverage checkout. Offline validation is complete;
-native rendering and multiplayer acceptance are pending. The feature has not
-been merged into `main` or installed. CI and its publication documentation are
-already on `main`; the appearance branch is pushed and open as
-[PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7).
+native rendering and multiplayer acceptance are pending. GitHub records
+[PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7) as merged by
+`EduardoKenji` at `c7cf1da` on 2026-10-03, after both final hosted runtime checks
+passed. Local main is synchronized with that merge. Installed mods were not
+changed during this work session; the merge does not establish game acceptance.
 
 The preceding [research findings](research/enemy-appearance/findings.md) and
 [experiment plan](research/enemy-appearance/experiments-and-recommendation.md)
@@ -146,5 +147,5 @@ Live acceptance must compare untreated and treated groups of the same breed:
   frame time/RAM at realistic enemy counts.
 
 Full-body surface recolouring and private material/shader patching remain
-unimplemented until the prerequisites above are actually verified. Merge into
-`main` remains gated on the user's in-game confirmation under `CLAUDE.md`.
+unimplemented until the prerequisites above are actually verified. The live
+checklist remains open after the GitHub merge; no in-game confirmation is recorded.

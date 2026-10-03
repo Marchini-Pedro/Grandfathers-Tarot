@@ -1,5 +1,16 @@
 # 06. Verification, risks, open issues
 
+## 2026-10-03 - Record PR #7 merge and refresh main
+
+The [final hosted PR run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37155424490)
+at `4782cfb` and its push run pass both runtimes. GitHub then records PR #7
+merged by `EduardoKenji` at `c7cf1da`, 21:35:06 UTC. Fetch and fast-forward
+local main in its dedicated worktree; preserve the other agent's checkout.
+Update current merge status in the README, index, method guide, plan and CI log.
+The runtime/tests/workflow match the verified PR head; this follow-up changes
+documentation only, checked with the size checker and `git diff --check`.
+Native rendering, multiplayer, performance and installation remain unverified.
+
 ## 2026-10-03 - Publish enemy appearance PR #7
 
 Push `feature/enemy-appearance` at `0103281` and open
@@ -342,3 +353,5 @@ Final validation (2026-10-03): all six tools pass on both Lua 5.5 and LuaJIT 2.1
 - 2026-10-03: added the dual-runtime GitHub workflow and fail-closed coverage runner. Compilation (30 inputs), 1,826 behavior assertions and 11 gate/runner contracts pass per runtime (1,837 total). Scores reach 81.56% on Lua 5.5 and 78.30% on LuaJIT against 12,947 eligible source lines; overall floor is 78%, with explicit floors for all 29 Lua modules. Standalone verification and uninstrumented suites pass. Artifacts and the [coverage review](10-ci-and-coverage.md) record exact limits. Hosted runs await publication; required checks need owner configuration because this identity still has Write access without admin/maintain permission. No native/game acceptance claim.
 
 - 2026-10-03: at the user's request, pushed `feature/ci-coverage` and opened [PR #5](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/5) against `main`, including owner-side required-check instructions. The [first hosted PR run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37153728118) at `fd56262` succeeds on both Ubuntu/Python 3.13 jobs. Downloaded reports confirm 1,837 assertions per runtime, 10,560 / 10,138 covered lines out of 12,947 (81.56% / 78.30%), and no coverage failures. GitHub reports the user (`EduardoKenji`) merged PR #5 at `03785e3` while publication notes were being prepared; the [first main run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37153916183) passes both jobs. Synchronized local `main` and prepared these notes on `feature/ci-publication-docs`. Markdown sizes and Git whitespace checks pass. Production Lua is unchanged; no repository settings were changed. Required checks and in-game acceptance remain separate pending work.
+
+- 2026-10-03: resumed `feature/heresy-card-and-ui-pass` at `a95ee8b` in an isolated worktree; preserved old checkouts. Full baseline runners pass all behavior checks (2,092 assertions each: appearance 79, coverage 11, editor 754, entry 72, HUD 217, logic 905, positions 35, protocol 19; 34 Lua inputs). Coverage gates fail: unassigned last-card modules, Face 81.98/82, and additionally LuaJIT editor definitions 77.98/79. Baseline scores: Lua 5.5 81.93%, LuaJIT 78.70%. Merge documentation-only main `1290abc`, retaining all feature history; no game testing or main merge.

@@ -1,5 +1,14 @@
 # Learnings, dead ends and open gaps
 
+## 2026-10-03 - PR #7 merged during verification
+
+The final check refresh found PR #7 already merged on GitHub. The REST merge
+record identifies `EduardoKenji`, `c7cf1da` and 21:35:06 UTC; the agent's actions
+were PR creation/editing and read/fetch/pull, not a feature merge command.
+Refresh local main and correct current "open/unmerged" guidance. Keep dated
+publication records as history and keep game acceptance pending: a GitHub
+merge is not evidence that native rendering or multiplayer was tested.
+
 ## 2026-10-03 - Synchronizing the appearance PR
 
 - Push `feature/enemy-appearance` and open PR #7 with the authenticated account's
@@ -221,3 +230,5 @@ Things we know are missing or unverified, each with the next concrete step.
 - 2026-10-03: first hosted Ubuntu/Python 3.13 PR verification passes both VMs with 1,837 assertions each. Downloaded artifacts reproduce the Windows standalone source-line scores exactly (81.56% Lua 5.5 / 78.30% LuaJIT), so the initial floors need no operating-system adjustment. Successful runtime jobs also upload usable logs/JSON with the read-only workflow token; collaborator admin permission is unnecessary for this CI execution.
 
 - 2026-10-03: PR #5 was merged by EduardoKenji and its branch deleted while publication notes were being prepared. Pushing those notes consequently recreated the original branch instead of updating the merged PR. Rechecked PR state and origin, synchronized local main and moved the notes onto a separate documentation branch from `03785e3`. The first main workflow also passes both VMs. Recheck PR/branch state around final metadata updates when another collaborator is active; publication and merge can happen concurrently.
+
+- 2026-10-03: continuation baseline adds a fourth failure omitted from the hand-off: LuaJIT source-line coverage of editor definitions is 77.98% against 79. These proxies count declarations and differ across VMs; distinguish changed denominators from lost behavior checks. The installed mod is an older non-Git copy, while the requested branch is remote; use a dedicated worktree. CLI string quoting stripped quotes in a Python `-c` command; use script files or PowerShell JSON parsing. Scratch substitution scripts failed before writing when an expected comment differed; match inspected text. Small-limit trimming initially fitted two cards at 300 bytes; reduce the regression fixture to 50 bytes to exercise a truly unshareable first card.
