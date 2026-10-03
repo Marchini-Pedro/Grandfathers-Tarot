@@ -196,6 +196,17 @@ Deck.state = function (card, remaining)
 	return "in"
 end
 
+-- The cooldown of a card changes in steps of 30 seconds (the shortest cooldown is one step, the longest is the "Longest cooldown"
+-- option): the value after `delta` steps (-1, 1, ...) from `seconds`, on the 30 s grid and kept between one step and `longest`.
+Deck.COOLDOWN_STEP = 30
+
+Deck.cooldown_after = function (seconds, delta, longest)
+	local step = Deck.COOLDOWN_STEP
+	local value = floor((tonumber(seconds) or step) / step + 0.5) * step + (tonumber(delta) or 0) * step
+
+	return max(step, min(tonumber(longest) or value, value))
+end
+
 Deck.clock_text = function (seconds)
 	seconds = max(0, ceil(seconds or 0))
 
@@ -209,14 +220,15 @@ Deck.COMP_CHARS = 26 -- visible characters of a composition line
 -- are in the tile's units: the name starts at NAME_Y, a line of it is NAME_LINE high, the composition ends at COMP_BOTTOM
 -- (the modifier line follows), a line of it is COMP_LINE high.
 Deck.NAME_Y, Deck.NAME_LINE = 38, 24
-Deck.COMP_LINE, Deck.COMP_BOTTOM = 17, 164
+Deck.COMP_LINE, Deck.COMP_BOTTOM = 17, 146 -- (164 before the cooldown row came in: the composition gives up one line for it)
 
--- { divider_y, comp_y, comp_lines, comp_h } of a tile whose name takes `name_lines` lines: 5, 4 or 2 composition lines
+-- { divider_y, comp_y, comp_lines, comp_h } of a tile whose name takes `name_lines` lines: 4, 3 or 2 composition lines
 Deck.layout = function (name_lines)
 	local lines = max(1, min(3, floor(tonumber(name_lines) or 1)))
 	local divider = Deck.NAME_Y + lines * Deck.NAME_LINE + 2
 	local comp_y = divider + 7
-	local comp_lines = max(1, floor((Deck.COMP_BOTTOM - comp_y) / Deck.COMP_LINE))
+	-- (a three line name keeps two lines of room even though the second one reaches into the modifier line a little)
+	local comp_lines = max(2, floor((Deck.COMP_BOTTOM - comp_y) / Deck.COMP_LINE))
 
 	return { divider_y = divider, comp_y = comp_y, comp_lines = comp_lines, comp_h = comp_lines * Deck.COMP_LINE }
 end

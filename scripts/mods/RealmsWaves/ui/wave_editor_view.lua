@@ -376,6 +376,14 @@ RealmsWavesView._create_editor_widgets = function (self)
 			hotspot.pressed_callback, hotspot.double_click_callback, hotspot.right_pressed_callback = set, set, edit
 		end
 
+		-- the cooldown row: the minus and the plus take a step (a fast second click repeats it), the value opens a number box, a
+		-- right click anywhere on it opens the card like on the pips
+		local less, more = callback(self, "cb_tile_cooldown", i, -1), callback(self, "cb_tile_cooldown", i, 1)
+
+		content.hotspot_cd_minus.pressed_callback, content.hotspot_cd_minus.double_click_callback, content.hotspot_cd_minus.right_pressed_callback = less, less, edit
+		content.hotspot_cd_plus.pressed_callback, content.hotspot_cd_plus.double_click_callback, content.hotspot_cd_plus.right_pressed_callback = more, more, edit
+		content.hotspot_cd_value.pressed_callback, content.hotspot_cd_value.right_pressed_callback = callback(self, "cb_tile_cooldown_input", i), edit
+
 		widget.visible = false
 	end
 
@@ -1290,9 +1298,11 @@ DeckView.install(RealmsWavesView, {
 	BLANK_NAME = BLANK_NAME,
 	guarded = guarded,
 	set_setting = set_setting,
+	Popup = Popup,
 })
 
 FaceView.install(RealmsWavesView, {
+	Deck = Deck,
 	guarded = guarded,
 	set_setting = set_setting,
 	Popup = Popup,

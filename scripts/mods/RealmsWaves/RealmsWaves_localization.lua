@@ -180,6 +180,8 @@ return {
 	tile_cooling = { en = "Back in" },
 	tile_ready = { en = "Ready" },
 	tile_edit = { en = "Edit" },
+	tile_cd = { en = "Cooldown" },
+	tile_cd_every = { en = "Every" },
 	tile_rare = { en = "rare" },
 	tile_repeats = { en = "and it repeats" },
 	tile_more = { en = "+%d more" },

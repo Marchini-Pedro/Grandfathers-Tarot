@@ -115,9 +115,7 @@ FaceView.install = function (View, h)
 
 	-- the cooldown stepper (30 s steps, between 30 s and the longest cooldown option) and its number box
 	View.cb_cooldown_step = guarded(function (self, delta)
-		local value = math.floor(self._wave.cooldown / COOLDOWN_STEP + 0.5) * COOLDOWN_STEP + delta * COOLDOWN_STEP
-
-		set_setting("cd_" .. key_of(self), math.max(COOLDOWN_STEP, math.min(self:_longest_cooldown(), value)))
+		set_setting("cd_" .. key_of(self), h.Deck.cooldown_after(self._wave.cooldown, delta, self:_longest_cooldown()))
 		changed(self)
 	end)
 

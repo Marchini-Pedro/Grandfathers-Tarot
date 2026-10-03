@@ -63,7 +63,7 @@ DeckView.install = function (View, h)
 	local Deck, Spread, T, IDS = h.Deck, h.Spread, h.TILE, h.TILE_IDS
 	local guarded, set_setting = h.guarded, h.set_setting
 	local TILE_PREFIX = h.TILE_PREFIX
-	local TILE_HOTSPOTS = { "hotspot_top", "hotspot_state", "hotspot_edit" }
+	local TILE_HOTSPOTS = { "hotspot_top", "hotspot_state", "hotspot_edit", "hotspot_cd_minus", "hotspot_cd_value", "hotspot_cd_plus" }
 
 	for i = 1, Deck.PIPS do
 		TILE_HOTSPOTS[#TILE_HOTSPOTS + 1] = IDS.hotspot_pip[i]
@@ -304,6 +304,73 @@ DeckView.install = function (View, h)
 		end
 	end
 
+	-- The cooldown row of a tile: "COOLDOWN 2:00" and, on the Deck's own tiles, a plate with a minus and a plate with a plus (30 s a
+	-- click, drawn from rectangles like everything on the tile). `hover` is -1 or 1 while the pointer is on the minus or the plus: the
+	-- value then shows what a click would set, in the card's accent, as the pips do. A plate at its limit (30 s, the longest cooldown)
+	-- is dimmed and does nothing. A card with a fixed timer ignores its cooldown: the row says "EVERY 1:00" and has no plates.
+	View._paint_cooldown = function (self, widget, hover)
+		local style, content = widget.style, widget.content
+		local fx = content.fx
+
+		if not fx then
+			return
+		end
+
+		local T = content.metrics or T
+		local k = T.k or 1
+		local timed = (tonumber(fx.wave.timer) or 0) > 0
+		local longest = self:_longest_cooldown()
+		local at_min, at_max = fx.cooldown <= Deck.COOLDOWN_STEP, fx.cooldown >= longest
+
+		hover = hover or 0
+
+		if (hover < 0 and at_min) or (hover > 0 and at_max) then
+			hover = 0
+		end
+
+		fx.cd_hover = hover
+
+		content.cd_label = string.upper(mod:localize(timed and "tile_cd_every" or "tile_cd"))
+		content.cd_value = Deck.clock_text(timed and fx.wave.timer or hover ~= 0 and Deck.cooldown_after(fx.cooldown, hover, longest) or fx.cooldown)
+		style.cd_label.visible, style.cd_value.visible = true, true
+		paint(style.cd_label, 255, fx.muted)
+		paint(style.cd_value, 255, hover ~= 0 and fx.accent or fx.ink)
+
+		local show = content.cd_buttons == true and not timed
+		local bar, thick = 8 * k, math.max(1, 2 * k)
+		local plates = { { "cd_minus_bg", T.cd_minus, -1, at_min }, { "cd_plus_bg", T.cd_plus, 1, at_max } }
+
+		for i = 1, #plates do
+			local id, box, side, limit = plates[i][1], plates[i][2], plates[i][3], plates[i][4]
+			local lit = hover == side
+			local plate = style[id]
+			local cx, cy = box[1] + box[3] / 2, box[2] + box[4] / 2
+
+			plate.visible = show
+			paint(plate, 255, mix(fx.bg, fx.accent, limit and 0.05 or lit and 0.4 or 0.16))
+
+			local glyph_rgb = limit and fx.empty or lit and fx.ink or fx.accent
+
+			local horizontal = style[side < 0 and "cd_minus_h" or "cd_plus_h"]
+
+			horizontal.visible = show
+			horizontal.offset[1], horizontal.offset[2], horizontal.size[1], horizontal.size[2] = cx - bar / 2, cy - thick / 2, bar, thick
+			paint(horizontal, 255, glyph_rgb)
+
+			if side > 0 then
+				local vertical = style.cd_plus_v
+
+				vertical.visible = show
+				vertical.offset[1], vertical.offset[2], vertical.size[1], vertical.size[2] = cx - thick / 2, cy - bar / 2, thick, bar
+				paint(vertical, 255, glyph_rgb)
+			end
+		end
+
+		if not show then
+			style.cd_plus_v.visible = false
+		end
+	end
+
 	-- One card on its tile: the face (suit colours, name, composition, whisper, threat, dots), the chance pips and the
 	-- state line. A card out of the draw is dimmed and drained of colour.
 	View._paint_tile = function (self, widget, wave)
@@ -457,6 +524,10 @@ DeckView.install = function (View, h)
 
 		-- the ten chance pips: filled up to the card's level among the cards of the draw
 		self:_paint_pips(widget, nil)
+
+		-- the cooldown row: what the card rests after its pick, with a minus and a plus on the Deck's own tiles
+		content.cd_buttons = k == 1
+		self:_paint_cooldown(widget, 0)
 
 		-- the state line: what the card does, the clock while it rests, and the Edit pill
 		content.state_left = mod:localize(state == "off" and "tile_off" or state == "cooling" and "tile_cooling" or "tile_in")
@@ -776,7 +847,13 @@ DeckView.install = function (View, h)
 					end
 				end
 
+				-- the pointer on the minus or the plus of the cooldown row: the value shows what a click would set
+				local cd_dir = content.hotspot_cd_minus.is_hover and -1 or content.hotspot_cd_plus.is_hover and 1 or 0
 				local fx = content.fx
+
+				if fx and (fx.cd_hover or 0) ~= cd_dir then
+					self:_paint_cooldown(widget, cd_dir)
+				end
 
 				if fx and fx.edit_hover ~= on_edit then
 					fx.edit_hover = on_edit
@@ -788,7 +865,7 @@ DeckView.install = function (View, h)
 					self:_paint_pips(widget, pip)
 				end
 
-				if content.hotspot_top.is_hover or content.hotspot_state.is_hover or on_edit or pip then
+				if content.hotspot_top.is_hover or content.hotspot_state.is_hover or on_edit or pip or cd_dir ~= 0 or content.hotspot_cd_value.is_hover then
 					hovered, hovered_widget, hovered_pip = content.card_key, widget, pip
 				end
 			end
@@ -1154,6 +1231,38 @@ DeckView.install = function (View, h)
 			set_setting("pct_" .. wave.key, mod.rw.cards.weight_for_level(level))
 			self:_reload()
 			self:_apply_screen(true)
+		end
+	end)
+
+	-- a click on the minus or the plus of a tile's cooldown row: the cooldown changes by 30 seconds (between 30 s and the longest cooldown
+	-- option); a card with a fixed timer ignores its cooldown, so nothing changes there
+	View.cb_tile_cooldown = guarded(function (self, slot, delta)
+		local wave = self._deck[self._offset + slot]
+
+		if self._screen == "list" and wave and not wave.blank and (tonumber(wave.timer) or 0) <= 0 then
+			set_setting("cd_" .. wave.key, Deck.cooldown_after(wave.cooldown, delta, self:_longest_cooldown()))
+			self:_reload()
+			self:_apply_screen(true)
+		end
+	end)
+
+	-- a click on the value: the number box of the cooldown (seconds)
+	View.cb_tile_cooldown_input = guarded(function (self, slot)
+		local wave = self._deck[self._offset + slot]
+
+		if self._screen == "list" and wave and not wave.blank and (tonumber(wave.timer) or 0) <= 0 then
+			local key = wave.key
+
+			h.Popup.open(self, {
+				label = mod:localize("popup_cooldown_title", wave.name),
+				value = tostring(math.floor(wave.cooldown)),
+				numeric = true, min = Deck.COOLDOWN_STEP, max = self:_longest_cooldown(), integer = true,
+				set = function (value)
+					set_setting("cd_" .. key, value)
+					self:_reload()
+					self:_apply_screen(true)
+				end,
+			})
 		end
 	end)
 

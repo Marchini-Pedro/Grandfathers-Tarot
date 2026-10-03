@@ -237,8 +237,8 @@ do
   lines = DM.comp_lines(many, fake_groups, nil, nil, nil, nil, function(n) return "+" .. n .. " more" end)
   check("comp lines: more than four groups: three lines and '+3 more'", #lines == 4 and lines[4] == "+3 more" and lines[1] == "1 Hound", table.concat(lines, "|"))
   local l1, l2, l3 = DM.layout(1), DM.layout(2), DM.layout(3)
-  check("deck math: layout: a one line name leaves room for five lines of enemies, two lines four, three lines two; the divider follows the name", l1.divider_y == 64 and l1.comp_y == 71 and l1.comp_lines == 5 and l1.comp_h == 85 and l2.divider_y == 88 and l2.comp_y == 95 and l2.comp_lines == 4 and l2.comp_h == 68 and l3.divider_y == 112 and l3.comp_lines == 2 and DM.layout(0).comp_lines == 5 and DM.layout(9).comp_lines == 2 and DM.layout(nil).comp_lines == 5)
-  check("deck math: layout: the composition never runs into the modifier line (it ends at 164) and the divider is clear of the name", l1.comp_y + l1.comp_h <= DM.COMP_BOTTOM and l2.comp_y + l2.comp_h <= DM.COMP_BOTTOM and l3.comp_y + l3.comp_h <= DM.COMP_BOTTOM and l1.divider_y >= DM.NAME_Y + DM.NAME_LINE and l2.divider_y >= DM.NAME_Y + 2 * DM.NAME_LINE)
+  check("deck math: layout: a one line name leaves room for four lines of enemies, two lines three, three lines two (the cooldown row took one); the divider follows the name", l1.divider_y == 64 and l1.comp_y == 71 and l1.comp_lines == 4 and l1.comp_h == 68 and l2.divider_y == 88 and l2.comp_y == 95 and l2.comp_lines == 3 and l2.comp_h == 51 and l3.divider_y == 112 and l3.comp_lines == 2 and DM.layout(0).comp_lines == 4 and DM.layout(9).comp_lines == 2 and DM.layout(nil).comp_lines == 4)
+  check("deck math: layout: the composition ends at the modifier line (146; a three line name keeps two lines and may reach 7 units into it, the glyphs stay clear) and the divider is clear of the name", l1.comp_y + l1.comp_h <= DM.COMP_BOTTOM and l2.comp_y + l2.comp_h <= DM.COMP_BOTTOM and l3.comp_y + l3.comp_h <= DM.COMP_BOTTOM + 7 and l1.divider_y >= DM.NAME_Y + DM.NAME_LINE and l2.divider_y >= DM.NAME_Y + 2 * DM.NAME_LINE)
   local more5 = {}
   for i = 1, 6 do more5[i] = { breed = "chaos_hound", count = i } end
   lines = DM.comp_lines(more5, fake_groups, nil, nil, nil, nil, function(n) return "+" .. n .. " more" end, 5)
@@ -289,7 +289,7 @@ check("a tile's hotspots do not overlap (a click would reach two of them)", (fun
     local a, b = boxes[i], boxes[j]
     if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4] then return false end
   end end
-  return #boxes == 13
+  return #boxes == 16
 end)())
 check("the ten pip hotspots are side by side from the left edge of the tile to the right one (no dead strip) and only the pips are quiet when the pointer comes over them", (function()
   local boxes, quiet = {}, 0
@@ -304,9 +304,9 @@ check("the ten pip hotspots are side by side from the left edge of the tile to t
   table.sort(boxes, function(a, b) return a[1] < b[1] end)
   if #boxes ~= 10 or quiet ~= 10 or boxes[1][1] ~= 0 then return false end
   for i = 1, 9 do if math.abs(boxes[i][1] + boxes[i][2] - boxes[i + 1][1]) > 1e-9 then return false end end
-  return math.abs(boxes[10][1] + boxes[10][2] - 228) < 1e-9 and boxes[1][3] == 235 and boxes[1][4] == 14
+  return math.abs(boxes[10][1] + boxes[10][2] - 228) < 1e-9 and boxes[1][3] == 217 and boxes[1][4] == 15
 end)())
-check("every hotspot lies inside the tile; the face stops where the pips start (235) and the pips stop where the state line starts (249)", (function()
+check("every hotspot lies inside the tile; the face stops where the pips start (217), the pips where the cooldown row starts (232) and the row where the state line starts (249)", (function()
   for _, p in ipairs(tile(1).def.passes) do
     if p.pass_type == "hotspot" then
       local x, y, w, h = p.style.offset[1], p.style.offset[2], p.style.size[1], p.style.size[2]
@@ -314,7 +314,8 @@ check("every hotspot lies inside the tile; the face stops where the pips start (
     end
   end
   local top, state = pass_by_style(tile(1), "hotspot_top").style, pass_by_style(tile(1), "hotspot_state").style
-  return top.offset[2] + top.size[2] == 235 and state.offset[2] == 249
+  local minus, value, plus = pass_by_style(tile(1), "hotspot_cd_minus").style, pass_by_style(tile(1), "hotspot_cd_value").style, pass_by_style(tile(1), "hotspot_cd_plus").style
+  return top.offset[2] + top.size[2] == 217 and state.offset[2] == 249 and minus.offset[2] == 232 and minus.offset[2] + minus.size[2] == 249 and minus.offset[1] == 0 and minus.offset[1] + minus.size[1] == value.offset[1] and value.offset[1] + value.size[1] == plus.offset[1] and plus.offset[1] + plus.size[1] == 228
 end)())
 -- every widget: every visibility/change function runs without error under engine semantics
 local bad = {}
@@ -401,6 +402,122 @@ view:_reload(); view:_apply_screen()
 check("heresy: rare and Heresy together: the frame stays blood red (not pus yellow) and the label says both", tile(5).style.border_t.color[2] == 0xa3 and tile(5).content.suit_label:find("HERESY", 1, true) ~= nil and tile(5).content.suit_label:find("TILE_RARE", 1, true) ~= nil and tile(5).style.glow.color[2] == 0xa3)
 settings.su_boss_ambush = nil; settings.pct_boss_ambush = nil
 view:_reload(); view:_apply_screen()
+
+-- the cooldown row of a tile: the value, the minus and the plus, the number box ------------------------------------------------------
+do
+  local inp = { get = function() return nil end, is_null_service = function() return false end }
+  local function upd() view:update(0.01, 0, inp) end
+  local function reload() view:_reload(); view:_apply_screen() end
+  local function near(a, b) return math.abs(a - b) < 1e-6 end
+  local W = view._widgets_by_name
+  local PPc = dofile(BASE .. "/ui/wave_editor_components.lua")
+  local function type_in(text) view._widgets_by_name.rw_popup_input.content.input_text = text; view:update(0.01, 0, inp) end
+  local DMc = dofile(BASE .. "/ui/deck.lua")
+  settings.tarot_longest = nil
+
+  -- the arithmetic (shared with the Mirror's stepper)
+  check("cooldown math: steps of 30 s from the grid, and from a value off the grid (95 -> 90 + 30 = 120, 100 - 30 = 60), never below 30 and never above the longest", DMc.cooldown_after(120, 1, 600) == 150 and DMc.cooldown_after(120, -1, 600) == 90 and DMc.cooldown_after(95, 1, 600) == 120 and DMc.cooldown_after(100, -1, 600) == 60 and DMc.cooldown_after(30, -1, 600) == 30 and DMc.cooldown_after(600, 1, 600) == 600 and DMc.cooldown_after(590, 1, 600) == 600 and DMc.cooldown_after(120, 3, 600) == 210 and DMc.cooldown_after(nil, 1, 600) == 60 and DMc.cooldown_after(120, 1, 100) == 100 and DMc.cooldown_after(10, -1, 600) == 30)
+
+  -- every tile says it
+  check("cooldown: every tile says what its card rests after the pick (The Fool 2:00, The Pilgrims 2:30, The Throng 4:00) under the label", tile(1).content.cd_value == "2:00" and tile(2).content.cd_value == "2:30" and tile(4).content.cd_value == "4:00" and tile(1).content.cd_label == "TILE_CD", tile(1).content.cd_value)
+  check("cooldown: the Deck's tiles carry the minus and the plus plates with their glyphs, in the card's own colours (swarm: ash green), and the value", tile(1).style.cd_minus_bg.visible and tile(1).style.cd_plus_bg.visible and tile(1).style.cd_minus_h.visible and tile(1).style.cd_plus_h.visible and tile(1).style.cd_plus_v.visible and tile(1).style.cd_value.visible and tile(1).style.cd_label.visible and tile(1).style.cd_plus_h.color[2] == 0x9a and tile(1).style.cd_plus_h.color[3] == 0xa3 and tile(1).style.cd_value.text_color[2] == 0xd9)
+  local mh, ph, pv = tile(1).style.cd_minus_h, tile(1).style.cd_plus_h, tile(1).style.cd_plus_v
+  check("cooldown: the glyphs are centred on their plates (a minus 8 x 2; a plus two bars, 8 x 2 and 2 x 8); the plates fill the row (24 x 15)", near(mh.offset[1] + mh.size[1] / 2, 26) and near(mh.offset[2] + mh.size[2] / 2, 240.5) and mh.size[1] == 8 and mh.size[2] == 2 and near(ph.offset[1] + ph.size[1] / 2, 202) and near(pv.offset[2] + pv.size[2] / 2, 240.5) and pv.size[1] == 2 and pv.size[2] == 8 and tile(1).style.cd_minus_bg.size[1] == 24 and tile(1).style.cd_minus_bg.size[2] == 15)
+  check("cooldown: the row sits under the pips and above the state line, the label and the value between the plates", tile(1).style.cd_label.offset[1] >= 38 and tile(1).style.cd_value.offset[1] + tile(1).style.cd_value.size[1] <= 190 and tile(1).style.cd_label.offset[2] >= tile(1).style.pip_1.offset[2] + tile(1).style.pip_1.size[2] and tile(1).style.cd_label.offset[2] + tile(1).style.cd_label.size[2] <= tile(1).style.state_left.offset[2])
+
+  -- the plus, the minus
+  click_tile(1, "hotspot_cd_plus")
+  check("cooldown: a click on the plus adds 30 seconds, saved for the card, and the tile shows it at once", settings.cd_wave_small == 150 and tile(1).content.cd_value == "2:30" and tile(1).content.name == "The Fool", tostring(settings.cd_wave_small))
+  click_tile(1, "hotspot_cd_minus"); click_tile(1, "hotspot_cd_minus")
+  check("cooldown: the minus takes 30 away (two clicks: 1:30)", settings.cd_wave_small == 90 and tile(1).content.cd_value == "1:30")
+  for _ = 1, 10 do click_tile(1, "hotspot_cd_minus") end
+  check("cooldown: never below 30 seconds, and the minus is dimmed there (its plate and glyph take the empty colour)", settings.cd_wave_small == 30 and tile(1).content.cd_value == "0:30" and tile(1).style.cd_minus_h.color[2] == tile(1).content.fx.empty[1] and tile(1).style.cd_plus_h.color[2] == 0x9a)
+  for _ = 1, 40 do click_tile(1, "hotspot_cd_plus") end
+  check("cooldown: never above the longest cooldown option (10 minutes by default), and the plus is dimmed there", settings.cd_wave_small == 600 and tile(1).content.cd_value == "10:00" and tile(1).style.cd_plus_h.color[2] == tile(1).content.fx.empty[1] and tile(1).style.cd_minus_h.color[2] == 0x9a)
+  settings.tarot_longest = 4; reload()
+  click_tile(1, "hotspot_cd_plus")
+  check("cooldown: the limit follows the 'Longest cooldown' option (4 minutes: a longer value is brought back by the next click)", settings.cd_wave_small == 240 and tile(1).content.cd_value == "4:00", tostring(settings.cd_wave_small))
+  settings.tarot_longest = nil
+  settings.cd_wave_small = 95; reload()
+  click_tile(1, "hotspot_cd_plus")
+  check("cooldown: a value off the 30 s grid (95) is brought to the grid first (90 + 30 = 120)", settings.cd_wave_small == 120, tostring(settings.cd_wave_small))
+  settings.cd_wave_small = nil; reload()
+  check("cooldown: a card with no cooldown of its own shows its default (The Fool 2:00)", tile(1).content.cd_value == "2:00")
+
+  -- the pointer on the plus or the minus: the value shows what a click would set, in the accent; going away restores it
+  tile(1).content.hotspot_cd_plus.is_hover = true; upd()
+  check("cooldown: with the pointer on the plus the value shows 2:30 (what a click would set) in the card's accent, the plate is lit, and the caption names the card", tile(1).content.cd_value == "2:30" and tile(1).content.fx.cd_hover == 1 and tile(1).style.cd_value.text_color[2] == 0x9a and view._deck_hover == "wave_small" and D.deck_hover.content.deck_hover == tile(1).content.name and tile(1).style.cd_plus_bg.color[2] > tile(1).style.cd_minus_bg.color[2])
+  tile(1).content.hotspot_cd_plus.is_hover = false; upd()
+  check("cooldown: ...and it goes back to 2:00 in the bone colour when the pointer leaves", tile(1).content.cd_value == "2:00" and tile(1).content.fx.cd_hover == 0 and tile(1).style.cd_value.text_color[2] == 0xd9 and view._deck_hover == nil, tostring(view._deck_hover))
+  tile(1).content.hotspot_cd_minus.is_hover = true; upd()
+  check("cooldown: the minus shows 1:30", tile(1).content.cd_value == "1:30" and tile(1).content.fx.cd_hover == -1)
+  tile(1).content.hotspot_cd_minus.is_hover = false; upd()
+  settings.cd_wave_small = 30; reload()
+  tile(1).content.hotspot_cd_minus.is_hover = true; upd()
+  check("cooldown: at the limit nothing is previewed (the minus at 30 s shows 0:30 and does not light)", tile(1).content.cd_value == "0:30" and tile(1).content.fx.cd_hover == 0)
+  tile(1).content.hotspot_cd_minus.is_hover = false; upd()
+  settings.cd_wave_small = nil; reload()
+
+  -- the value: a number box
+  click_tile(1, "hotspot_cd_value")
+  check("cooldown: clicking the value opens a number box with the cooldown in seconds (30 to the longest), titled with the card", view._popup ~= nil and view._popup.spec.min == 30 and view._popup.spec.max == 600 and view._popup.spec.value == "120" and view._popup.spec.label == "popup_cooldown_title:The Fool")
+  type_in("5000"); PPc.Popup.commit(view)
+  check("cooldown: more than the longest is refused and the box stays open", view._popup ~= nil and view._popup.error ~= nil and settings.cd_wave_small == nil)
+  type_in("200"); PPc.Popup.commit(view)
+  check("cooldown: 200 seconds is accepted (any whole number of seconds, not only the 30 s grid): saved and shown", view._popup == nil and settings.cd_wave_small == 200 and tile(1).content.cd_value == "3:20", tostring(settings.cd_wave_small))
+  settings.cd_wave_small = nil; reload()
+
+  -- a right click on the row opens the card, like on the pips
+  tile(1).content.hotspot_cd_plus.right_pressed_callback()
+  check("cooldown: a right click on the plus opens the card's own screen (as on the pips and the pill)", view._screen == "detail" and view._key == "wave_small" and settings.cd_wave_small == nil)
+  view:cb_back()
+  tile(1).content.hotspot_cd_value.right_pressed_callback()
+  check("cooldown: ...and on the value", view._screen == "detail")
+  view:cb_back()
+
+  -- a card out of the draw can still be set; a resting card shows its cooldown (not what is left), a card with a fixed timer has no cooldown to set
+  settings.on_wave_medium = false; reload()
+  click_tile(2, "hotspot_cd_plus")
+  check("cooldown: a card that is out of the draw can be set too (The Pilgrims 2:30 -> 3:00)", settings.cd_wave_medium == 180 and tile(2).content.cd_value == "3:00")
+  settings.on_wave_medium = nil; settings.cd_wave_medium = nil
+  mod.rw.director = { cooldown_remaining = function(key, length) return key == "wave_large" and 75 or 0 end }
+  reload()
+  check("cooldown: a resting card (The Procession, 1:15 left) shows its whole cooldown (2:30) in the row and the time left in the state line", tile(3).content.cd_value == "2:30" and tile(3).content.state_clock == "1:15" and tile(3).content.card_state == "cooling")
+  click_tile(3, "hotspot_cd_minus")
+  check("cooldown: ...and it can be changed while it rests (the new cooldown counts from the next pick)", settings.cd_wave_large == 120 and tile(3).content.cd_value == "2:00" and tile(3).content.state_clock == "1:15")
+  settings.cd_wave_large = nil
+  mod.rw.director = nil
+  settings.ev_wave_small = 60; reload()
+  check("cooldown: a card with a fixed timer ignores its cooldown: the row says EVERY 1:00 and has no plates", tile(1).content.cd_label == "TILE_CD_EVERY" and tile(1).content.cd_value == "1:00" and not tile(1).style.cd_minus_bg.visible and not tile(1).style.cd_plus_bg.visible and not tile(1).style.cd_plus_v.visible and not tile(1).style.cd_minus_h.visible)
+  click_tile(1, "hotspot_cd_plus"); click_tile(1, "hotspot_cd_value")
+  check("cooldown: ...and a click there changes nothing and opens nothing", settings.cd_wave_small == nil and view._popup == nil)
+  settings.ev_wave_small = nil; reload()
+
+  -- the page of the Deck: the tile in a slot is the card of that place, whatever the offset
+  for i = 1, 14 do settings["wave_def_custom_" .. i] = "Extra " .. i .. "\t1 hound"; settings["on_custom_" .. i] = true end
+  view._offset = 7; view:_reload(); view:_apply_screen(true)
+  local seventh = view._deck[view._offset + 1]
+  click_tile(1, "hotspot_cd_plus")
+  check("cooldown: on a scrolled Deck the plus of the first tile belongs to the card in that place (the eighth)", settings["cd_" .. seventh.key] ~= nil and seventh.key ~= "wave_small" and settings.cd_wave_small == nil, seventh.key)
+  settings["cd_" .. seventh.key] = nil
+  for i = 1, 14 do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil end
+  view._offset = 0; reload()
+
+  -- the stage card of the Cauldron shows the value, without the plates, and its click areas are off
+  view:_open_detail("wave_small")
+  local stage = W.rw_stage_card
+  check("cooldown: the card on the stage shows the cooldown (2:00) but not the plates, and its cooldown click areas are off", stage.content.cd_value == "2:00" and stage.visible and not stage.style.cd_minus_bg.visible and not stage.style.cd_plus_bg.visible and not stage.style.cd_plus_v.visible and stage.content.hotspot_cd_plus.disabled == true and stage.content.hotspot_cd_minus.disabled == true and stage.content.hotspot_cd_value.disabled == true)
+  view:cb_back()
+  check("cooldown: back on the Deck the plates and the value are there again", view._screen == "list" and tile(1).style.cd_minus_bg.visible and tile(1).content.cd_value == "2:00")
+
+  -- the engine runs the hotspots of the row; they are disabled with the others while a popup is open
+  check("engine rule: the hotspots of the cooldown row run (hover and click work)", hotspot_runs(tile(1), "hotspot_cd_minus") and hotspot_runs(tile(1), "hotspot_cd_value") and hotspot_runs(tile(1), "hotspot_cd_plus"))
+  click_tile(1, "hotspot_cd_value")
+  check("cooldown: while the number box is open the tiles' cooldown click areas are off", view._popup ~= nil and tile(1).content.hotspot_cd_plus.disabled == true and tile(1).content.hotspot_cd_value.disabled == true)
+  PPc.Popup.cancel(view)
+  check("cooldown: ...and on again when it closes", view._popup == nil and tile(1).content.hotspot_cd_plus.disabled ~= true)
+  settings.cd_wave_small = nil
+end
 
 -- the chance pips: the chance itself (1 to 10), clickable -------------------------------------------------------------
 do
@@ -520,7 +637,7 @@ do
   check("name lines: without a renderer the number of lines is estimated from the letters (The Fool: 1 line, divider 64)", view._ui_renderer == nil and tile(1).style.divider.offset[2] == 64)
   view._ui_renderer = { per_line = 8 }
   reload()
-  check("name lines: with a renderer the game's measuring decides: The Fool (8 letters) one line, The Pilgrims (12) two lines, a long name three at most", tile(1).style.divider.offset[2] == 64 and tile(2).style.divider.offset[2] == 88 and tile(2).style.comp.size[2] == 68 and tile(5).style.divider.offset[2] == 88, tostring(tile(2).style.divider.offset[2]))
+  check("name lines: with a renderer the game's measuring decides: The Fool (8 letters) one line, The Pilgrims (12) two lines, a long name three at most", tile(1).style.divider.offset[2] == 64 and tile(2).style.divider.offset[2] == 88 and tile(2).style.comp.size[2] == 51 and tile(5).style.divider.offset[2] == 88, tostring(tile(2).style.divider.offset[2]))
   settings.wave_def_custom_1 = "A Name That Is Very Long Indeed\t3 hounds"; settings.on_custom_1 = true
   reload()
   check("name lines: three lines at most, the composition keeps two lines of room", tile(13).style.divider.offset[2] == 112 and tile(13).style.comp.size[2] == 34, tostring(tile(13).style.divider.offset[2]))
@@ -554,16 +671,18 @@ do
   check("state line: the left text and the clock end before the pill starts", tile(1).style.state_left.offset[1] + tile(1).style.state_left.size[1] <= 168 and tile(1).style.state_clock.offset[1] + tile(1).style.state_clock.size[1] <= 168)
 
   -- under the name: the divider and the composition follow it
-  check("layout: a one line name (The Fool): the divider is at 64, the composition from 71 with room for five lines", tile(1).style.divider.offset[2] == 64 and tile(1).style.comp.offset[2] == 71 and tile(1).style.comp.size[2] == 85, tostring(tile(1).style.divider.offset[2]))
+  check("layout: a one line name (The Fool): the divider is at 64, the composition from 71 with room for four lines", tile(1).style.divider.offset[2] == 64 and tile(1).style.comp.offset[2] == 71 and tile(1).style.comp.size[2] == 68, tostring(tile(1).style.divider.offset[2]))
   settings.wave_def_custom_1 = "The Endless Plague Ritual\t8 poxwalker"; settings.on_custom_1 = true; reload()
-  check("layout: a two line name pushes them down: divider 88, composition from 95 with room for four lines", tile(13).content.name == "The Endless Plague Ritual" and tile(13).style.divider.offset[2] == 88 and tile(13).style.comp.offset[2] == 95 and tile(13).style.comp.size[2] == 68, tostring(tile(13).style.divider.offset[2]))
+  check("layout: a two line name pushes them down: divider 88, composition from 95 with room for three lines", tile(13).content.name == "The Endless Plague Ritual" and tile(13).style.divider.offset[2] == 88 and tile(13).style.comp.offset[2] == 95 and tile(13).style.comp.size[2] == 51, tostring(tile(13).style.divider.offset[2]))
+  settings.wave_def_custom_1 = "Four\t1 hound, 2 poxwalker, 3 mauler, 4 crusher"; reload()
+  check("layout: four groups on a one line name all fit (four lines, no '+N more')", lines_of(tile(13).content.comp) == 4 and not tile(13).content.comp:find("tile_more", 1, true), tile(13).content.comp)
   settings.wave_def_custom_1 = "Five\t1 hound, 2 poxwalker, 3 mauler, 4 crusher, 5 sniper"; reload()
-  check("layout: five groups on a one line name all fit (five lines, no '+N more')", lines_of(tile(13).content.comp) == 5 and not tile(13).content.comp:find("tile_more", 1, true), tile(13).content.comp)
+  check("layout: five groups on a one line name show three and '+2 more' on four lines", lines_of(tile(13).content.comp) == 4 and tile(13).content.comp:find("tile_more:2", 1, true) ~= nil, tile(13).content.comp)
   settings.wave_def_custom_1 = "Six\t1 hound, 2 poxwalker, 3 mauler, 4 crusher, 5 sniper, 6 rifleman"; reload()
-  check("layout: six groups show four and '+2 more' on five lines", lines_of(tile(13).content.comp) == 5 and tile(13).content.comp:find("tile_more:2", 1, true) ~= nil, tile(13).content.comp)
+  check("layout: six groups show three and '+3 more' on four lines", lines_of(tile(13).content.comp) == 4 and tile(13).content.comp:find("tile_more:3", 1, true) ~= nil, tile(13).content.comp)
   settings.wave_def_custom_1 = "The Endless Plague Ritual\t1 hound, 2 poxwalker, 3 mauler, 4 crusher, 5 sniper"; reload()
-  check("layout: five groups on a two line name show three and '+2 more' on four lines", lines_of(tile(13).content.comp) == 4 and tile(13).content.comp:find("tile_more:2", 1, true) ~= nil, tile(13).content.comp)
-  check("layout: the composition ends above the modifier line and the whisper (comp_y + room <= 164 < whisper 184)", tile(13).style.comp.offset[2] + tile(13).style.comp.size[2] <= 164 and tile(13).style.mods.offset[2] >= 164 and tile(13).style.whisper.offset[2] >= tile(13).style.mods.offset[2] + 16)
+  check("layout: five groups on a two line name show two and '+3 more' on three lines", lines_of(tile(13).content.comp) == 3 and tile(13).content.comp:find("tile_more:3", 1, true) ~= nil, tile(13).content.comp)
+  check("layout: the composition ends above the modifier line and the whisper (comp_y + room <= 146 < mods 148 < whisper 166)", tile(13).style.comp.offset[2] + tile(13).style.comp.size[2] <= 146 and tile(13).style.mods.offset[2] >= 146 and tile(13).style.whisper.offset[2] >= tile(13).style.mods.offset[2] + 16)
 
   -- the modifiers are coloured like Improved Havoc Tags does it
   settings.wave_def_custom_1 = "Rage\t2 mauler[garden+enraged]"; reload()
@@ -2287,7 +2406,7 @@ do
     local a, b = boxes[i], boxes[j]
     if a[1] < b[1] + b[3] - 1e-9 and b[1] < a[1] + a[3] - 1e-9 and a[2] < b[2] + b[4] - 1e-9 and b[2] < a[2] + a[4] - 1e-9 then overlap = true end
   end end
-  check("tile scale: 13 hotspots, the ten pips are side by side from edge to edge of the scaled tile, none overlap", #boxes == 13 and flush and not overlap)
+  check("tile scale: 16 hotspots, the ten pips are side by side from edge to edge of the scaled tile, none overlap", #boxes == 16 and flush and not overlap)
 
   -- the name's lines are measured with the scaled box and font, so a name takes the same number of lines
   local long = "The Magician Of Endless Plague"
@@ -2383,10 +2502,10 @@ do
   -- the shelf adds enemies, and the card follows
   local before = #view._parts
   click_chip("chaos_hound")
-  check("shelf: a click on Hound adds a group of one; the row, the card on the stage and the line under it follow", #view._parts == before + 1 and view._parts[#view._parts].breed == "chaos_hound" and view._parts[#view._parts].count == 1 and plain_lines(stage):find("1 Hound", 1, true) ~= nil and W.stage_stats.content.stage_stats:find("^stage_stats:3,10,") ~= nil and settings.wave_def_custom_1:find("1 hound", 1, true) ~= nil, W.stage_stats.content.stage_stats)
+  check("shelf: a click on Hound adds a group of one; the row, the card on the stage and the line under it follow", #view._parts == before + 1 and view._parts[#view._parts].breed == "chaos_hound" and view._parts[#view._parts].count == 1 and plain_lines(stage):find("tile_more:2", 1, true) ~= nil and W.stage_stats.content.stage_stats:find("^stage_stats:3,10,") ~= nil and settings.wave_def_custom_1:find("1 hound", 1, true) ~= nil, W.stage_stats.content.stage_stats)
   check("shelf: the chip is lit now that the card has that enemy; the others are not", W["rw_chip_" .. chip_of("chaos_hound")].content.hotspot_on == true and W["rw_chip_" .. chip_of("chaos_spawn")].content.hotspot_on == false)
   click_chip("chaos_hound")
-  check("shelf: a second click makes it two in the same group (no new row)", #view._parts == before + 1 and view._parts[#view._parts].count == 2 and plain_lines(stage):find("2 Hound", 1, true) ~= nil)
+  check("shelf: a second click makes it two in the same group (no new row)", #view._parts == before + 1 and view._parts[#view._parts].count == 2 and plain_lines(stage):find("tile_more:2", 1, true) ~= nil)
   check("shelf: the new group is on the screen (the list scrolled to its last row), the range says 2 - 5 of 5", view._offset == 0 and W.rw_erow_5.visible and plain(W.rw_erow_5.content.row_name) == "2 Hound" and W.list_range.content.list_range == "list_range:1,5,5", W.list_range.content.list_range)
 
   -- Dreg or Scab
