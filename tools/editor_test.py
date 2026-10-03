@@ -374,6 +374,17 @@ settings.pct_boss_ambush = 2
 view:_reload(); view:_apply_screen()
 check("rare: a card with weight 2 or less has the pus-yellow outline and says rare", tile(5).content.suit_label:find("TILE_RARE", 1, true) ~= nil and tile(5).style.border_t.color[2] == 227 and tile(5).style.border_t.color[3] == 207 and tile(5).style.glow.color[1] == 110)
 settings.pct_boss_ambush = nil
+-- HERESY: the crimson frame, the glow that smoulders, the name on the face
+settings.su_boss_ambush = "heresy"
+view:_reload(); view:_apply_screen()
+check("heresy: the tile has the blood-red frame, a glow that smoulders and its name on the face", tile(5).style.border_t.color[2] == 0xa3 and tile(5).style.border_t.color[3] == 0x20 and tile(5).style.glow.visible and tile(5).style.glow.color[1] == 150 and tile(5).style.glow.color[2] == 0xa3 and tile(5).content.suit_label == "HERESY", tile(5).content.suit_label)
+settings.su_boss_ambush = "fester"
+view:_reload(); view:_apply_screen()
+check("heresy: a card saved with the old suit name fester is drawn as Heresy", tile(5).content.suit_label == "HERESY" and tile(5).style.border_t.color[2] == 0xa3)
+settings.su_boss_ambush = "heresy"; settings.pct_boss_ambush = 2
+view:_reload(); view:_apply_screen()
+check("heresy: rare and Heresy together: the frame stays blood red (not pus yellow) and the label says both", tile(5).style.border_t.color[2] == 0xa3 and tile(5).content.suit_label:find("HERESY", 1, true) ~= nil and tile(5).content.suit_label:find("TILE_RARE", 1, true) ~= nil and tile(5).style.glow.color[2] == 0xa3)
+settings.su_boss_ambush = nil; settings.pct_boss_ambush = nil
 view:_reload(); view:_apply_screen()
 
 -- the chance pips: the chance itself (1 to 10), clickable -------------------------------------------------------------
@@ -742,7 +753,10 @@ do
   end)(), tostring(hand.style.hand_bg.size[2]))
   click_plate("rage")
   check("hand: a new suit repaints it (Rage: the bar is rust, the card dark brown); and it is gone when the Cauldron is shown", hand.style.hand_bar.color[2] == 0xc2 and hand.style.hand_bg.color[2] == 0x24)
+  click_plate("heresy")
+  check("hand: Heresy gets its frame in the preview too (two units at 1.5 times = 3, blood red, all four sides); the other suits none", hand.style.hand_edge_t.visible and hand.style.hand_edge_b.visible and hand.style.hand_edge_l.visible and hand.style.hand_edge_r.visible and hand.style.hand_edge_t.size[2] == 3 and hand.style.hand_edge_l.size[1] == 3 and hand.style.hand_edge_t.color[2] == 0xa3 and hand.style.hand_edge_r.offset[1] == hand.style.hand_bg.size[1] - 3 and hand.style.hand_edge_b.offset[2] == hand.style.hand_bg.size[2] - 3)
   click_plate("fateful")
+  check("hand: ...and a suit that is not Heresy hides it again", not hand.style.hand_edge_t.visible and not hand.style.hand_edge_l.visible)
   click("btn_enemies")
   check("hand: ...gone on the Cauldron", not hand.visible and not W.hand_caption.visible)
   click("btn_face")
@@ -871,7 +885,7 @@ do
 
   -- the suits beyond the first six, and a Daemonhost
   view:_open_detail("boss_ambush"); click("btn_face")
-  check("suit: the six newer suits (Volley, Snare, Brute, Fester, Dusk, Warp) are on the same screen in their own colours, each with its line", plate_of("volley").content.suit.accent[1] == 0x7f and plate_of("snare").content.suit.accent[1] == 0x5f and plate_of("brute").content.suit.accent[1] == 0xcf and plate_of("fester").content.suit.accent[1] == 0xd4 and plate_of("dusk").content.suit.accent[1] == 0x8e and plate_of("warp").content.suit.accent[1] == 0xb1 and plate_of("dusk").content.suit_line == Cards.SUITS.dusk.whisper)
+  check("suit: the six newer suits (Volley, Snare, Brute, Dusk, Warp, Heresy) are on the same screen in their own colours, each with its line", plate_of("volley").content.suit.accent[1] == 0x7f and plate_of("snare").content.suit.accent[1] == 0x5f and plate_of("brute").content.suit.accent[1] == 0xcf and plate_of("heresy").content.suit.accent[1] == 0xe5 and plate_of("dusk").content.suit.accent[1] == 0x8e and plate_of("warp").content.suit.accent[1] == 0xb1 and plate_of("dusk").content.suit_line == Cards.SUITS.dusk.whisper)
   click_plate("warp")
   check("suit: clicking Warp writes su_<key> and the card shows it with its mark (an eye in a triangle), and says what it is for", settings.su_boss_ambush == "warp" and plate_of("warp").content.selected and stage.content.suit_label == "WARP" and stage.style.icon_t1.visible and W.mirror_desc.content.mirror_desc:find("suit_desc_warp", 1, true) ~= nil)
   click_plate("snare")
@@ -2141,9 +2155,10 @@ do
   view:cb_back()
   click("btn_face")
   check("title: the card face is The Grandfather's Mirror, with the suit accent", view._screen == "face" and title() == "view_title_mirror" and mod.rw_accent[1] == fool[1])
-  -- the Mirror changes the suit: the page follows at once (a plate of the twelve: Warp is the last)
+  -- the Mirror changes the suit: the page follows at once (a plate of the twelve: Warp is the eleventh, Heresy the last)
   local fool_key = view._key
-  view:cb_suit_pick(12)
+  local warp_place = mod.rw.cards.suit_index("warp")
+  view:cb_suit_pick(warp_place)
   check("theme: choosing another suit on the card's screen recolours the page at once (Warp)", mod.rw.cards.suit(view._wave.suit) == mod.rw.cards.SUITS.warp and mod.rw_accent[1] == mod.rw.cards.SUITS.warp.accent[1])
   theme_is("Mirror, Warp", mod.rw.cards.SUITS.warp)
   settings["su_" .. fool_key] = nil; view:_reload(); view:_apply_screen(true)
@@ -2403,7 +2418,7 @@ do
   local selected = {}
   for i = 1, 12 do if W["rw_suit_" .. i].content.selected then selected[#selected + 1] = i end end
   check("suit: exactly one tile is selected (Rage, the third), and it stands 4 units higher than its neighbours", #selected == 1 and selected[1] == 3 and view._sg.rw_suit_3[2] == select(2, WK.suit_pos(3)) - 4 and view._sg.rw_suit_4[2] == select(2, WK.suit_pos(4)))
-  check("suit: every tile carries its own colours and name, the mark is painted (Rage: a flame of triangles and circles)", W.rw_suit_3.content.suit_name == "RAGE" and W.rw_suit_3.content.suit.accent[1] == 0xc2 and W.rw_suit_1.content.suit.accent[1] == 0xb7 and W.rw_suit_12.content.suit_name == "WARP" and W.rw_suit_3.style.icon_c1.visible and W.rw_suit_3.style.icon_ch1.visible and W.rw_suit_1.style.icon_c1.visible)
+  check("suit: every tile carries its own colours and name, the mark is painted (Rage: a flame of triangles and circles)", W.rw_suit_3.content.suit_name == "RAGE" and W.rw_suit_3.content.suit.accent[1] == 0xc2 and W.rw_suit_1.content.suit.accent[1] == 0xb7 and W.rw_suit_11.content.suit_name == "WARP" and W.rw_suit_12.content.suit_name == "HERESY" and W.rw_suit_3.style.icon_c1.visible and W.rw_suit_3.style.icon_ch1.visible and W.rw_suit_1.style.icon_c1.visible)
   check("suit: the hint diamond marks the suit the enemies suggest (specials: Blight) when it is not the card's own suit", W.rw_suit_4.content.suggested == true and W.rw_suit_3.content.suggested == false)
   click("rw_suit_4")
   check("suit: choosing the suggested suit takes the hint away (it is the card's own now)", settings.su_custom_1 == "blight" and W.rw_suit_4.content.selected == true and W.rw_suit_4.content.suggested == false)
@@ -2701,7 +2716,7 @@ if DUMP and DUMP ~= "" then
   settings.wave_def_custom_1 = "The Pale Choir\t24 mauler, 3 crusher[enraged], 2 hound, 1 plague ogryn, 4 sniper"; settings.on_custom_1 = true; settings.su_custom_1 = "murmur"; settings.wh_custom_1 = "They were never quiet."; settings.pct_custom_1 = 8
   settings.wave_def_custom_2 = "The Host\t1 daemonhost, 6 poxwalker"; settings.on_custom_2 = true; settings.th_custom_2 = 4 -- warp by default
   -- the new suits and a two line name, so the preview shows them all
-  settings.su_wave_huge = "volley"; settings.su_bomber_frenzy = "snare"; settings.su_hound_frenzy = "brute"; settings.su_special_pack = "fester"; settings.su_sniper_elite = "dusk"
+  settings.su_wave_huge = "volley"; settings.su_bomber_frenzy = "snare"; settings.su_hound_frenzy = "brute"; settings.su_special_pack = "heresy"; settings.su_sniper_elite = "dusk"
   settings.wave_def_special_pack = "The Magician Of Endless Plague\t"; settings.pct_wave_huge = 4; settings.pct_wave_small = 5
   settings.on_wave_medium = true; settings.cl_wave_medium = "whisper"
   local resting = { wave_large = 75, wave_medium = 90, grenade_legion = 100, hound_frenzy = 20 }

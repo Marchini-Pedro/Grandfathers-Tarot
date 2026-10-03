@@ -546,12 +546,15 @@ Spread.icon = function (id, size, shape)
 		tri(shape, 3, 2, 2, 7.5 * s, 7.5 * s, 16.5 * s, 7.5 * s, 16.5 * s, 16.5 * s)
 		tri(shape, 4, 2, 2, 7.5 * s, 7.5 * s, 16.5 * s, 16.5 * s, 7.5 * s, 16.5 * s)
 		circ(shape, 1, 1, 3, 12 * s, 12 * s, 2.6 * s)
-	elseif id == "boil" then
-		-- a swollen boil: a ring with a core, and a bud on its shoulder
-		circ(shape, 1, 1, 1, 12 * s, 13 * s, 8.6 * s)
-		circ(shape, 4, 1, 1, 18.6 * s, 5.4 * s, 2.6 * s)
-		circ(shape, 2, 2, 2, 12 * s, 13 * s, 6 * s)
-		circ(shape, 3, 1, 3, 12 * s, 13 * s, 3.4 * s)
+	elseif id == "heresy" then
+		-- a broken halo and an inverted blade: a ring, cut through at the upper left by a gap in the card's colour, and in it a
+		-- blade that points down with a pommel on top
+		circ(shape, 1, 1, 1, 12 * s, 12 * s, 10.2 * s)
+		circ(shape, 2, 2, 2, 12 * s, 12 * s, 8.2 * s)
+		tri(shape, 1, 2, 3, 5.2 * s, 2.4 * s, 8.9 * s, 6.1 * s, 6.1 * s, 8.9 * s)
+		tri(shape, 2, 2, 3, 5.2 * s, 2.4 * s, 6.1 * s, 8.9 * s, 2.4 * s, 5.2 * s)
+		tri(shape, 3, 1, 4, 8.6 * s, 7.4 * s, 15.4 * s, 7.4 * s, 12 * s, 20.4 * s)
+		circ(shape, 3, 1, 4, 12 * s, 5.4 * s, 2 * s)
 	elseif id == "dusk" then
 		-- a setting sun: half a disc over a line (the lower half of the disc is covered with the card's colour)
 		circ(shape, 1, 1, 1, 12 * s, 14.5 * s, 8 * s)

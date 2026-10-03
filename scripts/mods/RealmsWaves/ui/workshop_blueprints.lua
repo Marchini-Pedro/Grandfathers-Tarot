@@ -577,6 +577,11 @@ WB.hand_card = function (node_id, tile_ids)
 
 	passes[#passes + 1] = { pass_type = "rect", style_id = "hand_bg", style = { offset = { 0, 0, 0 }, size = { H.w, H.max_h }, color = shape_color() } }
 	passes[#passes + 1] = { pass_type = "rect", style_id = "hand_bar", style = { offset = { 0, 0, 1 }, size = { H.bar * H.scale, H.max_h }, color = shape_color() } }
+
+	-- the frame of a Heresy card (hidden for every other suit): four lines, placed by View._paint_hand
+	for _, side in ipairs({ "t", "b", "l", "r" }) do
+		passes[#passes + 1] = { pass_type = "rect", style_id = "hand_edge_" .. side, style = { offset = { 0, 0, 2 }, size = { 1, 1 }, color = shape_color(), visible = false } }
+	end
 	mark_passes(passes, tile_ids)
 	passes[#passes + 1] = {
 		pass_type = "text",

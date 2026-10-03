@@ -704,6 +704,10 @@ do
   check("timer: applying a preset writes it (and 0 for the others)", applied.ev_custom_2 == 60 and applied.ev_wave_small == 0)
   local one = Presets.decode_wave(Presets.encode_wave(Presets.capture_wave(g, "custom_2", Events, Groups)), Events, Groups)
   check("timer: a shared single wave carries it", one and one.timer == 60)
+  local fe_old = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~0~0~fester~0~~"), Events, Groups)
+  local fe_new = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~0~0~heresy~0~~"), Events, Groups)
+  local fe_bad = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~0~0~bogus~0~~"), Events, Groups)
+  check("heresy: a shared card or an old preset that says fester arrives as Heresy, heresy as heresy, an unknown suit as plague", fe_old and fe_old.suit == "heresy" and fe_new and fe_new.suit == "heresy" and fe_bad and fe_bad.suit == "plague", fe_old and tostring(fe_old.suit))
   local old11 = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0"), Events, Groups)
   local old9 = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds"), Events, Groups)
   check("timer: texts from before 1.11.0 (9 or 11 fields) import with no timer", old11 and old11.timer == 0 and old9 and old9.timer == 0)
@@ -1110,6 +1114,11 @@ do
   local cv = Director.view()
   check("client: the tarot hand is rendered from the synced state (winner, sequence, cards)", cv.mode == "tarot" and cv.phase == "hand" and #cv.hand == 2 and cv.win == 2 and cv.hand_seq == 7 and cv.hand[1].name == "The Devil" and cv.hand[1].suit == "fateful" and cv.hand[1].rare == true and cv.hand[1].modifiers == "Purple", tostring(cv.win))
   check("client: every field is validated (unknown suit -> plague, threat capped at 5, non-string enemies dropped, whisper made a string)", cv.hand[2].suit == "plague" and cv.hand[2].threat == 5 and #cv.hand[1].breeds == 2 and cv.hand[2].whisper == "12")
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  Director.on_state("host_peer", { p = "hand", m = "tarot", r = 8.0, b = 3, c = "", k = {}, e = 0, z = 0, sq = 1, w = 1, dn = 0, y = 10,
+    h = { { k = "a", n = "Old", s = "fester", t = 2, b = {} }, { k = "b", n = "New", s = "heresy", t = 2, b = {} } } })
+  local hv = Director.view()
+  check("client: a host that still says fester (an older version) gets the Heresy card, and heresy arrives as heresy", hv.hand and #hv.hand == 2 and hv.hand[1].suit == "heresy" and hv.hand[2].suit == "heresy", hv.hand and tostring(hv.hand[1].suit))
   Director.on_state("host_peer", { p = "hand", m = "tarot", r = 8.0, b = 3, k = {}, sq = 8, w = 9, h = { { k = "a", n = "x", s = "rage", t = 1, b = {} }, 5, "junk" } })
   check("client: a winner index outside the hand is pulled inside it, junk cards are skipped", Director.view().win == 1 and #Director.view().hand == 1)
   local many = {}; for i = 1, 9 do many[i] = { k = "k" .. i, n = "N" .. i, s = "swarm", t = 1, b = {} } end
@@ -2455,7 +2464,7 @@ do
   local Presets = PresetsMod
   local function rec(r) return Groups.parse(r) end
   -- the palette is the reference page's, exactly
-  check("tarot: twelve suits in order (the six of the reference, then volley, snare, brute, fester, dusk, warp), every colour a 3-number rgb", #Cards.SUIT_ORDER == 12 and Cards.SUIT_ORDER[7] == "volley" and Cards.SUIT_ORDER[12] == "warp" and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
+  check("tarot: twelve suits in order (the six of the reference, then volley, snare, brute, dusk, warp, and HERESY last), every colour a 3-number rgb", #Cards.SUIT_ORDER == 12 and Cards.SUIT_ORDER[7] == "volley" and Cards.SUIT_ORDER[10] == "dusk" and Cards.SUIT_ORDER[11] == "warp" and Cards.SUIT_ORDER[12] == "heresy" and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
   check("tarot: plague suit values from the palette", table.concat(Cards.SUITS.plague.card, ",") == "30,36,19" and table.concat(Cards.SUITS.plague.accent, ",") == "183,194,58" and table.concat(Cards.SUITS.fateful.frame, ",") == "138,122,74" and table.concat(Cards.SUITS.murmur.frame, ",") == "85,96,58")
   check("tarot: threat colours 1..5", table.concat(Cards.THREAT_COLORS[1], ",") == "167,194,124" and table.concat(Cards.THREAT_COLORS[3], ",") == "227,207,74" and table.concat(Cards.THREAT_COLORS[5], ",") == "207,74,48")
   check("tarot: the suit ids of the catalog and of the card module are the same set", (function() for id in pairs(Events.SUITS) do if not Cards.SUITS[id] then return false end end for id in pairs(Cards.SUITS) do if not Events.SUITS[id] then return false end end return true end)())
@@ -2465,7 +2474,23 @@ do
     for _ in pairs(Events.SUITS) do n = n + 1 end
     return n == #Cards.SUIT_ORDER
   end)())
-  check("suits: the new ones have their own whisper, name and mark", Cards.SUITS.volley.whisper == "Something is aiming at you." and Cards.SUITS.snare.whisper == "You cannot run from this." and Cards.SUITS.brute.whisper == "It does not stop for walls." and Cards.SUITS.fester.whisper == "It swells, and it bursts." and Cards.SUITS.dusk.whisper == "Do not look away." and Cards.SUITS.warp.whisper == "It knows your name." and Cards.SUITS.warp.name == "Warp" and Cards.SUITS.warp.icon == "warp" and Cards.SUITS.volley.icon == "crosshair")
+  check("suits: the new ones have their own whisper, name and mark", Cards.SUITS.volley.whisper == "Something is aiming at you." and Cards.SUITS.snare.whisper == "You cannot run from this." and Cards.SUITS.brute.whisper == "It does not stop for walls." and Cards.SUITS.heresy.whisper == "He does not answer." and Cards.SUITS.heresy.name == "Heresy" and Cards.SUITS.heresy.icon == "heresy" and Cards.SUITS.fester == nil and Cards.SUITS.dusk.whisper == "Do not look away." and Cards.SUITS.warp.whisper == "It knows your name." and Cards.SUITS.warp.name == "Warp" and Cards.SUITS.warp.icon == "warp" and Cards.SUITS.volley.icon == "crosshair")
+
+  -- HERESY replaced Fester: the one card that is special; the old name stays an alias everywhere it may still be written
+  do
+    local plain_sets_equal = true
+    for from, to in pairs(Cards.SUIT_ALIAS) do if Events.SUIT_ALIAS[from] ~= to then plain_sets_equal = false end end
+    for from, to in pairs(Events.SUIT_ALIAS) do if Cards.SUIT_ALIAS[from] ~= to then plain_sets_equal = false end end
+    check("heresy: only Heresy is special; its palette is its own (black red face, blood frame, gilded accent, a lit red for words)", Cards.SUITS.heresy.special == true and (function() local n = 0 for _, def in pairs(Cards.SUITS) do if def.special then n = n + 1 end end return n end)() == 1 and #Cards.SUITS.heresy.lit == 3 and Cards.SUITS.heresy.frame[1] == 0xa3 and Cards.SUITS.heresy.accent[1] == 0xe5)
+    check("heresy: Cards.is_special says it for Heresy and for its old name, not for the others or for nothing", Cards.is_special("heresy") and Cards.is_special("fester") and not Cards.is_special("warp") and not Cards.is_special(nil) and not Cards.is_special("nonsense"))
+    check("heresy: the old name is an alias in the card module and in the catalog (the same list), an unknown name is plague", Cards.normalize_suit("fester") == "heresy" and Events.normalize_suit("fester") == "heresy" and Cards.normalize_suit("heresy") == "heresy" and Events.normalize_suit("heresy") == "heresy" and Events.normalize_suit("nonsense") == "plague" and Events.normalize_suit(nil) == "plague" and Cards.suit_index("fester") == 12 and Cards.suit_index("heresy") == 12 and plain_sets_equal)
+    local function getter(id) return settings[id] end
+    settings.wave_def_custom_5 = "Mine\t3 hounds"; settings.su_custom_5 = "fester"
+    check("heresy: a card saved with suit fester is a Heresy card now", Events.get("custom_5", getter, Groups).suit == "heresy")
+    settings.su_custom_5 = "heresy"
+    check("heresy: and one saved as heresy stays one", Events.get("custom_5", getter, Groups).suit == "heresy")
+    settings.wave_def_custom_5 = nil; settings.su_custom_5 = nil
+  end
   check("suits: every whisper fits the 40 letters of a whisper", (function() for _, id in ipairs(Cards.SUIT_ORDER) do if #Cards.SUITS[id].whisper > Cards.MAX_WHISPER then return false end end return true end)())
   check("suits: every suit has its own accent colour and its own mark", (function()
     local accents, icons = {}, {}

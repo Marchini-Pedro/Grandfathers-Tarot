@@ -195,8 +195,17 @@ Events.DEFAULT_REPEAT_FOR = 60 -- seconds the repeats keep coming
 -- the suits of the Tarot (visuals: catalog/cards.lua) and the cooldown looks
 Events.SUITS = {
 	plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true,
-	volley = true, snare = true, brute = true, fester = true, dusk = true, warp = true,
+	volley = true, snare = true, brute = true, dusk = true, warp = true, heresy = true,
 }
+-- names a suit used to have (Fester became Heresy): saved settings, presets, shared texts and synced hands may still say them
+Events.SUIT_ALIAS = { fester = "heresy" }
+
+-- A suit as the Tarot knows it: an old name becomes its new one, an unknown suit is plague.
+Events.normalize_suit = function (suit)
+	suit = Events.SUIT_ALIAS[suit] or suit
+
+	return Events.SUITS[suit] and suit or "plague"
+end
 Events.LOOKS = { rot = true, whisper = true, vial = true }
 
 -- Settings per wave (all plain values so DMF can persist them):
@@ -328,7 +337,7 @@ Events.get = function (key, get_setting, Groups)
 		suit = std and std.suit or has_daemonhost(wave.parts) and "warp" or "plague"
 	end
 
-	wave.suit = Events.SUITS[suit] and suit or "plague"
+	wave.suit = Events.normalize_suit(suit)
 	wave.threat_override = math.max(0, math.min(5, math.floor(tonumber(get_setting("th_" .. key)) or 0)))
 
 	local whisper = get_setting("wh_" .. key)

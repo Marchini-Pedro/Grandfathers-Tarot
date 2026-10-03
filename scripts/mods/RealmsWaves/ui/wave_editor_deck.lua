@@ -326,11 +326,12 @@ DeckView.install = function (View, h)
 		end
 
 		local bg, accent, ink = tone(suit.card), tone(suit.accent), tone(suit.text)
-		local border = card.rare and tone(Cards.BASE.pus) or tone(mix(suit.frame, suit.accent, 0.45))
+		local special = suit.special == true
+		local border = special and tone(suit.frame) or card.rare and tone(Cards.BASE.pus) or tone(mix(suit.frame, suit.accent, 0.45))
 
 		-- what the per-frame cooldown looks and the pips need to know (see _apply_look, _paint_pips); a new record on every paint
 		local fx = {
-			key = wave.key, wave = wave, cooldown = card.cooldown, look = card.look, state = state, suit = suit, rare = card.rare,
+			key = wave.key, wave = wave, cooldown = card.cooldown, look = card.look, state = state, suit = suit, rare = card.rare, special = special,
 			accent = accent, ink = ink, bg = bg, whisper = card.whisper, p = -1, clock = -1, level = Deck.pips(card.level),
 			pip_new = mix(accent, ink, 0.5), empty = tone(suit.frame), muted = tone(Cards.BASE.muted), edit_hover = false,
 			tri_col = {}, circ_col = {},
@@ -349,7 +350,7 @@ DeckView.install = function (View, h)
 		end
 
 		style.glow.visible = state ~= "off"
-		paint(style.glow, card.rare and 110 or 70, card.rare and Cards.BASE.pus or accent)
+		paint(style.glow, special and 150 or card.rare and 110 or 70, special and tone(suit.frame) or card.rare and Cards.BASE.pus or accent)
 
 		-- the suit mark (26 units at scale 1) in the top right corner, each shape on a feather; the suit's name and rarity at the left
 		self:_paint_suit_mark(style, suit.icon, T.icon[3], T.icon[1], T.icon[2], accent, bg, fx.tri_col, fx.circ_col)
@@ -548,9 +549,9 @@ DeckView.install = function (View, h)
 				end
 			end
 
-			paint(style.glow, fx.rare and 110 or 70, fx.rare and Cards.BASE.pus or rgb)
+			paint(style.glow, fx.special and 150 or fx.rare and 110 or 70, fx.special and fx.suit.frame or fx.rare and Cards.BASE.pus or rgb)
 
-			if not fx.rare then
+			if not fx.rare and not fx.special then
 				local border = mix(fx.suit.frame, rgb, 0.45)
 
 				for i = 1, #IDS.border do

@@ -506,10 +506,13 @@ HudElementRealmsWavesPanel._apply_body = function (self, index, scale)
 	box(style.bg, x, y, w, h)
 	box(style.accent, x, y, Spread.ACCENT_WIDTH, h)
 	box(style.glow, x - GLOW_EDGE, y - GLOW_EDGE, w + 2 * GLOW_EDGE, h + 2 * GLOW_EDGE)
-	box(style.rare_t, x, y, w, 1)
-	box(style.rare_b, x, y + h - 1, w, 1)
-	box(style.rare_l, x, y, 1, h)
-	box(style.rare_r, x + w - 1, y, 1, h)
+	-- the outline of a rare card is one unit thick, the frame of a Heresy card two
+	local line = rec.special and 2 or 1
+
+	box(style.rare_t, x, y, w, line)
+	box(style.rare_b, x, y + h - line, w, line)
+	box(style.rare_l, x, y, line, h)
+	box(style.rare_r, x + w - line, y, line, h)
 
 	-- the bottom row: the threat diamonds from the left, the enemy dots to the right of them
 	local cy = rec.y + rec.ch - Spread.PAD_Y - Spread.ROW_HEIGHT / 2
@@ -556,12 +559,18 @@ HudElementRealmsWavesPanel._apply_colors = function (self, index)
 
 	paint(style.bg, 255, bg)
 	paint(style.accent, 255, accent)
-	paint(style.glow, rec.mode == 2 and 200 or 150, accent)
-	style.glow.visible = rec.mode > 0
+	if rec.special then
+		-- a card apart: its blood-red glow smoulders at rest and flares when the card is highlighted or drawn
+		paint(style.glow, rec.mode == 2 and 220 or rec.mode == 1 and 170 or 110, Spread.grey(rec.tmp, suit.frame, t))
+		style.glow.visible = true
+	else
+		paint(style.glow, rec.mode == 2 and 200 or 150, accent)
+		style.glow.visible = rec.mode > 0
+	end
 
 	for j = 1, #RARE do
-		paint(style[RARE[j]], 255, Spread.grey(rec.tmp, Cards.BASE.pus, t))
-		style[RARE[j]].visible = rec.rare
+		paint(style[RARE[j]], 255, Spread.grey(rec.tmp, rec.special and suit.frame or Cards.BASE.pus, t))
+		style[RARE[j]].visible = rec.rare or rec.special
 	end
 
 	paint(style.name, 255, Spread.grey(rec.p_text, suit.text, t))
@@ -664,6 +673,7 @@ HudElementRealmsWavesPanel._setup_card = function (self, index, card)
 	rec.threat = math.max(1, math.min(5, card.threat or 1))
 	rec.name = card.name
 	rec.rare = card.rare == true
+	rec.special = suit.special == true
 	rec.x, rec.y, rec.cw, rec.ch = layout.x[index], layout.cards_y, layout.cw, layout.ch
 	rec.desat = 0
 
@@ -798,7 +808,7 @@ HudElementRealmsWavesPanel._setup_banner = function (self, card)
 	local y = self._layout.banner_y
 	local width = Spread.NODE_WIDTH
 
-	widget.content.kicker = string.upper(mod:localize("hud_card_drawn"))
+	widget.content.kicker = string.upper(mod:localize(suit.special and "hud_card_drawn_special" or "hud_card_drawn"))
 	widget.content.name = card.name
 	widget.content.whisper = "\"" .. tostring(card.whisper or "") .. "\""
 	widget.content.mods = string.upper(card.modifiers or "")
@@ -808,7 +818,7 @@ HudElementRealmsWavesPanel._setup_banner = function (self, card)
 	box(style.whisper, 0, y + 58, width, 22)
 	box(style.mods, 0, y + 82, width, 18)
 
-	paint(style.kicker, 255, Cards.BASE.whisper)
+	paint(style.kicker, 255, suit.special and suit.lit or Cards.BASE.whisper)
 	paint(style.name, 255, suit.accent)
 	paint(style.whisper, 255, Cards.BASE.whisper)
 	paint(style.mods, 255, Cards.BASE.rust)

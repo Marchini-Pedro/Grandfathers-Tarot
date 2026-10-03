@@ -318,7 +318,7 @@ for _, suit_name in ipairs(Cards.SUIT_ORDER) do
   if n == 0 then icons_ok = false end
 end
 check("icons: every suit mark draws something and stays inside its 18 px box", icons_ok, "plague " .. used.plague .. " murmur " .. used.murmur .. " rage " .. used.rage .. " blight " .. used.blight .. " swarm " .. used.swarm .. " fateful " .. used.fateful)
-check("icons: twelve suits, and the new six use their own slots (volley 7, snare 4, brute 5, fester 4, dusk 5, warp 5)", #Cards.SUIT_ORDER == 12 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.fester == 4 and used.dusk == 5 and used.warp == 5, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " fester " .. used.fester .. " dusk " .. used.dusk .. " warp " .. used.warp)
+check("icons: twelve suits, and the new six use their own slots (volley 7, snare 4, brute 5, dusk 5, warp 5, heresy 6)", #Cards.SUIT_ORDER == 12 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.dusk == 5 and used.warp == 5 and used.heresy == 6, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " dusk " .. used.dusk .. " warp " .. used.warp .. " heresy " .. tostring(used.heresy))
 check("icons: at the Deck's 26 units every mark also stays inside its box", (function()
   for _, suit_name in ipairs(Cards.SUIT_ORDER) do
     Spread.icon(Cards.SUITS[suit_name].icon, 26, icon)
@@ -844,6 +844,39 @@ local function growth(fixed_view, step, frames)
   if jit then jit.on() end
   return (after - before) * 1024 / frames
 end
+-- HERESY, the card apart: a frame at rest, a smouldering glow, its own line when it is drawn
+do
+  local e = new_element()
+  local special_hand = {
+    card("h", "The Turncoat", "heresy", 4, { "renegade_shocktrooper" }, "The Emperor does not answer."),
+    card("f", "Old Pox", "fester", 3, { "chaos_poxwalker" }, "an older host still says fester"),
+    card("p", "The Fool", "swarm", 1, { "chaos_poxwalker" }, "Too many to count."),
+  }
+  current_view = view_of({ hand = special_hand, remaining = 9.5, hand_seq = 40, win = 3 })
+  frame(e)
+  local h = function(i) return e._widgets_by_name["card_" .. i] end
+  check("heresy: at rest the frame is on, two units thick, in the suit's blood red (a swarm card has none)", h(1).style.rare_t.visible and h(1).style.rare_t.size[2] == 2 and h(1).style.rare_l.size[1] == 2 and h(1).style.rare_t.color[2] == 0xa3 and h(1).style.rare_t.color[3] == 0x20 and not h(3).style.rare_t.visible)
+  check("heresy: the glow smoulders at rest (visible, blood red, low); the other suits glow only when highlighted", h(1).style.glow.visible and h(1).style.glow.color[1] == 110 and h(1).style.glow.color[2] == 0xa3 and not h(3).style.glow.visible)
+  check("heresy: the face is the black red, the bar gilded, the name bone-coloured", h(1).style.bg.color[2] == 0x14 and h(1).style.bg.color[3] == 0x07 and h(1).style.accent.color[2] == 0xe5 and h(1).style.accent.color[3] == 0xb9 and h(1).style.name.text_color[2] == 0xf3)
+  check("heresy: a card an older host calls fester is drawn as Heresy", h(2).style.bg.color[2] == 0x14 and h(2).style.rare_t.visible and h(2).style.glow.visible)
+  check("heresy: its suit mark is the broken halo (six shapes) and it stays inside the card", (function()
+    local tris, circs = 0, 0
+    for i = 1, Spread.ICON_TRIS do if h(1).style["icon_t" .. i].visible then tris = tris + 1 end end
+    for i = 1, Spread.ICON_CIRCS do if h(1).style["icon_c" .. i].visible then circs = circs + 1 end end
+    return tris == 3 and circs == 3
+  end)())
+  audit_ok("heresy hand", e)
+
+  current_view = view_of({ hand = special_hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.05, win = 1, hand_seq = 41 })
+  frame(e)
+  local bn = e._widgets_by_name.banner
+  check("heresy: drawn, the banner says 'Heresy is drawn' in the lit red and the name is gilded; the card's glow flares", bn.content.kicker == "HUD_CARD_DRAWN_SPECIAL" and bn.style.kicker.text_color[2] == 0xe8 and bn.style.name.text_color[2] == 0xe5 and h(1).style.glow.color[1] == 220, tostring(bn.content.kicker))
+  current_view = view_of({ hand = special_hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.05, win = 3, hand_seq = 42 })
+  frame(e)
+  check("heresy: another card drawn keeps the ordinary banner line", bn.content.kicker == "HUD_CARD_DRAWN" and bn.style.kicker.text_color[2] ~= 0xe8)
+  audit_ok("heresy reveal", e)
+end
+
 local per_frame_hand = growth(view_of({ remaining = 9.5, hand_seq = 30 }), function(v, i) end, 600)
 check("no allocation per frame while a hand is shown (idle)", per_frame_hand < 1, string.format("%.2f bytes/frame", per_frame_hand))
 local per_frame_run = growth(view_of({ remaining = 9.5, hand_seq = 31 }), function(v, i) v.remaining = math.max(0, 9.5 - i / 60 / 3) end, 600)
