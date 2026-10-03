@@ -171,4 +171,5 @@ Installation, publication and merging remain separate; game confirmation is pend
 - [x] Remove the editor harness's sibling game-source dependency; retain callback binding, nil, dynamic-method and return-value contracts in a test-only fixture.
 - [x] Select Lua 5.5/LuaJIT 2.1 explicitly with a shared test runtime; suspend coverage hooks during allocation probes without weakening assertions.
 - [x] Add hidden-position, explicit-test ring, native-query failure, command-input and protocol serialization/availability regressions. Six selected regressions are detected on both runtimes.
-- [ ] Add repository-owned CI, measured module floors and fail-closed coverage reports; verify a standalone checkout.
+- [x] Add repository-owned CI, measured module floors and fail-closed coverage reports; verify a standalone checkout on both runtimes. See [CI and coverage](10-ci-and-coverage.md).
+- [ ] Have the repository owner require `Offline verification (lua55)` and `Offline verification (luajit21)` for merges to `main` after the first hosted run.
