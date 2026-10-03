@@ -21,6 +21,8 @@ local CANDIDATE_TTL = 1.5
 local FAILED_SEARCH_TTL = 1.5 -- do not repeat a failed hidden-position search more often than this
 local JOB_TIMEOUT = 60 -- seconds a wave may stay unfinished (repeating waves add their repeat time)
 local MAX_QUEUE = 1000 -- a repeat tick is skipped while this many units are still waiting
+local MAX_JOBS = 64
+local MAX_PENDING = 8000 -- aggregate entries; independent of the alive-unit cap
 local PURGE_INTERVAL = 5
 
 local jobs = {}
@@ -29,6 +31,16 @@ local purge_timer = 0
 local clock = 0
 local cache = {}
 local last_log = {}
+
+local function queued_count()
+	local count = 0
+
+	for i = 1, #jobs do
+		count = count + #jobs[i].queue
+	end
+
+	return count
+end
 
 local function number_setting(id, fallback)
 	local value = tonumber(mod:get(id))
@@ -327,6 +339,22 @@ Execute.start_wave = function (def)
 		return false, "no spawn authority"
 	end
 
+	local room = MAX_PENDING - queued_count()
+	local needed = 0
+
+	for i = 1, #def.parts do
+		local part = def.parts[i]
+		needed = needed + scaled_amount(part.count or 0, percent_for(part))
+	end
+
+	needed = math.min(needed, number_setting("max_per_wave", 80))
+
+	-- Refuse the whole new wave before allocating its queue. Repeat-only jobs
+	-- also need a job slot and some aggregate capacity to make eventual progress.
+	if #jobs >= MAX_JOBS or room <= 0 or needed > room then
+		return false, "pending-wave budget is full (64 jobs / 8000 units); wave skipped"
+	end
+
 	if over_heap_guard() then
 		return false, string.format("the Lua memory guard refused this wave (heap %.0f MB is above the %d MB guard)", heap_mb(), number_setting("heap_guard_mb", 800))
 	end
@@ -377,14 +405,15 @@ local function run_repeats(job, dt)
 	rep.clock = rep.clock + dt
 
 	while rep.next <= rep.total and rep.clock >= rep.next do
-		if #job.queue >= MAX_QUEUE then
+		local room = math.min(MAX_QUEUE - #job.queue, MAX_PENDING - queued_count())
+
+		if room <= 0 then
 			-- Drop missed ticks in one step during a long frame; a full queue needs no more expansion work.
 			rep.next = rep.next + (math.floor((math.min(rep.clock, rep.total) - rep.next) / rep.every) + 1) * rep.every
 
 			break
 		else
 			local batch = expand(rep.parts, "rep", rep.picks)
-			local room = MAX_QUEUE - #job.queue
 
 			while #batch > room do
 				batch[#batch] = nil
@@ -745,15 +774,11 @@ Execute.reset = function ()
 end
 
 Execute.status = function ()
-	local queued = 0
-
-	for i = 1, #jobs do
-		queued = queued + #jobs[i].queue
-	end
-
 	return {
 		jobs = #jobs,
-		queued = queued,
+		queued = queued_count(),
+		job_limit = MAX_JOBS,
+		queue_limit = MAX_PENDING,
 		tracked = Bypass and Bypass.count() or 0,
 		heap_mb = heap_mb(),
 		heap_guard_mb = number_setting("heap_guard_mb", 800),

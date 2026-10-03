@@ -136,7 +136,7 @@ their stated fixtures; current fixes are tracked below and in the
 | F01 reload event ownership | Fixed on remediation branch; 100-generation owner/weak-reference regression | Real reload/editor/pending-work sessions remain pending |
 | F02 disabled spawning | Fixed; disabled updates cannot replay queued work | Native hook/counter behavior, host restart and client resync |
 | F03 stop/live ownership | Fixed; stop retains factors, size records and combined alive cap | Native cap, tuning, late-join size and despawn checks |
-| F04 aggregate repeat backlog | 992 jobs / 992,000 pending at 160 simulated seconds | Global budget and backpressure; native frame/memory pressure |
+| F04 aggregate repeat backlog | Fixed; 32 legal timers remain within 64 jobs / 8,000 pending for 10,000 updates | Native frame/memory pressure and practical budget tuning |
 | F05 pause | Fixed; 200-second pause freezes real feed/repeat/timeout clocks | Native maintenance and resume without a catch-up burst |
 | F06 partial delivery | Actual Realms returns success after one rejected peer; no size retry | Bounded recipient-aware recovery; native transport occurrence pending |
 | F07 numeric import | LuaJIT accepts checksummed NaN chance; Lua 5.5 rejects | Finite-value validation, atomic rejection and both-runtime regression |
@@ -144,7 +144,7 @@ their stated fixtures; current fixes are tracked below and in the
 ## Known risks
 - Hooks on `PacingManager.add_aggroed_minion` and the two `MinionSpawnManager` counters must tolerate clients (nil managers) and hot reload.
 - Engine query errors: use `get_occluded_positions` / `occluded_positions_in_group` inside pcall (RealmsEvent avoided `get_random_occluded_position`).
-- Very large waves: unit/network object limits are real. Current mitigation is per-wave/alive caps and drip-feed, with 1,000 pending entries per job; there is no aggregate job/queue budget (confirmed F04).
+- Very large waves: unit/network object limits are real. Current mitigation is per-wave/alive caps and drip-feed, with 1,000 pending entries per job; aggregate work is now capped at 64 jobs / 8,000 pending entries, with skipped admissions/ticks on pressure (F04 remediation).
 - Ballot/vote state can go stale if the host leaves mid-vote: clear state on game-state exit and peer-left.
 - Host is the only driver; if host has no living humans (ghost host alone), skip and retry.
 
@@ -186,6 +186,8 @@ their stated fixtures; current fixes are tracked below and in the
 ## Results log
 
 (Append dated entries: what was tested, result, fixes.)
+
+- 2026-10-03, remediation batch 3 (F04): enforce 64 jobs / 8,000 pending globally before admission and repeat construction. New waves are rejected atomically when they cannot fit; repeat ticks use available room or skip overdue ticks when full. Throttle timed-wave failure warnings to one per five seconds. The real 32-card fixture stays bounded for 10,000 updates; repeat-only jobs cannot evade the job cap, and progress/unload remain correct. All six checks pass on both runtimes: entry 40, total 1,677 assertions. Limits are an explicit initial policy; native cost/tuning remains pending.
 
 - 2026-10-03, remediation batch 2 (F02/F03/F05): separate job cancellation from full reset, freeze real executor clocks on pause, maintain/prune living units while stopped, and cancel disabled work. Disable suspends native hooks/tuning; host explicitly starts after re-enable and clients reset/re-handshake. Real entry/director/executor/tuning checks cover combined alive cap, equal-value recompute, 200-second pause, disable/enable and pending-work unload. All six checks pass on both runtimes: entry 35, total 1,672 assertions. Native acceptance remains pending.
 

@@ -179,5 +179,12 @@ records. Pause freezes feed/repeat/timeout clocks while maintenance continues;
 stop retains tracking/tuning and prunes dead units even without jobs. Disable
 cancels jobs and performs liveness cleanup only while DMF hooks are suspended.
 Re-enable requires host `/rw_start`; clients clear stale state and handshake.
+Pending work now has fixed internal limits of 64 jobs and 8,000 aggregate
+entries. Admission estimates the clipped initial batch before allocation and
+rejects it atomically if it cannot fit. Repeats skip full-budget overdue ticks
+or clip to remaining capacity, retaining the per-job 1,000 bound. Status exposes
+limits; timed-wave failures log at most once per five seconds. Supported
+recipes/multipliers bound individual temporary batches; this is not a new option
+or a guarantee about native frame time.
 Full mission teardown works in the Lua fixtures; actual engine resources and
 eight-hour acceptance remain pending.

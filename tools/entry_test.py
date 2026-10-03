@@ -226,6 +226,36 @@ mod.update(0.2)
 mod.on_unload()
 check("unload: real pending jobs and director state are torn down", RW.execute.status().jobs==0 and RW.execute.status().queued==0 and RW.director.view().phase=="off" and RW.bypass.count()==0 and RW.tuning.status().sizes_known==0)
 
+-- The audit's 32 legal timer fixture exercises aggregate limits with real owners.
+dofile(BASE .. "/RealmsWaves.lua");mod.on_all_mods_loaded();RW=mod.rw
+RW.execute.init({positions=positions,bypass=RW.bypass,groups=RW.groups,tuning=RW.tuning})
+RW.director.init({events=RW.events,groups=RW.groups,protocol=RW.protocol,execute=RW.execute,votes=RW.votes,positions=positions,presets=RW.presets,cards=RW.cards,tuning=RW.tuning})
+settings.mult_normal=500;settings.mult_special=500
+for _,key in ipairs(RW.events.keys()) do
+  RW.events.set_def(function(id,value) settings[id]=value end,key,key,RW.groups.parse("60 hounds@60, 60 poxwalkers@60"),RW.groups)
+  settings["on_"..key]=true;settings["ev_"..key]=5;settings["re_"..key]=1;settings["rf_"..key]=3600
+end
+mod.on_game_state_changed("enter","GameplayStateRun");mod._on_mission_objective_start();mod.update(0.01)
+for i=1,10 do RW.bypass.track({id=1000+i}) end
+local bounded=true
+for i=1,10000 do
+  mod.update(0.016)
+  local status=RW.execute.status()
+  bounded=bounded and status.jobs<=64 and status.queued<=8000
+end
+check("aggregate: 32 legal timers stay within 64 jobs / 8000 pending over 10000 updates", bounded and RW.execute.status().queued==8000)
+local before_jobs,before_queue=RW.execute.status().jobs,RW.execute.status().queued
+local admitted=RW.execute.start_wave({parts=RW.groups.parse("1 hound")})
+check("aggregate: admission rejects a full budget atomically", not admitted and RW.execute.status().jobs==before_jobs and RW.execute.status().queued==before_queue)
+RW.execute.reset()
+local accepted=0
+for i=1,65 do if RW.execute.start_wave({parts=RW.groups.parse("0 hounds@1"),rep_every=1,rep_for=60}) then accepted=accepted+1 end end
+check("aggregate: repeat-only jobs cannot evade the 64-job limit", accepted==64 and RW.execute.status().jobs==64)
+for i=1,20 do RW.execute.update(1) end
+check("aggregate: bounded repeat-only jobs still make progress", RW.execute.status().tracked>0 and RW.execute.status().queued<=8000)
+mod.on_unload()
+check("aggregate: unload releases both budgets and all owned units", RW.execute.status().jobs==0 and RW.execute.status().queued==0 and RW.bypass.count()==0)
+
 return table.concat(results, "\n")
 '''
 out = lua.execute(harness, MODROOT)

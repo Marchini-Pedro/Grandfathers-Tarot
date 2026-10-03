@@ -21,6 +21,8 @@ Things we know are missing or unverified, each with the next concrete step.
 
 ## 2. Discoveries (things the source or the game taught us)
 
+- **2026-10-03, aggregate budget:** derive the pending count from at most 64 owned jobs to avoid fragile mutable counters. Refuse an entire initial wave before expansion if it cannot fit in 8,000 entries; repeat-only jobs still consume a job slot. Full repeat ticks skip before constructing a batch; partial ticks clip to available room. Normal pressure must not flood timed-wave warnings.
+
 - **2026-10-03, control lifecycle:** job cancellation preserves mission-owned units; maintenance/pruning continues while paused/stopped. DMF disables hooks before the disable callback, so disabled updates perform liveness cleanup only and do not rewrite tuning. Re-enable explicitly restarts the host or discards client state before a fresh handshake. The pending-job unload assertion also detects the former unload-reset mutation.
 
 - **2026-10-03, F01 remediation:** cleanup must use the manager that registered the object, because `Managers.event` may already have changed or disappeared. Store that owner and test 100 generations with strong object keys, not a name-only map. Captured callbacks still need the retired-generation guard.

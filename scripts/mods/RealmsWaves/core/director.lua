@@ -626,10 +626,13 @@ end
 -- A wave with a fixed timer ("ev_<key>" seconds, set in the wave editor) ignores its chance and cooldown and
 -- never takes part in the draw or the vote: it spawns every N seconds on its own clock, whatever the other
 -- waves do. The clocks start with the mission's first cycle and only run while a player is alive.
+local timed_warning_at = -math.huge
+
 local function fire_timed(wave)
 	local ok, err = Execute.start_wave(wave.def)
 
-	if not ok then
+	if not ok and clock - timed_warning_at >= 5 then
+		timed_warning_at = clock
 		mod:warning("RealmsWaves: timed wave %s not started: %s", tostring(wave.key), tostring(err))
 	end
 end

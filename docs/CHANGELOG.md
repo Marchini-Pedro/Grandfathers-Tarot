@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 - Bound aggregate pending work (F04)
+- Cap execution at 64 jobs / 8,000 pending units; reject initial waves before allocation when they cannot fit and skip/clip repeats against shared capacity. Throttle timed-wave failure warnings.
+- Add supported 32-timer, atomic-admission, repeat-only and teardown regressions. All six checks pass on both runtimes (1,677 assertions each); native budget tuning remains pending.
+
 ## 2026-10-03 - Remediate pause, stop and disable (F02/F03/F05)
 - Separate scheduling cancellation from mission teardown; preserve living-unit accounting/tuning while stopped and freeze queued clocks while paused.
 - Cancel disabled work, retain/prune living ownership, and resync clients on re-enable; hosts explicitly restart.
