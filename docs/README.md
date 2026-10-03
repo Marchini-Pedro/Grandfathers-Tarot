@@ -18,8 +18,9 @@ The last tagged release is `v1.13.0`.
 
 The [2026-10-03 adversarial audit](audits/2026-10-03/report.md) is now
 complete offline: seven reproduced findings, a test/mutation map, measured
-Lua lifecycle workloads and an exact live checklist. Runtime fixes await the
-agreed report review; live acceptance remains pending.
+Lua lifecycle workloads and an exact live checklist. Approved runtime fixes are
+tracked in the [remediation log](audits/2026-10-03/remediation.md); live acceptance
+remains pending.
 
 ## References
 

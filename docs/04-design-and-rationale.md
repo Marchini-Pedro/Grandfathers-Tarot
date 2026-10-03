@@ -164,12 +164,15 @@ Repeat queues hold at most 1000 pending units per job, truncate a repeat batch t
 
 ### Adversarial audit ownership review (2026-10-03)
 
-The [dated report](audits/2026-10-03/report.md) confirms seven open defects,
+The [dated report](audits/2026-10-03/report.md) records seven baseline defects,
 not implemented design changes: event subscriptions survive unload; disabled
 updates still spawn; stop clears living-unit ownership; pause leaves Execute
 running; local queue caps lack an aggregate budget; partial broadcast rejection
 loses size recovery; LuaJIT preset numeric parsing admits NaN. Remediation is
 proposed at existing ownership/validation boundaries, preserving protocol 2,
 public options and serialization. Review is required before code changes.
+The approved [remediation log](audits/2026-10-03/remediation.md) tracks current
+changes. Entry unload now releases both subscriptions from their stored original
+event manager; retired callbacks are inert even if already captured.
 Full mission teardown works in the Lua fixtures; actual engine resources and
 eight-hour acceptance remain pending.

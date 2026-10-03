@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 - Remediate event ownership (F01)
+- Unregister both mission events from their original manager at unload; guard captured callbacks and missing managers.
+- Add an owner-faithful 100-generation entry regression. All six checks pass on both runtimes (1,659 assertions each); native acceptance remains pending.
+
 ## 2026-10-03 - Execute the offline adversarial audit (documentation only)
 - Record the frozen baseline, complete 29-file/descriptor inventory, risk-to-test map, five detected mutations and two survivors, L1–L8 results/limits, measurements and real-widget previews.
 - Report seven reproduced lifecycle, control, aggregate-pressure, delivery and numeric-import defects; preserve runnable isolated diagnostics in Markdown and an exact native/multiplayer/eight-hour acceptance checklist.

@@ -123,10 +123,13 @@ mod.on_all_mods_loaded = function ()
 	})
 
 	-- Same "first objective started" signal RealmsEvent uses to begin its rolls.
-	Managers.event:register(mod, "event_mission_objective_start", "_on_mission_objective_start")
+	RW.event_manager = Managers.event
 
-	-- fired by PlayerDeath.die (utilities/player_death.lua:45) on the host: used by the anti-snowball option
-	Managers.event:register(mod, "event_player_died", "_on_player_died")
+	if RW.event_manager then
+		RW.event_manager:register(mod, "event_mission_objective_start", "_on_mission_objective_start")
+		-- fired by PlayerDeath.die on the host: used by the anti-snowball option
+		RW.event_manager:register(mod, "event_player_died", "_on_player_died")
+	end
 
 	-- Wave editor view (structure copied from RealmsEvent's editor registration).
 	local UISoundEvents = require("scripts/settings/ui/ui_sound_events")
@@ -174,12 +177,17 @@ mod.open_editor = function ()
 	end
 end
 
--- On a mod reload (or game exit): stop this instance's hooks from acting (DMF cannot remove
--- them) and release everything it holds, so reloads do not stack behaviour or pin memory.
+-- Release subscriptions from their original owner; DMF removes hooks on reload.
+-- Retirement also protects callbacks already captured by an in-flight dispatch.
 mod.on_unload = function ()
-	-- the keybind-suppression hook of this instance stays in DMF's chain after a reload: never let it block
 	RW.dead = true
 	RW.text_input_active = false
+
+	if RW.event_manager then
+		pcall(RW.event_manager.unregister, RW.event_manager, mod, "event_mission_objective_start")
+		pcall(RW.event_manager.unregister, RW.event_manager, mod, "event_player_died")
+		RW.event_manager = nil
+	end
 
 	if RW.bypass then
 		RW.bypass.retire()
@@ -199,7 +207,7 @@ mod.on_unload = function ()
 end
 
 mod._on_mission_objective_start = function ()
-	if RW.director then
+	if RW.director and not RW.dead then
 		RW.director.on_mission_started()
 	end
 end
@@ -211,7 +219,7 @@ mod._on_player_died = function ()
 end
 
 mod.on_game_state_changed = function (status, state_name)
-	if state_name ~= "GameplayStateRun" or not RW.director then
+	if state_name ~= "GameplayStateRun" or not RW.director or RW.dead then
 		return
 	end
 
@@ -227,7 +235,7 @@ mod.update = function (...)
 	local first, second = ...
 	local dt = type(first) == "number" and first or second
 
-	if RW.director and dt then
+	if RW.director and not RW.dead and dt then
 		local ok, err = pcall(RW.director.update, dt)
 
 		if not ok and not RW.update_failed then

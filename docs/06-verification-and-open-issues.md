@@ -132,7 +132,7 @@ their stated fixtures, not fixed. The detailed live matrix above remains open.
 
 | Finding | Offline status | Required remediation / live evidence |
 | --- | --- | --- |
-| F01 reload event ownership | 100 obsolete generations retained; unregister control releases them | Event cleanup regression, real reload/editor/pending-work sessions |
+| F01 reload event ownership | Fixed on remediation branch; 100-generation owner/weak-reference regression | Real reload/editor/pending-work sessions remain pending |
 | F02 disabled spawning | Actual DMF toggle/update still spawns two queued hounds | Explicit disable policy; no disabled work or stale replay |
 | F03 stop/live ownership | Alive unit forgotten; recompute factor 2 becomes 1 | Preserve owned units; cap, tuning, late-join size and despawn checks |
 | F04 aggregate repeat backlog | 992 jobs / 992,000 pending at 160 simulated seconds | Global budget and backpressure; native frame/memory pressure |
@@ -185,6 +185,8 @@ their stated fixtures, not fixed. The detailed live matrix above remains open.
 ## Results log
 
 (Append dated entries: what was tested, result, fixes.)
+
+- 2026-10-03, remediation batch 1 (F01): release original-manager event subscriptions at unload; protect captured objective/update callbacks and tolerate missing manager. Entry regression checks 100 generations, replaced/missing manager and double unload. All six checks pass on both runtimes: entry 22, total 1,659 assertions. Native reload remains pending; see the remediation log.
 
 - 2026-10-03, final audit-document review: corrected descriptor line count, specified the rounded MiB precision of `/rw_status`, and distinguished injected SessionControl rejection from unverified native packet loss. Runtime/test/configuration scope remains unchanged. The user subsequently authorized systematic remediation on a new branch; the dated report remains the frozen pre-fix evidence.
 - 2026-10-03, adversarial audit: [report](audits/2026-10-03/report.md). Target `8c81c1bbfb6107788dafa98f56c6194dcaa80421`; all six checks pass, 30 compiled inputs and 1,655 assertions on each Lua runtime. Five of seven isolated mutations detect the intended behavioral regressions; retired-tuning and unload-reset variants survive. Seven findings reproduced; no production fixes applied. L1–L8 have results or explicit limits; Lua retention and normal-JIT timing use separate controls. 27 real-widget previews inspected across 1080p/1440p/4K. Native rendering, multiplayer and eight-hour/ten-mission soak remain pending. Reference/runtime/test/configuration hash integrity verified; only Markdown changed.

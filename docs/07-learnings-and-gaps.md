@@ -21,6 +21,8 @@ Things we know are missing or unverified, each with the next concrete step.
 
 ## 2. Discoveries (things the source or the game taught us)
 
+- **2026-10-03, F01 remediation:** cleanup must use the manager that registered the object, because `Managers.event` may already have changed or disappeared. Store that owner and test 100 generations with strong object keys, not a name-only map. Captured callbacks still need the retired-generation guard.
+
 - **2026-10-03, final audit review:** `/rw_status` rounds heap to whole MiB; converting the displayed MB value to KiB cannot reveal sub-MiB retention. Record source/precision and keep precise live collected floors pending without telemetry. SessionControl false returns are availability/encoding failures, not demonstrated packet-loss acknowledgements.
 - **2026-10-03, weak values do not release strong object keys:** actual EventManager holds each old mod key after unload. 100-generation fixture and unregister-only control demonstrate F01. Retiring callbacks suppresses behavior but does not remove their owner.
 - **2026-10-03, verify DMF contracts rather than old comments:** current loader restores original hooked functions at reload; the runtime comments saying hooks cannot be removed are historical assumptions. DMF does keep delivering update events to disabled mods, so an enabled gate/disable lifecycle is necessary (F02).
@@ -60,6 +62,8 @@ Things we know are missing or unverified, each with the next concrete step.
 - **2026-10-02, the log's numbers named the culprit**: speed 1.3 and 2.25x shots are exactly `havoc_ranged_attack_speed_05` (+0.3, x2.25). The user's own hint (a shooter that stims itself raises its volley) points at the same mechanism, a buff on the minion changing these stats. Not used as a feature (no new buffs), but our factor now stacks on top of any such buff.
 
 ## 3. Attempts and dead ends
+
+- **2026-10-03, F01 regression control:** the first normal-JIT weak-owner loop retained a compiler-associated reference despite cleared event keys. Disable/flush tracing only during the ownership diagnostic, as in the audit control; keep normal execution checks separate. Both runtimes are still exercised.
 
 - **2026-10-03, audit scratch probes:** missing command stub, invalid tune id, wrong simulation helper, below-minimum fixed timer and replacing a captured RW table invalidated early probes; corrected only in `.git/audit/`. A sparse-array probe initially used an empty snapshot and was corrected before conclusions. Setup errors were excluded from finding/mutation evidence.
 - **2026-10-03, empty-standard allegation disproved:** forcing private `_parts = {}` restored defaults, but the real Remove callback refuses the last standard enemy group. Keep this as a rejected hypothesis, not a confirmed UI bug.

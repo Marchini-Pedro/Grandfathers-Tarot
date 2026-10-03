@@ -46,7 +46,18 @@ get_mod = function(name)
   return mod
 end
 local registered_events = {}
-Managers = { event = { register = function(self, m, name, method) registered_events[name] = method end } }
+local function event_manager()
+  return { _events = {},
+    register = function(self, owner, name, method)
+      registered_events[name] = method
+      self._events[name] = self._events[name] or setmetatable({}, {__mode="v"})
+      self._events[name][owner] = method
+    end,
+    unregister = function(self, owner, name)
+      if self._events[name] then self._events[name][owner] = nil end
+    end }
+end
+Managers = { event = event_manager() }
 
 local results = {}
 local function check(name, cond, detail) results[#results+1] = (cond and "PASS " or "FAIL ") .. name .. (detail and (" -- " .. tostring(detail)) or "") end
@@ -93,8 +104,17 @@ local anim_ok, anim_err = pcall(commands.rw_anim)
 check("entry: /rw_anim without the engine table (this harness has none) answers instead of failing", anim_ok and #echoed == 2 and echoed[1]:find("Unit functions about animation", 1, true) ~= nil and echoed[2]:find("cannot be looked at", 1, true) ~= nil, anim_ok and table.concat(echoed, " | ") or anim_err)
 
 RW.text_input_active = true
+local subscription_owner = Managers.event
+Managers.event = event_manager() -- unload must release the original manager
 mod.on_unload()
 check("unload: the flag is cleared and this instance's hook becomes a pass-through (stale hooks after a reload never block keys)", RW.dead == true and RW.text_input_active == false and (function() dmf_calls = {}; RW.text_input_active = true; hook(original); return #dmf_calls == 1 end)())
+check("unload: both subscriptions are removed from their original manager", next(subscription_owner._events.event_mission_objective_start) == nil and next(subscription_owner._events.event_player_died) == nil)
+local obsolete_calls = 0
+RW.director.on_mission_started = function() obsolete_calls = obsolete_calls + 1 end
+RW.director.on_player_died = function() obsolete_calls = obsolete_calls + 1 end
+RW.director.update = function() obsolete_calls = obsolete_calls + 1 end
+mod._on_mission_objective_start(); mod._on_player_died(); mod.update(1)
+check("unload: captured objective, death and update callbacks are inert", obsolete_calls == 0)
 
 -- bypass hooks installed by the entry (string class names, DMF delays them until the class exists)
 local names = {}
@@ -105,6 +125,33 @@ check("entry: MinionAttack is hooked through hook_require (it may load after the
 check("entry: editor view registered under its name with the right class", #views == 1 and views[1].view_name == "realms_waves_editor" and views[1].view_settings.class == "RealmsWavesView")
 check("entry: commands registered (rw_test, rw_editor, rw_status, rw_custom, rw_roll, rw_start, rw_skip, rw_vote)", commands.rw_test and commands.rw_editor and commands.rw_status and commands.rw_custom and commands.rw_roll and commands.rw_start and commands.rw_skip and commands.rw_vote ~= nil)
 check("entry: keybind functions exist (open_editor, vote_1..vote_5)", type(mod.open_editor) == "function" and type(mod.vote_1) == "function" and type(mod.vote_5) == "function")
+
+-- Retain strong object keys just as game EventManager does. DMF-owned registries
+-- are released between generations, so weak-reference survival detects event ownership.
+local helpers = {"hook","hook_safe","hook_require","register_hud_element","add_require_path","register_view","command","get","set","echo","warning","error","localize","io_dofile"}
+local prototype = mod
+local tracing = jit and jit.status()
+if jit then jit.off(); jit.flush() end -- ownership check excludes compiler traces
+local weak = setmetatable({}, {__mode="k"})
+local manager = event_manager()
+Managers.event = manager
+for i=1,100 do
+  mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
+  dofile(BASE .. "/RealmsWaves.lua"); mod.on_all_mods_loaded()
+  weak[mod] = true
+  if i % 2 == 0 then Managers.event = nil end
+  mod.on_unload(); mod.on_unload()
+  Managers.event = manager
+  hooks, views, commands, hook_requires = {}, {}, {}, {}
+end
+mod = nil
+collectgarbage("collect"); collectgarbage("collect")
+check("reload: 100 generations release strong event keys and obsolete weak mod references", next(weak) == nil and next(manager._events.event_mission_objective_start) == nil and next(manager._events.event_player_died) == nil)
+mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
+Managers.event = nil
+local missing_ok = pcall(function() dofile(BASE .. "/RealmsWaves.lua"); mod.on_all_mods_loaded(); mod.on_unload() end)
+check("reload: missing event manager is safe at initialization and unload", missing_ok)
+if tracing then jit.on() end
 
 return table.concat(results, "\n")
 '''

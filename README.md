@@ -67,7 +67,7 @@ and Improved Havoc Tags supply enemy/modifier colours when installed.
 ## Current limits
 
 - The [2026-10-03 audit](docs/audits/2026-10-03/report.md) found open defects:
-  reload retains event subscriptions, disable can keep spawning, stop forgets
+  disable can keep spawning, stop forgets
   surviving units, and pause still feeds queued/repeating work. Aggregate
   repeats can create a large backlog; peer-specific size-send rejection and
   malformed numeric preset import also need fixes. Remediation awaits review.
