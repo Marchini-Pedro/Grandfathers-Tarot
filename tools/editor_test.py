@@ -163,7 +163,7 @@ local function open_card(i) click_tile(i, "hotspot_edit") end
 local function blank_tile() return view._widgets_by_name.rw_tile_blank end
 local function plain(text) return (text:gsub("{#[^}]*}", "")) end
 
-check("deck: the model still has 32 waves (12 standard + 20 custom slots)", #view._waves == 32, #view._waves)
+check("deck: the model has 100 cards (12 standard + 88 custom slots, Events.MAX_CARDS) and the slots are the rest", #view._waves == 100 and mod.rw.events.MAX_CARDS == 100 and mod.rw.events.CUSTOM_SLOTS == 88 and #mod.rw.events.keys() == 100, #view._waves)
 check("deck: 12 cards and the blank tile (the empty custom slots are not cards)", #view._deck == 13 and view._deck[13].blank == true and view._deck_free ~= nil and view._deck_free.key == "custom_1", #view._deck)
 check("deck: page one shows 12 tiles, the blank tile in slot 13, no more", tile(1).visible and tile(12).visible and not tile(13).visible and not tile(14).visible and blank_tile().visible)
 check("deck: the old table is gone (rows, header and panel hidden)", not row(1).visible and not D.list_header.visible and not D.list_panel.visible)
@@ -178,6 +178,21 @@ check("deck: threat diamonds (filled to the level, the rest the same diamonds di
 check("deck: every shape has a larger faint copy under it (anti-aliasing): the suit mark, the diamonds, the dots", tile(1).style.icon_ch1.visible and tile(1).style.icon_ch1.size[1] > tile(1).style.icon_c1.size[1] and tile(1).style.icon_ch1.color[1] == 77 and tile(1).style.icon_ch1.offset[3] < tile(1).style.icon_c1.offset[3] and tile(1).style.th_h1.visible and tile(1).style.th_h1.size[1] > tile(1).style.th_o1.size[1] and tile(1).style.dot_h1.visible and tile(1).style.dot_h1.size[1] > tile(1).style.dot_1.size[1] and not tile(1).style.dot_h6.visible)
 check("deck: the suit mark is 26 units (it was 22) and sits in the top right corner", view._tile_shape ~= nil and tile(1).style.icon_c1.size[1] > 2 * 2.4 * 26 / 24 - 0.01 and tile(1).style.icon_c1.size[1] < 2 * 2.4 * 26 / 24 + 0.01)
 check("deck: header 'N in the draw', caption, and the strip has a segment per card in the draw", D.deck_count.content.deck_count == "deck_count:12" and D.deck_caption.content.deck_caption == "deck_caption" and #view._strip_segments == 12 and D.rw_strip.style.seg_12.visible and not D.rw_strip.style.seg_13.visible)
+
+-- 100 cards: the Deck pages through them all, the strip has a segment for each
+do
+  local Dk = dofile(BASE .. "/ui/deck.lua")
+  for i = 1, mod.rw.events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = "Card " .. i .. "\t1 hound"; settings["on_custom_" .. i] = true end
+  view._offset = 0; view:_reload(); view:_apply_screen()
+  check("100 cards: the Deck holds all of them (no blank tile: every slot is used) and the header counts the whole draw", #view._deck == 100 and not blank_tile().visible and D.deck_count.content.deck_count == "deck_count:100", #view._deck)
+  check("100 cards: the strip has a segment per card in the draw and stays inside its 1710 units", #view._strip_segments == 100 and (function() local last = D.rw_strip.style.seg_100; return last.visible ~= false and last.offset[1] + last.size[1] <= 1710.01 end)())
+  for _ = 1, 20 do click("rw_scroll_down") end
+  check("100 cards: scrolling a row at a time reaches the last page: nine cards, ending with Card 88", view._offset == Dk.max_offset(100) and tile(9).visible and plain(tile(9).content.name) == "Card 88" and not tile(10).visible, tostring(view._offset) .. " " .. tostring(tile(9).content.name))
+  for _ = 1, 20 do click("rw_scroll_up") end
+  check("100 cards: ...and back to the first page", view._offset == 0 and tile(1).content.name == "The Fool")
+  for i = 1, mod.rw.events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil end
+  view._offset = 0; view:_reload(); view:_apply_screen()
+end
 check("deck: the strip is as wide as its track (segments and gaps add up to 1710)", (function() local s = view._strip_segments; local last = s[#s]; return math.abs(last.x + last.w - 1710) < 1e-6 end)())
 check("deck: buttons: Deck presets (top right) and Import card / Restore defaults at the bottom, no Back, the time steppers", D.btn_presets.visible and D.btn_presets.content.hotspot_text == "btn_presets" and D.btn_wimport.visible and D.btn_default.visible and not D.btn_back.visible and D.stepper_tmin.visible and D.stepper_tmax.visible)
 check("deck: nothing of the detail screen shows", not D.btn_rename.visible and not D.btn_delete.visible and not D.stepper_chance.visible)
@@ -1440,7 +1455,7 @@ do
   view:_open_detail("wave_small"); click("btn_delete")
   check("delete: deleting a standard card asks 'Sure?' first too", view._widgets_by_name.btn_delete.content.hotspot_text == "btn_sure" and settings["del_wave_small"] ~= true)
   click("btn_delete")
-  check("delete: the second click hides the standard card (it is deleted)", settings["del_wave_small"] == true and tile(1).content.name ~= "My Small" and #view._waves == 31 and view._deleted_count == 1 and view._screen == "list", tostring(tile(1).content.name) .. " " .. #view._waves)
+  check("delete: the second click hides the standard card (it is deleted)", settings["del_wave_small"] == true and tile(1).content.name ~= "My Small" and #view._waves == 99 and view._deleted_count == 1 and view._screen == "list", tostring(tile(1).content.name) .. " " .. #view._waves)
   check("delete: the Deck says how many default cards are deleted", view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_deleted:1")
   local pool_has = false; for _, e in ipairs(mod.rw.events.build_pool(function(id) return settings[id] end, mod.rw.groups)) do if e.key == "wave_small" then pool_has = true end end
   check("delete: a deleted card is not drawn and not found by /rw_test", not pool_has and select(1, mod.rw.events.find("my_small", function(id) return settings[id] end, mod.rw.groups)) == nil)
@@ -1450,7 +1465,7 @@ do
   click("btn_default")
   check("delete: first click only asks 'Sure?'", view._widgets_by_name.btn_default.content.hotspot_text == "btn_sure" and settings["del_wave_small"] == true)
   click("btn_default")
-  check("delete: second click restores every card to the defaults (deleted ones too, custom ones emptied)", settings["del_wave_small"] == false and settings["wave_def_wave_small"] == "" and settings["pct_wave_small"] == 5 and settings["pct_boss_ambush"] ~= 99 and #view._waves == 32 and tile(1).content.name == "The Fool" and view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_title", tostring(#view._waves))
+  check("delete: second click restores every card to the defaults (deleted ones too, custom ones emptied)", settings["del_wave_small"] == false and settings["wave_def_wave_small"] == "" and settings["pct_wave_small"] == 5 and settings["pct_boss_ambush"] ~= 99 and #view._waves == 100 and tile(1).content.name == "The Fool" and view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_title", tostring(#view._waves))
   check("delete: the replaced setup is kept for Undo last load", settings.preset_undo ~= nil and settings.preset_undo ~= "")
   settings.preset_undo = nil
   click("btn_default"); view:update(0.01, 500, input_stub3)
@@ -1747,7 +1762,7 @@ do
 
   -- import from the list into the first free custom slot
   click("btn_back")
-  for i = 1, 20 do settings["wave_def_custom_" .. i] = nil end
+  for i = 1, mod.rw.events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = nil end
   settings["wave_def_custom_1"] = "Taken\t2 hounds"; settings["wave_def_custom_2"] = "Taken\t2 hounds"
   view:_reload(); view._offset = 0; view:_refresh_rows()
   clip_text = P.encode_wave({ key = "custom_5", name = "From Clipboard", recipe = "3 crushers[purple]", enabled = true, pct = 20, cd = 60, sp = 3, re = 10, rf = 60, dmin = 25, dmax = 0 })
@@ -1762,11 +1777,11 @@ do
   check("share: a bad paste keeps the import box open with the reason", view._popup ~= nil and view._popup.error ~= nil)
   PPw.Popup.cancel(view)
   -- no free slot
-  for i = 1, 20 do settings["wave_def_custom_" .. i] = "Full " .. i .. "\t1 hound" end
+  for i = 1, mod.rw.events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = "Full " .. i .. "\t1 hound" end
   view:_reload(); view:_refresh_rows(); echoes = {}
   click("btn_wimport")
   check("share: no free custom slot -> a message and no popup", view._popup == nil and echoes[#echoes] == "msg_no_free_slot", tostring(echoes[#echoes]))
-  for i = 1, 20 do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil; settings["pct_custom_" .. i] = nil; settings["dmin_custom_" .. i] = nil; settings["dmax_custom_" .. i] = nil; settings["cd_custom_" .. i] = nil; settings["sp_custom_" .. i] = nil; settings["re_custom_" .. i] = nil; settings["rf_custom_" .. i] = nil end
+  for i = 1, mod.rw.events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil; settings["pct_custom_" .. i] = nil; settings["dmin_custom_" .. i] = nil; settings["dmax_custom_" .. i] = nil; settings["cd_custom_" .. i] = nil; settings["sp_custom_" .. i] = nil; settings["re_custom_" .. i] = nil; settings["rf_custom_" .. i] = nil end
   settings["wave_def_custom_1"] = "Custom 1\t3 hounds"; settings["on_custom_1"] = true
   view:_reload(); view._offset = 0; view:_apply_screen()
 end
@@ -2309,7 +2324,7 @@ do
   local function plain_lines(w) return plain(w.content.comp) end
   local function near(a, b) return math.abs(a - b) < 1e-6 end
 
-  for i = 1, 20 do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil end
+  for i = 1, mod.rw.events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil end
   settings.wave_def_custom_1 = "The Magician\t3 trapper, 2 flamer, 2 mutant, 2 tox flamer"; settings.on_custom_1 = true; settings.su_custom_1 = "blight"; settings.pct_custom_1 = 10
   settings.shelf_faction = nil
   view._screen = "list"; view._key = nil; view:_reload(); view:_apply_screen()
@@ -2711,7 +2726,7 @@ if DUMP and DUMP ~= "" then
     elseif type(v) == "boolean" then return tostring(v) end
     return "null"
   end
-  for i = 1, 20 do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil end
+  for i = 1, mod.rw.events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil end
   settings.on_wave_medium = false; settings.pct_boss_ambush = 2
   settings.wave_def_custom_1 = "The Pale Choir\t24 mauler, 3 crusher[enraged], 2 hound, 1 plague ogryn, 4 sniper"; settings.on_custom_1 = true; settings.su_custom_1 = "murmur"; settings.wh_custom_1 = "They were never quiet."; settings.pct_custom_1 = 8
   settings.wave_def_custom_2 = "The Host\t1 daemonhost, 6 poxwalker"; settings.on_custom_2 = true; settings.th_custom_2 = 4 -- warp by default
@@ -2822,7 +2837,7 @@ if UI_DIR and UI_DIR ~= "" then
   local function hover(widget_name, hotspot_id, on) view._widgets_by_name[widget_name].content[hotspot_id or "hotspot"].is_hover = on end
   local sys_inp = { get = function() return nil end, is_null_service = function() return false end }
 
-  for i = 1, 20 do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil end
+  for i = 1, mod.rw.events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil end
   settings.on_wave_medium = true; settings.pct_boss_ambush = 2; settings.pct_wave_small = 5; settings.pct_wave_huge = 4
   settings.wave_def_custom_1 = "The Magician\t3 trapper, 2 flamer, 2 mutant, 2 tox flamer"; settings.on_custom_1 = true; settings.su_custom_1 = "blight"; settings.pct_custom_1 = 6
   settings.wave_def_custom_2 = "Chips\t3 crusher[enraged]{health=150}, 2 hound, 12 poxwalker@3, 4 shocktrooper, 1 plague ogryn"; settings.on_custom_2 = true; settings.su_custom_2 = "rage"

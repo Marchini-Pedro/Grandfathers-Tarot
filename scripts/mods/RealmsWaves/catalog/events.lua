@@ -2,14 +2,16 @@
 -- and data files can load it too).
 --
 -- Built-in ("standard") waves are data below; the user can override name and
--- composition of any wave, and fill 20 custom slots, from the in-game editor.
+-- composition of any wave, and fill the custom slots (up to Events.MAX_CARDS cards in all), from the in-game editor.
 -- part = { breed = "name", count = n }  or  { one_of = { "a", "b" }, count = n }
 -- monster = true uses the monster distance range.
 -- The standard waves are tarot cards (names, suits and whispers: catalog/cards.lua); their keys never change, so saved
 -- settings keep working. default_pct is the card's chance on the 1-10 scale of the editor's chance pips.
 local Events = {}
 
-Events.CUSTOM_SLOTS = 20
+-- The most cards a deck holds: the standard cards and the custom slots together (the keys custom_1 ... custom_N, N = CUSTOM_SLOTS, are
+-- fixed names that saved settings, presets and shared texts use). It was 32 (20 custom slots) until 2.1.
+Events.MAX_CARDS = 100
 
 Events.STANDARD = {
 	{
@@ -112,6 +114,9 @@ Events.STANDARD = {
 		},
 	},
 }
+
+-- the custom slots fill the deck up to MAX_CARDS (a standard card the player deleted keeps its place: its key stays reserved)
+Events.CUSTOM_SLOTS = Events.MAX_CARDS - #Events.STANDARD
 
 local by_key = {}
 

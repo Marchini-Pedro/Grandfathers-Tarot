@@ -1,4 +1,4 @@
--- Wave editor: lists every wave (standard + 20 custom slots), shows its
+-- Wave editor: lists every wave (the standard cards + the custom slots, 100 in all), shows its
 -- composition, and lets you rename it, change its enemies (stepper, add,
 -- remove, or edit as text), and set its chance, cooldown and enabled state.
 -- Everything is written straight to DMF settings (see catalog/events.lua), so

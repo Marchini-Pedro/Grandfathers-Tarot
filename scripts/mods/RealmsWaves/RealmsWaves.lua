@@ -489,7 +489,7 @@ mod:command("rw_roll", "RealmsWaves: simulate N weighted rolls to check the perc
 	end
 end)
 
-mod:command("rw_custom", "RealmsWaves: set a custom wave: /rw_custom <slot 1-20> <recipe, e.g. 5 trappers, 5 mutants, 10 hounds>", function (slot, ...)
+mod:command("rw_custom", "RealmsWaves: set a custom wave: /rw_custom <slot number of a custom card, 1 to 88> <recipe, e.g. 5 trappers, 5 mutants, 10 hounds>", function (slot, ...)
 	slot = tonumber(slot)
 
 	if not slot or slot < 1 or slot > RW.events.CUSTOM_SLOTS or slot ~= math.floor(slot) then

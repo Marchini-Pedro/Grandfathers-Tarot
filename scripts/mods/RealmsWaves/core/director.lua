@@ -135,13 +135,43 @@ Director.on_waves = function (sender, text)
 	end
 end
 
+local warned_waves_size = false
+
 -- Client: tell the host which waves are enabled here. Sent after the handshake and whenever the editor closes.
 Director.send_waves = function ()
 	if Director.is_host() or client_disabled or not in_mission or not Presets or not Protocol.is_available() then
 		return false
 	end
 
-	local text = Presets.encode(Presets.enabled_waves(get_setting, Events, Groups))
+	local preset = Presets.enabled_waves(get_setting, Events, Groups)
+	local text = Presets.encode(preset)
+	local limit = Protocol.MAX_WAVES_TEXT or 90000
+
+	-- A hundred big cards may not fit in one message (the limit is Realms'): the first cards that fit are sent, and it is said once.
+	if #text > limit and #preset.waves > 1 then
+		local all, total = preset.waves, #preset.waves
+		local count = total
+
+		for _ = 1, 8 do
+			count = math.max(1, math.min(count - 1, math.floor(count * limit / #text * 0.95)))
+			preset.waves = {}
+
+			for i = 1, count do
+				preset.waves[i] = all[i]
+			end
+
+			text = Presets.encode(preset)
+
+			if #text <= limit or count == 1 then
+				break
+			end
+		end
+
+		if not warned_waves_size then
+			warned_waves_size = true
+			mod:warning("RealmsWaves: only %d of your %d enabled cards fit in one message to the host (limit %d bytes): the others are not part of the pooled draw", count, total, limit)
+		end
+	end
 
 	return Protocol.send_waves(text) == true
 end

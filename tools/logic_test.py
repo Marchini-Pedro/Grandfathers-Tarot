@@ -540,6 +540,66 @@ do
   settings.interval_min = 100; settings.interval_max = 100
   Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
 end
+
+-- 100 cards: the deck, and the message that tells the host which cards a client has ----------------------------------------------
+do
+  local Presets = PresetsMod
+  local keys = Events.keys()
+  local function get(id) return settings[id] end
+  local function w(key, name, recipe, pct) return { key = key, name = name, recipe = recipe, enabled = true, pct = pct, cd = 0, sp = 3, re = 10, rf = 60, dmin = 0, dmax = 0 } end
+  check("cards: a deck holds 100 cards: the 12 standard ones and 88 custom slots, every key valid and unique", Events.MAX_CARDS == 100 and Events.CUSTOM_SLOTS == 88 and #keys == 100 and (function() local seen = {} for _, k in ipairs(keys) do if seen[k] then return false end seen[k] = true end return seen.custom_88 == true and not seen.custom_89 end)())
+  check("cards: slot 88 is a card, slot 89 and slot 0 are not", Events.get("custom_88", get, Groups) ~= nil and Events.get("custom_89", get, Groups) == nil and Events.get("custom_0", get, Groups) == nil)
+  check("cards: the Deck's odds strip has a segment for every card that can be in the draw", load("ui/deck").STRIP_MAX == Events.MAX_CARDS)
+  check("cards: the order of the Deck keeps all 100 (a saved order that lacks the new slots gets them in their usual place)", (function() local ordered = Events.ordered_keys(function(id) return id == "deck_order" and "custom_3,wave_small,custom_3,gone" or nil end); return #ordered == 100 and ordered[1] == "custom_3" and ordered[2] == "wave_small" and ordered[100] == "custom_88" end)())
+
+  -- a client with many cards: one message to the host; when they do not all fit, the first cards that do
+  local big = "3 crusher[enraged+purple+blight]{health=150 size=130 speed=120 gap=40 fire=200 burst=300 mass=250}, 2 mauler[red]{health=80 size=90}, 4 rager[orange+toughened], 3 gunner[fire]{fire=120}, 2 hound, 5 poxwalker@3, 2 mutant|trapper|flamer[parasite], 1 plague ogryn, 2 sniper, 3 bomber, 2 burster, 1 chaos spawn"
+  check("cards: the big recipe of the tests parses to the twelve groups a card holds", #Groups.parse(big) == 12, #Groups.parse(big))
+  for i = 1, Events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = "Card " .. i .. "\t" .. big; settings["on_custom_" .. i] = true; settings["pct_custom_" .. i] = 5 end
+  local full = #Presets.encode(Presets.enabled_waves(get, Events, Groups))
+  local saved_limit = Protocol.MAX_WAVES_TEXT
+  is_server = false
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  Director.on_welcome("host_peer", 1, "1.0.0", true)
+  local decoded = sent.waves and Presets.decode(sent.waves, Events, Groups)
+  check("cards: with room (the real limit) a client sends all of its cards, 100 of them, in one message", decoded ~= nil and #decoded.waves == 100 and #sent.waves == full and full < 90000, tostring(full) .. " " .. tostring(decoded and #decoded.waves))
+
+  Protocol.MAX_WAVES_TEXT = 20000
+  local echo_mark = #echoes
+  sent.waves, sent.waves_count = nil, nil
+  check("cards: the premise of the next test: the cards are more than the message can hold", full > 20000, full)
+  local ok_sent = Director.send_waves()
+  local text = sent.waves
+  local trimmed = text and Presets.decode(text, Events, Groups)
+  check("cards: 100 big cards do not fit in one message: the first cards that fit are sent, an intact preset under the limit, not nothing", ok_sent == true and text ~= nil and #text <= 20000 and trimmed ~= nil and #trimmed.waves >= 10 and #trimmed.waves < 100 and trimmed.waves[1].key == "wave_small" and trimmed.waves[#trimmed.waves].key == keys[#trimmed.waves], text and #text)
+  Director.send_waves(); Director.send_waves()
+  local said = 0; for i = echo_mark + 1, #echoes do if echoes[i]:find("enabled cards fit in one message", 1, true) then said = said + 1 end end
+  check("cards: ...and it is said once, not at every send", said == 1, said)
+  Protocol.MAX_WAVES_TEXT = 300
+  sent.waves = nil
+  Director.send_waves()
+  local one = sent.waves and Presets.decode(sent.waves, Events, Groups)
+  check("cards: a limit so small that not even one card fits still ends the trimming at one card (the protocol then refuses the oversized text), no endless loop", one ~= nil and #one.waves == 1 and one.waves[1].key == "wave_small", one and #one.waves)
+  Protocol.MAX_WAVES_TEXT = saved_limit
+
+  -- the host takes up to 100 cards of one player
+  is_server = true
+  Director.on_exit_gameplay(); Director.on_enter_gameplay()
+  is_server = true
+  for _, k in ipairs(keys) do settings["on_" .. k] = false end
+  settings.pool_all_players = true
+  local many = {}; for i = 1, 100 do many[i] = w(keys[i], "P" .. i, "1 hound", 5) end
+  Director.on_waves("peer_d", Presets.encode({ name = "waves", waves = many }))
+  check("cards: the host takes all 100 cards of one player into the pool (the limit was 40)", #Director.extra_waves() == 100, #Director.extra_waves())
+  local more = {}; for i = 1, 150 do more[i] = w(keys[(i - 1) % 100 + 1], "Q" .. i, "1 hound", 5) end
+  Director.on_waves("peer_e", Presets.encode({ name = "waves", waves = more }))
+  check("cards: a second player never adds more than 100 of their own", #Director.extra_waves() <= 200, #Director.extra_waves())
+
+  for i = 1, Events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil; settings["pct_custom_" .. i] = nil end
+  for _, k in ipairs(keys) do settings["on_" .. k] = nil end
+  settings.pool_all_players = nil
+  Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
+end
 -- protocol layer: RPCs registered, rw_waves send/receive validation ------------------------------------------------
 do
   local registered, sent_rpcs = {}, {}
@@ -560,9 +620,10 @@ do
   check("protocol: six RPCs registered (hello, scale, state, vote, waves, welcome)", table.concat(names, ",") == "rw_hello,rw_scale,rw_state,rw_vote,rw_waves,rw_welcome", table.concat(names, ","))
   check("protocol: send_waves goes to the host with the text as one argument (dot call: mod first)", P.send_waves("RW1|x") == true and sent_rpcs[#sent_rpcs].name == "rw_waves" and sent_rpcs[#sent_rpcs].recipient == "host" and sent_rpcs[#sent_rpcs].args[1] == "RW1|x" and sent_rpcs[#sent_rpcs].mod == mod)
   local n = #sent_rpcs
-  check("protocol: a text over the size limit is not sent", P.send_waves(string.rep("x", 60001)) == false and #sent_rpcs == n and P.send_waves(42) == false)
+  check("protocol: a text over the size limit is not sent", P.send_waves(string.rep("x", P.MAX_WAVES_TEXT + 1)) == false and #sent_rpcs == n and P.send_waves(42) == false)
+  check("protocol: a text of exactly the limit (90000) is still sent", P.send_waves(string.rep("x", P.MAX_WAVES_TEXT)) == true and P.MAX_WAVES_TEXT == 90000)
   registered.rw_waves("peer_a", "RW1|ok")
-  registered.rw_waves("", "RW1|no sender"); registered.rw_waves(nil, "x"); registered.rw_waves("peer_a", 42); registered.rw_waves("peer_a", string.rep("y", 60001))
+  registered.rw_waves("", "RW1|no sender"); registered.rw_waves(nil, "x"); registered.rw_waves("peer_a", 42); registered.rw_waves("peer_a", string.rep("y", P.MAX_WAVES_TEXT + 1))
   check("protocol: received waves are validated (sender, type, size) before the handler runs", #received == 1 and received[1][1] == "peer_a" and received[1][2] == "RW1|ok", #received)
 
   -- rw_scale: sizes of units (custom mods)

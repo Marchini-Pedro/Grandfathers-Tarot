@@ -32,7 +32,9 @@ local RPC_WAVES = "rw_waves"
 local RPC_SCALE = "rw_scale"
 local MAX_SCALES = 200
 Protocol.MIN_SCALE, Protocol.MAX_SCALE = 25, 300 -- percent (the range of the custom mod "size")
-local MAX_WAVES_TEXT = 60000 -- the Realms limit is 96 KiB per message; a full setup is about 15 KB
+local MAX_WAVES_TEXT = 90000 -- the Realms limit is 96 KiB per message; a plain setup of 32 cards was about 15 KB, 100 cards of 12 groups do not all fit (Director.send_waves trims)
+
+Protocol.MAX_WAVES_TEXT = MAX_WAVES_TEXT
 
 local _realms = nil
 local _handlers = {}

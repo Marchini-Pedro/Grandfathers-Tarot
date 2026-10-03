@@ -18,7 +18,7 @@ Deck.Y0 = 190
 Deck.STRIP_X, Deck.STRIP_Y, Deck.STRIP_W, Deck.STRIP_H = 105, 144, 1710, 14
 Deck.STRIP_GAP = 2
 Deck.STRIP_MIN = 3
-Deck.STRIP_MAX = 32 -- segments (12 standard cards and 20 custom ones)
+Deck.STRIP_MAX = 100 -- segments, one per card that can be in the draw (Events.MAX_CARDS: 12 standard cards and 88 custom ones)
 
 -- Screen position of the tile in grid slot `slot` (1..CAPACITY, row by row).
 Deck.tile_pos = function (slot)

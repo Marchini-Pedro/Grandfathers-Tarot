@@ -282,12 +282,12 @@ Presets.enabled_waves = function (get_setting, Events, Groups)
 end
 
 -- A decoded preset as wave-likes the draw can use (Events.build_pool's `extra`). `owner` (a peer id) goes
--- into each key so waves of different players never collide. At most `limit` waves (default 40).
+-- into each key so waves of different players never collide. At most `limit` waves (default: the most cards a deck holds).
 Presets.pool_waves = function (preset, owner, Events, Groups, limit)
 	local list = {}
 
 	for i, wave in ipairs(preset.waves or {}) do
-		if i > (limit or 40) then
+		if i > (limit or Events.MAX_CARDS) then
 			break
 		end
 
