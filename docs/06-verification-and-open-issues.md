@@ -1,5 +1,65 @@
 # 06. Verification, risks, open issues
 
+## 2026-10-03 - Publish enemy appearance PR #7
+
+Push `feature/enemy-appearance` at `0103281` and open
+[PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7) against main
+at `06c2b3a`, as requested by the user. GitHub reports the PR conflict-free.
+Its [first hosted PR run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37155162068)
+passes both runtimes: 1,916 assertions each, all module gates and source-line
+scores of 81.80% on Lua 5.5 / 78.54% on LuaJIT 2.1. Downloaded test/coverage
+reports match local results with no coverage failures. This publication record
+updates documentation only. Publication does not establish native acceptance;
+the feature remains unmerged and no installed mod files were changed.
+
+## 2026-10-03 - Synchronize appearance with merged PRs #5 and #6
+
+Fetch origin, pull main to `06c2b3a` in a separate worktree and merge main into
+`feature/enemy-appearance`. Preserve both changelog histories and the concurrent
+agent's checkout. This synchronization changes documentation only.
+Both aggregate runners pass again: **1,916 assertions per runtime**, Lua
+compilation, documentation sizes and every coverage gate; source-line scores
+**Lua 5.5 81.80%, LuaJIT 2.1 78.54%**. Reports are in ignored
+`test-results/pr7-lua55/` and `test-results/pr7-luajit21/`. Native rendering,
+multiplayer and performance acceptance remain pending; the feature is unmerged.
+
+## 2026-10-03 — Enemy colour experiments (offline; feature branch)
+
+Implemented per-group ARGB/method selection, persisted recipes/repeats, natural
+stim behaviour, visual-only stimm/explicit-slot tint and local outlines in the
+isolated `feature/enemy-appearance` worktree. Surface/private patch choices
+display prerequisites and perform no operation. Alpha is tint strength; native
+full-body/black surface coverage is not claimed. See [the live checklist and
+restoration limits](enemy-appearance.md).
+
+Before CI integration, the baseline passed: 33 compiled files, logic 828, editor
+694, entry 45 and HUD 179 assertions; documentation sizes passed. The initial
+focused appearance harness added 71 assertions (52 schema/runtime/protocol, 13 editor, six real
+entry/executor lifecycle) and reuses the editor/entry regressions. It passes on
+Lua 5.5 and LuaJIT 2.1. Real-English slider/dropdown previews were rendered from
+the real widgets and visually inspected; the zero-fill render failure was fixed.
+
+No game installation/session, shader/assets, native material coverage, live
+host/client, frame-time/RAM or user acceptance checks have run. The original
+CI checkout and installed mods remain untouched. No feature merge into `main`.
+
+### 2026-10-03 — Final integrated CI verification
+
+Integrate CI work at `fd56262` into this feature branch only. Resolve README and
+changelog conflicts while retaining both histories. Extend the protocol failure
+fixture for DMF schema loading/seven RPCs; instrument all three appearance test
+VMs and report every focused assertion. Add eight readiness/unsupported-stim/
+cleanup cases, bringing focused checks to 79 (60 schema/runtime/protocol,
+13 editor, six entry/executor).
+
+Both aggregate runners pass: **1,916 printed assertions**, compilation,
+documentation and every module/overall coverage gate. Source-line execution
+scores: **Lua 5.5 81.80; LuaJIT 2.1 78.54 percent**. New-module floors are
+schema 84, runtime 79, editor 90; all existing floors and overall 78 remain.
+The source-line proxy includes structural lines and is not branch/native
+coverage. Reports are reproducible under `test-results/` with `tools/run_tests.py`.
+No installation, publish, main merge or in-game acceptance is implied.
+
 ## Test matrix
 | # | Test | Expect | Status |
 |---|---|---|---|
@@ -276,3 +336,9 @@ Final validation (2026-10-03): all six tools pass on both Lua 5.5 and LuaJIT 2.1
 - 2026-10-03: synchronized local main after PR #1 merged, added the concise player README, compacted the technical index and updated CLAUDE.md maintenance rules. Corrected superseded branch/plan status without marking game acceptance complete. All five required offline scripts pass: 30 compiled files; logic zero failures (764 checks), editor 694, entry 18, HUD 179. Docs check passes with 14 Markdown files below 100 KB. Checked 38 relative links/anchors across the touched docs in this repo and BetterInventory; command paths, README structure and normal Git whitespace checks pass. BetterInventory's complete verifier passes all 59 behavior files and static/package checks. No runtime edits, new game evidence or live deployment.
 
 - 2026-10-03: confirmed documentation PR #2 and BetterInventory PR #1 merged; synchronized both local main branches. Prepared the reusable adversarial audit brief and linked it from the technical index/CLAUDE.md. Scope is Markdown only: no audit findings, live measurements or code fixes were produced. All six required repository checks pass (30 compiled files, logic zero failures, editor 694, entry 18, HUD 179; 15 Markdown files below 100 KB). Prompt structure, 15 relative links and Git whitespace checks pass. These are change-validation checks, not execution of the new adversarial audit.
+
+- 2026-10-03: post-PR #4 coverage review starts from merged main `6d5756d`. Added 80 behavior assertions (1,826 per runtime: logic 828, editor 697, entry 68, HUD 179, positions 35, protocol 19). Both Lua 5.5 and LuaJIT 2.1 pass. New fixtures cover hidden-position selection, nearest/all-player constraints, bounded queries, native failures, command adapters and protocol serialization/availability failures. The editor no longer reads sibling game source. All six selected mutations are detected on both runtimes in isolated temporary copies. Line hooks are suspended during the existing heap probes; no assertion threshold was weakened. No runtime Lua changes or new live-game acceptance evidence.
+
+- 2026-10-03: added the dual-runtime GitHub workflow and fail-closed coverage runner. Compilation (30 inputs), 1,826 behavior assertions and 11 gate/runner contracts pass per runtime (1,837 total). Scores reach 81.56% on Lua 5.5 and 78.30% on LuaJIT against 12,947 eligible source lines; overall floor is 78%, with explicit floors for all 29 Lua modules. Standalone verification and uninstrumented suites pass. Artifacts and the [coverage review](10-ci-and-coverage.md) record exact limits. Hosted runs await publication; required checks need owner configuration because this identity still has Write access without admin/maintain permission. No native/game acceptance claim.
+
+- 2026-10-03: at the user's request, pushed `feature/ci-coverage` and opened [PR #5](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/5) against `main`, including owner-side required-check instructions. The [first hosted PR run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37153728118) at `fd56262` succeeds on both Ubuntu/Python 3.13 jobs. Downloaded reports confirm 1,837 assertions per runtime, 10,560 / 10,138 covered lines out of 12,947 (81.56% / 78.30%), and no coverage failures. GitHub reports the user (`EduardoKenji`) merged PR #5 at `03785e3` while publication notes were being prepared; the [first main run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37153916183) passes both jobs. Synchronized local `main` and prepared these notes on `feature/ci-publication-docs`. Markdown sizes and Git whitespace checks pass. Production Lua is unchanged; no repository settings were changed. Required checks and in-game acceptance remain separate pending work.

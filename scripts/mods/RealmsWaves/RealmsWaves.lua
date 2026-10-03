@@ -103,11 +103,13 @@ mod.on_all_mods_loaded = function ()
 	RW.execute = mod:io_dofile(BASE .. "/spawn/execute")
 	RW.tuning = mod:io_dofile(BASE .. "/spawn/tuning")
 	RW.protocol = mod:io_dofile(BASE .. "/core/protocol")
+	RW.appearance = mod:io_dofile(BASE .. "/spawn/appearance")
 	RW.director = mod:io_dofile(BASE .. "/core/director")
 
 	RW.tuning.init({ protocol = RW.protocol })
 	RW.tuning.install()
-	RW.execute.init({ positions = RW.positions, bypass = RW.bypass, groups = RW.groups, tuning = RW.tuning })
+	RW.appearance.init({ schema = RW.groups.Appearance, protocol = RW.protocol })
+	RW.execute.init({ positions = RW.positions, bypass = RW.bypass, groups = RW.groups, tuning = RW.tuning, appearance = RW.appearance })
 	RW.director.init({
 		events = RW.events,
 		groups = RW.groups,
@@ -147,6 +149,9 @@ mod.on_all_mods_loaded = function ()
 		on_vote = Director.on_vote,
 		on_waves = Director.on_waves,
 		on_scale = Director.on_scale,
+		on_appearance = function (_, entries)
+			if not RW.dead and not RW.disabled and not Director.is_host() then RW.appearance.receive(entries) end
+		end,
 		on_peer_joined = Director.on_peer_joined,
 		on_peer_left = Director.on_peer_left,
 	})
@@ -185,6 +190,7 @@ mod.on_all_mods_loaded = function ()
 			transition_time = nil,
 		},
 	})
+	if RW.director.is_host() then RW.protocol.request_appearance_sync() end
 end
 
 -- Toggle the wave editor (keybind in the mod options, or /rw_editor).
@@ -203,6 +209,7 @@ end
 -- Release subscriptions from their original owner; DMF removes hooks on reload.
 -- Retirement also protects callbacks already captured by an in-flight dispatch.
 mod.on_unload = function ()
+	if RW.appearance then RW.appearance.retire() end
 	RW.dead = true
 	RW.text_input_active = false
 
@@ -247,9 +254,14 @@ mod.on_game_state_changed = function (status, state_name)
 	end
 
 	if status == "enter" then
+		if RW.appearance then RW.appearance.reset() end
+		if RW.protocol then RW.protocol.clear_appearance_session() end
 		register_events()
 		RW.director.on_enter_gameplay()
+		if RW.director.is_host() then RW.protocol.request_appearance_sync() end
 	else
+		if RW.appearance then RW.appearance.reset() end
+		if RW.protocol then RW.protocol.clear_appearance_session() end
 		RW.director.on_exit_gameplay()
 	end
 end
@@ -261,6 +273,8 @@ mod.on_disabled = function ()
 		return
 	end
 
+	if RW.appearance then RW.appearance.reset(true) end
+	if RW.protocol then RW.protocol.clear_appearance_session() end
 	RW.disabled = true
 	RW.text_input_active = false
 
@@ -298,6 +312,10 @@ mod.on_enabled = function (initial_call)
 		end
 
 		RW.protocol.refresh_peers()
+		if RW.director.is_host() then
+			-- Refresh appearance epochs on clients after host disable/re-enable.
+			RW.protocol.request_appearance_sync()
+		end
 	end
 end
 
@@ -329,6 +347,10 @@ mod.update = function (...)
 			RW.update_failed = true
 
 			mod:error("[update] failed: %s", tostring(err))
+		end
+		if RW.appearance then
+			local applied, appearance_error = pcall(RW.appearance.update, dt)
+			if not applied then mod:error("[appearance] %s", tostring(appearance_error)) end
 		end
 	end
 end

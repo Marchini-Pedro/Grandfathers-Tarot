@@ -24,8 +24,19 @@ remains pending.
 
 The reusable audit brief was merged into `main` through
 [PR #3](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/3) at `44e536f`.
-[PR #4](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/4) includes that
-merge and retains the completed audit and six remediation batches.
+[PR #4](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/4) merged at
+`6d5756d`, retaining the completed audit and six remediation batches.
+The [post-merge coverage review](10-ci-and-coverage.md) records the standalone
+CI runner, measured Lua module floors, added regressions and remaining limits.
+These changes were merged through
+[PR #5](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/5) at `03785e3`;
+the first hosted PR and main runs pass both runtimes. Required merge checks
+await owner setup.
+
+Enemy colour experiments are published in
+[PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7), synchronized
+with main after PRs #5 and #6. The [method guide](enemy-appearance.md) distinguishes
+usable experiments from advanced prerequisites; in-game acceptance is pending.
 
 The open branch `feature/heresy-card-and-ui-pass` (2026-10-03; ten requested changes: exact custom
 health, card-coloured pages, tighter shelf chips, Deck presets, `/rw_test_close`, HERESY, 100 cards,
@@ -37,11 +48,14 @@ rows 114-121 of the verification matrix. It has offline tests only and is not me
 | Document | Purpose |
 | --- | --- |
 | [Design and rationale](04-design-and-rationale.md) | Requirements, architecture and protocol decisions |
+| [Enemy colour experiments](enemy-appearance.md) | Per-group ARGB/method controls, usable experiments, prerequisites, transport and live acceptance |
+| [Enemy appearance research](research/enemy-appearance/findings.md) | Earlier read-only source/mod/public evidence; [experiment plan](research/enemy-appearance/experiments-and-recommendation.md) and [original brief](research/enemy-appearance/research-prompt.md) |
 | [Implementation plan](05-implementation-plan.md) | Checklist, reuse map and unfinished work |
 | [Verification and open issues](06-verification-and-open-issues.md) | Game test matrix, risks and dated results |
 | [Learnings and gaps](07-learnings-and-gaps.md) | Discoveries, failed approaches and actionable gaps |
 | [Workshop redesign](08-workshop-redesign.md) | Cauldron/Mirror design and build log |
 | [Recovery review](09-recovery-review.md) | Recovered history, fixes, validation and remaining limits |
+| [CI and coverage](10-ci-and-coverage.md) | Post-PR #4 measurements, gate policy, local commands and required GitHub checks |
 | [Executed audit](audits/2026-10-03/report.md) | Baseline, ranked findings, reproductions, inventory, measurements and live acceptance |
 | [Approved remediation](audits/2026-10-03/remediation.md) | Six implementation batches, current results and [runnable validation](audits/2026-10-03/remediation-validation.md) |
 | [Adversarial audit prompt](audits/adversarial-audit-prompt.md) | Reusable audit-only brief: risk-based tests, lifecycle/scaling stress, measurements and evidence requirements; not an executed audit |

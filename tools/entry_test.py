@@ -4,8 +4,7 @@ Run:  python tools/entry_test.py   (needs `lupa`, see CLAUDE.md)
 """
 import sys, os
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.environ.get("PYLIBS", r"C:\Users\ayko4\AppData\Local\Temp\claude\c--XboxGames-Warhammer-40-000--Darktide-Content\9da40c72-f459-4d9d-ab4b-3023fa21e2f5\scratchpad\pylibs"))
-from lupa import LuaRuntime
+from lua_test_runtime import LuaRuntime
 
 MODROOT = os.path.abspath(os.path.join(HERE, "..")).replace("\\", "/")
 lua = LuaRuntime(unpack_returned_tuples=True)
@@ -104,6 +103,101 @@ check("entry: /rw_tune with nothing tuned answers instead of failing", tune_ok a
 echoed = {}
 local anim_ok, anim_err = pcall(commands.rw_anim)
 check("entry: /rw_anim without the engine table (this harness has none) answers instead of failing", anim_ok and #echoed == 2 and echoed[1]:find("Unit functions about animation", 1, true) ~= nil and echoed[2]:find("cannot be looked at", 1, true) ~= nil, anim_ok and table.concat(echoed, " | ") or anim_err)
+
+-- Console/keybind adapters: validate user inputs and forward the intended state.
+do
+  local saved_ui=Managers.ui
+  Managers.ui=nil;mod.open_editor()
+  local opened,closed=0,0
+  Managers.ui={view_instance=function() return opened>closed and {} or nil end,
+    open_view=function(_,name) if name=="realms_waves_editor" then opened=opened+1 end end,
+    close_view=function(_,name) if name=="realms_waves_editor" then closed=closed+1 end end}
+  commands.rw_editor();commands.rw_editor()
+  check("editor command: opens then closes the registered view, absent UI is safe", opened==1 and closed==1)
+  Managers.ui=saved_ui
+  local original_vote=RW.director.local_vote
+  local options={}
+  RW.director.local_vote=function(option) options[#options+1]=option;return false,"no ballot" end
+  for i=1,5 do mod["vote_"..i]() end
+  commands.rw_vote("3");commands.rw_vote("invalid")
+  check("vote inputs: all five keys and console number forward the selected option", table.concat(options,",")=="1,2,3,4,5,3,0")
+  RW.director.local_vote=original_vote
+  local original_pause=RW.director.pause
+  local arguments={}
+  RW.director.pause=function(value) arguments[#arguments+1]=tostring(value);return value,"client" end
+  commands.rw_pause("on");commands.rw_pause("off");commands.rw_pause();commands.rw_pause("toggle")
+  check("pause command: on/off forward booleans, omitted/unknown arguments toggle", table.concat(arguments,",")=="true,false,nil,nil")
+  RW.director.pause=original_pause
+  local original_start=RW.director.force_start
+  RW.director.force_start=function() return true end;echoed={};commands.rw_start()
+  check("start command: successful host start is reported", echoed[1]:find("cycle started",1,true)~=nil)
+  RW.director.force_start=function() return false end;echoed={};commands.rw_start()
+  check("start command: rejected client start explains the authority requirement", echoed[1]:find("host in a mission only",1,true)~=nil)
+  RW.director.force_start=original_start
+  local original_next=RW.director.next_wave
+  RW.director.next_wave=function() return true end;echoed={};commands.rw_next()
+  check("next command: successful redraw is reported", echoed[1]:find("new wave drawn",1,true)~=nil)
+  RW.director.next_wave=original_next
+  echoed={};commands.rw_test()
+  check("test command: empty input lists usage and existing waves", #echoed==1 and echoed[1]:find("hound_frenzy",1,true)~=nil)
+  local original_fire=RW.director.fire_now
+  local query
+  RW.director.fire_now=function(text) query=text;return true,"queued note" end
+  echoed={};commands.rw_test("Mutants","Everywhere")
+  check("test command: joins multiword names and reports successful queueing", query=="Mutants Everywhere" and echoed[1]:find("queued note",1,true)~=nil)
+  RW.director.fire_now=function() return false,"host only" end;echoed={};commands.rw_test("hound_frenzy")
+  check("test command: rejected wave reports the director reason", echoed[1]:find("host only",1,true)~=nil)
+  RW.director.fire_now=original_fire
+  -- the deck holds 100 cards: 88 custom slots (it was 20, so 21 used to be the first invalid one)
+  for _,slot in ipairs({"x","0",tostring(RW.events.CUSTOM_SLOTS+1),"1.5"}) do
+    local before=stored.wave_def_custom_3;echoed={};commands.rw_custom(slot,"1 hound")
+    check("custom command: invalid slot "..slot.." makes no settings writes", stored.wave_def_custom_3==before and echoed[1]:find("slot must be",1,true)~=nil)
+  end
+  do
+    local top=tostring(RW.events.CUSTOM_SLOTS);echoed={};commands.rw_custom(top,"2","hounds")
+    check("custom command: the last slot ("..top..") is valid and the message of a wrong slot names the range", RW.events.CUSTOM_SLOTS==88 and stored["wave_def_custom_"..top]~=nil and stored["on_custom_"..top]==true)
+    stored["wave_def_custom_"..top],stored["on_custom_"..top]=nil,nil
+    echoed={};commands.rw_custom("0","1 hound")
+    check("custom command: ...which is 1-88", echoed[1]:find("1-88",1,true)~=nil, echoed[1])
+  end
+  local old_def,old_on=stored.wave_def_custom_3,stored.on_custom_3
+  commands.rw_custom("3","2","hounds")
+  local wave=RW.events.get("custom_3",function(id) return stored[id] end,RW.groups)
+  check("custom command: valid recipe persists normalized enemies and enables the slot", wave.parts[1].breed=="chaos_hound" and wave.parts[1].count==2 and stored.on_custom_3==true)
+  local saved_def=stored.wave_def_custom_3;echoed={};commands.rw_custom("3","2 unicorns")
+  check("custom command: invalid breed leaves the previous recipe intact", stored.wave_def_custom_3==saved_def and #echoed==1)
+  echoed={};commands.rw_custom("3")
+  check("custom command: absent recipe reports the current slot without mutation", stored.wave_def_custom_3==saved_def and echoed[1]:find("custom_3",1,true)~=nil)
+  stored.wave_def_custom_3,stored.on_custom_3=old_def,old_on
+  local original_simulate=RW.director.simulate
+  local iterations
+  RW.director.simulate=function(n) iterations=n;return {},{},0 end
+  for _,case in ipairs({{"0",1},{"100001",100000},{"invalid",1000}}) do
+    echoed={};commands.rw_roll(case[1])
+    check("roll command: "..case[1].." clamps/defaults the workload", iterations==case[2] and echoed[1]:find("no event enabled",1,true)~=nil)
+  end
+  RW.director.simulate=original_simulate
+  local original_probe,original_describe=RW.tuning.probe,RW.tuning.describe
+  RW.tuning.probe=function() error("probe failed") end
+  RW.tuning.describe=function() error("stats failed") end
+  echoed={};commands.rw_anim();commands.rw_tune()
+  check("diagnostic commands: native probe errors return chat diagnostics", #echoed==2 and echoed[1]:find("probe failed",1,true)~=nil and echoed[2]:find("stats failed",1,true)~=nil)
+  local info_count=0;mod.info=function() info_count=info_count+1 end
+  RW.tuning.probe=function() return {"animation"} end
+  RW.tuning.describe=function() return {"stats"} end
+  commands.rw_anim();commands.rw_tune()
+  check("diagnostic commands: successful lines also reach the console log", info_count==2)
+  RW.tuning.probe,RW.tuning.describe=original_probe,original_describe;mod.info=nil
+  local original_update=RW.director.update
+  local deltas={};RW.director.update=function(dt) deltas[#deltas+1]=dt end
+  mod.update(0.1);mod.update(mod,0.2);mod.update()
+  check("update adapter: dot/colon calls preserve dt and missing dt is ignored", #deltas==2 and deltas[1]==0.1 and deltas[2]==0.2)
+  local original_error=mod.error;local errors=0;mod.error=function() errors=errors+1 end
+  RW.director.update=function() error("director failed") end
+  mod.update(0.1);mod.update(0.1)
+  check("update adapter: repeated director exceptions log once without escaping", errors==1 and RW.update_failed==true)
+  mod.error=original_error;RW.director.update=original_update;RW.update_failed=nil
+end
 
 RW.text_input_active = true
 local subscription_owner = Managers.event

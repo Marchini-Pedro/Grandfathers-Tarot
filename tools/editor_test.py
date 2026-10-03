@@ -7,8 +7,7 @@ Run:  python tools/editor_test.py   (needs `lupa`, see CLAUDE.md)
 """
 import sys, os
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.environ.get("PYLIBS", r"C:\Users\ayko4\AppData\Local\Temp\claude\c--XboxGames-Warhammer-40-000--Darktide-Content\9da40c72-f459-4d9d-ab4b-3023fa21e2f5\scratchpad\pylibs"))
-from lupa import LuaRuntime
+from lua_test_runtime import LuaRuntime
 
 MODROOT = os.path.abspath(os.path.join(HERE, "..")).replace("\\", "/")
 lua = LuaRuntime(unpack_returned_tuples=True)
@@ -21,11 +20,26 @@ local BASE = MODROOT .. "/scripts/mods/RealmsWaves"
 function table.clone(t) local c = {} for k, v in pairs(t) do c[k] = type(v) == "table" and table.clone(v) or v end return c end
 table.clone_instance = table.clone
 function math.clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
--- the game's own callback() (binds up to 5 arguments), loaded from the source clone
-ferror = error
-dofile(MODROOT .. "/../../Darktide-Source-Code/scripts/foundation/utilities/callback.lua")
 unpack = unpack or table.unpack
 table.unpack = table.unpack or unpack
+-- Test-only callback contract from game reference 419fe18d4. Resolve methods
+-- at invocation and preserve nils and multiple returns, with at most five binds.
+ferror = error
+function callback(target, ...)
+  local method = type(target) == "table" and select(1, ...) or nil
+  if type(target) ~= "table" and type(target) ~= "function" then error("callback(...) incorrectly called") end
+  local offset = type(target) == "table" and 1 or 0
+  local bound, count = { ... }, select("#", ...) - offset
+  if count > 5 then return nil end
+  if type(target) == "function" and count == 0 then return target end
+  return function(...)
+    local args, n = {}, select("#", ...)
+    for i = 1, count do args[i] = bound[i + offset] end
+    for i = 1, n do args[count + i] = select(i, ...) end
+    if method then return target[method](target, unpack(args, 1, count + n)) end
+    return target(unpack(args, 1, count + n))
+  end
+end
 
 local UIWidget = {}
 UIWidget.create_definition = function(passes, node_id, content, size)
@@ -128,6 +142,18 @@ local function check(name, cond, detail)
 end
 
 -- ---- load the real view ------------------------------------------------------
+do
+  local function identity(...) return ... end
+  local fn=callback(identity, nil, "bound", nil)
+  local values={fn("call", nil)}
+  check("callback fixture: binds and call-time nils preserve their argument positions", select("#",fn("call",nil))==5 and values[2]=="bound" and values[4]=="call")
+  local object={method=function(self,...) return "old",... end}
+  local bound=callback(object,"method",nil,3)
+  object.method=function(self,...) return "new",self,... end
+  local tag,owner,a,b,c=bound(4)
+  check("callback fixture: method lookup is dynamic and forwards self/multiple returns", tag=="new" and owner==object and a==nil and b==3 and c==4)
+  check("callback fixture: zero binds retain function identity and excess binds are rejected", callback(identity)==identity and callback(identity,1,2,3,4,5,6)==nil and callback(object,"method",1,2,3,4,5,6)==nil and not pcall(callback,false))
+end
 local View = dofile(BASE .. "/ui/wave_editor_view.lua")
 local view = setmetatable({}, View)
 View.init(view, {})
@@ -2801,6 +2827,10 @@ do
   lift(1); view:on_exit()
   check("drag: closing the editor discards the drag and armed press", view._drag==nil and view._press==nil)
   reset_deck(); held=false; cursor={1900,1000}
+  -- Keep coverage collector allocations out of the heap measurement.
+  local hook, mask, count = debug.gethook()
+  debug.sethook()
+  local jit_was_on = jit and jit.status()
   if jit then jit.off(); jit.flush() end
   for i=1,100 do step() end
   collectgarbage("collect"); collectgarbage("stop")
@@ -2808,7 +2838,8 @@ do
   for i=1,2000 do step() end
   local seconds=os.clock()-clock
   local bytes=(collectgarbage("count")-heap_before)*1024/2000
-  collectgarbage("restart"); if jit then jit.on() end
+  collectgarbage("restart"); if jit_was_on then jit.on() end
+  if hook then debug.sethook(hook, mask, count) end
   check("deck: idle updates allocate under 1 byte/frame in the stubbed view", bytes<1,string.format("%.3f bytes/frame; %.3f ms/update (stubbed, interpreted)",bytes,seconds/2))
   for k in pairs(settings) do settings[k]=nil end
   for k,v in pairs(saved_settings) do settings[k]=v end

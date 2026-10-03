@@ -1,5 +1,26 @@
 # 05. Implementation plan and status
 
+## Enemy appearance experiments — `feature/enemy-appearance` (2026-10-03)
+
+- [x] Isolate the feature in its own worktree from up-to-date `main` (`6d5756d`); preserve the CI/coverage checkout.
+- [x] Per-group method dropdown, ARGB sliders, numeric entry and input-colour swatch under Custom.
+- [x] Recipe/preset persistence and group identity; carry selected appearance through initial and repeated spawns.
+- [x] Natural stimm with existing supported actions and gameplay buffs; applied/explicit-slot visual-only stimm and private-map local outline.
+- [x] Show surface/private-shader prerequisites honestly; selecting them applies no guessed effect.
+- [x] Optional host-authorized Realms transport, mission tokens, bounded pending IDs, late-join snapshots, renewal and cleanup/retirement.
+- [x] Update design, user guidance and reusable research references in this worktree.
+- [x] Focused schema/runtime/protocol, editor and actual spawn/cleanup checks on Lua 5.5 and LuaJIT 2.1; render/inspect the real-English panel and dropdown.
+- [x] Integrate committed CI work into this feature branch only; discover/instrument the appearance harness and assign measured floors to all three new modules, preserving existing thresholds.
+- [x] Fetch origin, pull `main` in a separate worktree and synchronize the feature with `06c2b3a` after merged PRs #5 and #6.
+- [x] Publish the enemy appearance branch as [PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7).
+- [x] Verify both hosted runtime checks on the published PR at `0103281`; download reports matching the local counts/scores.
+- [ ] In-game acceptance: visuals/LOD/equipment, natural action/buffs, tags/other mods, cleanup, host/client joins/leave/reload and performance.
+- [ ] Verify a surface colour property/type/default/coverage before implementing the surface method.
+- [ ] Build compatible private assets and verify isolation/restoration before implementing shader/material patching.
+- [ ] Merge only after the user confirms the feature works in game.
+
+Details and live checklist: [Enemy colour experiments](enemy-appearance.md).
+
 Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\ayko4\.claude\plans\pasted-content-id-fdf1-i-have-valiant-parasol.md` (may not persist; this file is the durable one).
 
 ## Checklist
@@ -156,11 +177,12 @@ See `04-design-and-rationale.md`.
 - [x] F06: expose direct-send peer failures to the existing bounded current-size retry; coalesce failed late-join snapshots and preserve reentrant updates. Actual Realms contract fixture passes.
 - [x] Close the two surviving mutation gaps (retired tuning hooks and unload resets); add retirement/reentrancy, late-manager and partial aggregate-room regressions. All 17 selected mutations fail their intended assertions on both runtimes.
 - [x] Synchronize PR #4 with the PR #3 merge at `44e536f`; retain completed audit/remediation records when resolving the three documentation conflicts. Required checks pass on both runtimes.
-- [ ] Run the [live acceptance checklist](audits/2026-10-03/live-checklist.md), including verified installed revisions and eight hours / ten consecutive missions; obtain user in-game confirmation before merge.
+- [ ] Run the [live acceptance checklist](audits/2026-10-03/live-checklist.md), including verified installed revisions and eight hours / ten consecutive missions; record user in-game acceptance separately from the completed PR #4 merge.
 
 The audit stage changed Markdown only. Approved fixes are implemented in six
 batches on `feature/audit-remediation`, created from `main` at `3e6be46` and
-synchronized with the audit-brief merge at `44e536f`.
+synchronized with the audit-brief merge at `44e536f`, then merged into `main`
+through PR #4 at `6d5756d`.
 Public APIs/settings, protocol 2 and serialization remain compatible. See the
 [remediation results](audits/2026-10-03/remediation.md) and reproducible validation.
 Installation, publication and merging remain separate; game confirmation is pending.
@@ -180,3 +202,14 @@ Ten changes the user asked for in one list. Everything below is implemented and 
 - [x] A cooldown row on every Deck tile (`-` / `+` / number box / hover preview).
 - [ ] GitHub: admin permission for EduardoKenji. NOT done: a personal-account repository has no admin collaborator role and no API credential was available to me (see `07`, open gaps).
 - [ ] The in-game run of rows 114-121; the user's "100 percent working" merges the branch into `main`.
+
+## Post-PR #4 test coverage (2026-10-03)
+
+- [x] Remove the editor harness's sibling game-source dependency; retain callback binding, nil, dynamic-method and return-value contracts in a test-only fixture.
+- [x] Select Lua 5.5/LuaJIT 2.1 explicitly with a shared test runtime; suspend coverage hooks during allocation probes without weakening assertions.
+- [x] Add hidden-position, explicit-test ring, native-query failure, command-input and protocol serialization/availability regressions. Six selected regressions are detected on both runtimes.
+- [x] Add repository-owned CI, measured module floors and fail-closed coverage reports; verify a standalone checkout on both runtimes. See [CI and coverage](10-ci-and-coverage.md).
+- [x] Publish `feature/ci-coverage` and open [PR #5](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/5) with owner-side merge enforcement instructions; merged by the user at `03785e3`.
+- [x] Verify the first hosted PR run at `fd56262`: both runtimes pass 1,837 assertions and all coverage floors; downloaded artifact scores match the local baseline.
+- [x] Verify both jobs on the first `main` run at `03785e3` and synchronize local `main` after the PR #5 merge.
+- [ ] Have the repository owner require `Offline verification (lua55)` and `Offline verification (luajit21)` for merges to `main` after the first hosted run.

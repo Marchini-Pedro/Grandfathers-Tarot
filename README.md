@@ -4,13 +4,15 @@ A Darktide mod that adds configurable enemy waves to local and LAN missions
 hosted through Realms Server. Build a deck of waves, draw a tarot hand, or use
 random selection and player voting. No Twitch service is required.
 
-> Development status (2026-10-03): the workshop recovery is merged into `main`
-> in [PR #1](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/1).
+> Development status (2026-10-03): the workshop recovery and audit fixes are merged
+> into `main` through [PR #4](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/4).
 > Offline checks pass; the recovered changes still need in-game and multiplayer
 > verification. The runtime reports `2.0.0`; the last tagged release is `v1.13.0`.
 > The open branch `feature/heresy-card-and-ui-pass` (exact custom health, the HERESY suit, 100 cards,
 > a last-card window, cooldowns on the Deck tiles, `/rw_test_close`, card-coloured pages) has offline
 > tests only: it is not merged and nothing of it has been played yet.
+> Enemy colour experiments are available in [PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7) for testing;
+> see the [methods and remaining prerequisites](docs/enemy-appearance.md).
 
 ## Features
 
@@ -22,6 +24,9 @@ random selection and player voting. No Twitch service is required.
   cards on a page. **HERESY** is the one special suit (frame and glow of its own).
 - **The Cauldron:** build enemy groups with a searchable catalog and Dreg/Scab
   shelf, modifiers, custom stats and a live card preview.
+- **Enemy colour experiments:** per-group ARGB sliders and a method dropdown
+  under **Custom > Enemy colour experiments**. Try natural/applied stimm,
+  explicit loadout tint or outlines; surface/shader options display their prerequisites.
 - **The Mirror:** customize the card's suit, threat, whisper and cooldown look,
   with a preview of its appearance in the hand.
 - **Last card window:** a HUD window with the card whose wave went out last and how long
@@ -47,7 +52,7 @@ authority; a client in an ordinary online mission cannot spawn them.
    to avoid overlapping wave systems.
 
 Install the same development revision on participating players' machines for
-the shared HUD, voting and enemy-size replication.
+the shared HUD, voting, enemy-size and enemy-colour replication.
 
 Optional integrations: Custom HUD can reposition the wave panel; Spidey Sense
 and Improved Havoc Tags supply enemy/modifier colours when installed.
@@ -90,6 +95,11 @@ and Improved Havoc Tags supply enemy/modifier colours when installed.
 - Enemy size replication requires RealmsWaves on each peer. A custom health is
   exact (normal health times your percent, whatever Havoc adds); a boss below its
   normal health keeps the game's own **Weakened** name.
+- Enemy colour **A** means tint strength, not mesh transparency. Natural stimm
+  keeps vanilla gameplay buffs on supported breeds. Surface recolouring and
+  private shader patches are unavailable until compatible material data/assets
+  are verified. Colour coverage and cleanup still need game acceptance; disable
+  removes experimental colours and re-enable needs fresh coloured spawns.
 
 See the [recovery review](docs/09-recovery-review.md) and
 [verification matrix](docs/06-verification-and-open-issues.md) for remaining
@@ -97,20 +107,20 @@ game checks and compatibility details.
 
 ## Development
 
-From the repository root, with Python and `lupa` installed, run:
+From the repository root, with Python 3.13 installed, run:
 
 ```powershell
-python tools/check_lua.py
-python tools/logic_test.py
-python tools/editor_test.py
-python tools/entry_test.py
-python tools/hud_test.py
-python tools/check_docs.py
+python -m pip install -r tools/requirements-test.txt
+python tools/run_tests.py --runtime lua55 --output-dir test-results/lua55
+python tools/run_tests.py --runtime luajit21 --output-dir test-results/luajit21
 ```
 
-The editor harness needs the sibling
-`Content/Darktide-Source-Code/scripts/` reference checkout. UI preview tools
-also need Pillow. Offline tests use engine stubs and do not replace game tests.
+The runner compiles Lua, runs every offline harness, checks documentation sizes
+and enforces coverage floors. Logs and JSON reports go to `test-results/`.
+GitHub Actions runs both runtimes on pushes and pull requests; see the
+[coverage review and gate policy](docs/10-ci-and-coverage.md).
+Tests run from a standalone checkout using engine fixtures. UI previews also
+need Pillow. Offline tests do not replace game tests.
 
 The [documentation index](docs/README.md) links design decisions, implementation
 status and historical audits. [CLAUDE.md](CLAUDE.md) defines the contribution

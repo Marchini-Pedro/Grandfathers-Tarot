@@ -468,5 +468,6 @@ definitions.legend_inputs = {
 
 definitions.scenegraph_definition = scenegraph_definition
 definitions.widget_definitions = widget_definitions
+mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/wave_editor_appearance").definitions(scenegraph_definition, widget_definitions, node)
 
 return definitions

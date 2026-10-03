@@ -1,6 +1,5 @@
 import sys, os
-sys.path.insert(0, os.environ.get("PYLIBS", r"C:\Users\ayko4\AppData\Local\Temp\claude\c--XboxGames-Warhammer-40-000--Darktide-Content\9da40c72-f459-4d9d-ab4b-3023fa21e2f5\scratchpad\pylibs"))
-from lupa import LuaRuntime
+from lua_test_runtime import LuaRuntime
 
 ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "mods", "RealmsWaves")
 lua = LuaRuntime(unpack_returned_tuples=True)
@@ -706,7 +705,7 @@ do
   local received = {}
   P.init({ on_waves = function(sender, text) received[#received + 1] = { sender, text } end, on_vote = function() end })
   local names = {}; for name in pairs(registered) do names[#names + 1] = name end; table.sort(names)
-  check("protocol: six RPCs registered (hello, scale, state, vote, waves, welcome)", table.concat(names, ",") == "rw_hello,rw_scale,rw_state,rw_vote,rw_waves,rw_welcome", table.concat(names, ","))
+  check("protocol: seven RPCs registered (appearance, hello, scale, state, vote, waves, welcome)", table.concat(names, ",") == "rw_appearance,rw_hello,rw_scale,rw_state,rw_vote,rw_waves,rw_welcome", table.concat(names, ","))
   check("protocol: send_waves goes to the host with the text as one argument (dot call: mod first)", P.send_waves("RW1|x") == true and sent_rpcs[#sent_rpcs].name == "rw_waves" and sent_rpcs[#sent_rpcs].recipient == "host" and sent_rpcs[#sent_rpcs].args[1] == "RW1|x" and sent_rpcs[#sent_rpcs].mod == mod)
   local n = #sent_rpcs
   check("protocol: a text over the size limit is not sent", P.send_waves(string.rep("x", P.MAX_WAVES_TEXT + 1)) == false and #sent_rpcs == n and P.send_waves(42) == false)

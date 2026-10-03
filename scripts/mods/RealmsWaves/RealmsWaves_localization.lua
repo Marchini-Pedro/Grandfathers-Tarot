@@ -2,6 +2,10 @@
 -- error ("invalid option '%' to 'format'"); write "%%" only in strings that are
 -- always localized with arguments, otherwise avoid the character (use "percent").
 return {
+	btn_appearance = { en = "Enemy colour experiments" },
+	view_desc_appearance = { en = "Enemy colour experiments: %s" },
+	appearance_strength_info = { en = "A = tint strength. Swatch previews the input colour; the game result depends on the method and enemy materials." },
+	help_appearance = { en = "Choose a method, drag A/R/G/B or click a number for exact entry. Saved per group, including repeats and shared recipes. Natural stimm keeps vanilla gameplay buffs on supported breeds. Other usable methods change visuals only. Prerequisite methods show what is missing and apply no colour. Compare with an untreated group of the same breed in a Realms mission." },
 	mod_name = { en = "Realms Waves" },
 	mod_description = {
 		en = "Random enemy waves for Realms (LAN) sessions. Waves spawn near the squad but out of sight, ignore the director's spawn limits, and are picked at random or by an in-game vote. Everything is synced to all players' HUD. Edit waves in the wave editor (keybind below, or /rw_editor). Move the wave panel with the Custom HUD mod. Host needs the mod; clients need it to see the HUD and vote. Spawn distances are measured from the nearest player. The memory guard pauses spawning when the game uses that much memory (the game itself crashes at 1024 MB).",

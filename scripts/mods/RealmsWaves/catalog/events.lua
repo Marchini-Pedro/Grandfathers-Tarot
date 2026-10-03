@@ -128,6 +128,18 @@ Events.get_standard = function (key)
 	return by_key[key]
 end
 
+-- The key strings of the custom slots and of their settings, built once: there are 88 slots and the loops that look at every card
+-- (the draw, the timers, the Deck) would otherwise concatenate them again on every pass.
+local CUSTOM_KEY, DEF_KEY, LEGACY_KEY = {}, {}, {}
+
+for slot = 1, Events.CUSTOM_SLOTS do
+	local key = "custom_" .. slot
+
+	CUSTOM_KEY[slot] = key
+	DEF_KEY[key] = "wave_def_" .. key
+	LEGACY_KEY[key] = "custom_" .. slot .. "_recipe"
+end
+
 -- Every wave key: the standard events, then the custom slots.
 Events.keys = function ()
 	local keys = {}
@@ -137,10 +149,31 @@ Events.keys = function ()
 	end
 
 	for slot = 1, Events.CUSTOM_SLOTS do
-		keys[#keys + 1] = "custom_" .. slot
+		keys[#keys + 1] = CUSTOM_KEY[slot]
 	end
 
 	return keys
+end
+
+-- True for a custom slot nobody has filled: no definition (Events.get would give it no enemies) and no recipe from 1.0.0. It costs two
+-- settings instead of the twenty-odd that Events.get reads, and most of the 88 slots are empty: the loops that only want waves with
+-- enemies (the draw, the timers) skip these slots with it.
+Events.is_empty_slot = function (key, get_setting)
+	local def_key = DEF_KEY[key]
+
+	if not def_key then
+		return false
+	end
+
+	local def = get_setting(def_key)
+
+	if type(def) == "string" and def ~= "" then
+		return false
+	end
+
+	local legacy = get_setting(LEGACY_KEY[key])
+
+	return not (type(legacy) == "string" and legacy ~= "")
 end
 
 -- The order the Deck shows the cards in: the keys of Events.keys() arranged by the player's saved order ("deck_order", the keys
@@ -524,7 +557,7 @@ Events.timed_waves = function (get_setting, Groups)
 	local keys = Events.keys()
 
 	for i = 1, #keys do
-		local wave = Events.get(keys[i], get_setting, Groups)
+		local wave = not Events.is_empty_slot(keys[i], get_setting) and Events.get(keys[i], get_setting, Groups) or nil
 
 		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.timer > 0 then
 			list[#list + 1] = { key = wave.key, name = wave.name, def = Events.spawn_def(wave), every = wave.timer }
@@ -546,7 +579,7 @@ Events.build_pool = function (get_setting, Groups, extra)
 	local keys = Events.keys()
 
 	for i = 1, #keys do
-		local wave = Events.get(keys[i], get_setting, Groups)
+		local wave = not Events.is_empty_slot(keys[i], get_setting) and Events.get(keys[i], get_setting, Groups) or nil
 
 		-- a wave with a fixed timer runs on its own clock (Events.timed_waves), it is never drawn
 		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 and not (wave.timer > 0) then

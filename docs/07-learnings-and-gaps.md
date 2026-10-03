@@ -1,5 +1,81 @@
 # Learnings, dead ends and open gaps
 
+## 2026-10-03 - Synchronizing the appearance PR
+
+- Push `feature/enemy-appearance` and open PR #7 with the authenticated account's
+  write permission, as requested. GitHub reports no merge conflicts. Its first
+  hosted PR reports match local counts/scores on both runtimes: 1,916 assertions,
+  Lua 5.5 81.80% and LuaJIT 2.1 78.54%, with no coverage failures;
+  native acceptance remains separate from publication and CI.
+- GitHub confirms PRs #5 and #6 are merged; `origin/main` is `06c2b3a`.
+  Pulling main in a dedicated worktree leaves the other agent's branch intact.
+  Merge main into the feature branch so publication retains both ancestries;
+  merging the feature into main still needs the user's in-game confirmation.
+- The only merge conflict was the changelog's top entries. Retain both the
+  appearance history and the CI publication record. Runtime/tests are unchanged;
+  both full runners still pass 1,916 assertions and every coverage gate.
+- Guessed workflow reads (`ci.yml`, `tests.yml`) failed; `rg --files .github`
+  identifies `.github/workflows/verify.yml`. It runs on pushes and PRs, so
+  publication produces two independent runtime matrices. A documentation patch
+  also rejected an incorrect title anchor without changing files; read the
+  actual heading before applying the corrected patch.
+
+## 2026-10-03 — Enemy colour implementation
+
+- Worktree `feature/enemy-appearance` avoids touching the concurrent CI branch,
+  its Python helper/refactor changes or installed mods. Copy the earlier research
+  into this worktree rather than altering the original untracked reports.
+- The known stimm/outline APIs are RGB. Keep an explicit A-as-strength label;
+  stimm zero is the vanilla reset, so a black swatch is not a black surface.
+- Natural stimm needs both a breed `use_stim` action and a writable blackboard
+  stim component. A keyword alone does not prove that an arbitrary breed can
+  perform the animation. The normal buff/particles retain their gameplay effects.
+- Source reads found no verified generic material getter/clone or colour key
+  for all enemy surfaces. Surface/private patch choices remain prerequisite
+  entries, not successful no-op substitutes for those methods.
+- A direct setter's preceding value is unknown without engine getter support.
+  Cleanup can restore the current tracked buff vector or zero; unrelated direct
+  writes and actual private material instances still require game investigation.
+- Recipe merging can shorten/reorder the edited parts. Preserve the selected
+  group by its canonical key, otherwise a second identical colour could leave
+  the editor pointing past the merged list.
+- Native spawns/loadouts and mod RPCs can arrive in either order. Bound pending
+  IDs and retry readiness; validate the unit breed and reset token. Refresh the
+  normal handshake after host entry/reload/re-enable. Lease remote colours so a
+  vanished host cannot leave visual ownership indefinitely.
+- A synchronous send can tear down owners. Build a bounded snapshot before
+  sending and stop later batches if its generation changes.
+- First regression run: logic's exact RPC-count assertion still expected six;
+  update it for the single new appearance endpoint. This was the sole failure.
+- First render attempt: a zero-width G fill caused Pillow's rectangle assertion.
+  Hiding the fill at zero fixes it. The first visibility guard read a missing
+  style `size` in the engine-rule test; use a content flag instead. Regenerated
+  real-English panel/dropdown previews were visually inspected without clipping.
+
+Current implementation, limits and live checklist: [enemy-appearance.md](enemy-appearance.md).
+
+### CI integration follow-up
+
+Integrate the CI branch at `fd56262` into this feature branch, leaving its
+checkout and `main` alone. Resolve README/changelog conflicts by preserving
+both histories and using the aggregate runner. Its protocol failure fixture
+lacked DMF's `io_dofile` loader and expected six RPC failures; extend that fixture
+for the actual schema and seventh endpoint. Its first integrated run failed
+there; the fixture repair passes without changing production protocol behaviour.
+
+The collector counts printed `PASS` lines, so emit the focused schema/runtime
+assertions as well as the UI/entry ones. Eight additional checks cover unsupported
+natural breeds, a missing component, expired stim colour, late loadout readiness,
+default cleanup, original outline-map restoration and zero-strength outlines.
+The appearance suite now has 79 focused assertions.
+
+Trial floor 80 for the new runtime passed Lua 5.5 but exceeded LuaJIT's initial
+77.69 source-line score. After the extra checks LuaJIT measures 79.34; schema
+84.44 and editor 90.14. Assign new-module floors 79/84/90 from both backends'
+measurements. Existing thresholds stay unchanged. Many uncovered lines are
+function declarations/closing delimiters under this source-line proxy; these
+scores must not be represented as branch or native rendering coverage.
+
 The journal the user asked for (2026-10-01): every attempt and error, discovery, actionable gap and insight, so a later session does not repeat a dead end. Newest entries first inside each section. The CHANGELOG says WHAT changed per commit; the results log in `06` says what was tested; this file says what we LEARNED and what is still missing. Keep it under 100 KB (`python tools/check_docs.py`); at 100 KB split by section into `docs/learnings/` and keep this file as the index.
 
 Entry format: `date, short title: what happened / what was found. Evidence (file:line or test). Consequence.`
@@ -133,3 +209,15 @@ Things we know are missing or unverified, each with the next concrete step.
 - 2026-10-03: the offline harnesses have limits that look like bugs. A Lua chunk can hold 200 locals ("too many local variables"): the logic harness is near it, so new test state goes into one table. An `error("text")` caught by `pcall` carries `file:line:` in front of the text: match the two halves separately. A pass needs a `style_id` for its `change_function` to receive a style. `_apply_screen()` without `keep_offset` resets the Deck's scroll.
 - 2026-10-03, process: never chain `git stash` with other commands. A compound command that stashed the working tree, then ran an empty `python -` heredoc, hung in the REPL and was moved to the background; killing the REPL let the chain's `git stash pop` run later, and my own `git stash pop` in between hit the OLD workshop stash and aborted (no harm, but only by luck). Stash only in a command of its own, check `git stash list`, and keep a patch backup (`git diff --binary > file`) first. The old `feature/workshop-redesign` WIP stash is kept (stash@{0}): its committed work and 213 of 230 uncommitted lines are in `main`, the other 17 are an earlier draft of the Deck drag code that `main` rewrote.
 - 2026-10-03: the next audit request is a reusable brief, not permission to execute or fix code now. Make future audits prove reachable failures and test effectiveness, distinguish allocation churn from retained Lua/native/process memory, test bounded supported workloads separately from oversized inputs, and keep accelerated/offline experiments separate from live multiplayer and eight-hour soak claims. BetterInventory patterns require source/assumption checks before reuse.
+
+- 2026-10-03: 1,746 existing assertions did not imply complete dynamic coverage: the first Lua 5.5 line-hook probe reached only 22.22% of `spawn/positions.lua` source lines and 57.14% of the entry module. Most hidden-point selection was only traced in prior reviews. Add tests around reachable constraints and failures, then measure both VMs; LuaJIT emits different line events for declarations. Initial instrumentation made four HUD and one editor allocation assertions fail because `debug.getinfo` allocates tables. Suspending the hook during heap probes preserves the original assertions, and restoring the prior JIT state keeps coverage interpreted. Replace the sole editor sibling-source dependency with a checked callback fixture; retain the game-source checkout solely as a read-only reference. A documentation patch that matched only the prefix of a long CLAUDE line failed before any write; use exact text substitutions for that paragraph.
+
+- 2026-10-03: reuse BetterInventory's line events and module floors without its large case manifest/branch matrix. Exact paths, stale/new module checks, missing/error evidence and raw comparisons keep the gate meaningful. Pin dependencies/actions and ignore generated artifacts. An action-tag lookup timed out; retry resolved the upload-artifact revision. A large documentation-writing shell command was rejected before execution; structured patches completed the same edits. Windows CLI quoting broke a string-containing jq invitation filter; PowerShell JSON filtering confirmed no pending invitation. Rechecking access on request shows `EduardoKenji` still has the Write role with no admin/maintain access. A failed workflow is only a mandatory merge gate after required checks are configured by an authorized owner; document both job names.
+
+- 2026-10-03: overriding `core.autocrlf=false` for a whitespace check misclassified the repository's existing CRLF text as trailing whitespace. The normal repository-configured `git diff --cached --check` passes; preserve repository line-ending policy. actionlint 1.7.12 passes the new workflow, and 46 local links/Python syntax checks pass. Standalone suites use a temporary index export with no sibling game source; coverage artifacts are written outside that export so cleanup does not discard the evidence.
+
+- 2026-10-03: the user reports that an admin-role grant could not be completed for this personal repository; API checks still show Write access. That role successfully pushed the workflow branch and opened PR #5, and both push/PR Actions runs started without a permission change. CI needs no redesign or organization transfer: the owner can configure required checks and pull-request enforcement, while the collaborator maintains workflow/tests. Automatic PR runs work before merge; manual workflow_dispatch requires the workflow on the default branch. Required-check setup remains owner work, separate from publishing and test execution.
+
+- 2026-10-03: first hosted Ubuntu/Python 3.13 PR verification passes both VMs with 1,837 assertions each. Downloaded artifacts reproduce the Windows standalone source-line scores exactly (81.56% Lua 5.5 / 78.30% LuaJIT), so the initial floors need no operating-system adjustment. Successful runtime jobs also upload usable logs/JSON with the read-only workflow token; collaborator admin permission is unnecessary for this CI execution.
+
+- 2026-10-03: PR #5 was merged by EduardoKenji and its branch deleted while publication notes were being prepared. Pushing those notes consequently recreated the original branch instead of updating the merged PR. Rechecked PR state and origin, synchronized local main and moved the notes onto a separate documentation branch from `03785e3`. The first main workflow also passes both VMs. Recheck PR/branch state around final metadata updates when another collaborator is active; publication and merge can happen concurrently.

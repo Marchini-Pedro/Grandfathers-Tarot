@@ -7,8 +7,7 @@ Run:  python tools/hud_test.py   (needs `lupa`, see CLAUDE.md)
 """
 import sys, os
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.environ.get("PYLIBS", r"C:\Users\ayko4\AppData\Local\Temp\claude\c--XboxGames-Warhammer-40-000--Darktide-Content\9da40c72-f459-4d9d-ab4b-3023fa21e2f5\scratchpad\pylibs"))
-from lupa import LuaRuntime
+from lua_test_runtime import LuaRuntime
 
 MODROOT = os.path.abspath(os.path.join(HERE, "..")).replace("\\", "/")
 lua = LuaRuntime(unpack_returned_tuples=True)
@@ -829,19 +828,24 @@ end
 -- =====================================================================================================================
 local function growth(fixed_view, step, frames)
   -- Measure Lua allocations, excluding the VM's trace compiler and its unpredictable hot-loop thresholds.
+  -- A line hook allocates debug-info tables; suspend it for the allocation probe.
+  local hook, mask, count = debug.gethook()
+  debug.sethook()
+  local jit_was_on = jit and jit.status()
   if jit then jit.off(); jit.flush() end
   local e = new_element()
   current_view = fixed_view
   local function advance(count)
     for i = 1, count do step(fixed_view, i); frame(e) end
   end
-  advance(frames) -- warm the same loop and time range, including LuaJIT traces, before measuring heap growth
+  advance(frames) -- warm the same loop and time range before measuring heap growth
   collectgarbage("collect"); collectgarbage("stop")
   local before = collectgarbage("count")
   advance(frames)
   local after = collectgarbage("count")
   collectgarbage("restart")
-  if jit then jit.on() end
+  if jit_was_on then jit.on() end
+  if hook then debug.sethook(hook, mask, count) end
   return (after - before) * 1024 / frames
 end
 -- HERESY, the card apart: a frame at rest, a smouldering glow, its own line when it is drawn
@@ -1010,13 +1014,19 @@ do
   -- no allocation per frame while a card is shown (the age text changes once a second)
   current_view = last_view(tower, 10, 10)
   last_frame(el)
-  if jit then jit.off() end
+  -- (as growth() above: the coverage line hook allocates debug-info tables, suspend it for the probe; no trace compiler either)
+  local hook_fn, hook_mask, hook_count = debug.gethook()
+  debug.sethook()
+  local jit_was_on = jit and jit.status()
+  if jit then jit.off(); jit.flush() end
+  for _ = 1, 600 do last_frame(el) end -- warm the same loop
   collectgarbage("collect"); collectgarbage("stop")
   local before_heap = collectgarbage("count")
   for _ = 1, 600 do last_frame(el) end
   local grown = (collectgarbage("count") - before_heap) * 1024 / 600
   collectgarbage("restart")
-  if jit then jit.on() end
+  if jit_was_on then jit.on() end
+  if hook_fn then debug.sethook(hook_fn, hook_mask, hook_count) end
   check("last card: no allocation per frame while a card is shown", grown < 1, string.format("%.2f bytes/frame", grown))
 end
 

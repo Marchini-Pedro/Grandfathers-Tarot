@@ -1064,6 +1064,7 @@ Director.on_hello = function (sender, proto, version_text)
 	if ok and Tuning then
 		pcall(Tuning.send_all, sender)
 	end
+	if ok and mod.rw and mod.rw.appearance then pcall(mod.rw.appearance.send_all, sender) end
 end
 
 -- Client: sizes of units the host spawned (custom mods), see spawn/tuning.lua.
