@@ -9,9 +9,9 @@ display prerequisites and perform no operation. Alpha is tint strength; native
 full-body/black surface coverage is not claimed. See [the live checklist and
 restoration limits](enemy-appearance.md).
 
-All baseline checks pass: 33 compiled files, logic 828, editor 694, entry 45,
-HUD 179 assertions; documentation sizes pass. The focused appearance harness
-adds 71 assertions (52 schema/runtime/protocol, 13 editor, six real
+Before CI integration, the baseline passed: 33 compiled files, logic 828, editor
+694, entry 45 and HUD 179 assertions; documentation sizes passed. The initial
+focused appearance harness added 71 assertions (52 schema/runtime/protocol, 13 editor, six real
 entry/executor lifecycle) and reuses the editor/entry regressions. It passes on
 Lua 5.5 and LuaJIT 2.1. Real-English slider/dropdown previews were rendered from
 the real widgets and visually inspected; the zero-fill render failure was fixed.
@@ -19,6 +19,23 @@ the real widgets and visually inspected; the zero-fill render failure was fixed.
 No game installation/session, shader/assets, native material coverage, live
 host/client, frame-time/RAM or user acceptance checks have run. The original
 CI checkout and installed mods remain untouched. No feature merge into `main`.
+
+### 2026-10-03 — Final integrated CI verification
+
+Integrate CI work at `fd56262` into this feature branch only. Resolve README and
+changelog conflicts while retaining both histories. Extend the protocol failure
+fixture for DMF schema loading/seven RPCs; instrument all three appearance test
+VMs and report every focused assertion. Add eight readiness/unsupported-stim/
+cleanup cases, bringing focused checks to 79 (60 schema/runtime/protocol,
+13 editor, six entry/executor).
+
+Both aggregate runners pass: **1,916 printed assertions**, compilation,
+documentation and every module/overall coverage gate. Source-line execution
+scores: **Lua 5.5 81.80; LuaJIT 2.1 78.54 percent**. New-module floors are
+schema 84, runtime 79, editor 90; all existing floors and overall 78 remain.
+The source-line proxy includes structural lines and is not branch/native
+coverage. Reports are reproducible under `test-results/` with `tools/run_tests.py`.
+No installation, publish, main merge or in-game acceptance is implied.
 
 ## Test matrix
 | # | Test | Expect | Status |
@@ -287,3 +304,7 @@ Final validation (2026-10-03): all six tools pass on both Lua 5.5 and LuaJIT 2.1
 - 2026-10-03: synchronized local main after PR #1 merged, added the concise player README, compacted the technical index and updated CLAUDE.md maintenance rules. Corrected superseded branch/plan status without marking game acceptance complete. All five required offline scripts pass: 30 compiled files; logic zero failures (764 checks), editor 694, entry 18, HUD 179. Docs check passes with 14 Markdown files below 100 KB. Checked 38 relative links/anchors across the touched docs in this repo and BetterInventory; command paths, README structure and normal Git whitespace checks pass. BetterInventory's complete verifier passes all 59 behavior files and static/package checks. No runtime edits, new game evidence or live deployment.
 
 - 2026-10-03: confirmed documentation PR #2 and BetterInventory PR #1 merged; synchronized both local main branches. Prepared the reusable adversarial audit brief and linked it from the technical index/CLAUDE.md. Scope is Markdown only: no audit findings, live measurements or code fixes were produced. All six required repository checks pass (30 compiled files, logic zero failures, editor 694, entry 18, HUD 179; 15 Markdown files below 100 KB). Prompt structure, 15 relative links and Git whitespace checks pass. These are change-validation checks, not execution of the new adversarial audit.
+
+- 2026-10-03: post-PR #4 coverage review starts from merged main `6d5756d`. Added 80 behavior assertions (1,826 per runtime: logic 828, editor 697, entry 68, HUD 179, positions 35, protocol 19). Both Lua 5.5 and LuaJIT 2.1 pass. New fixtures cover hidden-position selection, nearest/all-player constraints, bounded queries, native failures, command adapters and protocol serialization/availability failures. The editor no longer reads sibling game source. All six selected mutations are detected on both runtimes in isolated temporary copies. Line hooks are suspended during the existing heap probes; no assertion threshold was weakened. No runtime Lua changes or new live-game acceptance evidence.
+
+- 2026-10-03: added the dual-runtime GitHub workflow and fail-closed coverage runner. Compilation (30 inputs), 1,826 behavior assertions and 11 gate/runner contracts pass per runtime (1,837 total). Scores reach 81.56% on Lua 5.5 and 78.30% on LuaJIT against 12,947 eligible source lines; overall floor is 78%, with explicit floors for all 29 Lua modules. Standalone verification and uninstrumented suites pass. Artifacts and the [coverage review](10-ci-and-coverage.md) record exact limits. Hosted runs await publication; required checks need owner configuration because this identity still has Write access without admin/maintain permission. No native/game acceptance claim.

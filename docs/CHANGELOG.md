@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Integrate CI verification into the enemy appearance branch
+- Merge CI commits through `fd56262` into `feature/enemy-appearance` only; preserve the CI checkout and `main`. Resolve README/changelog conflicts with both histories and the aggregate runner.
+- Instrument/discover the appearance harness with the existing CI helper; report all focused checks and extend readiness/default/unsupported-stim cases to 79 assertions. Update the protocol failure fixture for DMF schema loading and the seventh endpoint.
+- Assign measured floors to the three new modules (schema 84, runtime 79, editor 90) without changing existing thresholds or the overall 78 floor. Full suite: 1,916 printed assertions per backend; native acceptance remains pending.
+
 ## 2026-10-03 - Exercise enemy colour persistence and lifecycle
 - Add `tools/appearance_test.py`: 71 focused schema/runtime/protocol/editor/entry assertions plus reused editor/entry regressions, passing on Lua 5.5 and LuaJIT 2.1.
 - Cover colour merging, scaled drag/exact input, initial/repeated selected spawns, vanilla stim permission, outline isolation, detach/death/restoration, failed setters, capability/host/token validation, leases, late units, queue bounds and synchronous reset during snapshot sending.
@@ -10,6 +15,16 @@
 - Implement natural stimm using supported vanilla actions/buffs, visual-only applied/explicit-slot stimm and private-map local outlines. Surface/private shader choices display their prerequisites and perform no operation.
 - Add optional host-authorized appearance replication with capability, mission token, late-join snapshots, bounded queues/renewal and cleanup. Keep HUD protocol/version 2 / 2.0.0. Preserve concurrent CI work in a separate worktree; native acceptance remains pending.
 - Document the implementation, advanced gates and restoration limits; preserve the earlier read-only research reports. Baseline regression checks pass, with the RPC inventory assertion updated for the appearance endpoint.
+
+## 2026-10-03 - Add CI and enforce measured Lua coverage floors
+- Add GitHub Actions on pushes, pull requests and manual dispatch, with Lua 5.5/LuaJIT 2.1 jobs, pinned action revisions, read-only repository permissions and uploaded logs/JSON reports.
+- Run compilation, discovered behavior harnesses, 11 coverage/runner contracts and documentation size checks through `tools/run_tests.py`. Require a 78% overall source-line execution score and explicit floors for all 29 Lua modules; missing evidence, collector errors, unknown/stale modules, failures and timeouts fail the job.
+- Record the post-PR #4 review and standalone-checkout validation: 1,837 assertions per runtime, 81.56% Lua 5.5 and 78.30% LuaJIT source-line scores. Required merge checks remain a repository-owner setting; game acceptance is separate.
+
+## 2026-10-03 - Extend post-PR #4 behavior coverage and isolate harnesses
+- Add 80 behavior assertions: hidden-position selection and retry/failure boundaries, console/keybind adapters, protocol availability/serialization failures, and the editor callback fixture contract.
+- Select Lua 5.5 or LuaJIT 2.1 through one shared runtime and pin Lupa 2.8. Remove the machine-specific default Python path and the sibling game-source dependency; preserve explicit `PYLIBS` support.
+- Keep allocation assertions active while suspending line-hook allocations during heap probes. All 1,826 behavior assertions pass per runtime; six representative mutations fail their intended assertions on both runtimes. Runtime Lua and game acceptance status are unchanged.
 
 ## 2026-10-03 - Synchronize remediation with the merged audit brief
 - Merge `main` at `44e536f` into the existing PR #4 branch. Resolve the three documentation conflicts by retaining completed audit/remediation status, history and links.

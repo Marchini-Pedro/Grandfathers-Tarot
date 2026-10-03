@@ -10,6 +10,7 @@
 - [x] Optional host-authorized Realms transport, mission tokens, bounded pending IDs, late-join snapshots, renewal and cleanup/retirement.
 - [x] Update design, user guidance and reusable research references in this worktree.
 - [x] Focused schema/runtime/protocol, editor and actual spawn/cleanup checks on Lua 5.5 and LuaJIT 2.1; render/inspect the real-English panel and dropdown.
+- [x] Integrate committed CI work into this feature branch only; discover/instrument the appearance harness and assign measured floors to all three new modules, preserving existing thresholds.
 - [ ] In-game acceptance: visuals/LOD/equipment, natural action/buffs, tags/other mods, cleanup, host/client joins/leave/reload and performance.
 - [ ] Verify a surface colour property/type/default/coverage before implementing the surface method.
 - [ ] Build compatible private assets and verify isolation/restoration before implementing shader/material patching.
@@ -173,11 +174,20 @@ See `04-design-and-rationale.md`.
 - [x] F06: expose direct-send peer failures to the existing bounded current-size retry; coalesce failed late-join snapshots and preserve reentrant updates. Actual Realms contract fixture passes.
 - [x] Close the two surviving mutation gaps (retired tuning hooks and unload resets); add retirement/reentrancy, late-manager and partial aggregate-room regressions. All 17 selected mutations fail their intended assertions on both runtimes.
 - [x] Synchronize PR #4 with the PR #3 merge at `44e536f`; retain completed audit/remediation records when resolving the three documentation conflicts. Required checks pass on both runtimes.
-- [ ] Run the [live acceptance checklist](audits/2026-10-03/live-checklist.md), including verified installed revisions and eight hours / ten consecutive missions; obtain user in-game confirmation before merge.
+- [ ] Run the [live acceptance checklist](audits/2026-10-03/live-checklist.md), including verified installed revisions and eight hours / ten consecutive missions; record user in-game acceptance separately from the completed PR #4 merge.
 
 The audit stage changed Markdown only. Approved fixes are implemented in six
 batches on `feature/audit-remediation`, created from `main` at `3e6be46` and
-synchronized with the audit-brief merge at `44e536f`.
+synchronized with the audit-brief merge at `44e536f`, then merged into `main`
+through PR #4 at `6d5756d`.
 Public APIs/settings, protocol 2 and serialization remain compatible. See the
 [remediation results](audits/2026-10-03/remediation.md) and reproducible validation.
 Installation, publication and merging remain separate; game confirmation is pending.
+
+## Post-PR #4 test coverage (2026-10-03)
+
+- [x] Remove the editor harness's sibling game-source dependency; retain callback binding, nil, dynamic-method and return-value contracts in a test-only fixture.
+- [x] Select Lua 5.5/LuaJIT 2.1 explicitly with a shared test runtime; suspend coverage hooks during allocation probes without weakening assertions.
+- [x] Add hidden-position, explicit-test ring, native-query failure, command-input and protocol serialization/availability regressions. Six selected regressions are detected on both runtimes.
+- [x] Add repository-owned CI, measured module floors and fail-closed coverage reports; verify a standalone checkout on both runtimes. See [CI and coverage](10-ci-and-coverage.md).
+- [ ] Have the repository owner require `Offline verification (lua55)` and `Offline verification (luajit21)` for merges to `main` after the first hosted run.

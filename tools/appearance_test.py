@@ -21,7 +21,7 @@ BASE = (ROOT / "scripts/mods/RealmsWaves").as_posix()
 RUNTIME = r'''
 local BASE = ...
 local checks = 0
-local function check(label, value) assert(value, label); checks = checks + 1 end
+local function check(label, value) assert(value, label); checks = checks + 1; print("PASS appearance: " .. label) end
 local server, warnings, writes, sent, rpcs, packets = true, {}, {}, {}, {}, {}
 local mod = { rw = {} }
 function mod:io_dofile(path) return dofile(BASE .. "/" .. path:match("RealmsWaves/scripts/mods/RealmsWaves/(.*)") .. ".lua") end
@@ -129,6 +129,28 @@ treated.stimmed=true; A.update(0.25)
 check("natural colour follows real keyword activation", treated.colour[3]==1)
 A.reset()
 check("unconsumed natural permission restored", not BLACKBOARDS[treated].stim.can_use_stim)
+treated.stimmed=true; A.apply(treated,natural,treated.breed); treated.stimmed=false; A.update(0.25)
+check("expired vanilla stim restores its current buff colour", treated.colour[3]==0.4)
+A.reset()
+control.stimmed=true; before=#writes; A.apply(control,natural,control.breed); A.update(0.25)
+check("unsupported natural breed is not coloured despite keyword", #writes==before)
+A.reset(); control.stimmed=false
+BLACKBOARDS[treated]={}; before=#writes; A.apply(treated,natural,treated.breed); A.update(0.25)
+check("missing natural stim component produces no material write", #writes==before)
+A.reset(); BLACKBOARDS[treated]={stim={can_use_stim=false,currently_using_stim=false}}
+local loadout=treated.extensions.visual_loadout_system
+treated.extensions.visual_loadout_system=nil; before=#writes; A.apply(treated,purple,treated.breed)
+check("incomplete visual loadout waits without native write", #writes==before)
+treated.extensions.visual_loadout_system=loadout; A.update(0.25)
+check("finished visual loadout receives the colour", treated.colour[3]==1)
+local default=Schema.copy(purple); default.method="none"; A.apply(treated,default,treated.breed)
+check("default method immediately removes selected tint", A.status().selected==0 and treated.colour[3]==0.4)
+treated.extensions.outline_system.settings=shared_settings
+A.apply(treated,outline,treated.breed); A.reset()
+check("unchanged outline settings restore original shared map", treated.extensions.outline_system.settings==shared_settings)
+outline.a=0; before=outlines[treated]; A.apply(treated,outline,treated.breed); A.update(0.25)
+check("zero-strength outline adds no native stack", outlines[treated]==before)
+A.reset()
 BLACKBOARDS[treated].stim.can_use_stim=false; server=false; treated.stimmed=false
 A.apply(treated,natural,treated.breed,true)
 check("client never arms natural AI", not BLACKBOARDS[treated].stim.can_use_stim)

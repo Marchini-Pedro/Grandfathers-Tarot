@@ -227,3 +227,15 @@ Client state skips malformed candidate entries and reads at most five candidates
 matching the existing hand/ballot bounds. No message schema changes are required.
 Full mission teardown works in the Lua fixtures; actual engine resources and
 eight-hour acceptance remain pending.
+
+### CI and coverage policy (2026-10-03)
+
+The [post-PR #4 review](10-ci-and-coverage.md) uses the existing Lupa harnesses
+with explicit Lua 5.5/LuaJIT 2.1 selection and repository-owned fixtures.
+GitHub Actions runs compilation, discovered behavior tests, runner/gate
+contracts and documentation size checks. Real Lua line events are measured
+against BetterInventory's nonblank/non-comment source-line proxy, with a 78%
+overall floor and a floor for every runtime module. Missing evidence and
+inventory mismatches fail closed. Allocation probes suspend instrumentation
+without weakening assertions. Native acceptance remains separate, and required
+merge checks need repository-owner configuration.

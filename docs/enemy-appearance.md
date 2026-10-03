@@ -2,8 +2,9 @@
 
 Implemented on `feature/enemy-appearance`, in its own worktree based on `main` at
 `6d5756d`. This preserves the separate CI/coverage checkout. Offline validation is
-complete; native rendering and multiplayer acceptance are pending. Nothing has
-been merged, pushed or installed by this feature session.
+complete; native rendering and multiplayer acceptance are pending. The feature
+has not been merged into `main`, pushed or installed. The committed CI work at
+`fd56262` is integrated into this feature branch only; its checkout remains untouched.
 
 The preceding [research findings](research/enemy-appearance/findings.md) and
 [experiment plan](research/enemy-appearance/experiments-and-recommendation.md)
@@ -104,8 +105,20 @@ A synchronous reset during sending stops the remaining snapshot batches.
 
 `python tools/appearance_test.py` covers schema/recipes, runtime lifecycle and
 host-only packet validation, and drives the real editor and entry/executor
-using their existing stubs. `LUA_RUNTIME=luajit21` selects LuaJIT; the default is
-Lua 5.5. The existing compile, logic, editor, entry and HUD checks still apply.
+using their existing stubs. `RW_LUA_RUNTIME=luajit21` selects LuaJIT; the default
+is Lua 5.5. The CI runner discovers this test and gathers coverage from all three
+of its VMs. The full suite uses the shared CI helper and existing checks:
+
+```powershell
+python tools/run_tests.py --runtime lua55 --output-dir test-results/lua55
+python tools/run_tests.py --runtime luajit21 --output-dir test-results/luajit21
+```
+
+The three new modules have explicit source-line floors of 84 (schema), 79
+(runtime) and 90 (editor), selected from both runtimes' measured scores. Existing
+module floors and the 78 overall floor are preserved. The score includes syntax
+lines and measures line events rather than branch/native coverage.
+
 For real-text layout inspection:
 
 ```powershell

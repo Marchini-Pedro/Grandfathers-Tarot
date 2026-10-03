@@ -34,6 +34,28 @@
 
 Current implementation, limits and live checklist: [enemy-appearance.md](enemy-appearance.md).
 
+### CI integration follow-up
+
+Integrate the CI branch at `fd56262` into this feature branch, leaving its
+checkout and `main` alone. Resolve README/changelog conflicts by preserving
+both histories and using the aggregate runner. Its protocol failure fixture
+lacked DMF's `io_dofile` loader and expected six RPC failures; extend that fixture
+for the actual schema and seventh endpoint. Its first integrated run failed
+there; the fixture repair passes without changing production protocol behaviour.
+
+The collector counts printed `PASS` lines, so emit the focused schema/runtime
+assertions as well as the UI/entry ones. Eight additional checks cover unsupported
+natural breeds, a missing component, expired stim colour, late loadout readiness,
+default cleanup, original outline-map restoration and zero-strength outlines.
+The appearance suite now has 79 focused assertions.
+
+Trial floor 80 for the new runtime passed Lua 5.5 but exceeded LuaJIT's initial
+77.69 source-line score. After the extra checks LuaJIT measures 79.34; schema
+84.44 and editor 90.14. Assign new-module floors 79/84/90 from both backends'
+measurements. Existing thresholds stay unchanged. Many uncovered lines are
+function declarations/closing delimiters under this source-line proxy; these
+scores must not be represented as branch or native rendering coverage.
+
 The journal the user asked for (2026-10-01): every attempt and error, discovery, actionable gap and insight, so a later session does not repeat a dead end. Newest entries first inside each section. The CHANGELOG says WHAT changed per commit; the results log in `06` says what was tested; this file says what we LEARNED and what is still missing. Keep it under 100 KB (`python tools/check_docs.py`); at 100 KB split by section into `docs/learnings/` and keep this file as the index.
 
 Entry format: `date, short title: what happened / what was found. Evidence (file:line or test). Consequence.`
@@ -156,3 +178,9 @@ Things we know are missing or unverified, each with the next concrete step.
 - 2026-10-03: README review found duplicated release history and stale branch/test-count claims. Keep player guidance in the root README and the docs README as an index; verify defaults, compatibility and merge/release/test status against current sources. BetterInventory's old table wrongly excluded its existing Melk grid. Original Realms audit metadata (1.0.0-rc2) differs from Eduardo's installed 1.0.0, so retain the audit as a historical snapshot instead of asserting current compatibility. Documentation patch attempts failed before writes when using delete/add for one path and an assumed heading; use an update with actual file context.
 
 - 2026-10-03: the next audit request is a reusable brief, not permission to execute or fix code now. Make future audits prove reachable failures and test effectiveness, distinguish allocation churn from retained Lua/native/process memory, test bounded supported workloads separately from oversized inputs, and keep accelerated/offline experiments separate from live multiplayer and eight-hour soak claims. BetterInventory patterns require source/assumption checks before reuse.
+
+- 2026-10-03: 1,746 existing assertions did not imply complete dynamic coverage: the first Lua 5.5 line-hook probe reached only 22.22% of `spawn/positions.lua` source lines and 57.14% of the entry module. Most hidden-point selection was only traced in prior reviews. Add tests around reachable constraints and failures, then measure both VMs; LuaJIT emits different line events for declarations. Initial instrumentation made four HUD and one editor allocation assertions fail because `debug.getinfo` allocates tables. Suspending the hook during heap probes preserves the original assertions, and restoring the prior JIT state keeps coverage interpreted. Replace the sole editor sibling-source dependency with a checked callback fixture; retain the game-source checkout solely as a read-only reference. A documentation patch that matched only the prefix of a long CLAUDE line failed before any write; use exact text substitutions for that paragraph.
+
+- 2026-10-03: reuse BetterInventory's line events and module floors without its large case manifest/branch matrix. Exact paths, stale/new module checks, missing/error evidence and raw comparisons keep the gate meaningful. Pin dependencies/actions and ignore generated artifacts. An action-tag lookup timed out; retry resolved the upload-artifact revision. A large documentation-writing shell command was rejected before execution; structured patches completed the same edits. Windows CLI quoting broke a string-containing jq invitation filter; PowerShell JSON filtering confirmed no pending invitation. Rechecking access on request shows `EduardoKenji` still has the Write role with no admin/maintain access. A failed workflow is only a mandatory merge gate after required checks are configured by an authorized owner; document both job names.
+
+- 2026-10-03: overriding `core.autocrlf=false` for a whitespace check misclassified the repository's existing CRLF text as trailing whitespace. The normal repository-configured `git diff --cached --check` passes; preserve repository line-ending policy. actionlint 1.7.12 passes the new workflow, and 46 local links/Python syntax checks pass. Standalone suites use a temporary index export with no sibling game source; coverage artifacts are written outside that export so cleanup does not discard the evidence.

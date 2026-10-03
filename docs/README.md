@@ -24,8 +24,10 @@ remains pending.
 
 The reusable audit brief was merged into `main` through
 [PR #3](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/3) at `44e536f`.
-[PR #4](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/4) includes that
-merge and retains the completed audit and six remediation batches.
+[PR #4](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/4) merged at
+`6d5756d`, retaining the completed audit and six remediation batches.
+The [post-merge coverage review](10-ci-and-coverage.md) records the standalone
+CI runner, measured Lua module floors, added regressions and remaining limits.
 
 ## References
 
@@ -39,6 +41,7 @@ merge and retains the completed audit and six remediation batches.
 | [Learnings and gaps](07-learnings-and-gaps.md) | Discoveries, failed approaches and actionable gaps |
 | [Workshop redesign](08-workshop-redesign.md) | Cauldron/Mirror design and build log |
 | [Recovery review](09-recovery-review.md) | Recovered history, fixes, validation and remaining limits |
+| [CI and coverage](10-ci-and-coverage.md) | Post-PR #4 measurements, gate policy, local commands and required GitHub checks |
 | [Executed audit](audits/2026-10-03/report.md) | Baseline, ranked findings, reproductions, inventory, measurements and live acceptance |
 | [Approved remediation](audits/2026-10-03/remediation.md) | Six implementation batches, current results and [runnable validation](audits/2026-10-03/remediation-validation.md) |
 | [Adversarial audit prompt](audits/adversarial-audit-prompt.md) | Reusable audit-only brief: risk-based tests, lifecycle/scaling stress, measurements and evidence requirements; not an executed audit |

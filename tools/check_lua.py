@@ -1,6 +1,5 @@
 ﻿import sys, os, glob
-sys.path.insert(0, os.environ.get("PYLIBS", r"C:\Users\ayko4\AppData\Local\Temp\claude\c--XboxGames-Warhammer-40-000--Darktide-Content\9da40c72-f459-4d9d-ab4b-3023fa21e2f5\scratchpad\pylibs"))
-from lupa import LuaRuntime
+from lua_test_runtime import LuaRuntime
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 lua = LuaRuntime(unpack_returned_tuples=True)

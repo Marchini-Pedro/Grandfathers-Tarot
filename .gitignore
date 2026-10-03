@@ -5,3 +5,5 @@ __pycache__/
 # preview images and dumps the tools can write next to themselves
 tools/*.png
 tools/*.json
+!tools/coverage_policy.json
+test-results/
