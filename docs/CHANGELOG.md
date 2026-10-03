@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Exercise enemy colour persistence and lifecycle
+- Add `tools/appearance_test.py`: 71 focused schema/runtime/protocol/editor/entry assertions plus reused editor/entry regressions, passing on Lua 5.5 and LuaJIT 2.1.
+- Cover colour merging, scaled drag/exact input, initial/repeated selected spawns, vanilla stim permission, outline isolation, detach/death/restoration, failed setters, capability/host/token validation, leases, late units, queue bounds and synchronous reset during snapshot sending.
+- Reuse the CI runtime/coverage helper when available; retain standalone execution from the feature's original base. Emit real-widget colour/dropdown previews through the existing serializer. Native rendering and multiplayer acceptance remain pending.
+
 ## 2026-10-03 - Add per-group enemy colour experiments
 - Add ARGB sliders/numeric entry/swatch and a method dropdown under Custom; preserve appearance in recipes, grouping, copies and repeated spawns.
 - Implement natural stimm using supported vanilla actions/buffs, visual-only applied/explicit-slot stimm and private-map local outlines. Surface/private shader choices display their prerequisites and perform no operation.

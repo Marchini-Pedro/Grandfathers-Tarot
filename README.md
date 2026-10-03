@@ -106,6 +106,7 @@ python tools/logic_test.py
 python tools/editor_test.py
 python tools/entry_test.py
 python tools/hud_test.py
+python tools/appearance_test.py
 python tools/check_docs.py
 ```
 

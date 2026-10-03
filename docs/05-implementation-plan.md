@@ -9,6 +9,7 @@
 - [x] Show surface/private-shader prerequisites honestly; selecting them applies no guessed effect.
 - [x] Optional host-authorized Realms transport, mission tokens, bounded pending IDs, late-join snapshots, renewal and cleanup/retirement.
 - [x] Update design, user guidance and reusable research references in this worktree.
+- [x] Focused schema/runtime/protocol, editor and actual spawn/cleanup checks on Lua 5.5 and LuaJIT 2.1; render/inspect the real-English panel and dropdown.
 - [ ] In-game acceptance: visuals/LOD/equipment, natural action/buffs, tags/other mods, cleanup, host/client joins/leave/reload and performance.
 - [ ] Verify a surface colour property/type/default/coverage before implementing the surface method.
 - [ ] Build compatible private assets and verify isolation/restoration before implementing shader/material patching.
