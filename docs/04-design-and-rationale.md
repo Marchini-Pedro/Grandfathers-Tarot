@@ -186,5 +186,9 @@ or clip to remaining capacity, retaining the per-job 1,000 bound. Status exposes
 limits; timed-wave failures log at most once per five seconds. Supported
 recipes/multipliers bound individual temporary batches; this is not a new option
 or a guarantee about native frame time.
+Both preset and single-card import validate finiteness of every numeric field
+before rounding/clamping. Supplied invalid threat is rejected; absent/empty
+legacy threat stays zero. Huge finite numbers still clamp, and validation
+completes before settings writes. Serialization is unchanged.
 Full mission teardown works in the Lua fixtures; actual engine resources and
 eight-hour acceptance remain pending.

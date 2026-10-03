@@ -13,7 +13,7 @@ kept separately under `.git/audit/2026-10-03-remediation/`.
 | 1 | F01 event owner cleanup | Implemented; offline checks pass |
 | 2 | F02/F03/F05 disable, stop, pause and living units | Implemented; offline checks pass |
 | 3 | F04 aggregate admission/repeat budget | Implemented; offline checks pass |
-| 4 | F07 finite numeric imports | Pending |
+| 4 | F07 finite numeric imports | Implemented; offline checks pass |
 | 5 | F06 recipient-aware size recovery | Pending |
 | 6 | Surviving retired-tuning/unload-reset mutations and final review | Pending |
 
@@ -47,3 +47,10 @@ initial operational policy, preserving settings/protocol/serialization, and may
 need live tuning. The 32-card supported-max fixture stays bounded through
 10,000 updates; repeat-only admission, progress and unload also pass. All six
 checks pass on both runtimes: entry 40, total 1,677 assertions each.
+
+Batch 4 rejects non-finite supplied values in all nine numeric preset/card
+fields before rounding/clamping, including optional threat. Absent/empty legacy
+threat remains zero; huge finite numbers clamp and round-trip. Forty-five
+valid-checksum field/value combinations test both import formats and zero
+settings writes, plus the exact audit text and a finite extreme. All six checks
+pass on both runtimes: logic 811, total 1,724 assertions each.

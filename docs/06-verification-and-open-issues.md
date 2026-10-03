@@ -139,7 +139,7 @@ their stated fixtures; current fixes are tracked below and in the
 | F04 aggregate repeat backlog | Fixed; 32 legal timers remain within 64 jobs / 8,000 pending for 10,000 updates | Native frame/memory pressure and practical budget tuning |
 | F05 pause | Fixed; 200-second pause freezes real feed/repeat/timeout clocks | Native maintenance and resume without a catch-up burst |
 | F06 partial delivery | Actual Realms returns success after one rejected peer; no size retry | Bounded recipient-aware recovery; native transport occurrence pending |
-| F07 numeric import | LuaJIT accepts checksummed NaN chance; Lua 5.5 rejects | Finite-value validation, atomic rejection and both-runtime regression |
+| F07 numeric import | Fixed; nine numeric fields reject NaN/infinity on both runtimes for presets/cards | Native paste/import workflow; finite and legacy formats retained |
 
 ## Known risks
 - Hooks on `PacingManager.add_aggroed_minion` and the two `MinionSpawnManager` counters must tolerate clients (nil managers) and hot reload.
@@ -186,6 +186,8 @@ their stated fixtures; current fixes are tracked below and in the
 ## Results log
 
 (Append dated entries: what was tested, result, fixes.)
+
+- 2026-10-03, remediation batch 4 (F07): validate all nine imported numeric fields before rounding/clamping. Correctly checksummed NaN, infinity and overflow strings reject both full presets and individual cards without settings writes; huge finite values still clamp/round-trip. Legacy absent/empty threat remains zero. All six checks pass on both runtimes: logic 811, total 1,724 assertions. Native import UI remains pending.
 
 - 2026-10-03, remediation batch 3 (F04): enforce 64 jobs / 8,000 pending globally before admission and repeat construction. New waves are rejected atomically when they cannot fit; repeat ticks use available room or skip overdue ticks when full. Throttle timed-wave failure warnings to one per five seconds. The real 32-card fixture stays bounded for 10,000 updates; repeat-only jobs cannot evade the job cap, and progress/unload remain correct. All six checks pass on both runtimes: entry 40, total 1,677 assertions. Limits are an explicit initial policy; native cost/tuning remains pending.
 

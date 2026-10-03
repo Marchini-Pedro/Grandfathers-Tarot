@@ -152,7 +152,7 @@ See `04-design-and-rationale.md`.
 - [x] F01: release both mission event subscriptions from their original manager; detect 100 obsolete generations with an owner-faithful EventManager fixture and guard captured callbacks. Native reload remains pending.
 - [x] F02/F03/F05: pause freezes job/feed clocks; stop preserves living units; disable cancels work and re-enable requires host start/client resync. Real-collaborator regressions pass; live checks remain pending.
 - [x] F04: cap aggregate work at 64 jobs / 8,000 entries; refuse full admissions before allocation and skip/clip repeat ticks to available room. Supported-max regression passes.
-- [ ] F07: reject non-finite numeric preset fields atomically on both runtimes.
+- [x] F07: reject non-finite numeric preset/card fields atomically on both runtimes; preserve finite clamps and legacy optional threat.
 - [ ] F06: recover current sizes after peer-specific Realms send rejection.
 - [ ] Close the two surviving mutation gaps (retired tuning hooks and unload resets).
 - [ ] Run the [live acceptance checklist](audits/2026-10-03/live-checklist.md), including verified installed revisions and eight hours / ten consecutive missions; obtain user in-game confirmation before merge.

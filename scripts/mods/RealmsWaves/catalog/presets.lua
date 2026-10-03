@@ -369,11 +369,17 @@ local function parse_wave(text, Groups)
 		local id = field[1]
 		local value = tonumber(parts[field[2]])
 
-		if not value then
+		if not value or value ~= value or math.abs(value) == math.huge then
 			return nil, string.format("wave %s has a bad %s value", label, id)
 		end
 
 		numbers[id] = clamp(whole(value), RANGES[id])
+	end
+
+	local threat = tonumber(parts[15] and parts[15] ~= "" and parts[15] or "0")
+
+	if not threat or threat ~= threat or math.abs(threat) == math.huge then
+		return nil, string.format("wave %s has a bad threat value", label)
 	end
 
 	return {
@@ -392,7 +398,7 @@ local function parse_wave(text, Groups)
 		deleted = parts[13] == "1",
 		-- 17 fields = with the tarot data; an unknown suit from a friend becomes plague, an unknown look is dropped
 		suit = parts[14] ~= nil and (SUITS[parts[14]] and parts[14] or (parts[14] ~= "" and "plague" or nil)) or nil,
-		thr = math.max(0, math.min(5, whole(tonumber(parts[15]) or 0))),
+		thr = math.max(0, math.min(5, whole(threat))),
 		whisper = clean_whisper(unescape(parts[16] or "")),
 		look = LOOKS[parts[17]] and parts[17] or "",
 		-- 18 fields = with the roll switch; texts without it keep the default (on)

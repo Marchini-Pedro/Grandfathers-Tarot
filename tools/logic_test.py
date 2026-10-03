@@ -2990,6 +2990,30 @@ for i = 1, #pool2 do
 end
 check("simulate 20000 rolls within 1.2 pct points", maxerr < 1.2, string.format("max err %.2f", maxerr))
 
+-- Finite validation is shared by full preset and single-card imports. A correct
+-- checksum must never make NaN/infinity valid or allow partial settings writes.
+do
+  local fields={"wave_small","changed","1","10","120","3","10","60","1 hound{size=130}","0","0","0","0","swarm","0","","","1"}
+  for _,index in ipairs({4,5,6,7,8,10,11,12,15}) do
+    local original=fields[index]
+    for _,value in ipairs({"nan","-nan","inf","-inf","1e309"}) do
+      fields[index]=value
+      local body=table.concat(fields,"~")
+      local decoded=PresetsMod.decode(PresetsMod.seal("RW1|Preset|1|"..body),Events,Groups)
+      local writes=0
+      if decoded then PresetsMod.apply(decoded,function() writes=writes+1 end,Events,Groups) end
+      local card=PresetsMod.decode_wave(PresetsMod.seal("RWW1|"..body),Events,Groups)
+      check("import: non-finite field "..index.." "..value.." rejects preset/card atomically", decoded==nil and card==nil and writes==0)
+    end
+    fields[index]=original
+  end
+  local bad="RW1|Preset|1|wave_small~changed~1~nan~120~3~10~60~1 hound{size=130}~0~0~0~0~swarm~0~~~1|a6a3"
+  check("import: exact audit NaN preset is rejected", PresetsMod.decode(bad,Events,Groups)==nil)
+  fields[4]="1e300"
+  local finite=PresetsMod.decode(PresetsMod.seal("RW1|Preset|1|"..table.concat(fields,"~")),Events,Groups)
+  check("import: very large finite values still clamp and round-trip", finite~=nil and finite.waves[1].pct<math.huge and PresetsMod.decode(PresetsMod.encode(finite),Events,Groups)~=nil)
+end
+
 return table.concat(results, "\n") .. "\n--- echoes ---\n" .. table.concat(echoes, "\n")
 '''
 out = lua.execute(harness, ROOT.replace("\\", "/"))

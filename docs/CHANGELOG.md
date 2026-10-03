@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 - Reject non-finite imported numbers (F07)
+- Validate all nine numeric fields in preset/card imports before rounding/clamping; retain finite clamps and legacy absent/empty threat.
+- Add valid-checksum NaN/infinity/overflow and atomic-write regressions on both runtimes. All six checks pass (1,724 assertions each); native paste workflow remains pending.
+
 ## 2026-10-03 - Bound aggregate pending work (F04)
 - Cap execution at 64 jobs / 8,000 pending units; reject initial waves before allocation when they cannot fit and skip/clip repeats against shared capacity. Throttle timed-wave failure warnings.
 - Add supported 32-timer, atomic-admission, repeat-only and teardown regressions. All six checks pass on both runtimes (1,677 assertions each); native budget tuning remains pending.
