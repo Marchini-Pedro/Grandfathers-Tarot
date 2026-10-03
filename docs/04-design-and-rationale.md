@@ -2,6 +2,27 @@
 
 Written 2026-09-28. Findings backing each claim are in docs 01-03.
 
+## Enemy colour experiments (2026-10-03)
+
+The [appearance implementation](enemy-appearance.md) adds per-group ARGB sliders
+and a method dropdown on `feature/enemy-appearance`, isolated from concurrent
+CI work. Recipes serialize `<method:AARRGGBB>` after custom stats and before
+repeat notation. Appearance participates in group identity and copies; the
+editor follows the edited group when identical groups merge on save.
+
+Usable experiments are natural stimm, visual-only applied stimm, explicit
+loadout stimm and local outlines. Natural stimm uses existing breed actions and
+vanilla buffs; it is the intentional gameplay-affecting option. RGB methods
+interpret A as tint strength. Surface overrides/private patches display their
+unverified prerequisites and perform no native operation; no guessed property,
+shared template edit or asset dependency is introduced.
+
+The optional Realms appearance capability preserves HUD protocol 2 / 2.0.0,
+validates host/token/IDs/breeds/byte channels and renews bounded local ownership.
+Late joins get living snapshots; native colour support and restoration of
+untracked direct material writes remain live-test limits. See the linked design
+for cleanup, lease limits, test controls and advanced-method gates.
+
 ## Requirements (user's words, verbatim)
 User has two installed mods, "Twitch Versus (Beta) (Realms Compatible)" and "RealmsEvent" (both installed via Vortex). Merge them into a complete new version/mod:
 - Compatible with the Realms Server mod ("Adds LAN multiplayer support to Darktide. A local single-player game can also run as a LAN listen server.").

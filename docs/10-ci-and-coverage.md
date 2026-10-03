@@ -1,5 +1,26 @@
 # CI and post-PR #4 coverage review
 
+## Enemy appearance branch integration (2026-10-03)
+
+`feature/enemy-appearance` integrated this CI work at `fd56262` in its own
+worktree, then synchronized with `main` at `06c2b3a` after PRs #5 and #6.
+The separate CI checkout is untouched. The runner discovers
+`appearance_test.py` and instruments its schema/runtime, editor and entry VMs
+through the existing helper. The protocol failure fixture now supplies DMF's
+module loader and expects seven registered endpoints.
+
+The feature adds 79 focused assertions and three Lua modules. Their source-line
+floors are schema 84, runtime 79 and editor 90, selected from the measured
+Lua 5.5/LuaJIT scores. Every pre-existing module floor and the overall 78 floor
+remain unchanged. The policy inventory now has 32 modules. The full runner's
+scope is 1,916 printed assertions per backend; native behaviour remains pending.
+Feature behaviour and acceptance: [enemy-appearance.md](enemy-appearance.md).
+
+The [first hosted PR #7 run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37155162068)
+at `0103281` passes both runtimes. Downloaded reports confirm 1,916 assertions
+each, Lua 5.5 81.80% / LuaJIT 2.1 78.54% and no coverage failures. PR #7 remains
+open for in-game acceptance; this publication record changes documentation only.
+
 Reviewed 2026-10-03 from merged `main` at `6d5756d`, after fetching origin.
 The CI implementation was merged into `main` at `03785e3` through
 [PR #5](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/5).

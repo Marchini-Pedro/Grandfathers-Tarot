@@ -29,6 +29,9 @@
     "ui/wave_editor_view.lua": 83,
     "ui/wave_editor_workshop.lua": 80,
     "ui/workshop.lua": 80,
-    "ui/workshop_blueprints.lua": 79
+    "ui/workshop_blueprints.lua": 79,
+    "catalog/appearance.lua": 84,
+    "spawn/appearance.lua": 79,
+    "ui/wave_editor_appearance.lua": 90
   }
 }
