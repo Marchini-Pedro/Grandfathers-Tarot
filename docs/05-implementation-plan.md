@@ -191,6 +191,7 @@ Installation, publication and merging remain separate; game confirmation is pend
 
 Ten changes the user asked for in one list. Everything below is implemented and tested offline (Lua 5.5 and LuaJIT 2.1) and committed on the branch; none is merged or played. In-game checks: `06` rows 114-121.
 
+- [x] Adversarial spawn review: nil weakened flags, native health-write rejection and target destruction during facing are repaired with regressions.
 - [x] Custom health 1:1 with the config under Havoc (`Tuning.set_exact_health`); the game's "Weakened" name kept for bosses below normal health.
 - [x] The Mods and Custom pages (and every card screen) in the colours of the card's face (`Components.set_theme`).
 - [x] Smaller shelf chips now that the D/S tags are gone; the freed room is a sixth enemy row in the Cauldron.

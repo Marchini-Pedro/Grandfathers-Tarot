@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 - Correct exact health and contain vanished spawn targets
+- Match the game's nil weakened flag for initially normal bosses and refresh it after exact custom health. Commit local health only after the replicated field write succeeds.
+- Protect facing evaluation and the native spawn together so target destruction cannot leave the budget bypass active. Realistic nil/native-failure fixtures reproduce these defects; focused checks and all eight reverse mutations detect the intended behavior failures on both VMs. Offline only.
+
 ## 2026-10-03 - Synchronize the Heresy branch with current main
 - Merge main at `1290abc`; preserve the branch features and the accurate merged status of enemy appearance PR #7. Resolve additive README/changelog conflicts. Existing audit fixes remain unstaged. Both baseline behavior suites passed; their coverage failures are recorded for remediation.
 

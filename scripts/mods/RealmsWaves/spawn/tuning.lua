@@ -209,7 +209,7 @@ local function normal_health(breed_name)
 	return difficulty:get_minion_max_health(breed_name)
 end
 
--- Sets the maximum health of a freshly spawned unit to normal health x `factor`. Returns the health it set, or nil when the unit
+-- Sets the maximum health of a freshly spawned unit to normal health x `factor`. Returns the requested health, including when the unit
 -- already had exactly that. Errors (caller guards them) when the unit has no readable health.
 Tuning.set_exact_health = function (unit, breed_name, factor)
 	local health = ScriptUnit.has_extension(unit, "health_system")
@@ -235,14 +235,14 @@ Tuning.set_exact_health = function (unit, breed_name, factor)
 			error("the unit has no game object yet")
 		end
 
-		health._health = wanted
 		GameSession.set_game_object_field(health._game_session, health._game_object_id, "health", wanted)
+		health._health = wanted
 	end
 
 	-- the game made the boss's "weakened" mark from the health it had BEFORE this fix: read it again with the same rule
 	local boss = ScriptUnit.has_extension(unit, "boss_system")
 
-	if boss and boss._is_weakened ~= nil then
+	if boss then
 		boss._is_weakened = wanted < base
 	end
 

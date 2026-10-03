@@ -1503,6 +1503,15 @@ check("execute: hounds get no buffs", hounds_clean)
 check("execute: units aggroed, villain side, tracked by bypass", spawned[1].aggro == "aggroed" and spawned[1].side == 2 and spawned[1].spawn_flag == true and Bypass.count() == 5, Bypass.count())
 
 -- Havoc-only modifier is skipped outside Havoc, applied inside it
+do
+  local fault = { rotation = Unit.world_rotation, facing = StubPositions.rotation_towards }
+  Unit.world_rotation = function() error("target unit despawned") end
+  StubPositions.rotation_towards = function() return nil end
+  fault.ok = pcall(run_wave, { name = "gone target", close = true, parts = Groups.parse("1 hound") })
+  check("execute: a despawn during close-wave facing is contained and releases the spawn bypass", fault.ok and not Bypass.spawning and #spawned == 0)
+  Unit.world_rotation, StubPositions.rotation_towards = fault.rotation, fault.facing
+  Execute.cancel(); Bypass.reset()
+end
 run_wave({ name = "t", parts = Groups.parse("2 crushers[toughened]") })
 check("execute: toughened skipped outside Havoc", #spawned == 2 and #spawned[1].buffs.added == 0)
 havoc_present = true
@@ -1629,7 +1638,7 @@ do
     if breed == "chaos_hound" then unit.ext.navigation_system = nil end -- a unit without navigation: that step fails alone
     -- bosses: the game marks one spawned with less than its normal health as weakened (boss_extension.lua:61-66)
     if breed == "chaos_plague_ogryn" or breed == "chaos_beast_of_nurgle" then
-      unit.ext.boss_system = { _is_weakened = unit.ext.health_system._health < normal_hp[breed] }
+      unit.ext.boss_system = { _is_weakened = unit.ext.health_system._health < normal_hp[breed] and true or nil }
       unit.ext.unit_data_system = { breed = function() return boss_breeds[breed] end }
       boss_breeds[breed] = boss_breeds[breed] or { name = breed }
     end
@@ -1853,7 +1862,7 @@ do
   run_hp("1 plague ogryn{health=50}, 1 beast of nurgle{health=150}, 2 poxwalker{health=50}")
   local ogryn, beast = first("chaos_plague_ogryn"), first("chaos_beast_of_nurgle")
   check("health: a boss at 50 percent has half its normal health (500 of 1000), a boss at 150 one and a half (3000 of 2000), a poxwalker half", ogryn.ext.health_system._health == 500 and beast.ext.health_system._health == 3000 and first("chaos_poxwalker").ext.health_system._health == 50)
-  check("weakened: the game's own mark stays: a boss with less than its normal health is weakened, one with more is not", ogryn.ext.boss_system._is_weakened == true and beast.ext.boss_system._is_weakened == false)
+  check("weakened: the game's own mark stays: a boss with less than its normal health is weakened, one with more is not", ogryn.ext.boss_system._is_weakened == true and not beast.ext.boss_system._is_weakened)
   check("weakened: nothing hooks the boss health bar any more (the 'Weakened' name is the game's), and the old helpers are gone", hooks["HudElementBossHealth.event_boss_encounter_start"] == nil and Tuning.is_health_tuned == nil)
   check("health: when the game already made the exact number nothing is written to the game object", #synced_health == 0)
 
@@ -1868,11 +1877,11 @@ do
 
   run_hp("1 plague ogryn{health=150}", -0.6)
   ogryn = first("chaos_plague_ogryn")
-  check("weakened: a modifier that LOWERED the health (the game made 0.9x: weakened) does not keep the mark once the exact 150 percent is set", ogryn.ext.health_system._health == 1500 and ogryn.ext.boss_system._is_weakened == false)
+  check("weakened: a modifier that LOWERED the health (the game made 0.9x: weakened) does not keep the mark once the exact 150 percent is set", ogryn.ext.health_system._health == 1500 and not ogryn.ext.boss_system._is_weakened)
 
   run_hp("1 plague ogryn, 2 poxwalkers", 0.3)
   ogryn = first("chaos_plague_ogryn")
-  check("health: a group without custom health keeps Havoc's share untouched (1.3x), nothing is written", ogryn.ext.health_system._health == 1300 and #synced_health == 0 and ogryn.ext.boss_system._is_weakened == false)
+  check("health: a group without custom health keeps Havoc's share untouched (1.3x), nothing is written", ogryn.ext.health_system._health == 1300 and #synced_health == 0 and ogryn.ext.boss_system._is_weakened == nil)
 
   run_hp("1 plague ogryn{health=100}", 0.3)
   check("health: 100 percent is 'unchanged' too, Havoc's share stays", first("chaos_plague_ogryn").ext.health_system._health == 1300 and #synced_health == 0)
@@ -1901,6 +1910,14 @@ do
   synced_health = {}
   check("health: an extreme factor never gives a unit less than 1 health, and the real breed of the unit decides the normal health", Tuning.set_exact_health(pox, "other_breed_name", 0.0001) == 1 and pox.ext.health_system._health == 1 and synced_health[1].value == 1)
   check("health: exact already -> returns the health, writes nothing", (function() synced_health = {}; return Tuning.set_exact_health(pox, "x", 0.01) == 1 and #synced_health == 0 end)())
+
+  do
+    local saved_set = GameSession.set_game_object_field
+    GameSession.set_game_object_field = function() error("unit despawned during sync") end
+    local hp = pox.ext.health_system._health
+    check("health: a rejected native write leaves local health unchanged", not pcall(Tuning.set_exact_health, pox, "chaos_poxwalker", 0.5) and pox.ext.health_system._health == hp)
+    GameSession.set_game_object_field = saved_set
+  end
 
   -- ----------------------------------------------------------------------------- the burster's explosion follows its size
   do

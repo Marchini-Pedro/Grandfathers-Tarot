@@ -622,9 +622,11 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 
 	Bypass.begin_spawn()
 
-	local rotation = face_target and Positions and Positions.rotation_towards and Positions.rotation_towards(position, target_unit) or nil
+	local ok, unit = pcall(function ()
+		local rotation = face_target and Positions and Positions.rotation_towards and Positions.rotation_towards(position, target_unit) or nil
 
-	local ok, unit = pcall(spawn_manager.spawn_minion, spawn_manager, breed_name, position, rotation or Unit.world_rotation(target_unit, 1), villains.side_id, param)
+		return spawn_manager:spawn_minion(breed_name, position, rotation or Unit.world_rotation(target_unit, 1), villains.side_id, param)
+	end)
 
 	Bypass.end_spawn(ok and unit or nil)
 
