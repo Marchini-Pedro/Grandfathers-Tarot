@@ -24,6 +24,10 @@ blueprints.row = function (node_id)
 		pass_type = "rect",
 		style_id = "row_frame",
 		style = { size = { 1710, 46 }, offset = { 0, 0, 0 }, color = { 190, 58, 68, 33 } },
+		-- the frame of the page's theme (the card's suit on its screens)
+		change_function = function (content, style)
+			Components.put_rgb(style.color, 190, Components.theme.frame)
+		end,
 	}
 	passes[#passes + 1] = {
 		pass_type = "rect",
@@ -32,9 +36,9 @@ blueprints.row = function (node_id)
 		-- highlight the whole row while the pointer is over its name/composition area: a wash of the accent
 		change_function = function (content, style)
 			if content.hotspot_name.is_hover then
-				Components.put_mix(style.color, 250, Components.rgb.plate, Components.accent, 0.10)
+				Components.put_mix(style.color, 250, Components.theme.hi, Components.accent, 0.10)
 			else
-				Components.color_into(style.color, colors.normal)
+				Components.put_rgb(style.color, colors.normal[1], Components.theme.row)
 			end
 		end,
 	}

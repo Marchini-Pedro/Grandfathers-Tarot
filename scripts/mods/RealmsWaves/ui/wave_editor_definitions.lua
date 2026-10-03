@@ -252,10 +252,15 @@ local function header_pass(id, x, w, align)
 			size = { w, 28 },
 			offset = { x, 0, 2 },
 		},
+		-- the muted tone with a share of the accent, so the headings sit in the page's colour
+		change_function = function (content, style)
+			Components.put_mix(style.text_color, 255, Components.rgb.muted, Components.accent, 0.2)
+		end,
 	}
 end
 
-local function plain_text(node_id, value_id, font_size, color, w, h, align, valign)
+-- `accent`: the text takes the accent colour of the page (bile, or the card's suit on its screens) instead of `color`
+local function plain_text(node_id, value_id, font_size, color, w, h, align, valign, accent)
 	return UIWidget.create_definition({
 		{
 			value_id = value_id,
@@ -272,6 +277,9 @@ local function plain_text(node_id, value_id, font_size, color, w, h, align, vali
 				offset = { 0, 0, 2 },
 				word_wrap = true,
 			},
+			change_function = accent and function (content, style)
+				Components.put_rgb(style.text_color, 255, Components.accent)
+			end or nil,
 		},
 	}, node_id)
 end
@@ -287,6 +295,7 @@ local widget_definitions = {
 		{
 			value = "content/ui/materials/backgrounds/terminal_basic",
 			pass_type = "texture",
+			style_id = "ground",
 			style = {
 				horizontal_alignment = "center",
 				scale_to_material = true,
@@ -295,6 +304,10 @@ local widget_definitions = {
 				offset = { -20, -20, 1 },
 				color = Components.clone_color({ 255, 30, 32, 28 }),
 			},
+			-- the texture is a dark metal that is multiplied with this colour: on a card's screens it is the card's face
+			change_function = function (content, style)
+				Components.put_rgb(style.color, 255, Components.theme.ground)
+			end,
 		},
 		{
 			pass_type = "rect",
@@ -316,6 +329,10 @@ local widget_definitions = {
 
 				return style
 			end)(),
+			-- the accent: bile, on a card's screens the suit's
+			change_function = function (content, style)
+				Components.put_rgb(style.text_color, 255, Components.accent)
+			end,
 		},
 	}, "title_text"),
 
@@ -334,7 +351,14 @@ local widget_definitions = {
 	}, "description_text"),
 
 	list_panel = UIWidget.create_definition({
-		{ pass_type = "rect", style = { color = Components.clone_color(colors.panel) } },
+		{
+			pass_type = "rect",
+			style_id = "list_fill",
+			style = { color = Components.clone_color(colors.panel) },
+			change_function = function (content, style)
+				Components.put_rgb(style.color, colors.panel[1], Components.theme.panel)
+			end,
+		},
 	}, "list_panel"),
 
 	list_header = UIWidget.create_definition({
@@ -374,11 +398,18 @@ local widget_definitions = {
 	mirror_numbers = plain_text("mirror_numbers", "mirror_numbers", 19, colors.muted, Workshop.LEFT_W - (5 * M.threat_pitch + 12 + 76 + 100 + 24), M.threat_h, "left", "center"),
 
 	bottom_panel = UIWidget.create_definition({
-		{ pass_type = "rect", style = { color = Components.clone_color(colors.panel) } },
+		{
+			pass_type = "rect",
+			style_id = "bottom_fill",
+			style = { color = Components.clone_color(colors.panel) },
+			change_function = function (content, style)
+				Components.put_rgb(style.color, colors.panel[1], Components.theme.panel)
+			end,
+		},
 	}, "bottom_panel"),
 
 	sort_label = plain_text("sort_label", "sort_label", 15, colors.muted, 80, 44, "left"),
-	bottom_title = plain_text("bottom_title", "bottom_title", 22, colors.gold, 1500, 34),
+	bottom_title = plain_text("bottom_title", "bottom_title", 22, colors.gold, 1500, 34, nil, nil, true),
 	hint_text = plain_text("hint_text", "hint_text", 20, colors.muted, 1660, 120, "left", "top"),
 
 	-- tooltip shown while the pointer is on the "?" corner button

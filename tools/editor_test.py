@@ -904,7 +904,7 @@ check("detail: composition rows (a Scab enemy whose name does not say so gets th
 check("detail: the enemy rows are the Cauldron's own (rw_erow_1..5): visible, with a weight, a repeat and the three chips", row(1).visible and row(1) == view._widgets_by_name.rw_erow_1 and row(1).content.stepper_value == "8" and row(1).content.rep_value == "0" and row(1).content.hotspot_action_text == "btn_remove" and not view._widgets_by_name.rw_row_1.visible)
 check("detail: buttons visible (the cooldown stepper is not: the cooldown is set on the card face screen)", view._widgets_by_name.btn_rename.visible and view._widgets_by_name.btn_add.visible and not view._widgets_by_name.stepper_cooldown.visible and view._widgets_by_name.stepper_chance.visible and view._widgets_by_name.btn_delete.visible)
 check("detail: the chance stepper shows its value (the cooldown is on the Mirror)", view._widgets_by_name.stepper_chance.content.stepper_value == "4" and not view._widgets_by_name.stepper_cooldown.visible)
-check("detail: the Deck's widgets are hidden", not tile(1).visible and not blank_tile().visible and not D.rw_strip.visible and not D.deck_count.visible and not D.list_panel.visible and not D.list_header.visible and not D.bottom_panel.visible and D.shelf_panel.visible and D.rw_stage_card.visible and D.stage_plate.visible and view._sg.scroll_up[1] == 1148 and view._sg.scroll_up[2] == 427)
+check("detail: the Deck's widgets are hidden", not tile(1).visible and not blank_tile().visible and not D.rw_strip.visible and not D.deck_count.visible and not D.list_panel.visible and not D.list_header.visible and not D.bottom_panel.visible and D.shelf_panel.visible and D.rw_stage_card.visible and D.stage_plate.visible and view._sg.scroll_up[1] == 1148 and view._sg.scroll_up[2] == 479)
 
 -- count stepper writes an override
 click_row(1, "hotspot_plus")
@@ -2090,6 +2090,32 @@ end
 do
   local W = view._widgets_by_name
   local function title() return W.title_text.content.title_text end
+  -- the page takes the colours of the card's face (the Plague palette it always had when no card is open)
+  local function theme_is(label, suit)
+    local function is(c, rgb, a) return c[1] == a and c[2] == rgb[1] and c[3] == rgb[2] and c[4] == rgb[3] end
+    local function k(rgb, f) return { math.floor(rgb[1] * f + 0.5), math.floor(rgb[2] * f + 0.5), math.floor(rgb[3] * f + 0.5) } end
+    local function paint(w, id) pass_by_style(w, id).change_function(w.content, w.style[id]); return w.style[id] end
+    local ground = suit and suit.card or { 30, 32, 28 }
+    local panel = suit and k(suit.card, 0.65) or { 18, 22, 12 }
+    local rowc = suit and k(suit.card, 0.8) or { 24, 30, 16 }
+    local frame = suit and suit.frame or { 58, 68, 33 }
+    local hi = suit and suit.hi or { 42, 52, 26 }
+    local accent = suit and suit.accent or { 183, 194, 58 }
+    check("theme (" .. label .. "): the ground, both panels, the title and the bottom title take the card's face", is(paint(W.background, "ground").color, ground, 255) and is(paint(W.list_panel, "list_fill").color, panel, 225) and is(paint(W.bottom_panel, "bottom_fill").color, panel, 225) and is(paint(W.title_text, "title_text").text_color, accent, 255) and is(paint(W.bottom_title, "bottom_title").text_color, accent, 255))
+    local r = view._widgets_by_name.rw_row_1
+    if r then
+      r.content.hotspot_name.is_hover = false
+      local at_rest, framed = paint(r, "row_background").color, paint(r, "row_frame").color
+      local rest_ok, frame_ok = is(at_rest, rowc, 235), is(framed, frame, 190)
+      r.content.hotspot_name.is_hover = true
+      local hovered = paint(r, "row_background").color
+      local mixed = { math.floor(hi[1] + (accent[1] - hi[1]) * 0.1), math.floor(hi[2] + (accent[2] - hi[2]) * 0.1), math.floor(hi[3] + (accent[3] - hi[3]) * 0.1) }
+      r.content.hotspot_name.is_hover = false
+      check("theme (" .. label .. "): a row rests on the card's colour, is framed in the suit's frame and warms to the suit's lighter colour under the pointer", rest_ok and frame_ok and hovered[1] == 250 and math.abs(hovered[2] - mixed[1]) <= 1 and math.abs(hovered[3] - mixed[2]) <= 1 and math.abs(hovered[4] - mixed[3]) <= 1, tostring(at_rest[2]) .. "," .. tostring(at_rest[3]) .. "," .. tostring(at_rest[4]))
+    end
+    local head = paint(W.list_header, "col_1").text_color
+    check("theme (" .. label .. "): the column headings are the muted tone with a share of the accent", head[1] == 255 and math.abs(head[2] - (152 + (accent[1] - 152) * 0.2)) <= 1 and math.abs(head[3] - (147 + (accent[2] - 147) * 0.2)) <= 1)
+  end
   view._screen = "list"; view._key = nil; view:_reload(); view:_apply_screen()
   check("title: the Deck keeps The Grandfather's Tarot, and the accent is bile", title() == "view_title" and mod.rw_accent[1] == 183 and mod.rw_accent[2] == 194 and mod.rw_accent[3] == 58)
   click("btn_settings")
@@ -2106,15 +2132,25 @@ do
   view:cb_back()
   click_row(1, "hotspot_mods")
   check("title: the Mods screen is the Cauldron too", view._screen == "mods" and title() == "view_title_cauldron")
+  theme_is("Mods, The Fool: swarm", mod.rw.cards.suit(view._wave.suit))
   view:cb_back()
   click_row(1, "hotspot_tune")
   check("title: and the Custom screen", view._screen == "tune" and title() == "view_title_cauldron")
+  theme_is("Custom, The Fool: swarm", mod.rw.cards.suit(view._wave.suit))
   view:cb_back()
   click("btn_face")
   check("title: the card face is The Grandfather's Mirror, with the suit accent", view._screen == "face" and title() == "view_title_mirror" and mod.rw_accent[1] == fool[1])
+  -- the Mirror changes the suit: the page follows at once (a plate of the twelve: Warp is the last)
+  local fool_key = view._key
+  view:cb_suit_pick(12)
+  check("theme: choosing another suit on the card's screen recolours the page at once (Warp)", mod.rw.cards.suit(view._wave.suit) == mod.rw.cards.SUITS.warp and mod.rw_accent[1] == mod.rw.cards.SUITS.warp.accent[1])
+  theme_is("Mirror, Warp", mod.rw.cards.SUITS.warp)
+  settings["su_" .. fool_key] = nil; view:_reload(); view:_apply_screen(true)
   view:cb_back()
   view:cb_back()
   check("title: back on the Deck the title and the bile accent are back", title() == "view_title" and mod.rw_accent[1] == 183 and mod.rw_accent[2] == 194)
+  theme_is("the Deck: the default palette", nil)
+  check("theme: set_theme(nil) and the default table agree (Plague's own numbers: ground #1e2413 is not the default ground, the panel factors are)", mod.rw_theme.panel[1] == 18 and mod.rw_theme.row[2] == 30 and mod.rw_theme.frame[3] == 33)
 
   -- the chips of an enemy row light up when the group has modifiers or custom mods; toggles and the armed Delete
   settings.wave_def_custom_1 = "Chips\t3 crusher[enraged]{health=150}, 2 hound"; settings.on_custom_1 = true
@@ -2331,10 +2367,10 @@ do
     check("chips: a Scab chip is near black, a Dreg chip olive-dark, a neutral one the button plate; hovering lights it", fill(gun)[1] < 30 and fill(gun)[3] > fill(gun)[1] and (function() local dreg = W["rw_chip_" .. chip_of("cultist_mutant")]; local f = fill(dreg); return f[2] > f[3] + 15 end)() and fill(pox)[1] == 22 and (function() gun.content.hotspot.is_hover = true; local f = fill(gun); gun.content.hotspot.is_hover = false; return f[1] > 30 end)())
     check("chips: the label of a Scab chip is steel grey, of a Dreg chip putrid yellow (its lit brighter form here: the card has a mutant), of a neutral chip the bone text colour", label(W["rw_chip_" .. chip_of("renegade_executor")])[1] == 170 and label(W["rw_chip_" .. chip_of("renegade_executor")])[3] == 184 and label(W["rw_chip_" .. chip_of("cultist_mutant")])[1] == 238 and label(pox)[1] == 230, table.concat(label(W["rw_chip_" .. chip_of("renegade_executor")]), ",") .. "|" .. table.concat(label(W["rw_chip_" .. chip_of("cultist_mutant")]), ",") .. "|" .. table.concat(label(pox), ","))
     check("chips: the label box is wider than the chip and left aligned, so a label wider than guessed never breaks in two lines", gun.style.chip_label.size[1] >= 2 * (gun.style.hotspot.size[1] - 14) and gun.style.chip_label.text_horizontal_alignment == "left")
-    check("chips: a chip is wide enough for its word with the real bold sans (Hound is 3.05 em at 16: 49 units), with the dot before and a margin after", WK.chip_width("Hound") >= 26 + 49 + 8 and WK.chip_width("Armored Hound") > WK.chip_width("Hound"))
+    check("chips: a chip is wide enough for its word with the real bold sans (Hound is 3.05 em at 16: 49 units), with the dot before and a margin after", WK.chip_width("Hound") >= WK.CHIP_DOT + 49 + 8 and WK.chip_width("Armored Hound") > WK.chip_width("Hound"))
   end
   click_chip("Gunner")
-  check("faction: with Scab chosen the Gunner chip adds the Scab gunner (renegade_gunner), the row says Scab", view._parts[#view._parts].breed == "renegade_gunner" and plain(W.rw_erow_5.content.row_name) == "1 Gunner  Scab", view._parts[#view._parts].breed)
+  check("faction: with Scab chosen the Gunner chip adds the Scab gunner (renegade_gunner), the row says Scab", view._parts[#view._parts].breed == "renegade_gunner" and plain(W["rw_erow_" .. math.min(#view._parts, WK.ROWS)].content.row_name) == "1 Gunner  Scab", view._parts[#view._parts].breed)
   W.btn_dreg.content.hotspot.pressed_callback()
   check("faction: the switch to Dreg is kept in the settings; the chips of the pairs turn Dreg-coloured; the single-faction chips keep theirs", view._faction == "dreg" and settings.shelf_faction == "dreg" and W.btn_dreg.content.hotspot_on == true and W.btn_scab.content.hotspot_on == false and W["rw_chip_" .. chip_of("Gunner")].content.tint.frame[1] == 104 and W["rw_chip_" .. chip_of("renegade_executor")].content.tint.frame[1] == 82)
   click_chip("Gunner")
@@ -2349,9 +2385,9 @@ do
   click_chip("chaos_spawn"); click_chip("chaos_beast_of_nurgle")
   check("shelf: twelve groups are the most a card holds: the thirteenth is refused with a message, nothing changes", #view._parts == 12 and (function() local n = #view._parts; click_chip("chaos_daemonhost"); return #view._parts == n and echoes[#echoes]:find("msg_max_groups", 1, true) ~= nil end)(), tostring(#view._parts))
   W.btn_scab.content.hotspot.pressed_callback()
-  check("scroll: with twelve groups the rows scroll one at a time, the last row is the last group, the range is right", view._offset == 7 and plain(W.rw_erow_5.content.row_name):find("Beast of Nurgle", 1, true) ~= nil and W.list_range.content.list_range == "list_range:8,12,12" and W.rw_scroll_down.content.hotspot.disabled == true and W.rw_scroll_up.content.hotspot.disabled == false, tostring(view._offset) .. " " .. W.list_range.content.list_range)
+  check("scroll: with twelve groups the rows scroll one at a time, the last row is the last group, the range is right", view._offset == 6 and plain(W.rw_erow_6.content.row_name):find("Beast of Nurgle", 1, true) ~= nil and W.list_range.content.list_range == "list_range:7,12,12" and W.rw_scroll_down.content.hotspot.disabled == true and W.rw_scroll_up.content.hotspot.disabled == false, tostring(view._offset) .. " " .. W.list_range.content.list_range)
   click("rw_scroll_up")
-  check("scroll: the up button moves one row, not ten", view._offset == 6 and plain(W.rw_erow_1.content.row_name):find("^1 Chaos Spawn") == nil)
+  check("scroll: the up button moves one row, not ten", view._offset == 5 and plain(W.rw_erow_1.content.row_name):find("^1 Chaos Spawn") == nil)
   view._offset = 0; view:_refresh_rows(); view:_set_interaction_enabled()
   click_row(1, "hotspot_action")
   check("rows: Remove takes a group out; the card follows", #view._parts == 11 and plain_lines(stage):find("3 Trapper", 1, true) == nil)

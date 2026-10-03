@@ -123,9 +123,9 @@ WB.shelf_panel = function (node_id, layout)
 	local W, H = Workshop.LEFT_W, layout.height
 
 	rect(passes, "shelf_fill", 0, 0, W, H, 0, function (content, style)
-		put_rgb(style.color, 230, PANEL)
+		put_rgb(style.color, 230, Components.theme.panel)
 	end)
-	Components.frame_passes(passes, "shelf_frame", W, H, 1, { rgb = R.frame })
+	Components.frame_passes(passes, "shelf_frame", W, H, 1, { rgb = Components.theme.frame })
 	text(passes, "shelf_title", Workshop.SHELF_PAD, 12, 220, 24, 2, 15, "left", "center", function (content, style)
 		put_rgb(style.text_color, 255, R.text)
 	end)
@@ -202,7 +202,7 @@ WB.shelf_chip = function (node_id, w)
 		passes[#passes + 1] = {
 			pass_type = "circle",
 			style_id = halo and "chip_dot_h" or "chip_dot",
-			style = { offset = { 13 - r, H / 2 - r, halo and 3.5 or 4 }, size = { r * 2, r * 2 }, color = shape_color() },
+			style = { offset = { Workshop.CHIP_DOT / 2 - r, H / 2 - r, halo and 3.5 or 4 }, size = { r * 2, r * 2 }, color = shape_color() },
 			change_function = function (content, style)
 				local rgb = content.dot_rgb or R.muted
 

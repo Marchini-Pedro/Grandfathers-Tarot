@@ -132,6 +132,49 @@ function Components.set_accent(rgb)
 	accent[1], accent[2], accent[3] = rgb[1], rgb[2], rgb[3]
 end
 
+-- The page theme. On a card's own screens (the Cauldron, the picker, Mods, Custom and the Mirror) the whole page takes the colours of the
+-- card's face, its suit: the ground, the panels, the rows and their frames (set_theme, called by the view with the card's suit);
+-- everywhere else it is the Plague palette this mod always had (what Components.THEME_DEFAULT holds, the Plague suit's own numbers).
+-- Shared through the mod object like the accent and read by the static widgets every frame, never copied, so a suit that is changed
+-- on the page recolours it at once.
+local THEME_DEFAULT = {
+	ground = { 30, 32, 28 }, -- what the background texture is multiplied with
+	panel = { 18, 22, 12 }, -- the table and bottom panels
+	row = { 24, 30, 16 }, -- a row at rest
+	hi = { 42, 52, 26 }, -- a row under the pointer, before the accent is mixed in
+	frame = { 58, 68, 33 }, -- the line round a row and a panel
+}
+
+Components.THEME_DEFAULT = THEME_DEFAULT
+mod.rw_theme = mod.rw_theme or { ground = { 30, 32, 28 }, panel = { 18, 22, 12 }, row = { 24, 30, 16 }, hi = { 42, 52, 26 }, frame = { 58, 68, 33 } }
+Components.theme = mod.rw_theme
+
+local function scale_into(out, rgb, k)
+	out[1], out[2], out[3] = math.floor(rgb[1] * k + 0.5), math.floor(rgb[2] * k + 0.5), math.floor(rgb[3] * k + 0.5)
+end
+
+-- `suit` = a suit of catalog/cards.lua ({ card, hi, frame, accent ... } as {r, g, b}), or nil for the default look. Changes the tables
+-- in place. The suit's face colour is the ground; the panel and the rows are darker steps of it (the factors keep the Plague suit at
+-- the default numbers: 0.65 and 0.8 of its card colour), the hover and the frames are the suit's own.
+function Components.set_theme(suit)
+	local theme = Components.theme
+
+	if suit then
+		scale_into(theme.ground, suit.card, 1)
+		scale_into(theme.panel, suit.card, 0.65)
+		scale_into(theme.row, suit.card, 0.8)
+		scale_into(theme.hi, suit.hi, 1)
+		scale_into(theme.frame, suit.frame, 1)
+		Components.set_accent(suit.accent)
+	else
+		for key, rgb in pairs(THEME_DEFAULT) do
+			scale_into(theme[key], rgb, 1)
+		end
+
+		Components.set_accent(Components.BILE)
+	end
+end
+
 local function put_rgb(out, alpha, rgb)
 	out[1], out[2], out[3], out[4] = alpha, rgb[1], rgb[2], rgb[3]
 end

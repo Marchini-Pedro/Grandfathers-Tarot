@@ -728,7 +728,7 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	self._offset = self:_clamp_offset(self._offset)
 
 	widgets.title_text.content.title_text = mod:localize(CARD_SCREEN_TITLE[screen] or "view_title")
-	Components.set_accent(CARD_SCREEN_TITLE[screen] and self._wave and rw.cards.suit(self._wave.suit).accent or Components.BILE)
+	Components.set_theme(CARD_SCREEN_TITLE[screen] and self._wave and rw.cards.suit(self._wave.suit) or nil)
 
 	local header = widgets.list_header.content
 
