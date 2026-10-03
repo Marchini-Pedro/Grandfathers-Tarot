@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 - Synchronize remediation with the merged audit brief
+- Merge `main` at `44e536f` into the existing PR #4 branch. Resolve the three documentation conflicts by retaining completed audit/remediation status, history and links.
+- Update current PR status without changing runtime/tests or the frozen audit baseline. All six required checks pass on Lua 5.5 and LuaJIT 2.1 (1,746 assertions each); live acceptance remains pending.
+
 ## 2026-10-03 - Close retirement coverage and complete remediation review
 - Release all tuning/protocol owners and guard captured callbacks, delayed hook registration and executors; retry missing/replaced event managers on gameplay entry.
 - Preserve current live records when a failed snapshot returns after synchronous teardown. Skip malformed host candidate entries within the existing five-card bound.

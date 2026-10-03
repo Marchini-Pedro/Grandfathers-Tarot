@@ -1,8 +1,12 @@
 # Approved audit remediation
 
 The user authorized systematic implementation after the final audit review on
-2026-10-03. Branch `feature/audit-remediation` starts from current `main`
+2026-10-03. Branch `feature/audit-remediation` was created from `main`
 `3e6be468fe6ea7524b5acb4b31ac282f7c9bed0c` and carries the audit documentation.
+After PR #3 merged, PR #4 was synchronized with `main` at
+`44e536ff0bfcf1cfda80d49353ac10783f204a70`, resolving three documentation
+conflicts while retaining the completed records. The six fix commits and
+runtime/test contents are preserved; live acceptance remains pending.
 The [report](report.md) and its embedded diagnostics describe the frozen
 pre-fix revision; their observations are historical, not expected post-fix
 behavior. Replay those experiments against that revision. New verification is

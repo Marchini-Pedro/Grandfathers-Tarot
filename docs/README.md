@@ -22,6 +22,11 @@ Lua lifecycle workloads and an exact live checklist. Approved runtime fixes are
 tracked in the [remediation log](audits/2026-10-03/remediation.md); live acceptance
 remains pending.
 
+The reusable audit brief was merged into `main` through
+[PR #3](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/3) at `44e536f`.
+[PR #4](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/4) includes that
+merge and retains the completed audit and six remediation batches.
+
 ## References
 
 | Document | Purpose |
