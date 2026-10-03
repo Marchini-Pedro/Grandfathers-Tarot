@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 - Prepare an adversarial audit brief
+- Add an audit-only prompt covering meaningful test adequacy, repeated UI/reload/preset/mission lifecycles, wave-count scaling, Lua/native/process memory, Realms authority and asynchronous ordering, UI/coherence and selective BetterInventory reuse.
+- Require reproducible baselines, primary-source checks, fault-injection evidence, honest offline/live limits and ranked proposed fixes. Link the brief from the documentation index and CLAUDE.md; the audit has not been executed.
+
 ## 2026-10-03 - Refresh README and documentation maintenance
 - Add a concise root README with current features, installation, controls and known limits; keep the docs README as a technical index instead of duplicating release history.
 - Require same-session README review for user-visible changes in CLAUDE.md, with source checks, links to detailed docs and removal of superseded text.

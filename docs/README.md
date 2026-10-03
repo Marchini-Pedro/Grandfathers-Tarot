@@ -26,6 +26,7 @@ The last tagged release is `v1.13.0`.
 | [Learnings and gaps](07-learnings-and-gaps.md) | Discoveries, failed approaches and actionable gaps |
 | [Workshop redesign](08-workshop-redesign.md) | Cauldron/Mirror design and build log |
 | [Recovery review](09-recovery-review.md) | Recovered history, fixes, validation and remaining limits |
+| [Adversarial audit prompt](audits/adversarial-audit-prompt.md) | Reusable audit-only brief: risk-based tests, lifecycle/scaling stress, measurements and evidence requirements; not an executed audit |
 | [Changelog](CHANGELOG.md) | Change history; [1.x archive](changelog/1.x.md) |
 | [TwitchVersus findings](01-findings-twitchversus.md) | Historical TwitchVersus and VersusMode audit |
 | [RealmsEvent findings](02-findings-realmsevent.md) | Historical RealmsEvent audit |
