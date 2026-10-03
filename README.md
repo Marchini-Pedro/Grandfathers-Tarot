@@ -4,8 +4,8 @@ A Darktide mod that adds configurable enemy waves to local and LAN missions
 hosted through Realms Server. Build a deck of waves, draw a tarot hand, or use
 random selection and player voting. No Twitch service is required.
 
-> Development status (2026-10-03): the workshop recovery is merged into `main`
-> in [PR #1](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/1).
+> Development status (2026-10-03): the workshop recovery and audit fixes are merged
+> into `main` through [PR #4](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/4).
 > Offline checks pass; the recovered changes still need in-game and multiplayer
 > verification. The runtime reports `2.0.0`; the last tagged release is `v1.13.0`.
 
@@ -88,20 +88,20 @@ game checks and compatibility details.
 
 ## Development
 
-From the repository root, with Python and `lupa` installed, run:
+From the repository root, with Python 3.13 installed, run:
 
 ```powershell
-python tools/check_lua.py
-python tools/logic_test.py
-python tools/editor_test.py
-python tools/entry_test.py
-python tools/hud_test.py
-python tools/check_docs.py
+python -m pip install -r tools/requirements-test.txt
+python tools/run_tests.py --runtime lua55 --output-dir test-results/lua55
+python tools/run_tests.py --runtime luajit21 --output-dir test-results/luajit21
 ```
 
-The editor harness needs the sibling
-`Content/Darktide-Source-Code/scripts/` reference checkout. UI preview tools
-also need Pillow. Offline tests use engine stubs and do not replace game tests.
+The runner compiles Lua, runs every offline harness, checks documentation sizes
+and enforces coverage floors. Logs and JSON reports go to `test-results/`.
+GitHub Actions runs both runtimes on pushes and pull requests; see the
+[coverage review and gate policy](docs/10-ci-and-coverage.md).
+Tests run from a standalone checkout using engine fixtures. UI previews also
+need Pillow. Offline tests do not replace game tests.
 
 The [documentation index](docs/README.md) links design decisions, implementation
 status and historical audits. [CLAUDE.md](CLAUDE.md) defines the contribution
