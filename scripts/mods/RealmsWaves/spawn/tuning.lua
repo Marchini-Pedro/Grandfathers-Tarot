@@ -65,6 +65,7 @@ local shoot_logged = {} -- breed name -> how many shooting starts were written t
 local apply_logged = {} -- breed name -> how many tuned units were written to the log
 local outbox = {} -- host: sizes not sent yet, { id, pct }
 local inbox = {} -- client: sizes waiting for their unit, { id, pct, age }
+local inbox_by_id = {} -- one pending value per unit; a later message replaces the earlier one
 local timer, send_timer = 0, 0
 local warned = {}
 
@@ -337,13 +338,15 @@ local function reassert_record(record, buffs)
 	for key, factor in pairs(record.mult) do
 		local now = stat_buffs[key] or 1
 
-		if now ~= record.last[key] then
+		if record.recomputed or now ~= record.last[key] then
 			local value = now * factor
 
 			write_stat(stat_buffs, key, value)
 			record.last[key] = value
 		end
 	end
+
+	record.recomputed = nil
 end
 
 -- The buff system recomputes a unit's stats every frame while a buff that touches them is on it (a mission's global
@@ -556,6 +559,14 @@ Tuning.install = function ()
 
 	mod:hook_safe("BuffExtensionBase", "_update_stat_buffs_and_keywords", after_recompute)
 	mod:hook_safe("MinionBuffExtension", "_update_stat_buffs_and_keywords", after_recompute)
+	mod:hook_safe("MinionBuffExtension", "_reset_stat_buffs", function (self)
+		local record = not Tuning.dead and tuned_by_extension[self]
+
+		if record then
+			-- A fresh engine value may equal the last tuned value numerically. It still needs our factor once.
+			record.recomputed = true
+		end
+	end)
 
 	-- the boss health bar writes "Weakened" before the name of a boss with less than its normal health: not for a boss whose health the
 	-- player set (the breed's own flag for this is switched on while the bar is made, then put back)
@@ -627,7 +638,7 @@ end
 
 local function send_batches(list, recipient)
 	if not Protocol or not Protocol.send_scales or not Protocol.is_available() then
-		return
+		return false
 	end
 
 	local from = 1
@@ -640,16 +651,19 @@ local function send_batches(list, recipient)
 		end
 
 		-- a peer that left or a network that fails is not our business: skip the rest, never break the frame
-		local ok, err = pcall(Protocol.send_scales, batch, recipient)
+		local ok, sent, err = pcall(Protocol.send_scales, batch, recipient)
 
-		if not ok then
+		if not ok or sent == false then
+			err = not ok and sent or err
 			warn_once(string.format("sizes could not be sent to the other players: %s", tostring(err)))
 
-			return
+			return false
 		end
 
 		from = from + SEND_BATCH
 	end
+
+	return true
 end
 
 -- Host, every frame (cheap: two counters until something is due).
@@ -669,10 +683,21 @@ Tuning.update = function (dt)
 		send_timer = 0
 
 		if #outbox > 0 then
-			local list = outbox
+			local list, seen = {}, {}
 
-			outbox = {}
-			send_batches(list)
+			for i = 1, #outbox do
+				local item = outbox[i]
+				local entry = scaled[item[1]]
+
+				if entry and alive(entry.unit) and not seen[item[1]] then
+					seen[item[1]] = true
+					item[2] = entry.pct
+					list[#list + 1] = item
+				end
+			end
+
+			-- Retry failures next cadence. Prune dead units and duplicates so an outage cannot grow the queue forever.
+			outbox = send_batches(list) and {} or list
 		end
 	end
 end
@@ -694,13 +719,16 @@ end
 -- `entries` = { { id = network id, pct = percent }, ... }, already validated by the protocol.
 Tuning.receive = function (entries)
 	for i = 1, #(entries or {}) do
-		if #inbox >= MAX_PENDING then
-			break
-		end
-
 		local entry = entries[i]
+		local pending = inbox_by_id[entry.id]
 
-		inbox[#inbox + 1] = { id = entry.id, pct = entry.pct, age = 0 }
+		if pending then
+			pending.pct, pending.age = entry.pct, 0
+		elseif #inbox < MAX_PENDING then
+			pending = { id = entry.id, pct = entry.pct, age = 0 }
+			inbox[#inbox + 1] = pending
+			inbox_by_id[entry.id] = pending
+		end
 	end
 end
 
@@ -721,21 +749,27 @@ Tuning.update_client = function (dt)
 		local ok, exists = pcall(spawner.unit_exists, spawner, entry.id)
 
 		entry.age = entry.age + dt
+		local done = false
 
 		if ok and exists then
 			local got, unit = pcall(spawner.unit, spawner, entry.id)
 
 			if got and unit and alive(unit) then
 				local applied, err = pcall(set_scale, unit, entry.pct)
+				done = applied
 
 				if not applied then
 					warn_once(string.format("a size sent by the host could not be applied: %s", tostring(err)))
 				end
+			elseif got and unit then
+				done = true -- dead unit: there is nothing left to resize
 			end
+		end
 
-			table.remove(inbox, i)
-		elseif entry.age > PENDING_TIMEOUT then
-			table.remove(inbox, i)
+		if done or entry.age > PENDING_TIMEOUT then
+			inbox_by_id[entry.id] = nil
+			inbox[i] = inbox[#inbox]
+			inbox[#inbox] = nil
 		end
 	end
 end
@@ -866,6 +900,7 @@ end
 
 Tuning.reset = function ()
 	tuned, scaled, outbox, inbox = {}, {}, {}, {}
+	inbox_by_id = {}
 	sized = {}
 	tuned_by_extension = {}
 	tuned_health = setmetatable({}, { __mode = "k" })

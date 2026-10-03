@@ -139,3 +139,5 @@ See `04-design-and-rationale.md`.
 - [ ] Complete sorting/drag behavior, review runtime and multiplayer edge cases, run offline checks, synchronize the feature branch. See 09-recovery-review.md.
 
 - [x] Complete persistent sorting and drag-to-swap, cancel stale interactions, and cover them with meaningful regression/mutation checks (2026-10-03).
+
+- [x] Review repeat CPU/memory bounds, duplicate/deferred scale delivery, failed sends, host authority and stat recompute ordering; fix and add real-path regression tests (2026-10-03).

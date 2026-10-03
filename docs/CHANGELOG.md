@@ -211,3 +211,9 @@ Everything from 1.13.0 down to 1.0.0 is in [changelog/1.x.md](changelog/1.x.md) 
 - Persistent ascending/descending sorts by threat, chance (rarity), enemy count and face; manual swaps clear the active sort. Hidden/deleted keys remain in the saved order and new keys append safely. Sort tie-breakers reuse one table instead of allocating in each comparison.
 - Only an actual face/state press arms a toggle or drag. Double-click releases never undo the first toggle; drops outside the grid or with no cursor cancel. Scrolling, sorting, popups, screen changes and closing restore positions/layers/opacity before reusing slots.
 - 44 additional editor checks cover persistence, all sorts, stable ties, draw independence, releases and cancellation. Reintroducing the outside-drop, scroll or double-click bugs fails the regression checks. Stubbed idle updates remain below 1 byte/frame.
+
+## 2026-10-03 - Bound repeat work and harden multiplayer tuning
+- Repeat queues are capped at 1000 pending units per job, including partial repeat batches. Reuse each batch for linear-time prepending instead of repeated front inserts; skip overdue ticks in one step when full.
+- Client scale queues coalesce by unit id: newest arrival wins, duplicates do not consume capacity, full queues still accept updates to an existing entry, and a unit id that exists before its handle arrives waits/retries. Completed entries use constant-time removal.
+- Failed sends return safely and retry at the next 0.3 s cadence. Retries keep only current live unit sizes, removing duplicates/dead units. RPC state, welcome and sizes are accepted only from the session host; wire protocol stays version 2.
+- Track actual minion stat resets so a new base equal to the previous tuned value still gets the multiplier exactly once. Multiple post-hooks remain idempotent. Regression/mutation checks cover the queue cap, latest scale and equal-value recompute.

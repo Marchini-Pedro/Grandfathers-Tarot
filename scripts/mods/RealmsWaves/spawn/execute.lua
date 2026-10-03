@@ -373,12 +373,31 @@ local function run_repeats(job, dt)
 	rep.clock = rep.clock + dt
 
 	while rep.next <= rep.total and rep.clock >= rep.next do
-		if #job.queue <= MAX_QUEUE then
-			local batch = expand(rep.parts, "rep", rep.picks)
+		if #job.queue >= MAX_QUEUE then
+			-- Drop missed ticks in one step during a long frame; a full queue needs no more expansion work.
+			rep.next = rep.next + (math.floor((math.min(rep.clock, rep.total) - rep.next) / rep.every) + 1) * rep.every
 
-			for i = 1, #batch do
-				table.insert(job.queue, 1, batch[i])
+			break
+		else
+			local batch = expand(rep.parts, "rep", rep.picks)
+			local room = MAX_QUEUE - #job.queue
+
+			while #batch > room do
+				batch[#batch] = nil
 			end
+
+			-- Reuse the batch as a new stack: pending older units stay at its end and are popped first.
+			for i = 1, math.floor(#batch / 2) do
+				local j = #batch - i + 1
+
+				batch[i], batch[j] = batch[j], batch[i]
+			end
+
+			for i = 1, #job.queue do
+				batch[#batch + 1] = job.queue[i]
+			end
+
+			job.queue = batch
 		end
 
 		rep.next = rep.next + rep.every

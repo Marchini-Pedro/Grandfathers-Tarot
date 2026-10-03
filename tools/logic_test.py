@@ -25,6 +25,7 @@ get_mod = function(name) return mod end
 local is_server = true
 local mission_name = "coop_complete_objective"
 Managers = {
+  connection = { host = function() return "host_peer" end },
   state = {
     game_session = { is_server = function() return is_server end },
     game_mode = { game_mode = function() return { name = function() return mission_name end } end },
@@ -580,6 +581,19 @@ do
   cjson.encode = function(v) return "list:" .. #v end
   local before = #sent_rpcs
   check("protocol: send_scales sends one json argument to the others (or to one peer); nothing for an empty list", P.send_scales({ { 1, 120 }, { 2, 130 } }) == true and sent_rpcs[#sent_rpcs].name == "rw_scale" and sent_rpcs[#sent_rpcs].recipient == "others" and sent_rpcs[#sent_rpcs].args[1] == "list:2" and P.send_scales({ { 3, 120 } }, "peer_b") == true and sent_rpcs[#sent_rpcs].recipient == "peer_b" and P.send_scales({}) == false and #sent_rpcs == before + 2)
+  local calls = 0
+  P.init({ on_state=function() calls=calls+1 end, on_welcome=function() calls=calls+1 end, on_scale=function() calls=calls+1 end })
+  registered.rw_state("other_client", "x"); registered.rw_welcome("other_client", 2, "2.0.0", 1); registered.rw_scale("other_client", "x")
+  check("protocol: another client cannot spoof host state, a welcome or unit sizes", calls==0)
+  registered.rw_state("host_peer", "x"); registered.rw_welcome("host_peer", 2, "2.0.0", 1); registered.rw_scale("host_peer", "x")
+  check("protocol: authenticated host messages still arrive", calls==3)
+  local connection=Managers.connection; Managers.connection=nil
+  registered.rw_state("host_peer", "x"); registered.rw_welcome("host_peer", 2, "2.0.0", 1); registered.rw_scale("host_peer", "x")
+  check("protocol: no session connection means no host messages are accepted", calls==3)
+  Managers.connection=connection
+  realms.network_send=function() error("connection closed during send") end
+  local send_ok, sent, why=pcall(P.send_hello)
+  check("protocol: a disconnect during any RPC send returns a failure without raising", send_ok and sent==false and tostring(why):find("connection closed",1,true))
   get_mod = real_get_mod; cjson = nil
 end
 -- fixed-timer waves: ignore the chance, run on their own clock, independent of the draw -----------------------------
@@ -1387,6 +1401,8 @@ do
       self.recomputes = self.recomputes + 1
       for key in pairs(stats._modified_stats) do stats[key] = BASE_STAT[key] end
       for key in pairs(stats._modified_stats) do stats._modified_stats[key] = nil end
+      local reset_hook=hooks["MinionBuffExtension._reset_stat_buffs!"]
+      if reset_hook then reset_hook(self) end
       for _, buff in ipairs(self.buff_list) do
         for key, value in pairs(buff) do
           if MULTIPLICATIVE[key] then stats[key] = stats[key] * value else stats[key] = stats[key] + value end
@@ -1427,6 +1443,13 @@ do
   check("recompute: a buff that arrives later is added to the base, then the factor once (1.3 x 2, 2.25 x 3)", math.abs(late_stats.ranged_attack_speed - 2.6) < 1e-9 and math.abs(late_stats.minion_num_shots_modifier - 6.75) < 1e-9, tostring(late_stats.ranged_attack_speed) .. "/" .. tostring(late_stats.minion_num_shots_modifier))
   Tuning.update(0.3)
   check("recompute: the fallback timer leaves a correct value alone", math.abs(late_stats.ranged_attack_speed - 2.6) < 1e-9)
+  local equal_unit,equal_ext,equal_stats=sim_unit({})
+  Tuning.apply(equal_unit,{fire=200},"renegade_gunner")
+  equal_ext.buff_list={{ranged_attack_speed=1}}
+  equal_ext:recompute(); minion_hook(equal_ext,5)
+  check("recompute: a fresh base equal to the last tuned value still gets its factor", equal_stats.ranged_attack_speed==4)
+  stat_hook(equal_ext,5); minion_hook(equal_ext,5)
+  check("recompute: a reset notification is consumed once across both hooks", equal_stats.ranged_attack_speed==4)
 
   -- a stat table without _modified_stats (a stub, or a game that changes) is still written
   local plain_unit = { buffs = { stats = {} } }
@@ -1714,7 +1737,16 @@ do
     Tuning.apply(crowd[201], { size = 130 }, "crowd")
     local quiet_ok = pcall(function () Tuning.update(0.3); Tuning.send_all("anyone") end)
     check("mods: without the Realms network (nobody to tell) nothing is sent and nothing fails", quiet_ok and #sent_scales == 0)
+    check("network: pending live sizes survive a temporary outage", Tuning.status().unsent>0)
     fake_protocol.is_available = function() return true end
+    Tuning.update(0.3)
+    check("network: a recovered connection flushes pending sizes", Tuning.status().unsent==0 and #sent_scales>0)
+    fake_protocol.send_scales=function() return false,"peer disconnected" end
+    Tuning.apply(crowd[201],{size=125},"crowd"); Tuning.update(0.3)
+    check("network: a returned send failure retains the size for retry", Tuning.status().unsent==1)
+    fake_protocol.send_scales=function(list,recipient) sent_scales[#sent_scales+1]={list=list,recipient=recipient}; return true end
+    Tuning.update(0.3)
+    check("network: retries send the latest live value and clear the queue", Tuning.status().unsent==0 and sent_scales[#sent_scales].list[1][2]==125)
 
     -- a unit that died: the stat hook and the end-of-attack hook no longer know it
     local gone = crowd[1]
@@ -1752,7 +1784,20 @@ do
     Tuning.receive({ { id = 9, pct = 150 } })
     Tuning.receive({ { id = 9, pct = 150 } }) -- the host answered two hellos: the same size twice
     Tuning.update_client(0.1)
-    check("client: the same size sent twice is applied twice to the same value (harmless), nothing is left waiting", #applied2 == 2 and applied2[1] == 1.5 and applied2[2] == 1.5 and Tuning.status().pending == 0)
+    check("client: duplicate sizes use one pending entry and one application", #applied2 == 1 and applied2[1] == 1.5 and Tuning.status().pending == 0)
+    Tuning.receive({{id=9,pct=150}}); Tuning.receive({{id=9,pct=120}})
+    Tuning.update_client(0.1)
+    check("client: the newest received size wins, never the first message replayed in reverse", applied2[#applied2]==1.2 and Tuning.status().pending==0)
+    local saved_lookup=Managers.state.unit_spawner.unit
+    Managers.state.unit_spawner.unit=function() return nil end
+    Tuning.receive({{id=9,pct=130}}); Tuning.update_client(0.1)
+    check("client: existence before the unit handle arrives keeps the size pending", Tuning.status().pending==1)
+    Managers.state.unit_spawner.unit=saved_lookup
+    Tuning.update_client(0.1)
+    check("client: the deferred size is applied once the handle arrives", applied2[#applied2]==1.3 and Tuning.status().pending==0)
+    Tuning.receive(flood); Tuning.receive({{id=9,pct=180}})
+    Tuning.update_client(0.1)
+    check("client: an existing unit's newest size is accepted even with a full pending queue", applied2[#applied2]==1.8 and Tuning.status().pending==599)
     Unit.set_local_scale = saved_set_scale
     Managers.state.unit_spawner = saved_spawner2
     Tuning.reset()
@@ -2665,6 +2710,19 @@ settings.max_per_wave = 300
 Execute.reset()
 Execute.start_wave({ name = "t", parts = Groups.parse("60 poxwalkers, 40 scabs") })
 check("max_per_wave still caps a multiplied wave", Execute.status().queued == 300, Execute.status().queued)
+
+do
+  local saved_per,saved_special=settings.max_per_wave,settings.mult_special
+  settings.max_per_wave=500; settings.mult_special=500; cand_fail=true
+  Execute.reset()
+  Execute.start_wave({name="backlog",parts=Groups.parse("60 hounds@60"),rep_every=1,rep_for=3600})
+  Execute.update(1800)
+  check("repeat: a long frame and blocked positions never queue over 1000 units", Execute.status().queued==1000,Execute.status().queued)
+  Execute.update(1)
+  check("repeat: a full queue skips further ticks without growing", Execute.status().queued==1000)
+  Execute.reset(); cand_fail=false
+  settings.max_per_wave=saved_per; settings.mult_special=saved_special
+end
 Execute.reset()
 ALIVE = saved_alive2
 settings.max_per_wave, settings.max_alive, settings.mult_normal = nil, nil, nil
