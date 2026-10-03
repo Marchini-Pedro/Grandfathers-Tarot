@@ -1,6 +1,6 @@
 # The Workshop redesign (button family, the Cauldron and the Mirror)
 
-Spec and build log for the redesign of the card editor that followed the Deck (2.0.0). Origin: the user's request of 2026-10-01 ("integrate the rest of the mod into the same palette", "all buttons need to be remade", "the preview of the card in the enemies edit page on the right side, with an easy way to change the faces/enemies and the changes shown in real time"), a design page with every decision (https://claude.ai/artifact/JZKnq3YvrtZHk66zRgBBsv, private; the source HTML is not in the repo) and the user's answers to it. Branch: `feature/workshop-redesign`.
+Spec and build log for the redesign of the card editor that followed the Deck (2.0.0). Origin: the user's request of 2026-10-01 ("integrate the rest of the mod into the same palette", "all buttons need to be remade", "the preview of the card in the enemies edit page on the right side, with an easy way to change the faces/enemies and the changes shown in real time"), a design page with every decision (https://claude.ai/artifact/JZKnq3YvrtZHk66zRgBBsv, private; the source HTML is not in the repo) and the user's answers to it. Historical branch: `feature/workshop-redesign`; recovered and merged into `main` through PR #1 on 2026-10-03. Offline build checks are complete; in-game verification remains open (doc 06).
 
 ## 1. Decisions
 

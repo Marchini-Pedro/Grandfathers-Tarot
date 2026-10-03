@@ -57,9 +57,9 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
   - [x] 4d. Deck polish after the user's first look (2.0.0): relative chance pips and rarity, clickable pips, right click to edit, the Edit pill, anti-aliasing copies, dimmed filled diamonds, coloured modifiers, tighter tile layout, six new suits incl. the purple Warp for the Daemonhost (offline only)
   - [x] 4c. Card builder screen ("Card face"): suit with suggestion, threat auto/override with "Threat N by the numbers", whisper, look, cooldown, live preview (`ui/wave_editor_face.lua`; offline only)
 - [x] 5. Mod options (the last one, `tarot_default_cooldown`, in 2.0.0 step 5; all others were added with their steps)
-- [x] 6. Per-group health and size multipliers, done as "custom mods" on the user's request (health, size, run speed, time between attacks (first called melee attack speed), gunner fire rate, shots per burst, hit mass, explosion and damage-over-time taken; `spawn/tuning.lua`, `ui/wave_editor_tune.lua`, RPC `rw_scale`). Branch `feature/attack-timing` (not merged until the user confirms it in game): the rename to Time between attacks, the chained-attack fix and the `/rw_anim` probe; "Animation attack speed" waits for the probe's answer. The brief's one-crusher test in the game has NOT been done: matrix rows 91-96.
+- [x] 6. Per-group health and size multipliers, done as "custom mods" on the user's request (health, size, run speed, time between attacks (first called melee attack speed), gunner fire rate, shots per burst, hit mass, explosion and damage-over-time taken; `spawn/tuning.lua`, `ui/wave_editor_tune.lua`, RPC `rw_scale`). Recovered from `feature/attack-timing` and merged into `main` through PR #1 on 2026-10-03: the rename to Time between attacks, the chained-attack fix and the `/rw_anim` probe; "Animation attack speed" waits for the probe's answer. The brief's one-crusher test in the game has NOT been done: matrix rows 91-96.
 
-### 2.1.0: the Workshop redesign (spec: `08-workshop-redesign.md`, branch `feature/workshop-redesign`)
+### 2.1.0: the Workshop redesign (historical milestone; spec: `08-workshop-redesign.md`; recovered into `main` through PR #1)
 - [x] 0. Design page, the user's answers, spec and plan (doc 08)
 - [x] 1. Button family (standard, primary, danger, quiet, chip, stepper, diamond check, tabs, icon), popup buttons and frame, pixel snapping, the suit accent; titles (Cauldron, Mirror) came with it (offline only)
 - [x] 2. The shelf data (Packmaster, vanguards as fodder, Dreg / Scab) and the faction word on rows and in the picker (offline only); the titles are done
@@ -135,9 +135,13 @@ See `04-design-and-rationale.md`.
 `/rw_test <event>` spawn now; `/rw_status` state + counters (raw vs adjusted `total_allocated_num_enemies`, tracked count, aggroed challenge rating); `/rw_roll <n>` n-roll simulation of the weights; `/rw_vote <n>` cast vote from console.
 
 ## Recovery review (2026-10-03)
-- [x] Preserve remote baseline, 25 unpublished commits and eight uncommitted files on feature/workshop-recovery.
-- [ ] Complete sorting/drag behavior, review runtime and multiplayer edge cases, run offline checks, synchronize the feature branch. See 09-recovery-review.md.
+- [x] Preserve remote baseline, 25 unpublished commits and eight uncommitted files on `feature/workshop-recovery` (now merged into `main`).
+- [x] Complete sorting/drag behavior, review runtime and multiplayer edge cases, run offline checks, and synchronize the feature branch (2026-10-03). See `09-recovery-review.md`.
 
 - [x] Complete persistent sorting and drag-to-swap, cancel stale interactions, and cover them with meaningful regression/mutation checks (2026-10-03).
 
 - [x] Review repeat CPU/memory bounds, duplicate/deferred scale delivery, failed sends, host authority and stat recompute ordering; fix and add real-path regression tests (2026-10-03).
+
+- [x] Confirm PR #1 merged into `main` at `64f76f3` and synchronize local `main`; remote recovery branch deleted (2026-10-03).
+- [x] Add player-facing README, compact the technical index, and define ongoing README maintenance in CLAUDE.md (2026-10-03).
+- [ ] Complete the remaining in-game/multiplayer and actual CPU/process RAM checks listed in doc 09; merge status does not close these checks.
