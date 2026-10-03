@@ -5,7 +5,7 @@ Written 2026-09-28. Findings backing each claim are in docs 01-03.
 ## Heresy branch continuation (2026-10-03)
 
 The last-card state is cleared before stop is broadcast; off snapshots cannot
-retain a last card. Pooled presets must fit both the 90,000-byte raw bound and
+retain a last card. Long modifier lists grow the last-card panel inside its 320-unit node; existing names retain their three-line estimate. Pooled presets must fit both the 90,000-byte raw bound and
 Realms' encoded 96 KiB envelope, including JSON escaping. Reserve 1 KiB for
 the envelope and select the largest fitting prefix in at most seven probes
 for 100 cards; an empty preset clears old pools when no card fits. Health

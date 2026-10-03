@@ -916,7 +916,7 @@ do
     end
   end
   check("last card: one movable node (custom_hud lists every non-root node), one widget, every pass starts hidden, only fonts that exist", sg_nodes == 1 and LastDefs.scenegraph_definition.panel ~= nil and LastDefs.widget_definitions.last ~= nil and hidden and fonts_known, sg_nodes)
-  check("last card: the node sits to the right of the Spread (which is 700 wide from x 610) and is 200 x 196", LastDefs.scenegraph_definition.panel.position[1] >= 610 + 700 and LastDefs.scenegraph_definition.panel.size[1] == 200 and LastDefs.scenegraph_definition.panel.size[2] == 196)
+  check("last card: the node sits to the right of the Spread and reserves room for wrapped modifiers", LastDefs.scenegraph_definition.panel.position[1] >= 610 + 700 and LastDefs.scenegraph_definition.panel.size[1] == 200 and LastDefs.scenegraph_definition.panel.size[2] == 320)
 
   settings.hud_last_card, settings.hud_enabled, settings.tarot_font = nil, nil, nil
   local el = new_last()
@@ -964,7 +964,11 @@ do
   current_view = last_view(lc("m", "The Watching Moon", "murmur", 2, { "renegade_sniper", "chaos_poxwalker" }, "Someone is counting you, forever.", "Purple \194\183 Enraged \194\183 Custom"), 5, 12)
   last_frame(el)
   local ok_in2, why_in2 = inside(el)
-  check("last card: a three-line name with a two-line whisper and modifiers fits the node (the window is as tall as it needs)", ok_in2 and w.style.bg.size[2] <= 196 and w.style.whisper.visible and w.style.mods.visible and w.style.whisper.offset[2] > w.style.card_bg.offset[2] + w.style.card_bg.size[2] and w.style.mods.offset[2] > w.style.whisper.offset[2], why_in2)
+  check("last card: a three-line name with a two-line whisper and modifiers fits the node (the window is as tall as it needs)", ok_in2 and w.style.bg.size[2] <= LastDefs.HEIGHT and w.style.whisper.visible and w.style.mods.visible and w.style.whisper.offset[2] > w.style.card_bg.offset[2] + w.style.card_bg.size[2] and w.style.mods.offset[2] > w.style.whisper.offset[2], why_in2)
+
+  current_view = last_view(lc("long-mods", "The Watching Moon", "murmur", 2, {}, "Someone is counting you, forever.", string.rep("Enraged ", 12)), 51, 12)
+  last_frame(el)
+  check("last card: a 96-byte modifier list has six lines of room and stays inside its panel", w.style.mods.size[2] >= 96 and w.style.mods.offset[2] + w.style.mods.size[2] + 8 <= w.style.bg.size[2] and w.style.bg.size[2] <= LastDefs.HEIGHT)
 
   -- the player's options
   settings.tarot_font = "machine_medium"

@@ -203,7 +203,7 @@ Ten changes the user asked for in one list. Everything below is implemented and 
 - [x] A cooldown row on every Deck tile (`-` / `+` / number box / hover preview).
 - [x] Merge `main` (PRs #5-#7) into the branch (`56062d3`), resolving one code and three documentation conflicts; `Events.is_empty_slot` keeps the draw cheap with 88 slots.
 - [x] Synchronize with current `main` at `1290abc` (documentation only); preserve accurate PR #7 status.
-- [x] Adversarial review of all branch changes; repair eight reproduced health/spawn/network/HUD/layout gaps, strengthen regressions and detect eight reverse mutations on both VMs ([review](audits/2026-10-03/heresy-review.md)).
+- [x] Adversarial review of all branch changes; repair nine reproduced health/spawn/network/HUD/layout gaps, including long modifier wrapping, strengthen regressions and detect nine reverse mutations on both VMs ([review](audits/2026-10-03/heresy-review.md)).
 - [ ] CI coverage policy on both runtimes: floors for `ui/hud_element_last_card.lua` and `ui/hud_element_last_card_definitions.lua`, `ui/wave_editor_face.lua` at 81.98 percent against 82, the LuaJIT run after the merge ([hand-off](11-handoff-2026-10-03.md)).
 - [ ] GitHub: admin permission for EduardoKenji. NOT done: a personal-account repository has no admin collaborator role and no API credential was available to me (see `07`, open gaps).
 - [ ] The in-game run of rows 114-121; the user's "100 percent working" merges the branch into `main`.

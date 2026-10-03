@@ -52,6 +52,7 @@ standalone checkout.
 | H6 | Low | With a three-line tile name, composition ends at y=153 while modifiers start at y=148. The prior test allowed seven units of overflow. Keep composition inside its actual available height: four, three or one lines for one, two or three name lines. | Tighten the geometry invariant to y<=146 and verify the painted long-name tile. Existing summary counts and popup/drag/input checks still run. |
 | H7 | Low | Stationary hover on a cooldown control at its limit paints every frame: raw pointer direction stays -1/+1 while the clamped preview is zero. Separate cached pointer direction from effective preview direction; timed cards have no preview. | Count repaint calls across 100 unchanged frames at the minimum: 100 before, zero after. This is avoided work/allocation, not a frame-time benchmark or leak claim. |
 | H8 | Low | Refresh fails while a good last-card widget is visible. Clearing the cached card alone leaves partially repainted content visible. Hide the widget on refresh failure and rebuild on the next good card. | Start from a visible good card, feed a malformed card, require hidden content and one error, then require recovery with a good card. |
+| H9 | Low | A valid long modifier list wraps under the last card, but its box and panel reserved only one line. Use the existing wrap estimator with a conservative uppercase width and up to eight lines; grow the panel to the resulting height within a 320-unit node. Existing name estimates retain their three-line default. | A 96-byte list of twelve modifiers requires six lines of room and must fit inside the panel. Restoring the single-line height fails this assertion on both VMs. |
 
 Source references in the repaired tree:
 
@@ -67,7 +68,7 @@ Source references in the repaired tree:
   [cooldown painting](../../../scripts/mods/RealmsWaves/ui/wave_editor_deck.lua),
   pointer cache:326, update comparison:859.
 - [Last-card refresh](../../../scripts/mods/RealmsWaves/ui/hud_element_last_card.lua),
-  failure cleanup:356.
+  modifier height:270, failure cleanup:358.
 
 ## Risk-to-test map and reviewed inventory
 
@@ -88,10 +89,10 @@ were also reviewed. Existing appearance integration is retained through main's
 merge and its 79-assertion suite. Unchanged project modules remain covered by
 the full runner; the earlier whole-project audit is preserved separately.
 
-The new checks reproduce actual failures before repair. Eight isolated reverse
+The new checks reproduce actual failures before repair. Nine isolated reverse
 mutations restore the nil guard, premature local health write, unprotected
 facing call, raw-only send guard, off-snapshot retention, overflowing composition,
-repaint comparison and stale-HUD cleanup. Each mutant must compile and fail its
+repaint comparison, stale-HUD cleanup and single-line modifier height. Each mutant must compile and fail its
 named behavior assertion on both runtimes; syntax errors are not detections.
 Raw scratch outputs live under ignored `test-results/audit/`. To reproduce
 without those outputs, reverse the specific repaired source change and run

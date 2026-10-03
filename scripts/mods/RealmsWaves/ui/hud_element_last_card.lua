@@ -267,11 +267,13 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 	style.whisper.visible = whisper ~= ""
 
 	content.mods = mods
-	box(style.mods, x, whisper_y + (whisper ~= "" and 36 or 0), cw, 16)
+	local mods_h = mods ~= "" and Spread.wrap_lines(mods, cw, 12, 0.70, 8) * 16 or 0
+
+	box(style.mods, x, whisper_y + (whisper ~= "" and 36 or 0), cw, mods_h)
 	paint(style.mods, 255, Cards.BASE.rust)
 	style.mods.visible = mods ~= ""
 
-	local bottom = whisper_y + (whisper ~= "" and 36 or 0) + (mods ~= "" and 16 or 0) + 8
+	local bottom = whisper_y + (whisper ~= "" and 36 or 0) + mods_h + 8
 
 	bottom = math.min(bottom, Definitions.HEIGHT)
 

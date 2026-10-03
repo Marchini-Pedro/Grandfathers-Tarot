@@ -51,13 +51,13 @@ Spread.card_width = function (count)
 	return count <= 3 and 176 or count == 4 and 152 or 132
 end
 
--- How many lines a name takes in a box `width` wide (a greedy word wrap with an average glyph width), at most 3.
+-- Greedy word-wrap estimate; names use three lines, other text may supply its own line limit.
 local GLYPH = 0.54 -- of the font size, for the default font
 
 -- average glyph width (of the font size) of the fonts the player can choose; unknown fonts use GLYPH
 Spread.GLYPH_BY_FONT = { itc_novarese_bold = 0.56, itc_novarese_medium = 0.54, friz_quadrata = 0.56, proxima_nova_bold = 0.56, rexlia = 0.62, machine_medium = 0.62 }
 
-Spread.wrap_lines = function (text, width, font_size, glyph)
+Spread.wrap_lines = function (text, width, font_size, glyph, max_lines)
 	local per_line = max(1, floor(width / (font_size * (glyph or GLYPH))))
 	local lines, used = 1, 0
 
@@ -81,7 +81,7 @@ Spread.wrap_lines = function (text, width, font_size, glyph)
 		end
 	end
 
-	return min(3, lines)
+	return min(max_lines or 3, lines)
 end
 
 Spread.new_layout = function ()

@@ -15,7 +15,7 @@ local definitions = {}
 
 definitions.Spread = Spread
 definitions.WIDTH = 200
-definitions.HEIGHT = 196 -- room for a card with a three-line name, a two-line whisper and the modifiers line
+definitions.HEIGHT = 320 -- maximum: three name lines, two whisper lines and up to eight modifier lines
 definitions.CARD_X, definitions.CARD_Y = 12, 34
 definitions.CARD_W = Spread.card_width(1) -- the card is as wide as a card of a one-card Spread (176)
 definitions.FONT = "proxima_nova_bold"

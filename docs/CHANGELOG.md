@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 - Reserve wrapped modifier space in the last-card window
+- Long modifier lists receive up to eight lines using the existing wrap helper with a conservative uppercase width. The panel grows with its content inside a 320-unit node; short cards keep their compact panel. Existing name wrapping retains its three-line default.
+- A valid 96-byte modifier fixture reproduces the old one-line overflow. The ninth reverse mutation detects the regression on both VMs; a real-widget preview with English caption and substituted Windows fonts was inspected. Native font metrics remain an in-game check.
+
 ## 2026-10-03 - Repair pooled decks and last-card/UI lifecycle
 - Count JSON escaping against Realms' 96 KiB envelope, keep 1 KiB of envelope headroom, and send the largest fitting prefix of enabled cards. An unshareable first card sends an empty sealed preset to clear stale host pools.
 - Stop clears the last card on host and clients, including old off snapshots carrying `lc`. Failed HUD refresh hides partial content and recovers on the next good card.
