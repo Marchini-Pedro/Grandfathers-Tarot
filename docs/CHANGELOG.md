@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Add beneficial effects, Blackout and completion audio (PR #9)
+- Prayer, Miracle and Grace reuse the tarot catalog and mask enemy recipes in catalog reads, pooling and execution. Add healing/corruption, items, Med Station recharge, combat ability grants, guidance and timed Blue Stimm, plus hostile Blackout.
+- Native APIs retain their restrictions; bounded ownership restores streamed lighting states, buffs and outlines on expiry/cancel/reset. Host-authenticated revision/time snapshots deduplicate grants, audio and temporary reveal state.
+- Extend sealed shared-card text only when effects/audio are present; legacy formats remain readable. Rank/search 2,685 native event names; use optional SimpleAudio or native Wwise and wait for queues, living units and timed effects before sounding completion.
+
 ## 2026-10-03 - Combine enemy outlines with protected tints (PR #9)
 - Ordinary outlines use the depth-tested native layer; manual tags retain through-wall precedence. Independent outline and tint protection flags survive recipes, peer validation, saving/reopening and removal packets.
 - Share native material-effect callbacks, retain buff/stat behavior, and disable unavailable surface/shader methods with their actual prerequisites. Place the new switches below the explanation and above Back.

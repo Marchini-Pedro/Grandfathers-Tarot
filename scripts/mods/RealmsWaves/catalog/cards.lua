@@ -31,7 +31,7 @@ Cards.BASE = {
 -- Daemonhost's own card (Cards.suggest_suit gives it to every card that holds a Daemonhost), and HERESY, last, is the one card that
 -- is not just another suit (it replaced "fester"): black and blood with a gilded accent, `special = true`, and every place that
 -- draws a card gives it what no other suit has: a frame at rest, a glow that smoulders, a line of its own when it is drawn.
-Cards.SUIT_ORDER = { "plague", "murmur", "rage", "blight", "swarm", "fateful", "volley", "snare", "brute", "dusk", "warp", "heresy" }
+Cards.SUIT_ORDER = { "plague", "murmur", "rage", "blight", "swarm", "fateful", "volley", "snare", "brute", "dusk", "warp", "heresy", "prayer", "miracle", "grace" }
 
 -- Names a suit used to have: cards saved, presets, shared texts and the hands other players sync may still say them (Fester became
 -- Heresy). Catalog/events.lua keeps the same list for the settings.
@@ -51,10 +51,19 @@ Cards.SUITS = {
 	warp = { name = "Warp", card = hex("#1a1127"), hi = hex("#281a3b"), frame = hex("#5e408f"), text = hex("#e9dff5"), accent = hex("#b184e0"), whisper = "It knows your name.", icon = "warp" },
 	-- HERESY: blackened red, a frame the colour of dried blood, a gilded accent; `lit` is the brighter red of its words on a dark ground
 	heresy = { name = "Heresy", special = true, card = hex("#14070a"), hi = hex("#260c11"), frame = hex("#a3202f"), text = hex("#f3e1d3"), accent = hex("#e5b94c"), lit = hex("#e8505f"), whisper = "He does not answer.", icon = "heresy" },
+	prayer = { name = "Prayer", beneficial = true, special = true, card = hex("#0b2023"), hi = hex("#17363b"), frame = hex("#4F9CA3"), text = hex("#dcf1ed"), accent = hex("#4F9CA3"), whisper = "The faithful are not forsaken.", icon = "prayer" },
+	miracle = { name = "Miracle", beneficial = true, special = true, card = hex("#231b0b"), hi = hex("#392d13"), frame = hex("#D8B45A"), text = hex("#fff2cf"), accent = hex("#D8B45A"), whisper = "A light in the darkest hour.", icon = "miracle" },
+	grace = { name = "Grace", beneficial = true, special = true, card = hex("#1b2229"), hi = hex("#2c3540"), frame = hex("#E8EEF4"), text = hex("#f8fafc"), accent = hex("#E8EEF4"), whisper = "Rise, and carry the light.", icon = "grace" },
 }
 
--- one colour per threat level 1..5 (unfilled diamonds are an outline in the muted colour)
-Cards.THREAT_COLORS = { hex("#a7c27c"), hex("#74b22c"), hex("#e3cf4a"), hex("#d98a2e"), hex("#cf4a30") }
+-- one colour per threat level 1..6 (unfilled diamonds are an outline in the muted colour)
+Cards.THREAT_COLORS = { hex("#a7c27c"), hex("#74b22c"), hex("#e3cf4a"), hex("#d98a2e"), hex("#cf4a30"), hex("#16131f") }
+Cards.THREAT_MAX = 6
+Cards.DESPAIR_EDGE = hex("#c7b8e0")
+Cards.threat_color = function (level, suit)
+	local face = type(suit) == "table" and suit or Cards.suit(suit)
+	return face.beneficial and face.accent or Cards.THREAT_COLORS[level]
+end
 
 -- a card with this weight or less is "rare": pus-yellow outline (the old, absolute rule: only used where no deck is known)
 Cards.RARE_WEIGHT = 2
@@ -268,7 +277,7 @@ end
 Cards.threat = function (parts, override, Groups)
 	override = tonumber(override) or 0
 
-	if override >= 1 and override <= 5 then
+	if override >= 1 and override <= 6 then
 		return math.floor(override)
 	end
 
@@ -432,6 +441,8 @@ Cards.describe = function (wave, Groups, rgb_of)
 		breeds = breeds,
 		whisper = Cards.whisper({ whisper = wave.whisper, suit = suit }),
 		own_whisper = Cards.clean_whisper(wave.whisper) ~= "",
+		effects = wave.effects,
+		sound = wave.sound,
 		look = Cards.look({ look = wave.look, suit = suit }),
 		weight = tonumber(wave.pct) or 0,
 		level = Cards.level(wave.pct),

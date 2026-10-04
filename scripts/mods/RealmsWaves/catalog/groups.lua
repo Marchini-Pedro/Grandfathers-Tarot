@@ -12,6 +12,7 @@
 -- parts = { { breed = "name", count = n, rep = r, mods = { ids }, tune = { health = 150, ... } }  or
 --           { one_of = { "a", "b" }, ... }, ... }
 local Groups = {}
+Groups.Effects = get_mod("RealmsWaves"):io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/effects")
 Groups.Appearance = get_mod("RealmsWaves"):io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/appearance")
 
 Groups.MAX_PARTS = 12

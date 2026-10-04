@@ -101,6 +101,7 @@ Director.init = function (deps)
 	Positions = deps.positions
 	Presets = deps.presets
 	Cards = deps.cards
+	Director.effects = deps.effects
 	Tuning = deps.tuning
 end
 
@@ -361,7 +362,7 @@ local function card_of(entry)
 	local def = entry.def
 	local card = Cards.describe({
 		key = entry.key, name = entry.name, parts = def.parts, suit = def.suit, threat_override = def.threat_override,
-		whisper = def.whisper, look = def.look, pct = entry.raw, cooldown = entry.cooldown, enabled = true,
+		whisper = def.whisper, look = def.look, effects = def.effects, sound = def.sound, pct = entry.raw, cooldown = entry.cooldown, enabled = true,
 	}, Groups, nil)
 
 	card.entry = entry
@@ -643,7 +644,7 @@ local function snapshot()
 		k[i] = { k = cand.key, n = cand.name, p = cand.pct, v = cand.votes }
 	end
 
-	local snap = { p = state.phase, m = state.mode, r = round1(state.remaining), b = state.ballot_id, c = state.chosen, k = k, e = state.empty and 1 or 0, z = paused and 1 or 0 }
+	local snap = { fx = Director.effects and Director.effects.snapshot() or nil, p = state.phase, m = state.mode, r = round1(state.remaining), b = state.ballot_id, c = state.chosen, k = k, e = state.empty and 1 or 0, z = paused and 1 or 0 }
 
 	-- the last fulfilled card (any mode): the card, how long ago it went out in played seconds, and which card it was (a number that changes)
 	if last_card then
@@ -1124,7 +1125,7 @@ local function decode_card(item)
 		key = tostring(item.k):sub(1, 64),
 		name = tostring(item.n):sub(1, 60),
 		suit = Events.normalize_suit(item.s),
-		threat = math.max(1, math.min(5, math.floor(tonumber(item.t) or 1))),
+		threat = math.max(1, math.min(6, math.floor(tonumber(item.t) or 1))),
 		breeds = breeds,
 		whisper = tostring(item.q or ""):sub(1, 60),
 		modifiers = tostring(item.m or ""):sub(1, 100),
@@ -1138,6 +1139,7 @@ Director.on_state = function (sender, s)
 		return
 	end
 
+	if Director.effects then Director.effects.receive(s.fx) end
 	local cands = {}
 
 	if type(s.k) == "table" then
@@ -1357,7 +1359,7 @@ Director.fire_now = function (key, options)
 		return false, find_error
 	end
 
-	if not wave.parts or #wave.parts == 0 then
+	if not Events.has_content(wave) then
 		return false, "that wave has no enemies yet (edit it in the wave editor or with /rw_custom)"
 	end
 

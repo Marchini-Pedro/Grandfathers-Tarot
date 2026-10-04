@@ -8,6 +8,9 @@
 -- The standard waves are tarot cards (names, suits and whispers: catalog/cards.lua); their keys never change, so saved
 -- settings keep working. default_pct is the card's chance on the 1-10 scale of the editor's chance pips.
 local Events = {}
+local Effects = get_mod("RealmsWaves"):io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/effects")
+Events.Effects = Effects
+Events.has_content = Effects.has_content
 
 -- The most cards a deck holds: the standard cards and the custom slots together (the keys custom_1 ... custom_N, N = CUSTOM_SLOTS, are
 -- fixed names that saved settings, presets and shared texts use). It was 32 (20 custom slots) until 2.1.
@@ -173,7 +176,7 @@ Events.is_empty_slot = function (key, get_setting)
 
 	local legacy = get_setting(LEGACY_KEY[key])
 
-	return not (type(legacy) == "string" and legacy ~= "")
+	return not (type(legacy) == "string" and legacy ~= "") and not (type(get_setting("fx_" .. key)) == "string" and get_setting("fx_" .. key) ~= "")
 end
 
 -- The order the Deck shows the cards in: the keys of Events.keys() arranged by the player's saved order ("deck_order", the keys
@@ -233,7 +236,7 @@ Events.DEFAULT_REPEAT_FOR = 60 -- seconds the repeats keep coming
 -- the suits of the Tarot (visuals: catalog/cards.lua) and the cooldown looks
 Events.SUITS = {
 	plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true,
-	volley = true, snare = true, brute = true, dusk = true, warp = true, heresy = true,
+	volley = true, snare = true, brute = true, dusk = true, warp = true, heresy = true, prayer = true, miracle = true, grace = true,
 }
 -- names a suit used to have (Fester became Heresy): saved settings, presets, shared texts and synced hands may still say them
 Events.SUIT_ALIAS = { fester = "heresy" }
@@ -263,7 +266,7 @@ Events.LOOKS = { rot = true, whisper = true, vial = true }
 --                                       "Restore defaults" (Events.reset on every key) brings it back.
 --   su_<key>        string              suit of the card (see Events.SUITS; "" = the default: the card's own, "warp" for a
 --                                       custom card that holds a Daemonhost, else plague)
---   th_<key>        number              threat override 1-5 (0 = automatic, see Cards.threat_auto)
+--   th_<key>        number              threat override 1-6 (0 = automatic, see Cards.threat_auto)
 --   wh_<key>        string              whisper text ("" = the line of the suit)
 --   cl_<key>        string              cooldown look (rot, whisper, vial; "" = automatic: whisper for Murmur cards, else rot)
 --   ev_<key>        number              FIXED TIMER: seconds between automatic spawns of this wave (0 = off). A wave with a
@@ -376,7 +379,7 @@ Events.get = function (key, get_setting, Groups)
 	end
 
 	wave.suit = Events.normalize_suit(suit)
-	wave.threat_override = math.max(0, math.min(5, math.floor(tonumber(get_setting("th_" .. key)) or 0)))
+	wave.threat_override = math.max(0, math.min(6, math.floor(tonumber(get_setting("th_" .. key)) or 0)))
 
 	local whisper = get_setting("wh_" .. key)
 
@@ -396,6 +399,9 @@ Events.get = function (key, get_setting, Groups)
 		wave.timer = 5
 	end
 
+	wave.effects = Effects.allowed(Effects.parse(get_setting("fx_" .. key)) or {}, wave.suit)
+	wave.sound = get_setting("snd_" .. key) or ""
+	if Effects.beneficial(wave.suit) then wave.parts, wave.monster = {}, false end
 	return wave
 end
 
@@ -470,7 +476,7 @@ Events.find = function (query, get_setting, Groups)
 		for i = 1, #waves do
 			local wave = waves[i]
 
-			if wave.parts and #wave.parts > 0 then
+			if Effects.has_content(wave) then
 				local name = Events.normalize_name(wave.name)
 				local hit = mode == "prefix" and name:sub(1, #q) == q or (mode == "contains" and name:find(q, 1, true) ~= nil)
 
@@ -497,6 +503,8 @@ end
 Events.reset = function (set_setting, key)
 	local std = by_key[key]
 
+	set_setting("fx_" .. key, "")
+	set_setting("snd_" .. key, "")
 	set_setting("wave_def_" .. key, "")
 	set_setting("on_" .. key, std ~= nil)
 	set_setting("pct_" .. key, std and std.default_pct or Events.DEFAULT_CUSTOM_PCT)
@@ -533,7 +541,9 @@ Events.spawn_def = function (wave)
 	return {
 		key = wave.key,
 		name = wave.name,
-		parts = wave.parts,
+		parts = wave.parts or {},
+		effects = wave.effects,
+		sound = wave.sound,
 		monster = wave.monster,
 		cooldown = wave.cooldown,
 		spread = wave.spread,
@@ -559,7 +569,7 @@ Events.timed_waves = function (get_setting, Groups)
 	for i = 1, #keys do
 		local wave = not Events.is_empty_slot(keys[i], get_setting) and Events.get(keys[i], get_setting, Groups) or nil
 
-		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.timer > 0 then
+		if wave and wave.enabled and Effects.has_content(wave) and wave.timer > 0 then
 			list[#list + 1] = { key = wave.key, name = wave.name, def = Events.spawn_def(wave), every = wave.timer }
 		end
 	end
@@ -582,7 +592,7 @@ Events.build_pool = function (get_setting, Groups, extra)
 		local wave = not Events.is_empty_slot(keys[i], get_setting) and Events.get(keys[i], get_setting, Groups) or nil
 
 		-- a wave with a fixed timer runs on its own clock (Events.timed_waves), it is never drawn
-		if wave and wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 and not (wave.timer > 0) then
+		if wave and wave.enabled and Effects.has_content(wave) and wave.pct > 0 and not (wave.timer > 0) then
 			local def = Events.spawn_def(wave)
 
 			pool[#pool + 1] = { key = wave.key, name = wave.name, def = def, raw = wave.pct, cooldown = wave.cooldown }
@@ -594,15 +604,15 @@ Events.build_pool = function (get_setting, Groups, extra)
 		local recipes, names = {}, {}
 
 		for i = 1, #pool do
-			recipes[Groups.to_recipe(pool[i].def.parts)] = true
+			recipes[(Effects.beneficial(pool[i].def.suit) and pool[i].def.suit or "") .. ":" .. Groups.to_recipe(pool[i].def.parts) .. ":" .. Effects.encode(pool[i].def.effects)] = true
 			names[pool[i].name] = 1
 		end
 
 		for i = 1, #extra do
 			local wave = extra[i]
 
-			if wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 then
-				local recipe = Groups.to_recipe(wave.parts)
+			if wave.enabled and Effects.has_content(wave) and wave.pct > 0 then
+				local recipe = (Effects.beneficial(wave.suit) and wave.suit or "") .. ":" .. Groups.to_recipe(wave.parts) .. ":" .. Effects.encode(wave.effects)
 
 				if not recipes[recipe] then
 					recipes[recipe] = true
