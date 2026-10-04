@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-04 - Card sound at the draw, new beneficial effects, Nightmare, Warp's effect (feature/cauldron-redesign)
+- The card's sound plays for everyone the moment the card is drawn and its wave spawns when the sound ends (at most 20 s); the completion sound is gone.
+- The search box can be dragged and is see-through over the list it filters.
+- Raise the fallen raises one downed and frees one hogtied player; Yellow/Blue/Red Stimm buffs and items; Replenish grenades; Ammo Crates.
+- Nightmare replaces Dusk after Heresy: black, a breathing darkness, a flickering dying light, black ink; once per game. Warp's glow pulses and motes rise from it.
+- Tests for all of it (two defects found and fixed); both runners pass every gate (Lua 5.5 82.44% / LuaJIT 2.1 79.26%). Not yet tested in game.
+
 ## 2026-10-04 - Cauldron redesign: tests brought up to date (feature/cauldron-redesign)
 - Logic, effects, editor, HUD and appearance tests follow the redesign rounds (30 minute cooldown, native and voice line audio, card lines and dots, column shelves, Deck search, the hand-card Last Card, 13 line-of-sight checks); fixes found on the way: a tolerant local player lookup, a trimmed Deck search, the health station ranking, the dead faction tint removed.
 - Both runners pass every gate (Lua 5.5 82.42% / LuaJIT 2.1 79.21%). Doc 06's results log moved to docs/06-results-log.md (100 KB rule).

@@ -131,6 +131,25 @@ plays as the game plays the local player's own lines: `trigger_resource_external
 (`play_sfx_es_player_vo_2d`, `es_player_vo_2d`, format 4) on the player's auto source. Old peers do not know the voice lines: a card
 with one is silent for them.
 
+## Fifth round: the sound at the draw, new effects, Nightmare (2026-10-04)
+
+| Request | What was built |
+| --- | --- |
+| The search box hides the sound names; let me move it or see through it | The popup panel is dragged by its title strip (the 56 units above the input), stays on the screen and is remembered for its `place_key` while the editor is open. A popup that filters a list (`allow_rows`) is see-through (alpha 170 of 255). The sound search opens at y 760, over the volume sliders, with a hint that it can be moved. |
+| The card's sound plays when the card is drawn, like an alert; the wave spawns when it ends | `Effects.alert` (core/effects.lua) plays the sound on the host at once, writes it in the audio journal (the other players hear it with the next state, which `launch` sends at once) and returns a job that is done when the last sound of the card has ended (never before 0.3 s: a sound may not report itself as playing on its first frame). `launch` (core/director.lua) holds the wave until then, at most 20 s, not while paused or stopped; it is used for the tarot draw, the vote and random modes and fixed-timer waves. `/rw_test` still spawns at once. The completion sound (played when the wave's enemies were all dead) and its tickets are gone. A host who muted card sounds does not hold the wave; the others still hear it. |
+| Raise the fallen: one downed and ONE hogtied | One knocked-down player (assisted_state_input.force_assist) and one hogtied player, freed as the rescue interaction does it on the host (assisted_state_input.success, hogtied_state_input.hogtie = false). The amount is fixed (`fixed`, max 1): the row reads "1 downed + 1 hogtied" and has no stepper; the card line reads "1+1 Raise the fallen". |
+| Items: Yellow, Blue and Red Stimm items; remove the Blue Stimm buff from Items | `yellow_stimm` (renamed Yellow Stimm item), `blue_stimm_item` (syringe_speed_boost_pocketable), `red_stimm_item` (syringe_power_boost_pocketable) into an empty small pocketable slot. |
+| Buffs: Yellow, Blue and Red Stimm buffs | `yellow_stimm_buff` (syringe_ability_boost_buff), `blue_stimm` (syringe_speed_boost_buff, the old id so saved cards keep it, moved from Items), `red_stimm_buff` (syringe_power_boost_buff); seconds and players, the native 15 s changed by `add_duration`. |
+| Game Effects: replenish X grenades; Ammo Crates to X players | `grenades` (1 to 6): `restore_ability_charge("grenade_ability", n)` on the host for every living player with a grenade ability, as the grenade pickup does it. `ammo_crate` (1 to 4 players): ammo_cache_pocketable into an empty large pocketable slot. |
+| Delete Dusk; a new suit like Heresy but all black, nightmarish, super dangerous, after Heresy | **Nightmare**: card #030304, frame #2B2735, ash accent #9B93AD, a pale light #F2EEFA, gloom #120E1A, black ink. In the HUD its glow is a darkness that breathes (`Cards.dread`, one breath every 3.3 s), its two-unit frame is a dying light that flickers back now and then (a flash of 0.6 to 1 in about one beat in seventeen at 9 per second), and black ink drips from its lower edge. The Deck tile and the stage card share the glow and the frame. Its mark is a horned eye with a slit pupil and a black tear. Dusk's saved cards become Murmur (`dusk` is an alias everywhere a suit is read). |
+| Nightmare only once per game | `once = true`: when one card of the suit goes out (draw, vote, random, fixed timer), every card of the suit leaves the draw for the rest of the mission (`Director.spent_once`); a new mission brings it back. |
+| Order Warp, Heresy, Nightmare | `Cards.SUIT_ORDER`: ... Brute, Warp, Heresy, Nightmare, then the four blessings (the quick face's second row ends Warp, Heresy, Nightmare). |
+| A Warp effect | `motes`: Warp's glow is on at rest and pulses unevenly (`Cards.warp_pulse`) with crackles toward a pale violet `lit`, and three motes of the warp rise from the card's top edge in the HUD; the Deck tile and the stage card pulse too. |
+
+Old peers: a card with a Nightmare face shows as Plague for them; cards with the new effect ids are rejected by them (unknown
+effect), as before for any unknown id. The glow of Nightmare is a dark colour: whether the game's glow material shows a dark glow
+(it may blend additively) must be checked in game; the flicker of the frame and the ink do not depend on it.
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -159,3 +178,8 @@ with one is silent for them.
 11. Third round: a card sound and its Preview are heard in the hub and in a mission (a 3D event like a syringe, a UI event, two in a
     row); the coloured outline hides behind walls and shows when the enemy is in view or tagged; the cooldown stepper on the Face
     screen at 30:00; the thinner stepper edges at every UI scale.
+12. Fifth round: the card sound plays at the draw for every player and the wave spawns when it ends (one and two sounds, a voice
+    line, a muted host, a pause during the sound); the search box drags and is see-through; Raise the fallen with a downed and a
+    hogtied player; the three stimm buffs and items, grenades (a class without grenades, full pouches), Ammo Crates; Nightmare in
+    the HUD (is the dark glow visible? the flicker, the ink), once per game (a second Nightmare never comes that mission, comes
+    back the next); the Warp glow and motes.

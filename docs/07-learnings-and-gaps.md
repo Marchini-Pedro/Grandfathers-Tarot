@@ -378,3 +378,18 @@ Things we know are missing or unverified, each with the next concrete step.
 - **A long string spread over lines counts as uncovered lines** (the sound list as a `[[...]]` block dropped `catalog/sounds.lua`
   to 20%): keep data strings on one line. The popup reports typing only in its frame update: a test drives `spec.on_change`.
 
+## 2026-10-04 — Alert sounds, hogtied rescue, Nightmare
+
+- **`local x, y = a and f()` drops y.** An `and`/`or` expression keeps one value of a call; write `if a then x, y = f() end`. The
+  popup drag never had a y because of it, and only a test that drove the drag found it.
+- **Rescuing a hogtied player on the host** is two writes, as `rescue_interaction.lua` does: `assisted_state_input.success = true`
+  and `hogtied_state_input.hogtie = false`. Grenades are refilled on the host for any player with
+  `restore_ability_charge("grenade_ability", n)`, as the grenade pickup does.
+- **Waiting for a sound**: `WwiseWorld.is_playing` may say false on the frame a sound starts, so an alert is never over before
+  0.3 s; a sound without an id (or a player who muted card sounds) cannot be waited for, so the wave is never held longer than
+  20 s, and not at all when the host hears nothing.
+- **A dark glow may not show**: the frame glow material could blend additively, in which case Nightmare's darkness is invisible
+  and only its frame flicker and ink remain; to check in game before tuning.
+- **Every sound is now tracked to its end** (for the alert), so the eight-entry chain can fill with single sounds; eight alerts
+  inside 2.5 s would push out a pending second sound. Unlikely in play; noted.
+

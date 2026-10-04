@@ -195,3 +195,18 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Full runners pass on both runtimes with every module gate and no floor lowered: Lua 5.5 2,412 assertions, 82.42%; LuaJIT 2.1
   2,411 counted, 79.21% (one passing line was merged with another in the LuaJIT log, so the counter missed it). Nothing tested in
   game yet.
+
+## 2026-10-04 — Cauldron redesign, fifth round (feature/cauldron-redesign)
+
+- Built: the movable, see-through search box; the card sound as an alert at the draw with the wave held until it ends (draw, vote,
+  random, fixed timers; at most 20 s; not while paused; dropped by stop) and no more completion sound; Raise the fallen for one
+  downed and one hogtied player; Yellow/Blue/Red Stimm buffs (Buffs) and items (Items); Replenish grenades; Ammo Crates; Nightmare
+  in Dusk's place (black, breathing darkness, flickering frame, ink, horned eye; once per game; Dusk's cards become Murmur); Warp's
+  pulsing glow and motes.
+- Tests: new checks for each (effects: alert, two-sound alert, muted host, client journal, new effects; logic: the held wave,
+  Nightmare once per game in the draw and the random mode; HUD: Nightmare and Warp; editor: the drag, the Deck tiles of Nightmare
+  and Warp). They found two defects, fixed: the drag read only the pointer's x (`a and f()` keeps one value) and the fixed amount
+  read "1 player". Nightmare's flash was made 0.6 to 1 (it could be too faint to see).
+- Full runners pass every gate: Lua 5.5 2,405 assertions, 82.44%; LuaJIT 2.1 2,404 counted, 79.26% (the completion-ticket checks
+  went with the tickets). Nothing tested in game yet.
+

@@ -6,8 +6,8 @@ random selection and player voting. No Twitch service is required.
 
 > Development status (2026-10-04): `main` includes the card effects of
 > [PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9). The branch
-> `feature/cauldron-redesign` adds Faith, a crimson Heresy, one cooldown look, the
-> beneficial shelf and two-sound completion audio ([guide](docs/13-cauldron-redesign.md));
+> `feature/cauldron-redesign` adds Faith, a crimson Heresy, Nightmare (once per game), one
+> cooldown look, the beneficial shelf and card sounds that play at the draw ([guide](docs/13-cauldron-redesign.md));
 > offline checks pass, game acceptance is pending.
 > Runtime version: `2.0.0`; last tagged release: `v1.13.0`.
 
@@ -18,7 +18,8 @@ random selection and player voting. No Twitch service is required.
 - **The Deck:** up to 100 cards; create, enable, share and import cards; set a
   card's chance (the pips) and cooldown (the `-` / `+` on its tile) in place; save five
   **Deck presets**; sort cards by threat, rarity, enemy count or face; drag to swap
-  cards on a page. **HERESY** (crimson; its glow beats like a heart and it bleeds in the HUD), **Prayer**, **Miracle**,
+  cards on a page. **HERESY** (crimson; its glow beats like a heart and it bleeds in the HUD), **NIGHTMARE** (black,
+  a breathing darkness and a dying light, black ink; once per game), **Warp** (a pulsing glow and rising motes), **Prayer**, **Miracle**,
   **Grace** and **Faith** have their own frames and sigils.
 - **The Cauldron:** build enemy groups with a searchable catalog and Dreg/Scab
   shelf, modifiers, custom stats and a live card preview.
@@ -28,12 +29,13 @@ random selection and player voting. No Twitch service is required.
   Surface/shader methods are visibly unavailable; their requirements remain documented.
 - **Beneficial cards:** a shelf in four groups: **Healing** (party health,
   corruption cleanse, Green Stimm, Med Crates; Med Station is off for now),
-  **Buffs** (combat abilities, reveal Specialists), **Items** (Yellow Stimm, Blue
-  Stimm buff) and **Game Effects** (raise knocked-down players, refill ammunition).
-  Hostile cards can add a timed **Blackout**. Consecrate the 12 standard slots with Undo.
-- **Completion sounds:** content-ranked native sounds, a Search button, Preview on
-  every row, up to two sounds in a row and a volume each (experimental).
-  Playback waits for the wave/effect to finish; SimpleAudio is optional.
+  **Buffs** (combat abilities, reveal Specialists, Yellow/Blue/Red Stimm buffs),
+  **Items** (Yellow/Blue/Red Stimm items) and **Game Effects** (raise one downed and one
+  hogtied player, refill ammunition, replenish grenades, Ammo Crates).
+  Hostile cards can add a timed **Blackout**. The Deck has **Search cards**.
+- **Card sounds:** game sounds and enemy and player voice lines, a movable search box,
+  Preview on every row, up to two sounds in a row and a volume each (experimental).
+  The sound plays for everyone the moment the card is drawn; the wave spawns when it ends.
 - **The Mirror:** suit (12 hostile or 4 beneficial behind a switch), six manual
   strength pips (level 6 is Despair, or Apotheosis on a blessing, and shines),
   whisper and cooldown; every card rots and renews. A threat 5 or 6 card's whisper
@@ -67,7 +69,7 @@ the shared HUD, voting, enemy-size and enemy-colour replication.
 
 Optional integrations: Custom HUD can reposition the wave panel; Spidey Sense
 and Improved Havoc Tags supply enemy/modifier colours when installed; optional
-SimpleAudio can play completion sounds. No new dependency is required.
+No new dependency is required.
 
 ## Getting started
 

@@ -50,7 +50,7 @@ and the current verification log.
 
 | Document | Purpose |
 | --- | --- |
-| [Cauldron redesign](13-cauldron-redesign.md) | Faith, crimson Heresy, one cooldown look, murmur, threat 6 names and shine, beneficial shelf, Raise the fallen, Refill ammunition, two-sound audio; game checks |
+| [Cauldron redesign](13-cauldron-redesign.md) | Faith, crimson Heresy, Nightmare (once per game), Warp's effect, one cooldown look, the column shelves, the beneficial effects, the card sound at the draw, voice lines, Deck search, the Last Card, the outline's line of sight; the in-game checklist |
 | [Card effects and UI (PR #9)](12-card-effects-and-ui.md) | Behavior, native contracts, compatibility and game acceptance |
 | [Design and rationale](04-design-and-rationale.md) | Requirements, architecture and protocol decisions |
 | [Enemy colour experiments](enemy-appearance.md) | Per-group ARGB/method controls, usable experiments, prerequisites, transport and live acceptance |

@@ -270,4 +270,6 @@ Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
 - [x] Tests for all of the above on both runtimes; real-widget previews inspected.
 - [x] Second to fourth rounds (design-page shelves and card text, Deck search, Last Card; sound fix, outline line of sight, 30 minute
   cooldown; voice lines in the sound list) and their tests, 2026-10-04.
+- [x] Fifth round (2026-10-04): movable see-through search box, the card sound at the draw holding the wave, the stimm buffs and
+  items, Raise the fallen 1+1, grenades, Ammo Crates, Nightmare replacing Dusk (once per game), Warp's effect; tests.
 - [ ] Game acceptance of the [checklist](13-cauldron-redesign.md#in-game-checks-before-merge); merge only after the user confirms.
