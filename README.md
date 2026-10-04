@@ -32,7 +32,8 @@ random selection and player voting. No Twitch service is required.
   corruption cleanse, Green Stimm, Med Crates; Med Station is off for now),
   **Buffs** (combat abilities, reveal Specialists, Yellow/Blue/Red Stimm buffs),
   **Items** (Yellow/Blue/Red Stimm items) and **Game Effects** (raise one downed and one
-  hogtied player, refill ammunition, replenish grenades, Ammo Crates).
+  hogtied player and bring them back, instant rescue of the next downed players, refill ammunition, replenish grenades,
+  Ammo Crates).
   Hostile cards can add a timed **Blackout**. The Deck has **Search cards**.
 - **Card sounds:** game sounds and enemy and player voice lines, a movable search box,
   Preview on every row, up to two sounds in a row and a volume each (experimental).
@@ -43,7 +44,8 @@ random selection and player voting. No Twitch service is required.
   murmurs letter by letter when it is drawn.
 - **Test commands:** `/rw_test` and `/rw_test_close` play the card's sound, then spawn; `/rw_drawtest <card>`
   stages a three-card draw that picks it after 3 s (HUD only); `/rw_fulltest <card>` does the same with its sound and wave.
-- **Boss bars:** the Draw HUD slides below the game's boss health bars while a boss is up (option).
+- **Boss bars:** while a boss is up the Draw HUD slides below the boss health bars (or keeps the top and moves the
+  bars below it) and turns see-through (options).
 - **Last card window:** a compact full card face with its name, flavor, sigil and age,
   synchronized for every player. It has its own transparency slider and is movable
   with Custom HUD. Draw/Last Card omit enemy modifier labels.

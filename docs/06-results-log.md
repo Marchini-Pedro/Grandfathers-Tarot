@@ -228,3 +228,12 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   aggroed minions and are re-aggroed once a second. Entry tests for the hooks and the watcher. Full runners pass every gate:
   Lua 5.5 2,465 assertions, 82.32%; LuaJIT 2.1 2,464 counted, 79.17%. Not yet tested in game.
 
+## 2026-10-04 — Rescues, damage dealt, boss-bar options (feature/cauldron-redesign)
+
+- Built: Raise the fallen = one hogtied player rescued (force_assist; `success` alone had done nothing) and teleported to the nearest
+  standing player (host directly, a remote human by a journal grant); Instant rescue; Damage dealt (`damage` stat); options for the
+  Nightmare card darkness, the Draw HUD opacity while a boss is up and the boss bars below the Draw HUD. Answered: black outline or
+  stimm colour is not possible (additive tint), the sniper laser colour would need an in-game probe.
+- Tests for each (effects, logic, editor, HUD). Full runners pass every gate: Lua 5.5 2,489 assertions, 82.32%; LuaJIT 2.1 2,488
+  counted, 79.19%. Nothing tested in game yet.
+

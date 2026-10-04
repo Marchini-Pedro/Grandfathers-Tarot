@@ -274,4 +274,5 @@ Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
   items, Raise the fallen 1+1, grenades, Ammo Crates, Nightmare replacing Dusk (once per game), Warp's effect; tests.
 - [x] Sixth round (2026-10-04): the rehook warning fixed, sound-first /rw_test, /rw_drawtest and /rw_fulltest, Nightmare's fog on
   the card and its dread on the screen (option), the Draw HUD below boss bars (option); tests.
+- [x] Eighth round (2026-10-04): hogtied rescue with teleport, Instant rescue, Damage dealt, boss-bar opacity and swap, fog slider.
 - [ ] Game acceptance of the [checklist](13-cauldron-redesign.md#in-game-checks-before-merge); merge only after the user confirms.

@@ -410,3 +410,12 @@ Things we know are missing or unverified, each with the next concrete step.
 - **The Packmaster is a mutator unit**: passive summoned hounds, a patrol, the summon above combat in its tree. A wave that spawns
   it alone has to keep it aggroed; the game's console log (the Lua locals of the crash) showed the node it was in ("summon").
 
+## 2026-10-04 — Assists, damage stat, other elements' nodes
+
+- **An assist starts only from an interaction or `force_assist`** (`character_states/utilities/assist.lua`): the rescue
+  interaction's `success = true` works because its interaction started the assist; on its own it does nothing.
+- **A human player's movement is theirs**: to move a remote player the mod has its own game do it (a grant in the effects
+  journal); the host moves its own player and bots with `PlayerMovement.teleport`.
+- **`attacker_stat_buffs.damage`** is read for every attacker in `damage_calculation.lua`: a minion's outgoing damage is a stat.
+- **Another HUD element's node** can be moved with its public `set_scenegraph_position`; remember its own position first.
+

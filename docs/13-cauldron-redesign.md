@@ -171,6 +171,21 @@ effect), as before for any unknown id. The glow of Nightmare is a dark colour: w
 | The Pursuer's Packmaster (`1 packmaster{health=10 size=95 speed=135}`) did not move, no aggro | The Packmaster is the hound mutator's unit: it summons its hounds PASSIVE and sets them up as its patrol (`should_patrol`), and its tree puts the summon before combat; the log shows it inside its summon action when it was despawned. For a summoner of a wave (Bypass-tracked: Packmaster, radio operator): no patrol setup, its summoned minions come in aggroed with a target, and once a second it is made to fight again if it lost its aggro or its target (`MinionPerceptionExtension.aggro`, `force_new_target_attempt`). |
 | /rw_fulltest put its wave on top of the current one | By design: a staged draw does not cancel the cycle, and the enemies already on the map stay (as after any draw); the countdown goes on afterwards. |
 
+## Eighth round: rescues, damage dealt, boss-bar options, questions answered (2026-10-04)
+
+| Request | What was built or found |
+| --- | --- |
+| Nightmare card darkness slider | Option `nightmare_fog_strength` (0 to 100 percent): scales the card fog in the Draw HUD, the Deck and the Last Card (`Spread.fog`'s strength). |
+| The Draw HUD see-through while bosses are up | Option `hud_boss_opacity` (10 to 100, default 50): the Draw HUD fades to it while a boss bar is shown and back after (2 a second). |
+| A toggle to invert: Draw HUD on top, boss bars below | Option `hud_boss_bars_below`: while a boss is up and the Draw HUD is in the bars' band, the boss health element's `background` node is moved below the Draw HUD (`set_scenegraph_position`) and put back to where it was (custom_hud's place included) when the boss is gone. |
+| Raise the fallen: the hogtied rescue did nothing; rescue one hogtied player and teleport them to the nearest living player; remove the downed revive | Why it failed: the hogtied state's `Assist` only completes an assist it started (an interaction or `force_assist`); the first version wrote `success` alone. Now `force_assist` frees ONE hogtied player, and they are brought to the nearest standing player: the host teleports its own player and bots (`PlayerMovement.teleport`), a remote human's own game does it from a "teleport" grant in the effects journal. The downed revive is removed. |
+| Instant rescue | New Game Effect (1 to 4): the next N players who go down are helped up at once (forced assist, checked every quarter second on the host); stop and reset disarm it. |
+| Sniper damage | New custom mod **Damage dealt** (10 to 500 percent, the tenth row): the unit's `damage` stat, which `damage_calculation.lua` adds for every attacker, melee and shots alike. `1 sniper{damage=200}` doubles a sniper's shot. |
+| A black outline / black stimm colour (picture: A 255, RGB 0) | Not possible with these methods. The stimm tint (`stimmed_color`) is light ADDED to the surface and all-zero is the game's own "no tint" value; the outline is drawn the same additive way, so black adds nothing and shows nothing. A real black needs a darkening material, i.e. new shader assets, which a Lua mod cannot ship (see docs/research/enemy-appearance). |
+| Sniper aim laser colour | Not done. The laser is a particle effect (`renegade_sniper_laser`: `content/fx/particles/enemies/sniper_laser_sight` and an outdoors beam); the game only sets its length (`hit_distance`). A colour would need a colour variable inside the particle asset, whose name is not in the Lua source: it could only be found by trying names in game (a probe command), not promised. |
+
+Old peers: a card with `damage=` in a recipe, or the effects `instant_rescue`, is rejected by them as unknown.
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -210,3 +225,6 @@ effect), as before for any unknown id. The glow of Nightmare is a dark colour: w
     game still readable? the vignette's steps?) and its option; the Nightmare card's fog in the HUD, the Deck and the Last Card.
 14. Seventh round: Restart (Page Down) and the despawn key while a Packmaster summons; a wave's Packmaster fights and its hounds
     attack; the game's own hound-mutator Packmaster still patrols.
+15. Eighth round: Raise the fallen with a hogtied host, bot and remote human (each brought to the nearest standing player), none
+    hogtied; Instant rescue with one and two players going down; Damage dealt on a sniper; the fog slider; the Draw HUD's opacity
+    and the bars below it with one and two bosses, and with the boss bars moved by custom_hud.

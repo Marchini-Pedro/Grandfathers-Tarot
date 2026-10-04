@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 - Rescues, Damage dealt, boss-bar options (feature/cauldron-redesign)
+- Raise the fallen rescues one hogtied player (now working) and brings them to the nearest standing player; the downed revive is gone. New Instant rescue.
+- Custom mods: Damage dealt (snipers and any enemy).
+- Options: Nightmare card darkness; Draw HUD opacity while a boss is up; boss bars below the Draw HUD.
+- Both runners pass every gate (Lua 5.5 82.32% / LuaJIT 2.1 79.19%). Not yet tested in game.
+
 ## 2026-10-04 - Restart crash and the idle Packmaster (feature/cauldron-redesign)
 - Fixed a crash on Restart and an error on a despawn key: a summoner destroyed mid-summon no longer summons.
 - A wave's Packmaster no longer stands idle: no patrol, aggroed hounds, re-aggroed when it loses its target.
