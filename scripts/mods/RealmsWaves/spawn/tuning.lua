@@ -570,6 +570,119 @@ Tuning.on_start_shooting = function (unit, scratchpad, t, action_data)
 	end)
 end
 
+-- ------------------------------------------------------------------------------------------------------------- summoners
+-- (2026-10-04, the user's crash on Restart and an error on a despawn key, and a Packmaster of a wave that "was not moving, no aggro")
+--
+-- 1. The game's summon action summons in its `leave` even when the unit is being DESTROYED (despawned, the mission torn down):
+--    BtSummonMinionsAction.leave calls _summon_minions when the summon had not happened yet. During a mission's cleanup that spawns
+--    a minion with no camera left (crash: camera_manager.lua "bad argument #1 to 'camera'"), and on a despawn it fails in
+--    flood_fill_from_position. A unit being destroyed now never summons (any summoner, the mod's or the game's).
+-- 2. The Packmaster (chaos_ogryn_houndmaster) is made for the game's hound mutator: it summons its hounds PASSIVE and leads them on
+--    a patrol, and its tree puts the summon before combat. Spawned alone by a wave it could stand in its patrol and idle. For a
+--    summoner of a wave (Bypass-tracked): no patrol setup, its summoned minions are aggroed, and once a second it is made to fight
+--    again if it lost its aggro or its target (MinionPerceptionExtension.aggro, force_new_target_attempt).
+Tuning.SUMMONERS = { chaos_ogryn_houndmaster = true, renegade_radio_operator = true }
+local summoners = setmetatable({}, { __mode = "k" })
+local summoner_timer = 0
+
+local function ours(unit)
+	local bypass = mod.rw and mod.rw.bypass
+
+	return unit ~= nil and bypass ~= nil and bypass.is_tracked ~= nil and bypass.is_tracked(unit) == true
+end
+
+-- aggroed, with a living target (a new one is asked for when it has none)
+local function engage(unit)
+	local perception = ScriptUnit.has_extension(unit, "perception_system")
+
+	if not perception or not perception.aggro then
+		return false
+	end
+
+	if perception:aggro_state() ~= "aggroed" then
+		perception:aggro()
+	end
+
+	local blackboard = BLACKBOARDS and BLACKBOARDS[unit]
+	local target = blackboard and blackboard.perception and blackboard.perception.target_unit
+
+	if (not target or not (HEALTH_ALIVE and HEALTH_ALIVE[target])) and perception.force_new_target_attempt then
+		perception:force_new_target_attempt()
+	end
+
+	return true
+end
+
+Tuning.engage = engage
+
+Tuning.summon_leave = function (func, self, unit, breed, blackboard, scratchpad, action_data, t, reason, destroy)
+	if destroy and type(scratchpad) == "table" then
+		scratchpad.summoned_success = true
+	end
+
+	return func(self, unit, breed, blackboard, scratchpad, action_data, t, reason, destroy)
+end
+
+Tuning.patrol_setup = function (func, self, unit, ...)
+	if ours(unit) then
+		return
+	end
+
+	return func(self, unit, ...)
+end
+
+Tuning.after_summon = function (self, unit, breed, blackboard, scratchpad)
+	if Tuning.dead or not ours(unit) or type(scratchpad) ~= "table" then
+		return
+	end
+
+	local extension = scratchpad.summoned_minions_extension
+	local ok, minions = pcall(function () return extension and extension:summoned_minions() or {} end)
+
+	for _, minion in ipairs(ok and minions or {}) do
+		pcall(engage, minion)
+	end
+
+	pcall(engage, unit)
+end
+
+-- a summoner a wave spawned (execute.lua spawn_one)
+Tuning.watch_summoner = function (unit, breed_name)
+	if unit and Tuning.SUMMONERS[breed_name] then
+		summoners[unit] = true
+	end
+end
+
+Tuning.summoner_count = function ()
+	local n = 0
+
+	for _ in pairs(summoners) do n = n + 1 end
+
+	return n
+end
+
+local function keep_summoners(dt)
+	summoner_timer = summoner_timer + dt
+
+	if summoner_timer < 1 then
+		return
+	end
+
+	summoner_timer = 0
+
+	for unit in pairs(summoners) do
+		if not (HEALTH_ALIVE and HEALTH_ALIVE[unit]) or not Unit.alive(unit) then
+			summoners[unit] = nil
+		else
+			local ok, err = pcall(engage, unit)
+
+			if not ok then
+				warn_once("a summoner was not kept fighting: " .. tostring(err))
+			end
+		end
+	end
+end
+
 Tuning.install = function ()
 	if installed or not mod.hook_safe then
 		return
@@ -581,7 +694,17 @@ Tuning.install = function ()
 		mod:hook("BtChaosPoxwalkerExplodeAction", "enter", function (func, ...)
 			return Tuning.explosion_enter(func, ...)
 		end)
+		mod:hook("BtSummonMinionsAction", "leave", function (...)
+			return Tuning.summon_leave(...)
+		end)
+		mod:hook("BtSummonMinionsAction", "_patrol_setup", function (...)
+			return Tuning.patrol_setup(...)
+		end)
 	end
+
+	mod:hook_safe("BtSummonMinionsAction", "_summon_minions", function (...)
+		Tuning.after_summon(...)
+	end)
 
 	if mod.hook_require then
 		-- DMF runs this every time the game loads the file again (at every game start): the same table is hooked once only, or DMF
@@ -700,6 +823,8 @@ end
 -- Host, every frame (cheap: two counters until something is due).
 Tuning.update = function (dt)
 	if Tuning.dead then return end
+
+	keep_summoners(dt)
 
 	timer = timer + dt
 	send_timer = send_timer + dt

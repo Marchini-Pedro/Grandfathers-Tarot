@@ -216,7 +216,7 @@ check("unload: captured objective, death and update callbacks are inert", obsole
 local names = {}
 for _, h in ipairs(hooks) do if type(h.obj) == "string" then names[#names + 1] = h.obj .. "." .. h.method end end
 table.sort(names)
-check("entry: the four budget-bypass hooks and the custom-mods hooks (stat recompute on both buff classes, melee attack start, burster explosion) are installed", table.concat(names, ",") == "BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BuffExtensionBase._update_stat_buffs_and_keywords,MinionBuffExtension._reset_stat_buffs,MinionBuffExtension._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion", table.concat(names, ","))
+check("entry: the four budget-bypass hooks and the custom-mods hooks (stat recompute on both buff classes, melee attack start, burster explosion, the summoners: no summon while destroyed, no patrol, aggroed summons) are installed", table.concat(names, ",") == "BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BtSummonMinionsAction._patrol_setup,BtSummonMinionsAction._summon_minions,BtSummonMinionsAction.leave,BuffExtensionBase._update_stat_buffs_and_keywords,MinionBuffExtension._reset_stat_buffs,MinionBuffExtension._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion", table.concat(names, ","))
 check("entry: MinionAttack is hooked through hook_require (it may load after the mod)", #hook_requires == 2 and hook_requires[1] == "scripts/utilities/minion_attack" and hook_requires[2] == "scripts/extension_systems/buff/minion_buff_extension", table.concat(hook_requires, ","))
 do
   -- (2026-10-04: "Attempting to rehook active hook [start_shooting]" at every game start) DMF runs a hook_require callback again
@@ -230,6 +230,55 @@ do
   require_callbacks[1](other)
   check("entry: a file loaded again does not hook the same table twice (start_shooting once; a new table again)", once == 1 and hooks[#hooks].method == "start_shooting" and #hooks - before == 2, once)
   tuning.dead = was_dead
+end
+do
+  -- the summoners (2026-10-04): a summoner being destroyed never summons; a wave's summoner leads no patrol and fights
+  local T = mod.rw.tuning
+  local was_dead = T.dead
+  T.dead = false
+  local function find(method) for _, h in ipairs(hooks) do if h.obj == "BtSummonMinionsAction" and h.method == method then return h.fn end end end
+  local called, got = 0, nil
+  local function original(self, unit, breed, bb, scratchpad, action_data, t, reason, destroy) called = called + 1; got = scratchpad.summoned_success end
+  local leave = find("leave")
+  local pad = { summoned_success = false }
+  leave(original, {}, "u", {}, {}, pad, {}, 1, "aborted", true)
+  local pad2 = { summoned_success = false }
+  leave(original, {}, "u", {}, {}, pad2, {}, 1, "aborted", false)
+  check("summoners: a summoner being destroyed (despawn, mission cleanup) does not summon in its leave; one that only leaves the action still does", called == 2 and pad.summoned_success == true and pad2.summoned_success == false)
+  local mine, theirs = { name = "mine" }, { name = "theirs" }
+  local real_tracked = mod.rw.bypass.is_tracked
+  mod.rw.bypass.is_tracked = function(u) return u == mine end
+  local patrols = 0
+  local patrol = find("_patrol_setup")
+  patrol(function() patrols = patrols + 1 end, {}, mine); patrol(function() patrols = patrols + 1 end, {}, theirs)
+  check("summoners: a wave's summoner sets up no patrol; the game's own still does", patrols == 1)
+  local aggroed, retargeted = {}, {}
+  local function perception(u) return { aggro_state = function() return "passive" end, aggro = function() aggroed[u] = true end, force_new_target_attempt = function() retargeted[u] = true end } end
+  local hound1, hound2 = { h = 1 }, { h = 2 }
+  local saved_su, saved_unit = ScriptUnit, Unit
+  ScriptUnit = { has_extension = function(u, name) if name == "perception_system" then return perception(u) end return nil end }
+  Unit = Unit or {}
+  local after = nil
+  for _, h in ipairs(hooks) do if h.obj == "BtSummonMinionsAction" and h.method == "_summon_minions" then after = h.fn end end
+  after({}, mine, {}, {}, { summoned_minions_extension = { summoned_minions = function() return { hound1, hound2 } end } })
+  after({}, theirs, {}, {}, { summoned_minions_extension = { summoned_minions = function() return { hound1 } end } })
+  check("summoners: what a wave's summoner summons comes in aggroed (with a target), and so does it; the game's own are left alone", aggroed[hound1] and aggroed[hound2] and aggroed[mine] and retargeted[hound2] and not aggroed[theirs])
+  aggroed = {}
+  HEALTH_ALIVE = HEALTH_ALIVE or {}
+  local unit_alive = Unit.alive
+  Unit.alive = function() return true end
+  HEALTH_ALIVE[mine] = true
+  T.watch_summoner(mine, "chaos_ogryn_houndmaster"); T.watch_summoner(theirs, "renegade_gunner")
+  T.update(0.5)
+  local early = aggroed[mine]
+  T.update(0.6)
+  check("summoners: a wave's Packmaster is watched (a gunner is not) and made to fight again once a second", T.summoner_count() >= 1 and not early and aggroed[mine] == true)
+  HEALTH_ALIVE[mine] = nil; T.update(1.1)
+  check("summoners: a dead summoner is no longer watched", T.summoner_count() == 0)
+  Unit.alive = unit_alive
+  ScriptUnit, Unit = saved_su, saved_unit
+  mod.rw.bypass.is_tracked = real_tracked
+  T.dead = was_dead
 end
 check("entry: editor view registered under its name with the right class", #views == 1 and views[1].view_name == "realms_waves_editor" and views[1].view_settings.class == "RealmsWavesView")
 check("entry: /rw_test_close is registered too", type(commands.rw_test_close) == "function")

@@ -655,6 +655,8 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 		Tuning.apply(unit, tune, breed_name)
 	end
 	if appearance and unit and Appearance then Appearance.apply(unit, appearance, breed_name) end
+	-- a summoner (the Packmaster) is kept fighting (spawn/tuning.lua)
+	if Tuning and Tuning.watch_summoner then Tuning.watch_summoner(unit, breed_name) end
 
 	return true, unit
 end
