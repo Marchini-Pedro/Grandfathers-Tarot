@@ -466,7 +466,8 @@ EffectsView.install = function (View, h)
 	end
 
 	local function open_search(self)
-		h.Popup.open(self, { label = mod:localize("snd_search_title"), value = "", max_length = 80, allow_rows = true,
+		-- low on the screen (over the volume sliders, not the names it filters), see-through, and where the player last dragged it
+		h.Popup.open(self, { label = mod:localize("snd_search_title"), value = "", max_length = 80, allow_rows = true, y = 760, place_key = "sound_search", hint = mod:localize("popup_drag_hint"),
 			on_change = function (query) search_results(self, query); self._offset = 0; self:_refresh_rows() end,
 			set = function () self:_apply_screen(true) end })
 	end

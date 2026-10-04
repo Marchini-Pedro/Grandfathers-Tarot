@@ -763,16 +763,28 @@ local POPUP = {}
 
 Components.Popup = POPUP
 
-local POPUP_DEFAULT_Y = 400
+local POPUP_DEFAULT_Y, POPUP_DEFAULT_X = 400, 560
+local POPUP_W, POPUP_H, POPUP_GRIP_H = 800, 260, 56 -- the title strip (above the input) is where the panel is dragged
+-- a popup that filters a list as you type (spec.allow_rows) is see-through, so the rows stay readable under it
+POPUP.SEE_THROUGH_ALPHA, POPUP.SOLID_ALPHA = 170, 245
 
--- Moves the four popup nodes so the panel's top edge is at `y` (default: screen centre).
-local function place_popup(view, y)
-	view:_set_scenegraph_position(Components.POPUP_PANEL_NAME, 560, y, 45)
-	view:_set_scenegraph_position(Components.POPUP_INPUT_NAME, 600, y + 70, 50)
-	-- OK and Cancel on the right of the panel (560 to 1360), Cancel on the left of OK, 30 from the edge
-	view:_set_scenegraph_position(Components.POPUP_CONFIRM_NAME, 1130, y + 196, 50)
-	view:_set_scenegraph_position(Components.POPUP_CANCEL_NAME, 910, y + 196, 50)
+-- Moves the four popup nodes so the panel's top left corner is at (x, y), kept on the screen.
+local function place_popup(view, y, x)
+	x = math.max(0, math.min(1920 - POPUP_W, x or POPUP_DEFAULT_X))
+	y = math.max(0, math.min(1080 - POPUP_H, y))
+
+	view:_set_scenegraph_position(Components.POPUP_PANEL_NAME, x, y, 45)
+	view:_set_scenegraph_position(Components.POPUP_INPUT_NAME, x + 40, y + 70, 50)
+	-- OK and Cancel on the right of the panel, Cancel on the left of OK, 30 from the edge
+	view:_set_scenegraph_position(Components.POPUP_CONFIRM_NAME, x + 570, y + 196, 50)
+	view:_set_scenegraph_position(Components.POPUP_CANCEL_NAME, x + 350, y + 196, 50)
+
+	if view._popup then
+		view._popup.x, view._popup.y = x, y
+	end
 end
+
+POPUP.place = place_popup
 
 -- spec = { label, value (string), max_length, set(value_or_text),
 --          numeric = true -> min, max, integer, value is parsed and range-checked
@@ -797,7 +809,16 @@ function POPUP.open(view, spec)
 		mod.rw.text_input_active = true
 	end
 
-	place_popup(view, spec.y or POPUP_DEFAULT_Y)
+	-- a movable popup opens where the player last dragged it (spec.place_key names the remembered spot)
+	local spot = spec.place_key and view._popup_spots and view._popup_spots[spec.place_key]
+
+	place_popup(view, spot and spot[2] or spec.y or POPUP_DEFAULT_Y, spot and spot[1] or spec.x)
+
+	local panel = view._widgets_by_name[Components.POPUP_PANEL_NAME]
+
+	if panel and panel.style.fill then
+		panel.style.fill.color[1] = spec.allow_rows and POPUP.SEE_THROUGH_ALPHA or POPUP.SOLID_ALPHA
+	end
 
 	local content = view._widgets_by_name[Components.POPUP_INPUT_NAME].content
 
@@ -995,6 +1016,32 @@ function POPUP.refresh(view)
 	end
 end
 
+-- Dragging the popup by its title strip (2026-10-04: the sound search box hid the names it was searching): a press on the strip
+-- takes the panel, it follows the pointer while the button is held and stays where it is let go (remembered for spec.place_key).
+function POPUP.drag(view, input_service)
+	local edit = view._popup
+	local x, y = view._cursor_point and view:_cursor_point(input_service)
+
+	if not edit or not x then
+		return
+	end
+
+	if edit.grab then
+		if input_service:get("left_hold") then
+			place_popup(view, y - edit.grab[2], x - edit.grab[1])
+		else
+			edit.grab = nil
+
+			if edit.spec.place_key then
+				view._popup_spots = view._popup_spots or {}
+				view._popup_spots[edit.spec.place_key] = { edit.x, edit.y }
+			end
+		end
+	elseif input_service:get("left_pressed") and edit.x and x >= edit.x and x <= edit.x + POPUP_W and y >= edit.y and y <= edit.y + POPUP_GRIP_H then
+		edit.grab = { x - edit.x, y - edit.y }
+	end
+end
+
 -- Enter commits; Esc goes through the view's back handling.
 function POPUP.update(view, input_service)
 	local edit = view._popup
@@ -1008,6 +1055,8 @@ function POPUP.update(view, input_service)
 
 		return
 	end
+
+	POPUP.drag(view, input_service)
 
 	local on_change = edit.spec.on_change
 

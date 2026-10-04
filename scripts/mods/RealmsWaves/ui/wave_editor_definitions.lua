@@ -425,7 +425,8 @@ local widget_definitions = {
 
 	-- input popup: fill, gold frame, title and hint (input and buttons are dynamic)
 	rw_popup_panel = UIWidget.create_definition({
-		{ pass_type = "rect", style = { color = { 245, 15, 23, 19 } } },
+		-- (style id: a popup over a list it filters is see-through, POPUP.open sets the alpha)
+		{ pass_type = "rect", style_id = "fill", style = { color = { 245, 15, 23, 19 } } },
 		{
 			value_id = "title_text",
 			style_id = "title_text",

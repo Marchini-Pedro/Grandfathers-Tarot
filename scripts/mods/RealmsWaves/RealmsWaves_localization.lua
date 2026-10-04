@@ -331,6 +331,7 @@ return {
 	snd_remove_second = { en = "Remove 2" },
 	snd_search = { en = "Search" },
 	snd_search_title = { en = "Search completion sounds" },
+	popup_drag_hint = { en = "Type to filter the list. Drag this title to move the box; Enter or Esc closes it." },
 	snd_volume = { en = "Volume %d" },
 	snd_volume_hint = { en = "0 to 100. 0 never plays. Below 100 is an experiment: the game has no volume per sound." },
 	snd_button_silent = { en = "Sound: silent" },
