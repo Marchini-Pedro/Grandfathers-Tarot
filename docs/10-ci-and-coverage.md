@@ -62,7 +62,11 @@ These are source-line proxies, not executable-line or branch coverage:
 [first hosted branch run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170104362) at `9f9082b`
 passes both Ubuntu/Python 3.13 jobs. Downloaded reports match all local module
 scores, 2,321 assertions each and Lua 5.5 82.37% / LuaJIT 2.1 79.13%.
-Publication records do not establish native acceptance.
+The [corrected PR run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170808353) at `7b74e39`
+and its branch run pass both VMs with the explicit 280-second harness allowance.
+Downloaded branch reports again match every local score and assertion count.
+Production Lua, tests and floors are unchanged; publication records do not
+establish native acceptance.
 
 The earlier baselines below are retained as dated history.
 

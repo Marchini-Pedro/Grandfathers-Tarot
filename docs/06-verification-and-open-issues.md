@@ -407,3 +407,10 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   allowance used in local verification and contributor commands. Retain the
   ten-minute job limit and all assertions/module floors. Production Lua is
   unchanged; the corrected hosted run is the remaining verification step.
+
+- 2026-10-03 (PR #9 corrected CI): both branch and [PR runs](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170808353)
+  at `7b74e39` pass with the 280-second harness allowance. Downloaded branch
+  reports match all local module scores, all gates and **2,321 assertions each**
+  (Lua 5.5 82.37% / LuaJIT 2.1 79.13%). Production Lua, tests and floors are
+  identical to `9f9082b`; final follow-up changes these records only. Native
+  acceptance remains pending and PR #9 stays a draft.
