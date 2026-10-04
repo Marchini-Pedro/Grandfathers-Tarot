@@ -430,6 +430,30 @@ check("heresy: rare and Heresy together: the frame stays blood red (not pus yell
   local beat_a = tile(5).style.glow.color[1]
   view:update(0.2, 40.0, { get = function() return nil end, is_null_service = function() return false end })
   check("heresy: on the Deck its glow beats like a heart (its strength changes from frame to frame, between 55 and 100 percent of 150)", beat_a ~= tile(5).style.glow.color[1] and beat_a >= 82 and beat_a <= 150 and tile(5).style.glow.color[1] >= 82)
+-- NIGHTMARE on the Deck (2026-10-04): a darkness that breathes around it and a frame of dying light that flickers; WARP pulses
+settings.su_boss_ambush = "nightmare"; settings.pct_boss_ambush = nil
+view:_reload(); view:_apply_screen()
+do
+  local inp = { get = function() return nil end, is_null_service = function() return false end }
+  local strengths, flashes = {}, 0
+  for k = 0, 120 do
+    view:update(0.05, 50 + k * 0.05, inp)
+    strengths[tile(5).style.glow.color[1]] = true
+    if tile(5).style.border_t.color[2] > 0xb0 then flashes = flashes + 1 end
+  end
+  local n = 0 for _ in pairs(strengths) do n = n + 1 end
+  check("nightmare: the tile is black and named, its glow a breathing darkness, its frame a light that flickers now and then", tile(5).content.suit_label == "NIGHTMARE" and tile(5).style.glow.visible and n >= 6 and flashes >= 1 and flashes < 60, n .. " strengths, " .. flashes .. " flashes")
+  settings.su_boss_ambush = "warp"
+  view:_reload(); view:_apply_screen()
+  local seen, crackled = {}, false
+  for k = 0, 80 do
+    view:update(0.05, 60 + k * 0.07, inp)
+    seen[tile(5).style.glow.color[1]] = true
+    if tile(5).style.glow.color[2] > 0xc0 then crackled = true end
+  end
+  local m = 0 for _ in pairs(seen) do m = m + 1 end
+  check("warp: on the Deck its glow pulses and crackles toward its pale light", m >= 6 and crackled, m)
+end
 settings.su_boss_ambush = nil; settings.pct_boss_ambush = nil
 view:_reload(); view:_apply_screen()
 

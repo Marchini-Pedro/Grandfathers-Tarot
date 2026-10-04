@@ -109,12 +109,12 @@ Cards.heartbeat = function (t)
 	return math.min(1, beat(0.08, 0.06) + 0.7 * beat(0.28, 0.07))
 end
 -- Nightmare's dread at time t: a slow breath of darkness (0..1, one every 3.3 s) and, now and then, a flash like a dying light (0, or
--- up to 1 for a ninth of a second).
+-- 0.6 to 1 for a ninth of a second: a flash is always plain to see).
 Cards.dread = function (t)
 	t = tonumber(t) or 0
 	local h = (math.sin(math.floor(t * 9) * 12.9898) * 43758.5453) % 1
 
-	return 0.5 + 0.5 * math.sin(t * 1.9), h > 0.94 and (h - 0.94) / 0.06 or 0
+	return 0.5 + 0.5 * math.sin(t * 1.9), h > 0.94 and 0.6 + 0.4 * (h - 0.94) / 0.06 or 0
 end
 -- The warp at time t: an uneven pulse (0..1) and a crackle (0 or 1, about one beat in eight at 14 per second).
 Cards.warp_pulse = function (t)
