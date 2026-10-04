@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 - Cauldron redesign, second round: design-page shelves, card text, Deck search, Last Card (feature/cauldron-redesign)
+- Editor: the enemy and effect shelves are four columns with chips as wide as their labels and one unit outlines (no faction tint); effect chips show a lit diamond when on the card. Beneficial card text reads `95% Party health` with the amount in bone and the name in its group's colour, and its dots are its groups' colours; effect rows lead with the amount; the stage line counts effects. The quick face is two rows of six.
+- Deck: Search cards replaces Consecrate 12 cards (filters by name, suit, enemy or effect as you type).
+- HUD: the Last Card window is rebuilt as the design page's hand card (accent bar, name and mark, diamonds and dots, whisper inside).
+- Lua suites deliberately not run or updated this round (user's choice); the out-of-date expectations are listed in docs/13. Not yet tested in game.
+
 ## 2026-10-04 - Cauldron redesign: Faith, crimson Heresy, one cooldown look, beneficial shelf, two sounds (feature/cauldron-redesign)
 - Catalog: Heresy becomes crimson (accent `#D42A3A`, darker card and frame, a blood colour); Faith, the Order of the Sacred Rose, is the fourth beneficial suit; level 6 is named Despair or Apotheosis with its own edge; every card rots and renews; threat 5 and 6 murmur. Effects are grouped Healing, Buffs, Items and Game Effects; Raise the fallen and Refill ammunition are new host effects; Recharge Med Station is disabled for now.
 - Audio: a card holds up to two sounds with a volume each (old one-sound texts unchanged); the second follows the first; volume below 100 is an experiment.

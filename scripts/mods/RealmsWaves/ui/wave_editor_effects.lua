@@ -129,17 +129,17 @@ EffectsView.definitions = function (nodes, widgets, node)
 	end
 
 	nodes.fx_shelf = node(LX, Workshop.SHELF_Y, Workshop.LEFT_W, layout.height, 0)
-	widgets.fx_shelf = WB.shelf_panel("fx_shelf", layout)
+	widgets.fx_shelf = WB.shelf_panel("fx_shelf", layout, 860)
 
 	for i, chip in ipairs(layout.chips) do
 		local name = "rw_fxchip_" .. i
 
 		nodes[name] = node(LX + chip.x, Workshop.SHELF_Y + chip.y, chip.w, Workshop.CHIP_H, 3)
-		widgets[name] = WB.shelf_chip(name, chip.w)
+		widgets[name] = WB.shelf_chip(name, chip.w, true)
 	end
 
-	-- the buttons under the card (Completion sound, Blackout) and the Deck's Consecrate
-	for _, button in ipairs({ { "rw_sound", 1290, 958, 255, "Completion sound" }, { "rw_blackout", 1560, 958, 255, "Blackout" }, { "rw_bless_deck", 325, 800, 300, "Consecrate 12 cards" } }) do
+	-- the buttons under the card (Completion sound, Blackout) and the Deck's Search
+	for _, button in ipairs({ { "rw_sound", 1290, 958, 255, "Completion sound" }, { "rw_blackout", 1560, 958, 255, "Blackout" }, { "rw_deck_search", 325, 800, 300, "Search cards" } }) do
 		local name, passes = button[1], {}
 
 		nodes[name] = node(button[2], button[3], button[4], 44, 4)
@@ -208,7 +208,7 @@ EffectsView.install = function (View, h)
 
 		widgets.rw_sound.content.hotspot.pressed_callback = callback(self, "cb_sound_picker")
 		widgets.rw_blackout.content.hotspot.pressed_callback = callback(self, "cb_blackout")
-		widgets.rw_bless_deck.content.hotspot.pressed_callback = callback(self, "cb_bless_deck")
+		widgets.rw_deck_search.content.hotspot.pressed_callback = callback(self, "cb_deck_search")
 		widgets.rw_snd_slot1.content.hotspot.pressed_callback = callback(self, "cb_sound_slot", 1)
 		widgets.rw_snd_slot2.content.hotspot.pressed_callback = callback(self, "cb_sound_slot", 2)
 		widgets.rw_snd_remove2.content.hotspot.pressed_callback = callback(self, "cb_sound_remove2")
@@ -336,7 +336,10 @@ EffectsView.install = function (View, h)
 			if def then
 				local content = widget.content
 
-				content.label = def.short
+				-- "100%  Party health": the amount first, in the bone colour, as on the card (the design page's rows)
+				local lead, colors = Schema.lead(def, effect.value), mod.rw and mod.rw.colors
+
+				content.label = (colors and colors.markup(lead, C.rgb.text) or lead) .. "  " .. def.short
 				content.info = def.category
 				content.edge_rgb = CATEGORY_RGB[def.category] or C.rgb.muted
 				content.amount_value = value_text(def, effect.value)
@@ -356,7 +359,7 @@ EffectsView.install = function (View, h)
 			local def = chip.def
 
 			widget.visible = rows or false
-			widget.content.chip_label = def.disabled and (def.short .. "  (" .. mod:localize("fx_off_for_now") .. ")") or def.short
+			widget.content.chip_label = Workshop.fx_chip_label(def, mod:localize("fx_off_for_now"))
 			widget.content.dot_rgb = CATEGORY_RGB[def.category] or C.rgb.muted
 			widget.content.tint = false
 			widget.content.hotspot_on = wave ~= nil and wave.effects ~= nil and wave.effects[def.id] ~= nil
@@ -370,9 +373,11 @@ EffectsView.install = function (View, h)
 		widgets.rw_sound.content.hotspot_text = #sounds == 0 and mod:localize("snd_button_silent") or mod:localize(#sounds == 1 and "snd_button_one" or "snd_button_two")
 		widgets.rw_blackout.visible = card and not beneficial or false
 		widgets.rw_blackout.content.hotspot_text = wave and wave.effects.blackout and ("Blackout: " .. wave.effects.blackout.value .. " s") or "Blackout: off"
-		widgets.rw_bless_deck.visible = self._screen == "list"
+		widgets.rw_deck_search.visible = self._screen == "list"
+		widgets.rw_deck_search.content.hotspot_text = (self._deck_query or "") ~= "" and mod:localize("btn_search_active", self._deck_query) or mod:localize("btn_deck_search")
+		widgets.rw_deck_search.content.hotspot_on = (self._deck_query or "") ~= ""
 
-		for _, name in ipairs({ "rw_sound", "rw_blackout", "rw_bless_deck" }) do widgets[name].content.hotspot.disabled = not widgets[name].visible or self._popup ~= nil end
+		for _, name in ipairs({ "rw_sound", "rw_blackout", "rw_deck_search" }) do widgets[name].content.hotspot.disabled = not widgets[name].visible or self._popup ~= nil end
 
 		if beneficial and self._screen == "detail" then
 			widgets.description_text.content.description_text = "Beneficial Effects: " .. wave.name .. ". Items go to players with an empty slot."
@@ -564,22 +569,24 @@ EffectsView.install = function (View, h)
 		end
 	end
 
-	View.cb_bless_deck = h.guarded(function (self)
-		h.Popup.open(self, { label = "Consecrate the 12 standard cards?", value = "", hint = "Replaces their enemies with Prayer, Miracle, Grace and Faith effects. The current deck is saved as Presets Undo. Type CONSECRATE to apply.", max_length = 10,
-			validate = function (text) return text == "CONSECRATE", "Type CONSECRATE" end,
-			set = function ()
-				local rw = mod.rw
-				local before = rw.presets.capture(function (id) return mod:get(id) end, rw.events, rw.groups)
-				mod:set(rw.presets.UNDO_ID, rw.presets.encode(before))
-				local suits, effects = { "prayer", "miracle", "grace", "faith" }, { "blue_stimm", "cleanse", "cooldown", "ammo" }
-				for i, standard in ipairs(rw.events.STANDARD) do
-					local n = (i - 1) % 4 + 1
-					rw.events.set_def(function (id, value) mod:set(id, value) end, standard.key, suits[n]:gsub("^%l", string.upper) .. " " .. math.ceil(i / 4), {}, rw.groups)
-					mod:set("su_" .. standard.key, suits[n]); mod:set("th_" .. standard.key, 1); mod:set("del_" .. standard.key, false)
-					mod:set("fx_" .. standard.key, effects[n] .. "=" .. (n == 1 and 15 or 100) .. ":4")
-				end
-				changed(self)
-			end })
+	-- The Deck's Search (2026-10-04: in place of Consecrate 12 cards): the Deck shows only the cards whose name, suit, enemies or
+	-- effects hold the typed text, as it is typed. Escape puts the search back as it was; an empty search shows every card.
+	View._set_deck_query = function (self, query)
+		self._deck_query = query or ""
+		self:_build_deck()
+		self._offset = 0
+		self:_apply_screen(true)
+	end
+
+	View.cb_deck_search = h.guarded(function (self)
+		if self._screen ~= "list" then return end
+
+		local before = self._deck_query or ""
+
+		h.Popup.open(self, { label = mod:localize("deck_search_title"), value = before, max_length = 40, allow_rows = true, hint = mod:localize("deck_search_hint"),
+			on_change = function (query) self:_set_deck_query(query) end,
+			on_cancel = function () self:_set_deck_query(before) end,
+			set = function (query) self:_set_deck_query(query) end })
 	end)
 end
 return EffectsView

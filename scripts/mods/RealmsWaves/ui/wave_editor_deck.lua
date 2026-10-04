@@ -181,16 +181,39 @@ DeckView.install = function (View, h)
 	end
 
 	-- --------------------------------------------------------------------------------------------- model
+	-- Whether a card holds the Deck's search text (lower case, plain): in its name, its suit, an enemy's name or an effect's name.
+	local function holds(wave, query)
+		local rw = mod.rw
+		local words = { wave.name or "", rw.cards.suit(wave.suit).name }
+
+		for _, part in ipairs(wave.parts or {}) do
+			for _, breed in ipairs(part.one_of or { part.breed }) do
+				words[#words + 1] = rw.groups.display_name(breed)
+			end
+		end
+
+		for id in pairs(wave.effects or {}) do
+			local def = rw.groups.Effects.definition(id)
+
+			words[#words + 1] = def and def.short or ""
+		end
+
+		return table.concat(words, " "):lower():find(query, 1, true) ~= nil
+	end
+
 	-- The cards of the deck: every standard card and every custom card that has enemies, in the order of the wave list,
-	-- then the blank tile (while a custom slot is free).
+	-- then the blank tile (while a custom slot is free). While the Deck's search holds a text, only the cards that hold it (no blank).
 	View._build_deck = function (self)
 		local deck, free = {}, nil
+		local query = ((self._deck_query or ""):lower():gsub("^%s+", ""):gsub("%s+$", ""))
 
 		for i = 1, #self._waves do
 			local wave = self._waves[i]
 
 			if (mod.rw.events.has_content(wave)) or not wave.is_custom then
-				deck[#deck + 1] = wave
+				if query == "" or holds(wave, query) then
+					deck[#deck + 1] = wave
+				end
 			elseif not free then
 				free = wave
 			end
@@ -198,7 +221,7 @@ DeckView.install = function (View, h)
 
 		self._deck_free = free
 
-		if free then
+		if free and query == "" then
 			deck[#deck + 1] = { blank = true, key = free.key }
 		end
 
@@ -446,7 +469,9 @@ DeckView.install = function (View, h)
 			return mod:localize("tile_more", n)
 		end, layout.comp_lines) or { mod:localize("tile_no_enemies") }
 
-		content.comp = mod.rw.groups.Effects.beneficial(wave.suit) and mod.rw.groups.Effects.summary(wave.effects, layout.comp_lines, Deck.COMP_CHARS) or table.concat(lines, "\n")
+		local Effects = mod.rw.groups.Effects
+		-- a beneficial card's lines: "95% Party health", the amount in the bone colour, the name in its group's colour
+		content.comp = Effects.beneficial(wave.suit) and Effects.summary(wave.effects, layout.comp_lines, Deck.COMP_CHARS, colors and colors.markup or nil, Cards.BASE.text) or table.concat(lines, "\n")
 		style.comp.visible = true
 		style.comp.offset[2], style.comp.size[2] = layout.comp_y * k, layout.comp_h * k
 		paint(style.comp, 255, tone(Cards.BASE.muted))

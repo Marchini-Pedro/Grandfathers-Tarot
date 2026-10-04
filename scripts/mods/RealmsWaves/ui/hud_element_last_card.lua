@@ -134,29 +134,43 @@ end
 
 -- ------------------------------------------------------------------------------------------------- the card
 -- Lays the card out and paints it: positions, colours, texts. Called when another card goes out (or the font option changes).
+-- Since 2026-10-04 it is the card "in the hand" of the user's design page: the suit's accent as a bar on the left, the name at the top
+-- with the suit mark at its right, the threat diamonds and the enemy dots on one row under it, and the whisper inside the card.
+local L = Definitions.LAYOUT
+
 HudElementRealmsWavesLast._setup = function (self, card, font)
 	local Cards = cards_module()
 	local widget = self._widget
 	local style, content = widget.style, widget.content
 	local suit = Cards.suit(card.suit)
-	local cw = Definitions.CARD_W
+	local cw = Definitions.WIDTH
 	local x, y = Definitions.CARD_X, Definitions.CARD_Y
+	local special = suit.special == true
+	local left = x + Spread.ACCENT_WIDTH + L.pad_x
 
 	self._font = font
 	style.name.font_type = font
+	style.name.font_size = L.name_font
 
-	-- the card: as tall as its name needs (a one-card Spread is laid out the same way)
-	local name_w = cw - 2 * Spread.PAD_X
-	local lines = Spread.wrap_lines(card.name, name_w, Spread.NAME_FONT, Spread.GLYPH_BY_FONT[font])
-	local ch = 144 + lines * Spread.NAME_LINE
-	local special = suit.special == true
+	-- the name (one or two lines) beside the mark, the row under it, the whisper (one or two lines) under the row
+	local name_w = cw - Spread.ACCENT_WIDTH - 2 * L.pad_x - L.icon - L.icon_gap
+	local lines = Spread.wrap_lines(card.name, name_w, L.name_font, Spread.GLYPH_BY_FONT[font], 2)
+	local whisper = tostring(card.whisper or "")
+	local whisper_w = cw - Spread.ACCENT_WIDTH - 2 * L.pad_x
+	local whisper_lines = whisper ~= "" and Spread.wrap_lines("\"" .. whisper .. "\"", whisper_w, L.whisper_font, 0.56, 2) or 0
+	local name_y = y + L.pad_y
+	local row_cy = name_y + lines * L.name_line + L.gap + Spread.ROW_HEIGHT / 2
+	local whisper_y = row_cy + Spread.ROW_HEIGHT / 2 + L.gap
+	local ch = whisper_y + whisper_lines * L.whisper_line + L.pad_y - y
 
 	box(style.card_bg, x, y, cw, ch)
 	box(style.card_accent, x, y, Spread.ACCENT_WIDTH, ch)
 	box(style.glow, x - GLOW_EDGE, y - GLOW_EDGE, cw + 2 * GLOW_EDGE, ch + 2 * GLOW_EDGE)
+	paint(style.card_bg, 255, suit.card)
+	paint(style.card_accent, 255, suit.accent)
+	style.card_bg.visible, style.card_accent.visible = true, true
 
-	-- The card has an outline of its own (it sits on a panel nearly as dark as its face): one unit in the suit's frame colour, the pus
-	-- yellow of a rare card, two units of blood red for Heresy (the Spread draws only the last two).
+	-- one unit of outline in the suit's frame colour (the pus yellow of a rare card; two units of blood for Heresy, which also smoulders)
 	local line = special and 2 or 1
 
 	box(style.rare_t, x, y, cw, line)
@@ -164,38 +178,27 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 	box(style.rare_l, x, y, line, ch)
 	box(style.rare_r, x + cw - line, y, line, ch)
 
-	paint(style.card_bg, 255, suit.card)
-	paint(style.card_accent, 255, suit.accent)
-
-	if special then
-		-- a card apart: its blood-red glow smoulders (the window is a place where the card rests, so no flare)
-		paint(style.glow, 110, suit.frame)
-		style.glow.visible = true
-	else
-		style.glow.visible = false
-	end
-
 	for j = 1, #RARE do
 		paint(style[RARE[j]], 255, (special or card.rare ~= true) and suit.frame or Cards.BASE.pus)
 		style[RARE[j]].visible = true
 	end
 
-	-- the name and the suit mark in the top right corner
-	box(style.name, x + Spread.PAD_X, y + 76, name_w, lines * Spread.NAME_LINE)
+	paint(style.glow, 110, suit.frame)
+	style.glow.visible = special
+
+	box(style.name, left, name_y, name_w, lines * L.name_line + 4)
 	content.name = card.name
 	paint(style.name, 255, suit.text)
 	style.name.visible = true
 
+	-- the suit mark in the top right corner, in the accent (no ring: the hand card has none)
+	style.sigil_ring.visible, style.sigil_disc.visible = false, false
+
 	local shape = self._shape_icon
 
-	Spread.icon(suit.icon, 42, shape)
+	Spread.icon(suit.icon, L.icon, shape)
 
-	local ox, oy = x + (cw - 42) / 2, y + 21
-	box(style.sigil_ring, x + (cw - 60) / 2, y + 12, 60, 60)
-	box(style.sigil_disc, x + (cw - 58) / 2, y + 13, 58, 58)
-	paint(style.sigil_ring, 180, suit.frame)
-	paint(style.sigil_disc, 255, suit.card)
-	style.sigil_ring.visible, style.sigil_disc.visible = true, true
+	local ox, oy = x + cw - L.pad_x - L.icon, name_y + 1
 	local feather = Spread.alpha(Spread.FEATHER_ALPHA)
 
 	for j = 1, Spread.ICON_TRIS do
@@ -218,32 +221,31 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 		paint(style[ICON_CH[j]], feather, colour)
 	end
 
-	-- the bottom row: the threat diamonds from the left (filled up to the threat, in its colour; the rest dimmed) ...
-	local cy = y + ch - Spread.PAD_Y - Spread.ROW_HEIGHT / 2
+	-- the row: the threat diamonds from the left (filled up to the threat, in its colour; the rest as outlines) ...
 	local side = Spread.THREAT_SIDE
 	local halo = side + 1.4
 	local threat = math.max(1, math.min(6, card.threat or 1))
 	local threat_rgb = Cards.threat_color(threat, card.suit)
 
 	for j = 1, #TH_O do
-		local cx = x + Spread.ACCENT_WIDTH + Spread.PAD_X + side / 2 + (j - 1) * Spread.THREAT_PITCH
+		local cx = left + side / 2 + (j - 1) * Spread.THREAT_PITCH
 		local s_halo, s_outer = style[TH_H[j]], style[TH_O[j]]
 		local filled = j <= threat
 		local colour = filled and threat_rgb or Cards.BASE.muted
 
-		s_halo.offset[1], s_halo.offset[2] = cx - halo / 2, cy - halo / 2
-		s_outer.offset[1], s_outer.offset[2] = cx - side / 2, cy - side / 2
-		paint(s_halo, threat == 6 and 255 or filled and 70 or 22, threat == 6 and Cards.threat_edge(card.suit) or colour)
-		paint(s_outer, filled and 255 or 64, colour)
+		s_halo.offset[1], s_halo.offset[2] = cx - halo / 2, row_cy - halo / 2
+		s_outer.offset[1], s_outer.offset[2] = cx - side / 2, row_cy - side / 2
+		paint(s_halo, threat == 6 and 255 or filled and 70 or 120, threat == 6 and Cards.threat_edge(card.suit) or colour)
+		paint(s_outer, filled and 255 or 40, filled and colour or suit.card)
 		s_halo.visible, s_outer.visible = j <= 5 or threat == 6, j <= 5 or threat == 6
 	end
 
-	-- ... and the enemy dots to the right: one per distinct enemy colour (the player's own colour settings)
+	-- ... and the enemy dots at the right: one per distinct enemy colour (the player's own colour settings)
 	local colors = mod.rw and mod.rw.colors
 	local dots = Cards.dots_from_breeds(card.breeds, function (breed)
 		return colors and colors.rgb(breed) or Cards.BASE.muted
 	end)
-	local d, pitch, shown = Spread.dots_fit(cw, #dots, threat)
+	local shown = math.min(#dots, #DOT)
 
 	for j = 1, #DOT do
 		local dot, dot_halo = style[DOT[j]], style[DOT_H[j]]
@@ -251,59 +253,40 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 		dot.visible, dot_halo.visible = j <= shown, j <= shown
 
 		if j <= shown then
-			local dx = x + cw - Spread.PAD_X - d - (shown - j) * pitch
+			local d = Spread.DOT
+			local dx = x + cw - L.pad_x - d - (shown - j) * Spread.DOT_PITCH
 
-			box(dot, dx, cy - d / 2, d, d)
-			box(dot_halo, dx - 0.6, cy - d / 2 - 0.6, d + 1.2, d + 1.2)
+			box(dot, dx, row_cy - d / 2, d, d)
+			box(dot_halo, dx - 0.6, row_cy - d / 2 - 0.6, d + 1.2, d + 1.2)
 			paint(dot, 255, dots[j])
 			paint(dot_halo, 70, dots[j])
 		end
 	end
 
-	-- under the card: its whisper in quotes and its modifiers
-	local whisper_y = y + ch - 54
-	local whisper = tostring(card.whisper or "")
-	local mods = ""
-
+	-- the whisper, in quotes, inside the card (Heresy's in its crimson)
 	content.whisper = whisper ~= "" and ("\"" .. whisper .. "\"") or ""
-	box(style.whisper, x, whisper_y, cw, 34)
-	paint(style.whisper, 255, suit.text)
+	box(style.whisper, left, whisper_y, whisper_w, whisper_lines * L.whisper_line + 4)
+	style.whisper.font_size = L.whisper_font
+	style.whisper.offset[3] = Z.card + 20 -- over the card's face (the text layer of the old window was under it)
+	paint(style.whisper, 255, card.suit == "heresy" and suit.accent or Cards.BASE.muted)
 	style.whisper.visible = whisper ~= ""
 
-	content.mods = mods
-	local mods_h = mods ~= "" and Spread.wrap_lines(mods, cw, 12, 0.70, 8) * 16 or 0
+	content.mods = ""
+	style.mods.visible = false
 
-	box(style.mods, x, whisper_y + (whisper ~= "" and 36 or 0), cw, mods_h)
-	paint(style.mods, 255, Cards.BASE.rust)
-	style.mods.visible = mods ~= ""
-
-	local bottom = whisper_y + (whisper ~= "" and 36 or 0) + mods_h + 8
-
-	bottom = math.min(bottom, Definitions.HEIGHT)
-
-	-- the window round it: a panel (darker than any card) and a neutral line, a caption
-	local w = Definitions.WIDTH
-
-	box(style.bg, 0, 0, w, bottom)
-	paint(style.bg, 225, Cards.BASE.ground)
+	-- no window round it: only the caption over the card
 	style.bg.visible = false
 
-	box(style.win_t, 0, 0, w, 1)
-	box(style.win_b, 0, bottom - 1, w, 1)
-	box(style.win_l, 0, 0, 1, bottom)
-	box(style.win_r, w - 1, 0, 1, bottom)
-
 	for i = 1, #WIN do
-		paint(style[WIN[i]], 255, Cards.BASE.line)
 		style[WIN[i]].visible = false
 	end
 
 	content.kicker = string.upper(mod:localize("hud_last_card"))
-	box(style.kicker, 0, 0, 88, 18)
+	box(style.kicker, 0, 0, cw / 2, 18)
 	paint(style.kicker, 255, Cards.BASE.muted)
 	style.kicker.visible = true
 
-	box(style.age, 88, 0, 88, 18)
+	box(style.age, cw / 2, 0, cw / 2, 18)
 	paint(style.age, 255, Cards.BASE.muted)
 	style.age.visible = true
 

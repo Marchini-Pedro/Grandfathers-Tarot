@@ -66,22 +66,42 @@ Effects.allowed = function (values, suit)
 	end
 	return result
 end
-Effects.summary = function (values, max_lines, max_chars)
+local category_rgb = {}
+for _, category in ipairs(Effects.CATEGORIES) do category_rgb[category.id] = category.rgb end
+Effects.category_rgb = function (id) return category_rgb[id] end
+-- The amount in front of an effect's name, as the card shows it: "95%", "15s", "4"
+Effects.lead = function (def, value)
+	return def.unit == "percent" and (value .. "%") or def.unit == "seconds" and (value .. "s") or tostring(value)
+end
+-- The card's lines (2026-10-04, the design page): "95% Party health", the amount in the bone colour and the name in its group's colour
+-- when `markup(text, rgb)` is given (the game's colour tags), "+N more" when they do not fit in `max_lines`.
+Effects.summary = function (values, max_lines, max_chars, markup, text_rgb)
 	local text = {}
 	for _, def in ipairs(Effects.ORDER) do
 		local effect = values and values[def.id]
-		if effect and effect.value > 0 then
-			local line = def.name:gsub("^[^:]+: ", "") .. " (" .. effect.value .. " " .. def.unit .. ")"
-			if max_chars and #line > max_chars then line = line:sub(1, max_chars - 3) .. "..." end
-			text[#text + 1] = line
+		if effect and effect.value > 0 and not def.hostile then
+			local lead, name = Effects.lead(def, effect.value), def.short
+			if max_chars and #lead + 1 + #name > max_chars then name = name:sub(1, math.max(1, max_chars - #lead - 4)) .. "..." end
+			text[#text + 1] = markup and (markup(lead, text_rgb) .. " " .. markup(name, category_rgb[def.category])) or (lead .. " " .. name)
 		end
 	end
 	if max_lines and #text > max_lines then
 		local extra = #text - max_lines + 1
 		while #text >= max_lines do table.remove(text) end
-		text[#text + 1] = "+" .. extra .. " effects"
+		text[#text + 1] = "+" .. extra .. " more"
 	end
 	return table.concat(text, "\n")
+end
+-- One dot per group the card's effects belong to, in the order of the groups (the card's dots, like an enemy card's)
+Effects.dots = function (values)
+	local list = {}
+	for _, category in ipairs(Effects.CATEGORIES) do
+		for _, def in ipairs(Effects.ORDER) do
+			local effect = values and values[def.id]
+			if def.category == category.id and effect and effect.value > 0 then list[#list + 1] = category.rgb; break end
+		end
+	end
+	return list
 end
 Effects.has_content = function (wave)
 	if Effects.beneficial(wave.suit) then return Effects.encode(Effects.allowed(wave.effects, wave.suit)) ~= "" end

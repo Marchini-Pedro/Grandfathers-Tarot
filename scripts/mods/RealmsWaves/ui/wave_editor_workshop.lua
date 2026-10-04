@@ -387,7 +387,8 @@ WorkshopView.install = function (View, h)
 
 			widget.visible = true
 			content.chip_label = groups.shelf_label(chip.entry)
-			content.tint = chip_faction and colors and colors.faction_tint(chip_faction) or false
+			-- plain chips like the design page's (2026-10-04): the Dreg / Scab switch says which faction a click adds
+			content.tint = false
 			content.dot_rgb = colors and colors.rgb(breed) or Components.rgb.muted
 			content.hotspot_on = self:_card_has_plain(breed)
 		end
@@ -420,7 +421,7 @@ WorkshopView.install = function (View, h)
 			content.selected = id == card.suit
 			content.suggested = suggested == id and id ~= card.suit
 			self:_set_scenegraph_position(SUIT .. i, x, content.selected and y - 4 or y, 3)
-			self:_paint_suit_mark(widget.style, def.icon, 24, 17, 4, def.accent, def.card)
+			self:_paint_suit_mark(widget.style, def.icon, 24, (Workshop.SUIT_W - 24) / 2, 4, def.accent, def.card)
 		end
 
 		local threat = widgets.rw_threat
@@ -465,7 +466,13 @@ WorkshopView.install = function (View, h)
 		local share = self:_share_of(wave)
 
 		widgets.stage_caption.content.stage_caption = string.upper(mod:localize("stage_caption"))
-		widgets.stage_stats.content.stage_stats = share and mod:localize("stage_stats", card.threat, groups.total_count(self._parts), string.format("%.1f", share)) or mod:localize("stage_stats_off")
+		local Effects = groups.Effects
+		local effects = 0
+
+		for _ in pairs(Effects.beneficial(wave.suit) and Effects.allowed(wave.effects, wave.suit) or {}) do effects = effects + 1 end
+
+		-- a beneficial card counts its effects, not enemies
+		widgets.stage_stats.content.stage_stats = not share and mod:localize("stage_stats_off") or Effects.beneficial(wave.suit) and mod:localize(effects == 1 and "stage_stats_effect" or "stage_stats_effects", card.threat, effects, string.format("%.1f", share)) or mod:localize("stage_stats", card.threat, groups.total_count(self._parts), string.format("%.1f", share))
 		widgets.btn_enabled.content.hotspot_text = mod:localize(wave.enabled and "btn_enabled_on" or "btn_enabled_off")
 		widgets.btn_enabled.content.hotspot_on = wave.enabled == true
 		widgets.btn_preview.content.hotspot_text = mod:localize("btn_preview_cooldown")

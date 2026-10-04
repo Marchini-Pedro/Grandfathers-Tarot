@@ -92,6 +92,25 @@ murmur, utf8 cut), `catalog/effects.lua` (categories, new effects, disabled flag
 `ui/workshop_blueprints.lua`, `ui/wave_editor_components.lua` (stepper font and
 sign size), `ui/wave_editor_definitions.lua`, localization.
 
+## Second round: matching the design page (2026-10-04)
+
+After a first look in game the user found the shelves, the beneficial card and the Last Card still in the older style. Fixed in one
+more commit on this branch. The Lua test suites were deliberately not run or updated for this round (the user's choice); the
+editor and HUD harnesses still drew the screens for a visual check, and their only failures are the old expectations listed below.
+
+| Request | What was built |
+| --- | --- |
+| Shelves like the design page (columns, thin outlines) | `Workshop.shelf_layout` and `fx_shelf_layout` share one column layout: four columns side by side (Fodder, Elites, Specials, Bosses at widths 0.9 / 1.05 / 1.25 / 1.3; Healing, Buffs, Items, Game Effects equal), the title on top, chips as wide as their label (`Workshop.chip_width`), wrapping inside the column. Chips have a one unit outline (the second two-unit frame is gone) and no faction tint (the Dreg / Scab switch says which faction a click adds). Effect chips carry a diamond at the right, lit while the card holds the effect. |
+| Card text of a beneficial card: colours and amounts | `Effects.summary(values, lines, chars, markup, text_rgb)` writes `95% Party health`: the amount (`Effects.lead`: `95%`, `15s`, `4`) in the bone colour, the name in its group's colour, `+N more` when it does not fit. Its dots are the colours of its effects' groups (`Effects.dots`, used by `Cards.describe`). |
+| The amount in the effect rows | A row reads `100%  Party health` (the amount in the bone colour), as on the design page. The stage line under the card counts effects, not enemies. |
+| Replace Consecrate 12 cards with a Search button | The Deck's `rw_deck_search` (same place) opens a box; the Deck shows only the cards whose name, suit, enemy or effect holds the text, as it is typed. Escape restores the previous search, empty shows every card; the blank card is hidden while searching. Consecrate is gone. |
+| The Last Card window was broken | Rebuilt as the design page's card "in the hand": 240 wide, the suit's accent as a bar at the left, the name (one or two lines, the Spread's font option) with the suit mark at its right, the threat diamonds and enemy dots on one row, the whisper inside the card (Heresy's crimson). No ring or disc around the mark. Its whisper text is raised above the card face (it was drawn under it). Beneficial cards show no dots in the HUD (a synced card carries only enemy kinds). |
+| Quick face 2 x 6, not 2 x 8 | `Workshop.SUIT_COLS = 6`, tiles 80 wide with a 9 unit gap: six fill the 525 unit pane. |
+
+Out-of-date test expectations (not changed this round): the faction tint of shelf chips, the 156 unit chip cell, the
+`Consecrate` callback (`cb_bless_deck`, now `cb_deck_search`), the old Last Card geometry (176 x 250, card at y 24, window
+frame colours) and the old `Effects.summary` text. They need updating before the branch is merged.
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -114,3 +133,6 @@ sign size), `ui/wave_editor_definitions.lua`, localization.
 9. Sound: Preview on rows, two sounds in a row (native and SimpleAudio), volume
    below 100 (does it get quieter at all?), volume 0, Remove 2, Silence; the
    compact row steppers and chips at every UI scale.
+10. Second round: both shelves in columns at every UI scale (no chip label spills over its outline); the effect chips' diamonds;
+    the Deck's Search (typing filters, Escape restores, empty shows all); the Last Card for a long name, Heresy, Faith and a rare
+    card, and when moved with custom_hud; the quick face's two rows of six.

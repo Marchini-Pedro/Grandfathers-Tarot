@@ -43,92 +43,130 @@ Workshop.SUMMARY_Y = Workshop.ROW_Y0 + Workshop.ROWS * Workshop.ROW_PITCH + 4
 Workshop.SUMMARY_H = 34
 
 -- ------------------------------------------------------------------------------------------------- the shelf
-Workshop.CHIP_H = 30 -- (34 while a chip also carried a D / S tag: without it the chips are tighter)
-Workshop.CHIP_GAP = 6 -- between chips of a row
-Workshop.CHIP_PITCH = 32 -- between rows of chips
+-- Since 2026-10-04 (the user's design page): four COLUMNS side by side (Fodder, Elites, Specials, Bosses; or Healing, Buffs, Items,
+-- Game Effects), each with its title on top and its chips flowing under it, every chip as wide as its label (not six equal cells),
+-- with a one unit outline.
+Workshop.CHIP_H = 30
+Workshop.CHIP_GAP = 8 -- between chips of a line
+Workshop.CHIP_PITCH = 38 -- between lines of chips
 Workshop.SHELF_PAD = 16
-Workshop.SHELF_HEAD = 56 -- the panel's title row (title, hint, the faction switch, Search all enemies)
-Workshop.GROUP_LABEL_W = 100
-Workshop.GROUP_GAP = 4
+Workshop.SHELF_HEAD = 52 -- the panel's title row (title, hint, the faction switch, Search all enemies)
+Workshop.COLUMN_GAP = 16
+Workshop.COLUMN_LABEL_H = 24 -- a column's title over its chips
 Workshop.CHIP_FONT = 16
-Workshop.GLYPH = 0.64 -- of the font size: how wide a letter is of the bold sans (a "Hound" is 3.05 em), a little careful: a chip that is too wide only leaves a gap
+Workshop.GLYPH = 0.6 -- of the font size: how wide a letter of the bold sans is, a little careful (a chip a bit too wide only leaves room)
+-- the share of the width each column gets: the enemies' names grow longer from Fodder to Bosses; the effects' are alike
+Workshop.ENEMY_COLUMNS = { 0.9, 1.05, 1.25, 1.3 }
+Workshop.EFFECT_COLUMNS = { 1, 1, 1, 1 }
+Workshop.CHIP_PIP = 20 -- room for the diamond at the right end of an effect chip (lit while the card holds the effect)
 
 Workshop.SHELF_Y = Workshop.SUMMARY_Y + Workshop.SUMMARY_H + 10
 
--- width of a chip: the dot (22 up to the label), the label and 10 of padding
-Workshop.CHIP_DOT, Workshop.CHIP_PAD = 22, 10
+-- width of a chip: the dot (22 up to the label), the label, 12 of padding and the room of a pip (`tail`)
+Workshop.CHIP_DOT, Workshop.CHIP_PAD = 22, 12
 
-Workshop.chip_width = function (label)
-	return 156 -- six equal cells fit the shelf; long labels scale within the same cell
+Workshop.chip_width = function (label, tail)
+	return ceil(Workshop.CHIP_DOT + #tostring(label or "") * Workshop.CHIP_FONT * Workshop.GLYPH + Workshop.CHIP_PAD + (tail or 0))
 end
 
--- Where every chip of the shelf goes. `shelf` = Groups.SHELF, `groups` = the catalog (faction, display names). Chips of a group
--- flow left to right in a band to the right of the group's label and wrap to the next row of that band. Returns
--- { chips = { { group, index, entry, x, y, w } ... }, bands = { { id, y, rows } ... }, height }, x and y inside the
--- panel (the panel starts at LEFT_X, SHELF_Y).
-Workshop.shelf_layout = function (shelf, groups)
+-- The columns of a shelf: `columns` = { { id, labels = { ... } } ... }, `weights` their shares of the width. Returns
+-- { chips = { { column, index, x, y, w } ... }, bands = { { id, x, y, w } ... }, height }, x and y inside the panel.
+local function column_layout(columns, weights, tail)
 	local chips, bands = {}, {}
-	local x0 = Workshop.SHELF_PAD + Workshop.GROUP_LABEL_W
-	local avail = Workshop.LEFT_W - Workshop.SHELF_PAD - x0
-	local y = Workshop.SHELF_HEAD
+	local total = 0
 
-	for g = 1, #shelf do
-		local group = shelf[g]
-		local x, row = 0, 0
+	for i = 1, #columns do
+		total = total + (weights[i] or 1)
+	end
 
-		for i = 1, #group.entries do
-			local entry = group.entries[i]
-			local w = Workshop.chip_width(groups.shelf_label(entry))
+	local avail = Workshop.LEFT_W - 2 * Workshop.SHELF_PAD - (#columns - 1) * Workshop.COLUMN_GAP
+	local x0, bottom = Workshop.SHELF_PAD, Workshop.SHELF_HEAD + Workshop.COLUMN_LABEL_H
 
-			if x > 0 and x + w > avail then
-				x, row = 0, row + 1
+	for c, column in ipairs(columns) do
+		local width = floor(avail * (weights[c] or 1) / total)
+		local x, y = 0, Workshop.SHELF_HEAD + Workshop.COLUMN_LABEL_H
+
+		for i, label in ipairs(column.labels) do
+			local w = math.min(width, Workshop.chip_width(label, tail))
+
+			if x > 0 and x + w > width then
+				x, y = 0, y + Workshop.CHIP_PITCH
 			end
 
-			chips[#chips + 1] = { group = g, index = i, entry = entry, x = x0 + x, y = y + row * Workshop.CHIP_PITCH, w = w }
+			chips[#chips + 1] = { column = c, index = i, x = x0 + x, y = y, w = w }
 			x = x + w + Workshop.CHIP_GAP
 		end
 
-		bands[#bands + 1] = { id = group.id, y = y, rows = row + 1 }
-		y = y + (row + 1) * Workshop.CHIP_PITCH + Workshop.GROUP_GAP
+		bottom = max(bottom, y + Workshop.CHIP_H)
+		bands[#bands + 1] = { id = column.id, x = x0, y = Workshop.SHELF_HEAD, w = width }
+		x0 = x0 + width + Workshop.COLUMN_GAP
 	end
 
-	return { chips = chips, bands = bands, height = y - Workshop.GROUP_GAP + Workshop.SHELF_PAD - (Workshop.CHIP_PITCH - Workshop.CHIP_H) }
+	return { chips = chips, bands = bands, height = bottom + Workshop.SHELF_PAD }
+end
+
+-- Where every chip of the enemy shelf goes. `shelf` = Groups.SHELF, `groups` = the catalog (display names). Every chip also
+-- carries `group` and `entry`.
+Workshop.shelf_layout = function (shelf, groups)
+	local columns = {}
+
+	for g, group in ipairs(shelf) do
+		local labels = {}
+
+		for i, entry in ipairs(group.entries) do
+			labels[i] = groups.shelf_label(entry)
+		end
+
+		columns[g] = { id = group.id, labels = labels }
+	end
+
+	local layout = column_layout(columns, Workshop.ENEMY_COLUMNS)
+
+	for _, chip in ipairs(layout.chips) do
+		chip.group, chip.entry = chip.column, shelf[chip.column].entries[chip.index]
+	end
+
+	return layout
 end
 
 -- ------------------------------------------------------------------------------------------------- the beneficial Cauldron
 -- A beneficial card's rows (ui/wave_editor_effects.lua): the name and its group under it, the amount stepper (its value cell wide
 -- enough for "100 percent"), the players stepper (Blue Stimm only), Remove at the enemy rows' place.
 Workshop.FX = { name = 24, name_w = 400, amount = 470, amount_w = 150, players = 712, players_w = 110 }
-Workshop.FX_CHIP_W = 236 -- four chips to a row: "Health and corruption" fits at the shelf's font
 
--- Where every effect chip of the beneficial shelf goes: the groups (`categories` = Effects.CATEGORIES) in order, each a band with
--- its label at the left and its chips flowing to the right (like Workshop.shelf_layout). `defs` = the effects (not Blackout).
--- Returns { chips = { { def, x, y, w } ... }, bands = { { id, y, rows } ... }, height }, inside the panel.
+-- The label of an effect's chip (a disabled one says so)
+Workshop.fx_chip_label = function (def, off_word)
+	return def.disabled and (def.short .. "  (" .. (off_word or "off") .. ")") or def.short
+end
+
+-- Where every effect chip of the beneficial shelf goes: one column per group (`categories` = Effects.CATEGORIES), in order. `defs` =
+-- the effects (not Blackout). Every chip also carries `def`.
 Workshop.fx_shelf_layout = function (categories, defs)
-	local chips, bands = {}, {}
-	local x0 = Workshop.SHELF_PAD + Workshop.GROUP_LABEL_W
-	local avail = Workshop.LEFT_W - Workshop.SHELF_PAD - x0
-	local w = Workshop.FX_CHIP_W
-	local y = Workshop.SHELF_HEAD
+	local columns, by_column = {}, {}
 
 	for _, category in ipairs(categories) do
-		local x, row, any = 0, 0, false
+		local labels, list = {}, {}
 
 		for _, def in ipairs(defs) do
 			if def.category == category.id then
-				x, row = (x > 0 and x + w > avail) and 0 or x, (x > 0 and x + w > avail) and row + 1 or row
-				chips[#chips + 1] = { def = def, x = x0 + x, y = y + row * Workshop.CHIP_PITCH, w = w }
-				x, any = x + w + Workshop.CHIP_GAP, true
+				labels[#labels + 1] = Workshop.fx_chip_label(def)
+				list[#list + 1] = def
 			end
 		end
 
-		if any then
-			bands[#bands + 1] = { id = category.id, y = y, rows = row + 1 }
-			y = y + (row + 1) * Workshop.CHIP_PITCH + Workshop.GROUP_GAP
+		if #list > 0 then
+			columns[#columns + 1] = { id = category.id, labels = labels }
+			by_column[#columns] = list
 		end
 	end
 
-	return { chips = chips, bands = bands, height = y - Workshop.GROUP_GAP + Workshop.SHELF_PAD - (Workshop.CHIP_PITCH - Workshop.CHIP_H) }
+	local layout = column_layout(columns, Workshop.EFFECT_COLUMNS, Workshop.CHIP_PIP)
+
+	for _, chip in ipairs(layout.chips) do
+		chip.def = by_column[chip.column][chip.index]
+	end
+
+	return layout
 end
 
 -- The completion sound screen, in the bottom panel (y 750 to 1030): the two slots, Remove the second and Search in one line, the
@@ -171,8 +209,10 @@ Workshop.STAGE_RINGS = { { 208, 0.09, true }, { 186, 0.13, false }, { 164, 0.18,
 Workshop.STATS_Y = Workshop.PLATE.y + Workshop.PLATE.h - 38
 Workshop.TOOLBAR_Y = Workshop.PLATE.y + Workshop.PLATE.h + 8
 Workshop.QUICK_Y = Workshop.TOOLBAR_Y + 44 + 16
-Workshop.SUIT_W, Workshop.SUIT_H = 58, 48
-Workshop.SUIT_GAP_X, Workshop.SUIT_GAP_Y = 8, 12
+-- the suits: two rows of six across the pane (2026-10-04: the user asked for 2 x 6, not 2 x 8)
+Workshop.SUIT_COLS = 6
+Workshop.SUIT_W, Workshop.SUIT_H = 80, 48
+Workshop.SUIT_GAP_X, Workshop.SUIT_GAP_Y = 9, 12
 Workshop.SUIT_Y0 = Workshop.QUICK_Y + 40 -- (a chosen tile stands 4 higher: it must clear the button in the label row)
 Workshop.THREAT_Y = Workshop.SUIT_Y0 + 2 * Workshop.SUIT_H + Workshop.SUIT_GAP_Y + 18
 Workshop.CHANCE_Y = Workshop.THREAT_Y + 52
@@ -184,7 +224,7 @@ Workshop.KIND = { x = Workshop.RIGHT_X + 64, w_hostile = 104, w_ben = 112, h = 3
 Workshop.QUICKFACE_W = 236
 
 Workshop.suit_pos = function (index)
-	local col, row = (index - 1) % 8, floor((index - 1) / 8)
+	local col, row = (index - 1) % Workshop.SUIT_COLS, floor((index - 1) / Workshop.SUIT_COLS)
 
 	return Workshop.RIGHT_X + col * (Workshop.SUIT_W + Workshop.SUIT_GAP_X), Workshop.SUIT_Y0 + row * (Workshop.SUIT_H + Workshop.SUIT_GAP_Y)
 end

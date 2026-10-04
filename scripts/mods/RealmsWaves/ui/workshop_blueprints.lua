@@ -125,7 +125,7 @@ end
 -- The panel under the enemy rows: a frame, the title and hint of its head row, and the labels of the four bands (fodder,
 -- elites, specials, bosses). `layout` = Workshop.shelf_layout. The buttons of the head row (the Dreg / Scab switch and
 -- Search all enemies) are ordinary buttons placed over it.
-WB.shelf_panel = function (node_id, layout)
+WB.shelf_panel = function (node_id, layout, hint_w)
 	local passes = {}
 	local W, H = Workshop.LEFT_W, layout.height
 
@@ -136,7 +136,7 @@ WB.shelf_panel = function (node_id, layout)
 	text(passes, "shelf_title", Workshop.SHELF_PAD, 12, 220, 24, 2, 15, "left", "center", function (content, style)
 		put_rgb(style.text_color, 255, R.text)
 	end)
-	text(passes, "shelf_hint", 232, 12, 400, 24, 2, 17, "left", "center", function (content, style)
+	text(passes, "shelf_hint", 232, 12, hint_w or 400, 24, 2, 17, "left", "center", function (content, style)
 		put_rgb(style.text_color, 255, R.muted)
 	end)
 	text(passes, "faction_label", 640, 12, 70, 24, 2, 17, "right", "center", function (content, style)
@@ -146,7 +146,7 @@ WB.shelf_panel = function (node_id, layout)
 	for i = 1, #layout.bands do
 		local band = layout.bands[i]
 
-		text(passes, "band_" .. i, Workshop.SHELF_PAD, band.y, Workshop.GROUP_LABEL_W, Workshop.CHIP_H, 2, 14, "left", "center", function (content, style)
+		text(passes, "band_" .. i, band.x, band.y, band.w, Workshop.COLUMN_LABEL_H - 6, 2, 13, "left", "center", function (content, style)
 			put_rgb(style.text_color, 255, R.muted)
 		end)
 	end
@@ -165,7 +165,7 @@ end
 -- false for the neutral chips). The button's own flag (hotspot_on) says the card already has this enemy. The label box is wider than the
 -- chip and left aligned, so a label that turns out wider than estimated spills over the edge instead of breaking in two lines.
 -- Content: chip_label, dot_rgb, tint.
-WB.shelf_chip = function (node_id, w)
+WB.shelf_chip = function (node_id, w, pip)
 	local passes = {}
 	local H = Workshop.CHIP_H
 
@@ -218,9 +218,12 @@ WB.shelf_chip = function (node_id, w)
 		}
 	end
 
-	text(passes, "chip_label", Workshop.CHIP_DOT, 0, w - Workshop.CHIP_DOT - Workshop.CHIP_PAD, H, 4, 16, "left", "center", function (content, style)
+	local tail = pip and Workshop.CHIP_PIP or 0
+	local label_w = w - Workshop.CHIP_DOT - Workshop.CHIP_PAD - tail
+
+	text(passes, "chip_label", Workshop.CHIP_DOT, 0, label_w + Workshop.CHIP_PAD, H, 4, Workshop.CHIP_FONT, "left", "center", function (content, style)
 		local st, tint = state_of(content.hotspot), content.tint or nil
-		style.font_size = math.min(Workshop.CHIP_FONT, (w - Workshop.CHIP_DOT - Workshop.CHIP_PAD) / math.max(1, #content.chip_label * Workshop.GLYPH))
+		style.font_size = math.min(Workshop.CHIP_FONT, label_w / math.max(1, #content.chip_label * Workshop.GLYPH))
 
 		if st == STATE.OFF then
 			put_rgb(style.text_color, 255, R.label_off)
@@ -231,7 +234,27 @@ WB.shelf_chip = function (node_id, w)
 		end
 	end)
 
-	Components.frame_passes(passes, "chip_edge", w, H, 3, { thickness = 2, rgb = Components.theme.frame })
+	-- the effect chips: a diamond at the right end, lit while the card holds the effect (the outline stays one unit: the old second
+	-- frame of two units made the shelf heavy)
+	if pip then
+		Components.diamond_passes(passes, "chip_pip", w - tail / 2 - 2, H / 2, 8, 4, nil, function (color, content, halo)
+			local on = content.hotspot_on == true
+
+			if state_of(content.hotspot) == STATE.OFF then
+				put_rgb(color, halo and 30 or 90, R.label_off)
+			else
+				put_rgb(color, halo and 80 or 255, on and Components.accent or R.muted)
+			end
+		end)
+		passes[#passes + 1] = { pass_type = "rotated_rect", style_id = "chip_pip_hole", style = { offset = { w - tail / 2 - 2 - 3, H / 2 - 3, 4.5 }, size = { 6, 6 }, color = { 255, 255, 255, 255 }, angle = math.pi / 4, pivot = { 3, 3 } },
+			visibility_function = function (content) return content.hotspot_on ~= true end,
+			change_function = function (content, style)
+				local st = state_of(content.hotspot)
+
+				put_rgb(style.color, 255, st == STATE.OFF and R.plate_off or R.plate)
+			end }
+	end
+
 	return UIWidget.create_definition(passes, node_id, { chip_label = "", dot_rgb = { 135, 135, 135 }, tint = false }, { w, H })
 end
 

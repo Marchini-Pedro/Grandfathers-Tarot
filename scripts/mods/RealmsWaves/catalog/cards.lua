@@ -509,7 +509,8 @@ Cards.describe = function (wave, Groups, rgb_of)
 		threat = Cards.threat(parts, wave.threat_override, Groups),
 		threat_auto = auto,
 		threat_override = tonumber(wave.threat_override) or 0,
-		dots = Cards.dots(parts, rgb_of or function () return nil end),
+		-- a beneficial card's dots are the colours of its effects' groups
+		dots = (Cards.suit(suit).beneficial and Groups and Groups.Effects and wave.effects) and Groups.Effects.dots(wave.effects) or Cards.dots(parts, rgb_of or function () return nil end),
 		breeds = breeds,
 		whisper = Cards.whisper({ whisper = wave.whisper, suit = suit }),
 		own_whisper = Cards.clean_whisper(wave.whisper) ~= "",
