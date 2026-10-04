@@ -35,14 +35,20 @@ can limit visible coverage.
 | Natural stimm | Checks the breed's existing `use_stim` action and blackboard component, arms its permission on the server, and colours after the vanilla `stimmed` keyword appears. Vanilla animation, selected stim buff, particles and gameplay changes remain. Unsupported breeds keep their appearance and produce one log warning |
 | Applied stimm colour | Writes the known `stimmed_color` RGB vector recursively after spawn, without adding a buff or effect template |
 | Explicit body / equipment stimm | Uses the same known vector on the root, each visual loadout slot and its attachments. This compares coverage with recursive root writes; it is not a surface material override |
-| Per-material surface override (prerequisite) | Selectable to inspect its requirement; saves the choice but applies no operation. Needs a verified colour property, authored neutral/default values and a coverage map for actual enemy materials |
-| Private material / shader patch (prerequisite) | Selectable to inspect its requirement; saves the choice but applies no operation. Needs compatible compiled assets, a loader, per-unit isolation and verified restoration. This revision installs no asset dependency or native patch |
+| Per-material surface override (unavailable) | Disabled in the editor; applies no operation. Needs a verified colour property, authored neutral/default values and a coverage map for actual enemy materials |
+| Private material / shader patch (unavailable) | Disabled in the editor; applies no operation. Needs compatible compiled assets, a loader, per-unit isolation and verified restoration. This revision installs no asset dependency or native patch |
 | Outline | Adds one local outline stack with a private settings map and RGB tint. Stock tags may take priority. It does not recolour the surface |
 
-The prerequisite methods deliberately have no guessed shader variables or
-dummy successful fallback. Their saved selection allows the experimental UI to
-show the intended method and the missing prerequisite without misrepresenting
-what happens in the game. Warnings go to the mod log.
+Unsupported methods expose their requirements and remain disabled. Saved older
+selections are readable but cannot claim an operation succeeded. No guessed
+shader variable, material fallback or compiled asset was introduced.
+
+PR #9 adds **Independent outline** and **Keep edited tint over other buffs** switches.
+An ordinary outline uses only the depth-tested material layer at priority 2;
+native manual tags retain their through-wall layers and higher priority.
+Protection defaults off. When enabled, native buff material-effect start/stop
+hooks reapply the edited vector; buffs and gameplay stats stay native.
+See [card effects and UI](12-card-effects-and-ui.md) for verification and limits.
 
 ## Recipe and runtime behaviour
 
@@ -53,7 +59,9 @@ The suffix follows modifiers/custom stats and precedes repeat notation:
 2 crusher{size=130}<natural_stimm:FF00FFFF>
 ```
 
-The suffix is `<method:AARRGGBB>`. Methods use the IDs defined in
+The suffix is `<method:AARRGGBB>`. Add `+outline` and/or `!` before the colon
+to combine an outline with the method and protect tint, e.g.
+`<applied_stimm+outline!:FF8000FF>`. Methods use the IDs defined in
 `catalog/appearance.lua`. Malformed IDs/hex fail parsing. The group key includes
 appearance, so coloured and untreated groups do not merge. Editor copies are
 independent. Existing recipes without this suffix retain their behaviour.

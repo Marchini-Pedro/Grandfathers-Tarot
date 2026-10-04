@@ -743,6 +743,13 @@ Groups.parse = function (recipe)
 	end
 
 	local text = " " .. recipe .. " "
+	local appearances = {}
+	-- Appearance flags contain '+', which is also an enemy separator. Keep each
+	-- suffix intact until its part is parsed, just like modifier/custom-mod lists.
+	text = text:gsub("<(.-)>", function (inner)
+		appearances[#appearances + 1] = inner
+		return "<" .. #appearances .. ">"
+	end)
 
 	-- protect the modifier list in [...] from the separator handling below:
 	-- "[enraged, garden]" / "[enraged and garden]" -> "[enraged|garden]"
@@ -801,7 +808,7 @@ Groups.parse = function (recipe)
 			local without_appearance, appearance_text = name:match("^(.-)%s*<(.-)>%s*$")
 			if without_appearance then
 				local appearance_error
-				appearance, appearance_error = Groups.Appearance.parse(appearance_text)
+				appearance, appearance_error = Groups.Appearance.parse(appearances[tonumber(appearance_text)] or appearance_text)
 				if appearance_error then return nil, appearance_error end
 				name = without_appearance
 			end

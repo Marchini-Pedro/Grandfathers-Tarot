@@ -270,7 +270,8 @@ local function on_appearance(sender, text)
 				local value = item[j]
 				valid = valid and type(value) == "number" and value == value and value >= 0 and value <= 255 and value == math.floor(value)
 			end
-			if valid then entries[#entries + 1] = { id = id, breed = breed, config = { method = item[2], a = item[3], r = item[4], g = item[5], b = item[6] } } end
+			valid = valid and (item[8] == nil or type(item[8]) == "boolean") and (item[9] == nil or type(item[9]) == "boolean")
+			if valid then entries[#entries + 1] = { id = id, breed = breed, config = { method = item[2], a = item[3], r = item[4], g = item[5], b = item[6], outline = item[8] == true, protect = item[9] == true } } end
 		end
 	end
 	if #entries > 0 and _handlers.on_appearance then _handlers.on_appearance(sender, entries) end

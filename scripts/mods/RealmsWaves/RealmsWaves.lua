@@ -109,6 +109,7 @@ mod.on_all_mods_loaded = function ()
 	RW.tuning.init({ protocol = RW.protocol })
 	RW.tuning.install()
 	RW.appearance.init({ schema = RW.groups.Appearance, protocol = RW.protocol })
+	RW.appearance.install()
 	RW.execute.init({ positions = RW.positions, bypass = RW.bypass, groups = RW.groups, tuning = RW.tuning, appearance = RW.appearance })
 	RW.director.init({
 		events = RW.events,

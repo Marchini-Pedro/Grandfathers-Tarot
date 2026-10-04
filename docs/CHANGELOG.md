@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Combine enemy outlines with protected tints (PR #9)
+- Ordinary outlines use the depth-tested native layer; manual tags retain through-wall precedence. Independent outline and tint protection flags survive recipes, peer validation, saving/reopening and removal packets.
+- Share native material-effect callbacks, retain buff/stat behavior, and disable unavailable surface/shader methods with their actual prerequisites. Place the new switches below the explanation and above Back.
+- Extend native-hook, recipe, cleanup and real-editor regressions; inspect the revised appearance PNG. Native colours, tag precedence and other-mod interaction remain game checks.
+
 ## 2026-10-03 - Publish the reviewed Heresy continuation
 - Push the completed continuation and open draft [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8) against main as requested. GitHub reports no merge conflicts; the branch remains unmerged pending game acceptance.
 - First hosted PR run at `a163552` passes both runtimes: 2,104 assertions each, all coverage gates and Lua 5.5 81.97% / LuaJIT 2.1 78.75%. Downloaded reports confirm the counts/scores. Update current README/plan/hand-off status and preserve native checks.

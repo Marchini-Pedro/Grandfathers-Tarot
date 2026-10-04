@@ -40,6 +40,12 @@ ColourView.definitions = function (nodes, widgets, node)
 	rect(passes, "swatch", 6, 6, 298, 173, { 255, 128, 0, 255 }, 1)
 	C.text_pass(passes, "text", "text", { 0, 192, 0 }, { 310, 55 }, 22, C.colors.text, "center")
 	widgets.rw_colour_swatch = UIWidget.create_definition(passes, "rw_colour_swatch")
+	for i, item in ipairs({ { "rw_colour_outline", "Independent outline" }, { "rw_colour_protect", "Keep edited tint over other buffs" } }) do
+		nodes[item[1]] = node(145, 835 + (i - 1) * 58, 1080, 48, 3)
+		passes = {}
+		C.button(passes, "hotspot", { 0, 0, 0 }, { 1080, 48 }, { label = item[2], font_size = 22, pip = true })
+		widgets[item[1]] = UIWidget.create_definition(passes, item[1])
+	end
 	for i, method in ipairs(Schema.METHODS) do
 		local name = "rw_colour_choice_" .. i
 		nodes[name] = node(145, 272 + (i - 1) * 48, 1480, 46, 40)
@@ -82,14 +88,21 @@ ColourView.install = function (View, h)
 		for i in ipairs(Schema.METHODS) do
 			local choice = w["rw_colour_choice_" .. i]
 			choice.visible = active and self._colour_menu == true
-			choice.content.hotspot.disabled = not (enabled and choice.visible)
+			choice.content.hotspot.disabled = not (enabled and choice.visible) or not Schema.METHODS[i].available
 			choice.content.hotspot_on = Schema.METHODS[i].id == value.method
+		end
+		for _, field in ipairs({ "outline", "protect" }) do
+			local toggle = w["rw_colour_" .. field]
+			toggle.visible = active and not self._colour_menu
+			toggle.content.hotspot.disabled = not enabled or self._colour_menu == true
+			toggle.content.hotspot_on = value[field] == true
 		end
 		if not active or self._popup then self._colour_drag = nil end
 	end
 
 	View._create_colour_callbacks = function (self)
 		local w = self._widgets_by_name
+		for _, field in ipairs({ "outline", "protect" }) do w["rw_colour_" .. field].content.hotspot.pressed_callback = callback(self, "cb_colour_toggle", field) end
 		w.rw_colour_method.content.hotspot.pressed_callback = callback(self, "cb_colour_dropdown")
 		for i in ipairs(Schema.METHODS) do w["rw_colour_choice_" .. i].content.hotspot.pressed_callback = callback(self, "cb_colour_method", i) end
 		for _, channel in ipairs(Schema.CHANNELS) do
@@ -98,6 +111,13 @@ ColourView.install = function (View, h)
 		end
 	end
 
+	View.cb_colour_toggle = h.guarded(function (self, field)
+		if self._screen ~= "appearance" or not part(self) then return end
+		local value = config(self)
+		value[field] = not value[field]
+		part(self).appearance = value
+		self:_save()
+	end)
 	View.cb_appearance = h.guarded(function (self)
 		if not part(self) then return end
 		self._screen, self._colour_menu = "appearance", false
@@ -109,8 +129,10 @@ ColourView.install = function (View, h)
 	end)
 	View.cb_colour_method = h.guarded(function (self, index)
 		if self._screen ~= "appearance" or not part(self) then return end
+		local method = Schema.METHODS[index]
+		if not method or not method.available then return end
 		local value = config(self)
-		value.method = Schema.METHODS[index].id
+		value.method = method.id
 		part(self).appearance = value
 		self._colour_menu = false
 		self:_save()
