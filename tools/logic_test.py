@@ -605,6 +605,87 @@ do
   Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
 end
 
+-- /rw_test plays the card's sound first; /rw_drawtest and /rw_fulltest stage a draw (2026-10-04) -----------------------------------
+do
+  local keys = Events.keys()
+  local Snd = load("catalog/sounds")
+  local function only(list) for _, k in ipairs(keys) do settings["on_" .. k] = false end for _, e in ipairs(list) do settings["on_" .. e] = true; settings["pct_" .. e] = 5; settings["cd_" .. e] = 0 end end
+  local function start()
+    started_waves = {}; started_defs = {}
+    Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01)
+  end
+  local alerts, job = {}, nil
+  Director.effects = { snapshot = function() return nil end, receive = function() end, alert = function(text) alerts[#alerts + 1] = text; if Snd.has(text) then job = { done = false }; return job end return nil end }
+  is_server = true
+  settings.tarot_cards = 3; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100; settings.interval_random = false; settings.initial_delay = 0
+  only({ "wave_small", "wave_medium", "wave_large", "wave_huge" })
+  local event = Snd.EVENTS[100]
+  settings.snd_wave_medium = event; settings.su_wave_medium = "nightmare"
+  start()
+
+  -- /rw_test: the sound first, then the wave; a test spends no once-per-game suit and is released even when the cycle is stopped
+  local ok, note = Director.fire_now("wave_medium")
+  check("rw_test: the card's sound plays first and its wave waits for it", ok and alerts[#alerts] == event and #started_waves == 0 and Director.held_count() == 1)
+  job.done = true; Director.update(0.1)
+  check("rw_test: the wave spawns when the sound ends; a test does not use up Nightmare", #started_waves == 1 and Director.spent_once("nightmare") == false)
+  local ok2, note2 = Director.fire_now("wave_medium", { close = true })
+  check("rw_test_close: the same, and it says it waits for the sound", ok2 and tostring(note2):find("when its sound ends", 1, true) ~= nil and #started_waves == 1)
+  Director.pause(true); job.done = true; Director.update(0.1)
+  check("rw_test: a test wave goes out even while the waves are paused", #started_waves == 2)
+  Director.pause(false)
+
+  -- /rw_drawtest: three cards, the named one picked 3 s later; nothing sent, nothing heard, no cooldown
+  started_waves = {}; local alerts_before = #alerts
+  Director.update(10)
+  local remaining_before = Director.view().remaining
+  local okd, name = Director.stage_draw("wave_medium", false)
+  local v = Director.view()
+  check("drawtest: a hand of three is dealt with the named card in it", okd and v.hand ~= nil and #v.hand == 3 and v.phase == "hand", tostring(name))
+  local named_in_hand = false
+  for _, c in ipairs(v.hand or {}) do if c.key == "wave_medium" then named_in_hand = true end end
+  check("drawtest: the named card is one of them, and the winner", named_in_hand and v.hand[v.win].key == "wave_medium")
+  check("drawtest: a second staged draw waits for the first", not Director.stage_draw("wave_small", false))
+  Director.update(1.5)
+  check("drawtest: not picked before 3 s", Director.view().drawn ~= true)
+  Director.update(1.6)
+  v = Director.view()
+  check("drawtest: after 3 s it is drawn as in play (the Spread shows it, the Last Card holds it)", v.drawn == true and v.hand[v.win].key == "wave_medium" and v.last ~= nil and v.last.key == "wave_medium")
+  check("drawtest: no sound, no wave, no cooldown, Nightmare not spent", #alerts == alerts_before and #started_waves == 0 and Director.held_count() == 0 and (Director.cooldown_map().wave_medium or 0) == 0 and Director.spent_once("nightmare") == false)
+  check("drawtest: the countdown goes on where it was", math.abs(Director.view().remaining - remaining_before) < 4, Director.view().remaining .. " vs " .. remaining_before)
+
+  -- /rw_fulltest: the same draw, then the sound and the wave
+  Director.update(5)
+  local okf = Director.stage_draw("wave_medium", true)
+  Director.update(3.1)
+  check("fulltest: picked after 3 s, its sound plays at once and the wave waits for it", okf and alerts[#alerts] == event and #started_waves == 0 and Director.held_count() == 1 and Director.view().last.key == "wave_medium")
+  job.done = true; Director.update(0.1)
+  check("fulltest: then the wave spawns; still no cooldown and no Nightmare spent", #started_waves == 1 and (Director.cooldown_map().wave_medium or 0) == 0 and Director.spent_once("nightmare") == false)
+
+  check("stage: an unknown card is refused with the finder's message", not Director.stage_draw("no such card at all", false))
+  Director.pause(true)
+  check("stage: refused while the waves are paused", not Director.stage_draw("wave_medium", false))
+  Director.pause(false)
+  is_server = false
+  check("stage: only the host can stage a draw", not Director.stage_draw("wave_medium", false))
+  is_server = true
+  Director.stop()
+  check("stage: refused while the waves are stopped", not Director.stage_draw("wave_medium", false))
+
+  -- in the vote mode the staged draw shows, then the vote goes on with its own state
+  settings.mode = "vote"; start(); Director.update(1)
+  local ballot = Director.view().ballot_id
+  check("stage (vote mode): the draw shows as a hand", Director.stage_draw("wave_medium", false) and Director.view().mode == "tarot")
+  Director.update(3.1)
+  check("stage (vote mode): after the pick the vote's own state comes back", Director.view().mode == "vote")
+  settings.mode = nil
+
+  for _, k in ipairs(keys) do settings["on_" .. k] = nil; settings["pct_" .. k] = nil; settings["cd_" .. k] = nil end
+  settings.snd_wave_medium, settings.su_wave_medium = nil, nil
+  settings.tarot_cards, settings.tarot_seconds, settings.interval_min, settings.interval_max, settings.interval_random, settings.initial_delay = nil, nil, nil, nil, nil, nil
+  Director.effects = nil
+  Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
+end
+
 -- the last fulfilled card: remembered by the host when a wave of the cycle goes out, synced to the clients, shown by the HUD window -------
 do
   local keys = Events.keys()

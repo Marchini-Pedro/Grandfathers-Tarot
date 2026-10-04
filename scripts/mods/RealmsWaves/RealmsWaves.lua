@@ -507,12 +507,40 @@ local function test_command(close, ...)
 	end
 end
 
-mod:command("rw_test", "RealmsWaves: (host) spawn a wave now: /rw_test <wave key or wave name>, e.g. /rw_test mutants_everywhere", function (...)
+mod:command("rw_test", "RealmsWaves: (host) a wave now (its sound first, then the enemies): /rw_test <wave key or wave name>, e.g. /rw_test mutants_everywhere", function (...)
 	test_command(false, ...)
 end)
 
 mod:command("rw_test_close", "RealmsWaves: (host) spawn a wave right in front of you, facing you: /rw_test_close <wave key or wave name>, e.g. /rw_test_close the_devil", function (...)
 	test_command(true, ...)
+end)
+
+-- /rw_drawtest and /rw_fulltest: a staged draw of three cards that picks the named one after 3 seconds (core/director.lua)
+local function stage_command(full, ...)
+	local query = table.concat({ ... }, " ")
+	local command = full and "rw_fulltest" or "rw_drawtest"
+
+	if query:match("^%s*$") then
+		mod:echo("RealmsWaves: usage /%s <card name or key>", command)
+
+		return
+	end
+
+	local ok, note = RW.director.stage_draw(query, full)
+
+	if ok then
+		mod:echo("RealmsWaves: staged draw: \"%s\" is picked in 3 s%s", tostring(note), full and " (its sound plays, then its wave spawns)" or " (no sound, no enemies)")
+	else
+		mod:echo("RealmsWaves: %s", tostring(note))
+	end
+end
+
+mod:command("rw_drawtest", "RealmsWaves: (host) a fake draw of three cards that picks the named card after 3 s, to see the HUD; no sound, no enemies: /rw_drawtest <card name or key>", function (...)
+	stage_command(false, ...)
+end)
+
+mod:command("rw_fulltest", "RealmsWaves: (host) the same fake draw, then the card's sound and its wave, as in play: /rw_fulltest <card name or key>", function (...)
+	stage_command(true, ...)
 end)
 
 mod:command("rw_vote", "RealmsWaves: cast a vote from the console: /rw_vote <option number>", function (option)

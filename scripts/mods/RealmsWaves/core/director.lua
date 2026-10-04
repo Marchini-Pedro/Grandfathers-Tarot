@@ -460,8 +460,8 @@ end
 local ALERT_LONGEST = 20
 local held = {}
 
-local function launch(def, key)
-	local once = once_suit(def)
+local function launch(def, key, test)
+	local once = not test and once_suit(def)
 
 	if once then
 		spent_once[once] = true
@@ -475,7 +475,7 @@ local function launch(def, key)
 	end
 
 	if job and not job.done then
-		held[#held + 1] = { def = def, key = key, job = job, age = 0 }
+		held[#held + 1] = { def = def, key = key, job = job, age = 0, test = test == true }
 
 		return true
 	end
@@ -483,13 +483,15 @@ local function launch(def, key)
 	return Execute.start_wave(def)
 end
 
-local function release_held(dt)
+-- `halted` (paused or stopped): only the waves of a test command (/rw_test, /rw_fulltest) go on
+local function release_held(dt, halted)
 	for i = #held, 1, -1 do
 		local wave = held[i]
 
-		wave.age = wave.age + dt
-
-		if wave.job.done or wave.age >= ALERT_LONGEST then
+		if halted and not wave.test then
+			-- held until the cycle runs again
+		elseif wave.job.done or (wave.age + dt) >= ALERT_LONGEST then
+			wave.age = wave.age + dt
 			table.remove(held, i)
 
 			local ok, err = Execute.start_wave(wave.def)
@@ -497,6 +499,8 @@ local function release_held(dt)
 			if not ok then
 				mod:warning("RealmsWaves: wave %s not started after its sound: %s", tostring(wave.key), tostring(err))
 			end
+		else
+			wave.age = wave.age + dt
 		end
 	end
 end
@@ -506,6 +510,24 @@ Director.held_count = function () return #held end
 -- The wave of the picked card goes out; its cooldown starts now.
 local function pick_card(state)
 	local card = state.hand.cards[state.hand.win]
+
+	-- a staged draw (/rw_drawtest, /rw_fulltest): no cooldown, no once-per-game; the draw test sends nothing at all
+	if state.staged then
+		local ok, err = true, nil
+
+		if state.staged.full then
+			ok, err = launch(card.entry.def, card.key, true)
+		end
+
+		if ok then
+			remember_card(card)
+		else
+			mod:warning("RealmsWaves: staged card %s not started: %s", tostring(card.key), tostring(err))
+		end
+
+		return card
+	end
+
 	local ok, err = launch(card.entry.def, card.key)
 
 	if not ok then
@@ -565,6 +587,23 @@ local function resolve_tarot()
 	end
 
 	pick_card(state)
+
+	-- after a staged draw the cycle goes on where it was (the countdown it had; another mode gets its own state back)
+	local staged = state.staged
+
+	if staged then
+		local saved = staged.saved
+
+		if saved.mode == "tarot" then
+			start_tarot_cycle(false, state.hand, math.max(5, saved.remaining or 5))
+		else
+			host_state = saved
+			mark_changed()
+		end
+
+		return
+	end
+
 	start_tarot_cycle(false, state.hand)
 end
 
@@ -940,9 +979,7 @@ Director.update = function (dt)
 		if Execute.has_authority() then
 			host_update(dt)
 
-			if not (paused or stopped) then
-				release_held(dt)
-			end
+			release_held(dt, paused or stopped)
 
 			Execute.update(dt, paused or stopped)
 		end
@@ -1460,17 +1497,102 @@ Director.fire_now = function (key, options)
 	def.test = true -- explicit test: allowed to use the ring fallback on levels without spawn points
 	def.close = options and options.close == true or nil
 
-	local ok, err = Execute.start_wave(def)
+	-- (2026-10-04) its sound first, then the wave, as in a draw; a test never spends a once-per-game suit
+	local ok, err = launch(def, wave.key, true)
 
 	if ok then
 		if def.close then
-			return true, "spawning right in front of you"
+			return true, "spawning right in front of you" .. (Director.held_count() > 0 and " when its sound ends" or "")
 		end
 
 		return true, Execute.uses_ring() and "no spawn points on this level (Psykhanium?): spawning on a ring 10-30 m around you, NOT hidden" or nil
 	end
 
 	return ok, err
+end
+
+-- /rw_drawtest and /rw_fulltest (2026-10-04): a staged draw to test the HUD. Three cards (the named one and two others of the draw)
+-- are dealt as a real hand and the named one is picked STAGE_SECONDS later, as if the draw had chosen it: the Spread, the roulette,
+-- the banner, the murmur and the Last Card all play. `full`: its sound plays and its wave spawns after it (a test: no cooldown, no
+-- once-per-game); otherwise nothing is sent and nothing sounds. The cycle then goes on where it was.
+local STAGE_SECONDS = 3
+
+Director.stage_draw = function (key, full)
+	if not Director.is_host() then
+		return false, "only the host can stage a draw"
+	end
+
+	if stopped or not started or not host_state then
+		return false, "the waves are not running (use /rw_start in a mission)"
+	end
+
+	if paused then
+		return false, "the waves are paused (/rw_pause off first)"
+	end
+
+	if host_state.staged then
+		return false, "a staged draw is already showing"
+	end
+
+	local wave, find_error = Events.find(key, get_setting, Groups)
+
+	if not wave then
+		return false, find_error
+	end
+
+	local pool, target, others = Events.build_pool(get_setting, Groups, Director.extra_waves()), nil, {}
+
+	for i = 1, #pool do
+		if pool[i].key == wave.key then
+			target = pool[i]
+		else
+			others[#others + 1] = pool[i]
+		end
+	end
+
+	-- a card that is out of the draw is shown all the same
+	target = target or { key = wave.key, name = wave.name, def = Events.spawn_def(wave), raw = tonumber(wave.pct) or 0, cooldown = tonumber(wave.cooldown) or Cards.DEFAULT_COOLDOWN, pct = tonumber(wave.pct) or 0 }
+
+	if full and not Events.has_content(wave) then
+		return false, "that card has no enemies or effects yet"
+	end
+
+	local entries = { target }
+
+	while #entries < 3 and #others > 0 do
+		entries[#entries + 1] = table.remove(others, math.random(1, #others))
+	end
+
+	-- the named card takes a random place in the hand
+	local place = math.random(1, #entries)
+
+	entries[1], entries[place] = entries[place], entries[1]
+
+	local cards = {}
+
+	for i = 1, #entries do
+		cards[i] = card_of(entries[i])
+	end
+
+	ballot_seq = ballot_seq + 1
+	host_state = {
+		phase = "hand",
+		mode = "tarot",
+		remaining = STAGE_SECONDS,
+		hand_window = STAGE_SECONDS,
+		hand_seconds = STAGE_SECONDS,
+		ballot_id = ballot_seq,
+		chosen = "",
+		cands = {},
+		hand = { cards = cards, win = place, seq = ballot_seq },
+		drawn = false,
+		drawn_age = 0,
+		staged = { full = full == true, saved = host_state },
+	}
+	Votes.close()
+	mark_changed()
+
+	return true, wave.name
 end
 
 Director.simulate = function (rolls)
