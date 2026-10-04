@@ -543,7 +543,8 @@ local fxw = el._widgets_by_name.fx
 check("rot: the effects are shown, the banner is gone", fxw.visible and not banner.visible and fxw.style.wash.visible)
 check("rot: the winner browns, the others are gone", c(3).color_intensity_multiplier < 1 and c(1).alpha_multiplier == 0)
 check("rot: the card layer keeps its shape (no sag, only the 6 percent of the pop)", near(c(3).style.bg.size[2], 76 * 1.06, 0.01))
-check("rot: the winner's cooldown sets its rot (120 s: strength 0.46, 2.0 s)", near(el._T.k, 0.4627, 0.001) and near(el._T.rot, 1.2 + 1.8 * 0.4627, 0.01), el._T.rot)
+-- (the longest cooldown is 30 minutes by default since 2026-10-04: log(120 / 30) / log(1800 / 30) = 0.3386)
+check("rot: the winner's cooldown sets its rot (120 s of a 30 minute longest: strength 0.34, 1.8 s)", near(el._T.k, 0.3386, 0.001) and near(el._T.rot, 1.2 + 1.8 * 0.3386, 0.01), el._T.rot)
 local circles_or_rects = 0
 for i = 1, 5 do if fxw.style["blot_" .. i .. "_1"].visible and fxw.style["blot_" .. i .. "_4"].visible then circles_or_rects = circles_or_rects + 1 end end
 check("rot: soft blotches (four rings each) have started to grow", circles_or_rects >= 1, circles_or_rects)
@@ -968,7 +969,8 @@ do
     end
   end
   check("last card: one movable node (custom_hud lists every non-root node), one widget, every pass starts hidden, only fonts that exist", sg_nodes == 1 and LastDefs.scenegraph_definition.panel ~= nil and LastDefs.widget_definitions.last ~= nil and hidden and fonts_known, sg_nodes)
-  check("last card: the node sits to the right of the Spread and reserves a compact card face", LastDefs.scenegraph_definition.panel.position[1] >= 610 + 700 and LastDefs.scenegraph_definition.panel.size[1] == 176 and LastDefs.scenegraph_definition.panel.size[2] == 250)
+  -- (2026-10-04: the card "in the hand" of the design page, 240 wide)
+  check("last card: the node sits to the right of the Spread and reserves the hand card (240 x 160)", LastDefs.scenegraph_definition.panel.position[1] >= 610 + 700 and LastDefs.scenegraph_definition.panel.size[1] == 240 and LastDefs.scenegraph_definition.panel.size[2] == 160)
 
   settings.hud_last_card, settings.hud_enabled, settings.tarot_font = nil, nil, nil
   local el = new_last()
@@ -981,12 +983,22 @@ do
   current_view = last_view(tower, 1, 5.9)
   last_frame(el)
   check("last card: the window shows when a card went out: caption, how long ago (rounded down), name, whisper in quotes, modifiers hidden", w.visible and w.content.kicker == "HUD_LAST_CARD" and w.content.age == "hud_last_ago:0:05" and w.content.name == "The Tower" and w.content.whisper == "\"Pop, pop, pop.\"" and w.content.mods == "" and not w.style.mods.visible, tostring(w.content.age))
-  check("last card: the card takes its suit's colours (blight: face #25240c, bar #e3cf4a, name #ebe6bf) and the window's frame is the suit's", w.style.card_bg.color[2] == 0x25 and w.style.card_bg.color[3] == 0x24 and w.style.card_accent.color[2] == 0xe3 and w.style.name.text_color[2] == 0xeb and w.style.win_t.color[2] == 0x3a and w.style.win_l.color[3] == 0x44 and w.style.bg.color[2] == 10)
+  check("last card: the card takes its suit's colours (blight: face #25240c, bar #e3cf4a, name #ebe6bf); no window around it", w.style.card_bg.color[2] == 0x25 and w.style.card_bg.color[3] == 0x24 and w.style.card_accent.color[2] == 0xe3 and w.style.name.text_color[2] == 0xeb and not w.style.win_t.visible and not w.style.win_l.visible and not w.style.bg.visible)
   check("last card: the card has an outline of its own in the suit's frame colour (blight #5c5a1e), the window a neutral line and a panel darker than any card", w.style.rare_t.visible and w.style.rare_t.color[2] == 0x5c and w.style.rare_t.color[3] == 0x5a and w.style.rare_t.size[2] == 1 and w.style.rare_l.size[1] == 1)
-  check("last card: a card is 176 wide, the node 176 wide and as tall as its content, the card inside it", w.style.card_bg.size[1] == 176 and w.style.card_bg.offset[1] == 0 and w.style.card_bg.offset[2] == 24 and w.style.bg.size[1] == 176 and not w.style.bg.visible and not w.style.win_b.visible)
+  check("last card: the card is 240 wide under the caption, the accent bar on its left, as tall as its content", w.style.card_bg.size[1] == 240 and w.style.card_bg.offset[1] == 0 and w.style.card_bg.offset[2] == 22 and w.style.card_accent.size[1] == Spread.ACCENT_WIDTH and w.style.card_accent.size[2] == w.style.card_bg.size[2] and w.style.card_bg.size[2] < 120 and not w.style.win_b.visible)
+  do
+    local L = LastDefs.LAYOUT
+    local bg, nm, wh = w.style.card_bg, w.style.name, w.style.whisper
+    local icon_x = math.huge
+    for i = 1, Spread.ICON_TRIS do local st = w.style["icon_t" .. i]; if st.visible then icon_x = math.min(icon_x, st.offset[1]) end end
+    for i = 1, Spread.ICON_CIRCS do local st = w.style["icon_c" .. i]; if st.visible then icon_x = math.min(icon_x, st.offset[1]) end end
+    check("last card: the name at the top left after the bar, the suit mark at the top right (no ring, no disc)", nm.offset[1] == Spread.ACCENT_WIDTH + L.pad_x and nm.offset[2] == bg.offset[2] + L.pad_y and nm.font_size == L.name_font and icon_x >= nm.offset[1] + nm.size[1] and icon_x < 240 and not w.style.sigil_ring.visible and not w.style.sigil_disc.visible)
+    check("last card: the diamonds under the name, the whisper under them, inside the card and drawn over its face", w.style.th_o1.offset[2] > nm.offset[2] + nm.size[2] - 6 and wh.offset[2] > w.style.th_o1.offset[2] and wh.offset[2] + wh.size[2] <= bg.offset[2] + bg.size[2] and wh.offset[3] > bg.offset[3] and wh.font_size == L.whisper_font)
+    check("last card: an ordinary card's whisper is muted", wh.text_color[2] == 0x98 and wh.text_color[3] == 0x93)
+  end
   local ok_in, why_in = inside(el)
   check("last card: nothing is drawn outside the node", ok_in, why_in)
-  check("last card: threat diamonds are filled up to the threat in its colour (3: light yellow) and the rest dimmed; one dot per enemy colour", w.style.th_o3.color[2] == 227 and w.style.th_o3.color[1] == 255 and w.style.th_o4.visible and w.style.th_o4.color[1] == 64 and (function() local n = 0 for j = 1, 6 do if w.style["dot_" .. j].visible then n = n + 1 end end return n == 2 end)())
+  check("last card: threat diamonds are filled up to the threat in its colour (3: light yellow), the rest outlines; one dot per enemy colour at the right", w.style.th_o3.color[2] == 227 and w.style.th_o3.color[1] == 255 and w.style.th_o4.visible and w.style.th_o4.color[1] == 40 and w.style.th_h4.color[1] == 120 and w.style.dot_2.offset[1] + w.style.dot_2.size[1] <= 240 - LastDefs.LAYOUT.pad_x + 0.01 and (function() local n = 0 for j = 1, 6 do if w.style["dot_" .. j].visible then n = n + 1 end end return n == 2 end)())
   check("last card: the suit mark is drawn (blight: a drop of triangles and circles) and an ordinary card does not glow", (function() local any = false for i = 1, Spread.ICON_TRIS do if w.style["icon_t" .. i].visible then any = true end end for i = 1, Spread.ICON_CIRCS do if w.style["icon_c" .. i].visible then any = true end end return any end)() and not w.style.glow.visible)
   audit_ok("last card", el)
 
@@ -1006,7 +1018,8 @@ do
   -- Heresy: the frame at rest and the glow, as in the Spread
   current_view = last_view(lc("h", "The Turncoat", "heresy", 4, { "renegade_shocktrooper" }, "He does not answer."), 3, 1)
   last_frame(el)
-  check("last card: a Heresy card keeps its blood-red frame (two units) and its glow in the window too, and the window's own line stays neutral", w.style.rare_t.visible and w.style.rare_t.size[2] == 2 and w.style.rare_t.color[2] == 0x8a and w.style.glow.visible and w.style.glow.color[2] == 0x8a and w.style.win_t.color[2] == 0x3a and w.style.card_bg.color[2] == 0x0d)
+  check("last card: a Heresy card keeps its blood-red frame (two units) and its glow, and there is no window line", w.style.rare_t.visible and w.style.rare_t.size[2] == 2 and w.style.rare_t.color[2] == 0x8a and w.style.glow.visible and w.style.glow.color[2] == 0x8a and not w.style.win_t.visible and w.style.card_bg.color[2] == 0x0d)
+  check("last card: Heresy's whisper is in its crimson", w.style.whisper.text_color[2] == 0xd4 and w.style.whisper.text_color[3] == 0x2a)
   current_view = last_view(lc("f", "Old Pox", "fester", 2, {}, ""), 4, 1)
   last_frame(el)
   check("last card: a card an older host calls fester is Heresy", w.style.card_bg.color[2] == 0x0d and w.style.rare_t.visible and w.style.whisper.visible == false and w.style.mods.visible == false)
@@ -1016,7 +1029,7 @@ do
   current_view = last_view(lc("m", "The Watching Moon", "murmur", 2, { "renegade_sniper", "chaos_poxwalker" }, "Someone is counting you, forever.", "Purple \194\183 Enraged \194\183 Custom"), 5, 12)
   last_frame(el)
   local ok_in2, why_in2 = inside(el)
-  check("last card: a three-line name with a two-line whisper fits inside the card face", ok_in2 and w.style.bg.size[2] <= LastDefs.HEIGHT and w.style.whisper.visible and not w.style.mods.visible and w.style.whisper.offset[2] + w.style.whisper.size[2] <= w.style.card_bg.offset[2] + w.style.card_bg.size[2], why_in2)
+  check("last card: a long name (two lines at most) with a two-line whisper fits inside the card face and the node", ok_in2 and w.style.card_bg.offset[2] + w.style.card_bg.size[2] <= LastDefs.HEIGHT and w.style.name.size[2] <= 2 * LastDefs.LAYOUT.name_line + 4 and w.style.whisper.visible and not w.style.mods.visible and w.style.whisper.offset[2] + w.style.whisper.size[2] <= w.style.card_bg.offset[2] + w.style.card_bg.size[2], why_in2)
 
   current_view = last_view(lc("long-mods", "The Watching Moon", "murmur", 2, {}, "Someone is counting you, forever.", string.rep("Enraged ", 12)), 51, 12)
   last_frame(el)
@@ -1025,7 +1038,12 @@ do
   for i,suit in ipairs({"heresy","prayer","miracle","grace","faith"}) do
     local card=lc("bless-"..i,"The Light",suit,6,{},"Carry the light.","Purple")
     current_view=last_view(card,60+i,1);last_frame(el)
-    check("last card: full special face and the sixth diamond's edge (DESPAIR lilac on Heresy, APOTHEOSIS warm white on blessings) "..suit,w.style.th_o6.visible and w.style.th_h6.color[2]==(suit=="heresy" and 0xc7 or 0xff) and w.style.sigil_ring.visible and not w.style.mods.visible and not w.style.bg.visible and inside(el))
+    check("last card: full special face and the sixth diamond's edge (DESPAIR lilac on Heresy, APOTHEOSIS warm white on blessings), no dots without enemies "..suit,w.style.th_o6.visible and w.style.th_h6.color[2]==(suit=="heresy" and 0xc7 or 0xff) and not w.style.sigil_ring.visible and not w.style.dot_1.visible and not w.style.mods.visible and not w.style.bg.visible and inside(el))
+  end
+  do
+    local card=lc("faith-w","The Magician","faith",3,{},"Believe, and endure.")
+    current_view=last_view(card,70,1);last_frame(el)
+    check("last card: only Heresy colours its whisper (Faith's is muted, as on the design page)",w.style.whisper.text_color[2]==0x98)
   end
   settings.hud_last_transparency=75;settings.hud_transparency=0;last_frame(el)
   check("last card: independent transparency changes without new card",w.alpha_multiplier==0.25)
