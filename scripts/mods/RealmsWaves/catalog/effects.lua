@@ -27,8 +27,10 @@ Effects.ORDER = {
 	{ id = "yellow_stimm", name = "Items: give Yellow Stimm", short = "Yellow Stimm item", max = 4, default = 4, unit = "players", category = "Items" },
 	{ id = "blue_stimm_item", name = "Items: give Blue Stimm", short = "Blue Stimm item", max = 4, default = 4, unit = "players", category = "Items" },
 	{ id = "red_stimm_item", name = "Items: give Red Stimm", short = "Red Stimm item", max = 4, default = 4, unit = "players", category = "Items" },
-	-- Raise the fallen (2026-10-04): one knocked-down player and one hogtied one, no amount to choose
-	{ id = "revive", name = "Game Effects: raise the fallen", short = "Raise the fallen", max = 1, default = 1, unit = "players", category = "Game Effects", fixed = true },
+	-- Raise the fallen (2026-10-04, second version): ONE hogtied player is rescued and brought to the nearest living player; no amount
+	-- to choose. Instant rescue: the next N players who go down are helped up at once.
+	{ id = "revive", name = "Game Effects: rescue a hogtied player", short = "Raise the fallen", max = 1, default = 1, unit = "players", category = "Game Effects", fixed = true },
+	{ id = "instant_rescue", name = "Game Effects: instant rescue", short = "Instant rescue", max = 4, default = 1, unit = "players", category = "Game Effects" },
 	{ id = "ammo", name = "Game Effects: refill ammunition", short = "Refill ammunition", max = 100, default = 100, unit = "percent", category = "Game Effects" },
 	{ id = "grenades", name = "Game Effects: replenish grenades", short = "Replenish grenades", max = 6, default = 2, unit = "grenades", category = "Game Effects" },
 	{ id = "ammo_crate", name = "Game Effects: give Ammo Crates", short = "Ammo Crates", max = 4, default = 4, unit = "players", category = "Game Effects" },
@@ -80,7 +82,7 @@ for _, category in ipairs(Effects.CATEGORIES) do category_rgb[category.id] = cat
 Effects.category_rgb = function (id) return category_rgb[id] end
 -- The amount in front of an effect's name, as the card shows it: "95%", "15s", "4"
 Effects.lead = function (def, value)
-	if def.fixed then return "1+1" end -- (Raise the fallen: one downed and one hogtied)
+	if def.fixed then return "1" end -- (Raise the fallen: one hogtied player)
 	return def.unit == "percent" and (value .. "%") or def.unit == "seconds" and (value .. "s") or tostring(value)
 end
 -- The card's lines (2026-10-04, the design page): "95% Party health", the amount in the bone colour and the name in its group's colour

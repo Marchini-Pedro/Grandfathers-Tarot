@@ -7,6 +7,7 @@ local clock, cadence, reveal_until, blackout_until = 0, 0, 0, 0
 local lights, buffs, outlines, audio = {}, {}, {}, {}
 local sequence, received, warned = 0, nil, {}
 local grants, grant_sequence, grant_received = {}, 0, nil
+local rescues_left = 0 -- Instant rescue: how many of the next players to go down are helped up at once (host)
 local revision, received_revision, received_time = 0, nil, nil
 local REVEAL = "rw_guidance"
 local function alive(unit) return unit and Unit.alive(unit) and (not HEALTH_ALIVE or HEALTH_ALIVE[unit] ~= false) end
@@ -177,31 +178,77 @@ local function recharge(list, charges)
 	nearest:sync_charge_amount()
 	return true
 end
--- Raise the fallen (2026-10-04: one knocked-down player AND one hogtied one). A knocked-down player is helped up the way a Veteran's
--- shout and the servo skull do it (assisted_state_input.force_assist, scripts/extension_systems/ability/utilities/shout_ability.lua);
--- a hogtied one is freed the way the rescue interaction does it on the host (assisted_state_input.success and
--- hogtied_state_input.hogtie = false, scripts/extension_systems/interaction/interactions/rescue_interaction.lua). Never the netted,
--- pounced or dead, nor a player someone is already helping; `count` of each, in the party's stable order.
+-- Raise the fallen (2026-10-04, second version, the user: "rescue one hogtied player and teleport them to the nearest alive player";
+-- the downed revive is gone, Instant rescue does that). The hogtied player is freed by the native assist with force_assist: the
+-- hogtied state's Assist (character_states/utilities/assist.lua) only completes an assist it has started, from an interaction or
+-- force_assist; writing `success` alone did nothing (the first version's bug, seen in game). The player is then brought to the
+-- nearest living player who is up: the host moves its own player and the bots (PlayerMovement.teleport); a remote human's own game
+-- does it from the effects journal (a "teleport" grant, below), since a human's movement is theirs. Never a player already being
+-- helped; `count` (1) of them, in the party's stable order.
+local function state_of(unit)
+	local data = ext(unit, "unit_data_system")
+	return data, data and data:read_component("character_state")
+end
+local function nearest_standing(list, unit, Status)
+	local best, best_d = nil, math.huge
+	for _, other in ipairs(list) do
+		local _, state = state_of(other.unit)
+		if other.unit ~= unit and state and not Status.is_hogtied(state) and not Status.is_knocked_down(state) and not (Status.is_disabled and Status.is_disabled(state)) then
+			local d = Vector3.distance_squared(Unit.world_position(other.unit, 1), Unit.world_position(unit, 1))
+			if d < best_d then best, best_d = other.unit, d end
+		end
+	end
+	return best
+end
+local function bring(unit, position)
+	local spawn = Managers.state.player_unit_spawn
+	local player = spawn and spawn:owner(unit)
+	if not player then return false end
+	if not player.remote or not player:is_human_controlled() then
+		require("scripts/utilities/player_movement").teleport(player, position)
+		return true
+	end
+	local object = Managers.state.unit_spawner and Managers.state.unit_spawner:game_object_id(unit)
+	if not object then return false end
+	-- (old peers read a grant as an ability restore of entry[2] percent: 0, harmless)
+	grant_sequence = grant_sequence + 1
+	grants[#grants + 1] = { grant_sequence, 0, { object }, "teleport", { position.x, position.y, position.z } }
+	if #grants > 64 then table.remove(grants, 1) end
+	return true
+end
+Effects.bring = bring
 local function revive(list, count)
 	local Status = require("scripts/utilities/attack/player_unit_status")
-	local raised, freed = 0, 0
+	local freed = 0
 	for _, player in ipairs(list) do
-		local data = ext(player.unit, "unit_data_system")
-		local state = data and data:read_component("character_state")
+		local data, state = state_of(player.unit)
 		local input = state and data:write_component("assisted_state_input")
-		if input and not Status.is_assisted(input) then
-			if raised < count and Status.is_knocked_down(state) then
-				input.force_assist = true
-				raised = raised + 1
-			elseif freed < count and Status.is_hogtied(state) then
-				input.success = true
-				data:write_component("hogtied_state_input").hogtie = false
-				freed = freed + 1
+		if freed < count and input and not Status.is_assisted(input) and Status.is_hogtied(state) then
+			input.force_assist = true
+			freed = freed + 1
+			local near = nearest_standing(list, player.unit, Status)
+			if near then
+				local ok, err = pcall(bring, player.unit, Unit.world_position(near, 1))
+				if not ok then warn("the rescued player was not brought back: " .. tostring(err)) end
 			end
 		end
 	end
-	return raised + freed > 0, "nobody is knocked down or hogtied"
+	return freed > 0, "nobody is hogtied"
 end
+-- Instant rescue: the next players to go down are helped up at once (checked every quarter second on the host, Effects.update)
+local function instant_rescue(list)
+	local Status = require("scripts/utilities/attack/player_unit_status")
+	for _, player in ipairs(list) do
+		if rescues_left <= 0 then return end
+		local data, state = state_of(player.unit)
+		local input = state and Status.is_knocked_down(state) and data:write_component("assisted_state_input")
+		if input and not Status.is_assisted(input) and not input.force_assist then
+			input.force_assist = true
+			rescues_left = rescues_left - 1
+		end
+	end
+end
+Effects.rescues_left = function () return rescues_left end
 -- Replenish grenades: `charges` grenade charges for every living player, on the host as the grenade pickup does it
 -- (scripts/extension_systems/interaction/interactions/grenade_interaction.lua: restore_ability_charge("grenade_ability")). A player
 -- without a grenade ability, or whose grenades are full, gets nothing.
@@ -234,6 +281,7 @@ local function apply(id, effect, list)
 	if id == "revive" then return revive(list, effect.value) end
 	if id == "ammo" then return refill(list, effect.value) end
 	if id == "grenades" then return grenades(list, effect.value) end
+	if id == "instant_rescue" then rescues_left = math.min(4, rescues_left + effect.value); return true end
 	if id == "reveal" then reveal_until = math.max(reveal_until, clock + effect.value); return true end
 	if id == "med_station" then return recharge(list, effect.value) end
 	if id == "cooldown" then
@@ -367,6 +415,10 @@ Effects.update = function (dt, paused)
 		end
 	end
 	update_reveal()
+	if rescues_left > 0 and host() then
+		local ok, err = pcall(instant_rescue, players())
+		if not ok then warn("instant rescue: " .. tostring(err)) end
+	end
 end
 Effects.snapshot = function () return { revision = revision, time = clock, reveal = math.max(0, reveal_until - clock), sequence = sequence, audio = audio, grants = grants, grant_sequence = grant_sequence } end
 Effects.receive = function (state)
@@ -385,7 +437,18 @@ Effects.receive = function (state)
 			local list, spawner = players(), Managers.state.unit_spawner
 			for i = 1, math.min(64, #state.grants) do
 				local entry = state.grants[i]
-				if type(entry) == "table" and type(entry[1]) == "number" and entry[1] > grant_received and entry[1] <= grant_seq and type(entry[3]) == "table" then
+				if type(entry) == "table" and entry[4] == "teleport" and type(entry[1]) == "number" and entry[1] > grant_received and entry[1] <= grant_seq and type(entry[3]) == "table" and type(entry[5]) == "table" then
+					-- Raise the fallen: this player's own game brings them to the others
+					local p = entry[5]
+					for _, player in ipairs(list) do
+						local ability = ext(player.unit, "ability_system")
+						if ability and ability._is_local_unit and spawner and entry[3][1] == spawner:game_object_id(player.unit) and type(p[1]) == "number" and type(p[2]) == "number" and type(p[3]) == "number" then
+							local owner = Managers.state.player_unit_spawn and Managers.state.player_unit_spawn:owner(player.unit)
+							local ok, err = pcall(function () require("scripts/utilities/player_movement").teleport(owner, Vector3(p[1], p[2], p[3])) end)
+							if not ok then warn(tostring(err)) end
+						end
+					end
+				elseif type(entry) == "table" and type(entry[1]) == "number" and entry[1] > grant_received and entry[1] <= grant_seq and type(entry[3]) == "table" then
 					local amount = Schema.number(entry[2], 100)
 					for _, player in ipairs(list) do
 						local ability = ext(player.unit, "ability_system")
@@ -420,6 +483,7 @@ Effects.cancel = function ()
 	for unit, record in pairs(outlines) do remove_outline(unit, record) end
 	for _, buff in ipairs(buffs) do if alive(buff.unit) and buff.extension:has_running_buff_with_index(buff.index, buff.component) then pcall(buff.extension.remove_externally_controlled_buff, buff.extension, buff.index, buff.component) end end
 	buffs = {}
+	rescues_left = 0
 end
 Effects.reset = function () Effects.cancel(); chain = {}; clock, sequence, received, audio = 0, 0, nil, {}; grants, grant_sequence, grant_received = {}, 0, nil; revision, received_revision, received_time = 0, nil, nil end
 return Effects

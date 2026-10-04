@@ -188,15 +188,16 @@ check("disabled effects stay parsed and encoded but are not allowed", Schema.par
 systems.health_station_system=nil
 check("four beneficial suits including Faith; categories are Healing, Buffs, Items and Game Effects", Schema.beneficial("faith") and Schema.CATEGORIES[2].id=="Buffs" and Schema.CATEGORIES[3].id=="Items" and Schema.CATEGORIES[4].id=="Game Effects" and Schema.definition("cooldown").category=="Buffs" and Schema.definition("blue_stimm").category=="Buffs" and Schema.definition("blue_stimm_item").category=="Items" and Schema.definition("revive").category=="Game Effects")
 -- the card's lines (2026-10-04, the design page): the amount first, then the short name
-check("summary: amount then name", Schema.summary({revive={value=2,players=4}})=="1+1 Raise the fallen" and Schema.summary({ammo={value=50,players=4}})=="50% Refill ammunition" and Schema.summary({reveal={value=15,players=4}})=="15s Reveal Specialists")
+check("summary: amount then name", Schema.summary({revive={value=2,players=4}})=="1 Raise the fallen" and Schema.summary({ammo={value=50,players=4}})=="50% Refill ammunition" and Schema.summary({reveal={value=15,players=4}})=="15s Reveal Specialists")
 local tags = {}
 local marked = Schema.summary({heal={value=95,players=4},reveal={value=15,players=4}}, nil, nil, function (text, rgb) tags[#tags + 1] = text .. "=" .. table.concat(rgb, ","); return "<" .. text .. ">" end, {1,2,3})
 check("summary: colour tags, the amount in the text colour and the name in its group's", marked == "<95%> <Party health>\n<15s> <Reveal Specialists>" and tags[1] == "95%=1,2,3" and tags[2] == "Party health=98,200,106" and tags[4] == "Reveal Specialists=108,180,255", marked)
 check("summary: hostile Blackout is not a line; a name cut to the characters; +N more", Schema.summary({blackout={value=15,players=4}}) == "" and Schema.summary({cleanse={value=100,players=4}}, nil, 14) == "100% Health..." and Schema.summary({heal={value=5,players=4},cleanse={value=5,players=4},reveal={value=5,players=4}}, 2) == "5% Party health\n+2 more")
 local dots = Schema.dots({heal={value=5,players=4},cleanse={value=5,players=4},ammo={value=5,players=4},blackout={value=5,players=4}})
 check("dots: one per group of the card's effects, in group order", #dots == 2 and dots[1][1] == 98 and dots[2][1] == 240 and #Schema.dots(nil) == 0)
--- Raise the fallen (2026-10-04): ONE knocked-down player (the native assisted-state input) and ONE hogtied player (the rescue
--- interaction's writes on the host), never the netted, never twice, never one someone is already helping
+-- Raise the fallen (2026-10-04, second version): ONE hogtied player is rescued by the native assist (force_assist; `success` alone
+-- did nothing in game) and brought to the nearest standing player: the host moves its own player and bots, a remote human's own game
+-- does it from a "teleport" grant. Downed players are left to Instant rescue.
 for _,p in ipairs({p1,p2,p3}) do
   local data=p.extensions.unit_data_system
   p.state={state_name="walking"}; p.assist={force_assist=false,in_progress=false,success=false}; p.hog={hogtie=true}
@@ -204,19 +205,69 @@ for _,p in ipairs({p1,p2,p3}) do
   data.write_component=function(_,name) if name=="hogtied_state_input" then return p.hog end assert(name=="assisted_state_input");return p.assist end
 end
 package.preload["scripts/utilities/attack/player_unit_status"]=function() return {
-  is_knocked_down=function(c) return c.state_name=="knocked_down" end, is_hogtied=function(c) return c.state_name=="hogtied" end, is_assisted=function(a) return a.in_progress end } end
-check("raise the fallen: its amount is fixed (one downed and one hogtied), whatever a card text says", Schema.definition("revive").fixed and Schema.parse("revive=4:4").revive.value==1)
-check("nobody down: raise the fallen fails without touching anyone", not start(effect("revive",1)) and not p1.assist.force_assist and p1.hog.hogtie)
-p1.state.state_name="knocked_down";p2.state.state_name="knocked_down";p3.state.state_name="netted"
-check("raise the fallen lifts one knocked-down player, not two, and not a netted one", start(effect("revive",1)) and p1.assist.force_assist and not p2.assist.force_assist and not p3.assist.force_assist)
-p1.assist.force_assist=false;p1.assist.in_progress=true
-check("a player already being helped is skipped", start(effect("revive",1)) and not p1.assist.force_assist and p2.assist.force_assist and not p3.assist.force_assist)
-p1.assist.in_progress=false;p2.assist.force_assist=false
-p1.state.state_name="hogtied";p2.state.state_name="knocked_down";p3.state.state_name="hogtied"
-check("raise the fallen also frees ONE hogtied player, as the rescue does (assist success, hogtie off); the second stays tied", start(effect("revive",1)) and p1.assist.success and p1.hog.hogtie==false and p2.assist.force_assist and not p3.assist.success and p3.hog.hogtie==true)
-p1.assist.success=false;p1.hog.hogtie=true;p2.assist.force_assist=false;p2.state.state_name="walking"
-check("only hogtied players: one is freed and the effect counts as done", start(effect("revive",1)) and p1.assist.success and not p3.assist.success)
-p1.assist.success=false;p1.state.state_name="walking";p2.state.state_name="walking";p3.state.state_name="walking";p1.hog.hogtie=true
+  is_knocked_down=function(c) return c.state_name=="knocked_down" end, is_hogtied=function(c) return c.state_name=="hogtied" end,
+  is_disabled=function(c) return c.state_name=="netted" end, is_assisted=function(a) return a.in_progress end } end
+local moved={}
+package.preload["scripts/utilities/player_movement"]=function() return { teleport=function(player,pos) moved[#moved+1]={player,pos} end } end
+local owners={}
+Managers.state.player_unit_spawn={owner=function(_,u) return owners[u] end}
+local function owner(u,remote,human) owners[u]={unit=u,remote=remote,is_human_controlled=function() return human end} end
+owner(p1,false,true);owner(p2,true,true);owner(p3,false,false)
+local real_distance, real_wp, real_v3 = Vector3.distance_squared, Unit.world_position, Vector3
+Unit.world_position=function(u) return {x=u.position or 0,y=0,z=0} end
+Vector3.distance_squared=function(a,b) return (a.x-b.x)^2 end
+check("raise the fallen: its amount is fixed (one hogtied player), whatever a card text says", Schema.definition("revive").fixed and Schema.parse("revive=4:4").revive.value==1)
+check("nobody hogtied: raise the fallen fails without touching anyone", not start(effect("revive",1)) and not p1.assist.force_assist and #moved==0)
+p1.state.state_name="knocked_down";p2.state.state_name="knocked_down"
+check("raise the fallen leaves a downed player alone (Instant rescue does that)", not start(effect("revive",1)) and not p1.assist.force_assist and not p2.assist.force_assist)
+p1.state.state_name="hogtied";p2.state.state_name="walking";p3.state.state_name="hogtied"
+p1.position,p2.position,p3.position=0,50,3
+check("raise the fallen rescues ONE hogtied player with the native forced assist (the second stays tied)", start(effect("revive",1)) and p1.assist.force_assist and not p3.assist.force_assist)
+check("...and the host brings its own player to the nearest standing player (p2; p3 is tied too)", #moved==1 and moved[1][1]==owners[p1] and moved[1][2].x==50)
+p1.assist.force_assist=false;p1.state.state_name="walking";p3.state.state_name="walking"
+p2.state.state_name="hogtied";p2.position=10;p1.position=40;p3.position=12
+Managers.state.unit_spawner.game_object_id=function(_,u) return u.id end
+local before_grants=#E.snapshot().grants
+check("a remote human is rescued too, and brought by a teleport grant to the nearest standing player (p3 at 12, not p1 at 40)", start(effect("revive",1)) and p2.assist.force_assist and #moved==1 and #E.snapshot().grants==before_grants+1 and E.snapshot().grants[#E.snapshot().grants][4]=="teleport" and E.snapshot().grants[#E.snapshot().grants][5][1]==12 and E.snapshot().grants[#E.snapshot().grants][2]==0)
+p2.assist.force_assist=false
+p2.assist.in_progress=true
+check("a hogtied player someone is already helping is skipped", not start(effect("revive",1)) and not p2.assist.force_assist)
+p2.assist.in_progress=false;p1.state.state_name="netted";p3.state.state_name="knocked_down"
+check("with nobody standing the rescue still happens, without a teleport", start(effect("revive",1)) and p2.assist.force_assist and #moved==1 and #E.snapshot().grants==before_grants+1)
+p2.assist.force_assist=false;p1.state.state_name="walking";p2.state.state_name="walking";p3.state.state_name="walking"
+-- Instant rescue: the next N players who go down are helped up at once, checked every quarter second; nothing for those already up
+check("instant rescue: armed with its count, at most four", start(effect("instant_rescue",2)) and E.rescues_left()==2 and start(effect("instant_rescue",4)) and E.rescues_left()==4)
+E.cancel();check("instant rescue: stop disarms it", E.rescues_left()==0)
+start(effect("instant_rescue",1));E.update(0.3)
+check("instant rescue: nobody down, nothing happens, still armed", E.rescues_left()==1 and not p1.assist.force_assist)
+p2.state.state_name="knocked_down";p3.state.state_name="knocked_down";E.update(0.3)
+check("instant rescue: the first player to go down is helped up at once (native forced assist), the count is used up", p2.assist.force_assist and not p3.assist.force_assist and E.rescues_left()==0)
+p2.assist.force_assist=false;E.update(0.3)
+check("instant rescue: used up, the next down player is not helped", not p3.assist.force_assist)
+p2.state.state_name="walking";start(effect("instant_rescue",1));p3.assist.in_progress=true;E.update(0.3)
+check("instant rescue: a player someone is already helping is skipped and the rescue stays armed", not p3.assist.force_assist and E.rescues_left()==1)
+p3.assist.in_progress=false;server=false;E.update(0.3);server=true
+check("instant rescue: only the host acts", not p3.assist.force_assist)
+E.update(0.3);check("instant rescue: the host helps the down player up", p3.assist.force_assist and E.rescues_left()==0)
+E.reset();check("instant rescue: reset disarms it", E.rescues_left()==0)
+p2.state.state_name="walking";p3.state.state_name="walking";p3.assist.force_assist=false
+-- a client brings its own player when the host's teleport grant reaches it; old grants are not replayed; another player's grant is ignored
+do
+  local cl=dofile(BASE .. "/core/effects.lua")
+  server=false;moved={}
+  p1.extensions.ability_system._is_local_unit=false;p2.extensions.ability_system._is_local_unit=true
+  Vector3=setmetatable({distance_squared=Vector3.distance_squared},{__call=function(_,x,y,z) return {x=x,y=y,z=z} end})
+  cl.receive({sequence=E.snapshot().sequence,grant_sequence=1,grants={}})
+  cl.receive({sequence=E.snapshot().sequence,grant_sequence=2,grants={{2,0,{p2.id},"teleport",{7,8,9}}}})
+  check("teleport grant: the remote player's own game brings them to the place the host chose", #moved==1 and moved[1][1]==owners[p2] and moved[1][2].x==7 and moved[1][2].z==9)
+  cl.receive({sequence=E.snapshot().sequence,grant_sequence=2,grants={{2,0,{p2.id},"teleport",{7,8,9}}}})
+  cl.receive({sequence=E.snapshot().sequence,grant_sequence=3,grants={{3,0,{p1.id},"teleport",{1,1,1}},{4,0,{p2.id},"teleport",{"x",1,1}}}})
+  check("teleport grant: never twice, never for another player, never with a broken place", #moved==1)
+  p1.extensions.ability_system._is_local_unit=true;p2.extensions.ability_system._is_local_unit=false
+  server=true
+  Vector3=real_v3
+end
+Vector3.distance_squared, Unit.world_position = real_distance, real_wp
 -- Refill ammunition: the native helper with a fraction, a full party reports nothing gained, one failing player is contained
 local ammo_calls={}
 package.preload["scripts/utilities/ammo"]=function() return { add_to_all_slots=function(u,f) ammo_calls[#ammo_calls+1]={u,f}; if u.ammo_error then error("no weapon system") end return u.ammo_gain or 0 end } end
@@ -411,7 +462,7 @@ do
   view:cb_fx_step(brow,"players",-1);check("effects UI: one player fewer",view._wave.effects.blue_stimm.players==3)
   view:cb_fx_number(brow,"players");PP.set_text(view,"2");PP.commit(view);check("effects UI: blue targets configurable in the box",view._wave.effects.blue_stimm.players==2)
   local ri=chip("revive");view:cb_fx_chip(ri)
-  check("effects UI: Raise the fallen (Game Effects) arrives as one downed and one hogtied, with no amount to step",view._wave.effects.revive.value==1 and (function() for i=1,6 do local w=W["rw_fxrow_"..i]; if row_name(w)=="Raise the fallen" and w.visible then return w.content.amount_value=="fx_fixed_revive" and row_lead(w)=="1+1" and w.content.amount_plus.disabled and w.content.amount_value_hotspot.disabled end end end)())
+  check("effects UI: Raise the fallen (Game Effects) arrives as one hogtied player brought back, with no amount to step",view._wave.effects.revive.value==1 and (function() for i=1,6 do local w=W["rw_fxrow_"..i]; if row_name(w)=="Raise the fallen" and w.visible then return w.content.amount_value=="fx_fixed_revive" and row_lead(w)=="1" and w.content.amount_plus.disabled and w.content.amount_value_hotspot.disabled end end end)())
   do
     local row;for i=1,6 do if row_name(W["rw_fxrow_"..i])=="Raise the fallen" and W["rw_fxrow_"..i].visible then row=i end end
     view:cb_fx_step(row,"value",1);view:cb_fx_number(row,"value")
@@ -420,7 +471,7 @@ do
   check("effects UI: the stimm buffs are in Buffs and the stimm items in Items, the new Game Effects there too",(function() local col={} for _,c in ipairs(EV.shelf_layout.chips) do col[c.def.id]=EV.shelf_layout.bands[c.column].id end return col.yellow_stimm_buff=="Buffs" and col.blue_stimm=="Buffs" and col.red_stimm_buff=="Buffs" and col.yellow_stimm=="Items" and col.blue_stimm_item=="Items" and col.red_stimm_item=="Items" and col.grenades=="Game Effects" and col.ammo_crate=="Game Effects" end)())
   view:cb_fx_remove(1);check("effects UI: Remove on a row takes its effect off",not view._wave.effects.heal and view._wave.effects.blue_stimm)
   check("effects UI: APOTHEOSIS: a beneficial card's sixth diamond is visible and not edged in Despair's lilac",W.rw_stage_card.style.th_o6.visible and W.rw_stage_card.style.th_h6.color[2]~=0xc7)
-  check("effects UI: the beneficial shelf ends above the timer and the action bar",WK.SHELF_Y+EV.shelf_layout.height<=view._definitions.scenegraph_definition.stepper_timer.position[2] and #EV.shelf_layout.chips==17)
+  check("effects UI: the beneficial shelf ends above the timer and the action bar",WK.SHELF_Y+EV.shelf_layout.height<=view._definitions.scenegraph_definition.stepper_timer.position[2] and #EV.shelf_layout.chips==18)
   -- the completion sound
   view:cb_sound_picker();check("effects UI: ranked searchable list opens at start, slot 1 open",view._screen=="sounds" and view._offset==0 and view._popup and view._sound_results[1].event=="" and W.rw_snd_slot1.visible and W.rw_snd_slot1.content.hotspot_on and W.rw_snd_search.visible)
   PP.set_text(view,"hound");PP.update(view,{get=function() return nil end,is_null_service=function()return false end})
