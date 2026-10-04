@@ -221,3 +221,10 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Floors added for the new overlay modules (75 and 82, just under what both runtimes measure); none lowered. Full runners pass every
   gate: Lua 5.5 2,460 assertions, 82.36%; LuaJIT 2.1 2,459 counted, 79.20%. Nothing tested in game yet.
 
+## 2026-10-04 — Restart crash and summoners (feature/cauldron-redesign)
+
+- From the console log of the crash: the game's summon action summons in `leave` even when the unit is destroyed; mission cleanup
+  and a despawn key destroyed a Packmaster mid-summon. Hooked: no summon while destroyed. A wave's summoners lead no patrol, summon
+  aggroed minions and are re-aggroed once a second. Entry tests for the hooks and the watcher. Full runners pass every gate:
+  Lua 5.5 2,465 assertions, 82.32%; LuaJIT 2.1 2,464 counted, 79.17%. Not yet tested in game.
+

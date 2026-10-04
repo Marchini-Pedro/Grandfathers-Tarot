@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-04 - Restart crash and the idle Packmaster (feature/cauldron-redesign)
+- Fixed a crash on Restart and an error on a despawn key: a summoner destroyed mid-summon no longer summons.
+- A wave's Packmaster no longer stands idle: no patrol, aggroed hounds, re-aggroed when it loses its target.
+- Both runners pass every gate (Lua 5.5 82.32% / LuaJIT 2.1 79.17%). Not yet tested in game.
+
 ## 2026-10-04 - Test commands, rehook warning, Nightmare's fog and dread, Draw HUD below boss bars (feature/cauldron-redesign)
 - Fixed "Attempting to rehook active hook [start_shooting]" at game start (each loaded table is hooked once).
 - /rw_test and /rw_test_close play the card's sound first; new /rw_drawtest (a staged draw, HUD only) and /rw_fulltest (with sound and wave).

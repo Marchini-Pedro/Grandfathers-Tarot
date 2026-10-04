@@ -403,3 +403,10 @@ Things we know are missing or unverified, each with the next concrete step.
 - **The boss health bars** are `HudElementBossHealth` (two bars at most, `_active_targets_array`), reachable from another element
   through the HUD (`self._parent:element(name)`); both are in the same HUD-scaled space.
 
+## 2026-10-04 — Summoners destroyed mid-summon
+
+- **`BtSummonMinionsAction.leave` summons even with `destroy` true.** Any despawn or mission cleanup that catches a Packmaster or a
+  radio operator inside its summon action spawns minions during teardown (crash: no camera; or a flood-fill error). Guard `leave`.
+- **The Packmaster is a mutator unit**: passive summoned hounds, a patrol, the summon above combat in its tree. A wave that spawns
+  it alone has to keep it aggroed; the game's console log (the Lua locals of the crash) showed the node it was in ("summon").
+

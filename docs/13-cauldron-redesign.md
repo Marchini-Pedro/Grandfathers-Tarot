@@ -162,6 +162,15 @@ effect), as before for any unknown id. The glow of Nightmare is a dark colour: w
 | The Spillway's whole-screen effect, black and grey and see-through, with a Nightmare card's sound; a toggle | The Spillway's effect is a mood (`spillway_nurgle_transition`: a shading environment and a screen particle in Nurgle green, `scripts/settings/camera/mood/mood_settings.lua`); its colours are baked and cannot be changed. `ui/hud_element_dread.lua` is the mod's own full-screen overlay instead: a black veil that breathes and flickers with the dying light (at most about 40 percent dark, so the screen stays readable), a feathered vignette (16 thin frames) and four banks of ash-grey fog drifting across, three layers each. It rises when a Nightmare card is drawn (every player: the draw is synced), holds about 5.5 s and fades by 8 s; a late joiner is not shown an old one. Option `nightmare_dread`. |
 | Nightmare's card: a black fog that periodically darkens all its content, very special | `Cards.fog`: a veil over the whole card (mostly clear, a slow surge every 7.4 s) and three banks of fog drifting down it, black, above everything on the card, in the Draw HUD, on the Deck tile and the stage card, and in the Last Card window (which now ticks every frame for it). |
 
+## Seventh round: the Restart crash, the despawn error, the idle Packmaster (2026-10-04)
+
+| Report | Cause and fix |
+| --- | --- |
+| Crash on Restart: `camera_manager.lua:536: bad argument #1 to 'camera'` | The console log's stack: mission cleanup destroyed a Packmaster in its summon action; the game's `BtSummonMinionsAction.leave` summons when the summon has not happened yet, even when the unit is being destroyed, so hounds were spawned while the level was torn down and the new unit's proximity extension asked for a camera that was gone. `Tuning.summon_leave` (a hook on `leave`) marks the summon done when `destroy` is true: a unit being destroyed never summons (the mod's or the game's). |
+| `[Keybindings] mod.despawn_units: bt_summon_minions_action.lua:222: flood_fill_from_position` (creature_spawner's despawn key while a mutant held you) | The same path: the despawn destroyed the Packmaster during its summon. Fixed by the same hook. |
+| The Pursuer's Packmaster (`1 packmaster{health=10 size=95 speed=135}`) did not move, no aggro | The Packmaster is the hound mutator's unit: it summons its hounds PASSIVE and sets them up as its patrol (`should_patrol`), and its tree puts the summon before combat; the log shows it inside its summon action when it was despawned. For a summoner of a wave (Bypass-tracked: Packmaster, radio operator): no patrol setup, its summoned minions come in aggroed with a target, and once a second it is made to fight again if it lost its aggro or its target (`MinionPerceptionExtension.aggro`, `force_new_target_attempt`). |
+| /rw_fulltest put its wave on top of the current one | By design: a staged draw does not cancel the cycle, and the enemies already on the map stay (as after any draw); the countdown goes on afterwards. |
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -199,3 +208,5 @@ effect), as before for any unknown id. The glow of Nightmare is a dark colour: w
     /rw_drawtest and /rw_fulltest (for a Nightmare card too: the dread on every screen); the Draw HUD sliding below a Beast of
     Nurgle's and two bosses' bars and back, at another HUD size and when moved with custom_hud; the dread at 1080p and 4K (is the
     game still readable? the vignette's steps?) and its option; the Nightmare card's fog in the HUD, the Deck and the Last Card.
+14. Seventh round: Restart (Page Down) and the despawn key while a Packmaster summons; a wave's Packmaster fights and its hounds
+    attack; the game's own hound-mutator Packmaster still patrols.
