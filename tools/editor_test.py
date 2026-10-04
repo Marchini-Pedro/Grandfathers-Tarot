@@ -1342,7 +1342,7 @@ do
   end)())
   local n_parts = #view._parts
   click_row(1, "hotspot_tune")
-  check("custom: the screen opens for that group with nine rows, Back and its own help text", view._screen == "tune" and view._part_index == 1 and #view:_source() == 9 and row(9).visible and not row(10).visible and W.description_text.content.description_text:find("view_desc_tune", 1, true) ~= nil and W.btn_back.visible and W.help_text.content.help_text == "help_tune")
+  check("custom: the screen opens for that group with ten rows (damage dealt is the tenth), Back and its own help text", view._screen == "tune" and view._part_index == 1 and #view:_source() == 10 and row(10).visible and W.description_text.content.description_text:find("view_desc_tune", 1, true) ~= nil and W.btn_back.visible and W.help_text.content.help_text == "help_tune")
   check("custom: every row is a value at 100 (unchanged) with - and +, no Reset yet, no Mods/Custom buttons", row(1).content.row_name == "tune_health" and row(7).content.row_name == "tune_mass" and row(1).content.show_stepper and row(1).content.stepper_value == "100" and not row(1).content.show_action and not row(1).content.show_tune and not row(1).content.show_mods and not row(1).content.show_check and row(1).content.info:find("tune_health_info:10,1000", 1, true) ~= nil, row(1).content.info)
   check("custom: the header says the values are percents", W.list_header.content.col_4 == "col_percent")
   local text_colour = rgba(row(1).style.row_name.text_color)

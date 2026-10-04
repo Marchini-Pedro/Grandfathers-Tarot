@@ -1851,6 +1851,12 @@ do
   dead[crushers[2]] = true
   Tuning.update(0.3)
   check("tuning: dead units are dropped", Tuning.status().tuned == 1 and Tuning.status().sizes_known == 1, Tuning.status().tuned)
+  do
+    local sniper = crushers[2]
+    sniper.buffs.stats.damage = nil
+    Tuning.apply(sniper, { damage = 250 }, "renegade_sniper")
+    check("tuning: damage dealt 250 writes the unit's damage stat x2.5 (what the game's damage calculation reads for every attacker)", sniper.buffs.stats.damage == 2.5, tostring(sniper.buffs.stats.damage))
+  end
   Tuning.send_all("late_peer")
   check("tuning: a player who joins late gets the size of every living unit that has one", sent_scales[#sent_scales].recipient == "late_peer" and #sent_scales[#sent_scales].list == 1 and sent_scales[#sent_scales].list[1][1] == c.gid)
 
@@ -2494,10 +2500,15 @@ do
   check("tune: works on a random group too", parts[1].one_of and #parts[1].one_of == 2 and parts[1].tune.health == 300 and parts[1].mods[1] == "garden")
   check("tune: the readable text lists the changed ones in catalog order", Groups.tune_text({ mass = 200, health = 150 }) == "Health 150%, Hit mass 200%" and Groups.tune_text(nil) == "" and Groups.tune_text({ size = 100 }) == "")
   check("tune: has_tune, copy_tune, clamp_tune", Groups.has_tune(Groups.parse("1 hound, 1 crusher{mass=200}")) and not Groups.has_tune(Groups.parse("1 hound")) and Groups.copy_tune(nil) == nil and Groups.copy_tune({ size = 120 }).size == 120 and Groups.clamp_tune("burst", 1000) == 500 and Groups.clamp_tune("gap", 26.4) == 26 and Groups.clamp_tune("gap", 1000) == 400 and Groups.clamp_tune("gap", 5) == 25)
-  check("tune: nine custom mods, each with a range around 100 and a step", (function()
-    if #Groups.TUNE ~= 9 then return false end
+  check("tune: ten custom mods (damage dealt since 2026-10-04), each with a range around 100 and a step", (function()
+    if #Groups.TUNE ~= 10 then return false end
     for _, def in ipairs(Groups.TUNE) do if not (def.min < 100 and def.max > 100 and def.step > 0 and def.name ~= "") then return false end end
     return true
+  end)())
+  check("tune: damage dealt is read from a recipe and written back, its aliases too", (function()
+    local p = Groups.parse("2 snipers{damage=200}")
+    local q = Groups.parse("2 snipers{dmg=150}")
+    return p and p[1].tune and p[1].tune.damage == 200 and q and q[1].tune and q[1].tune.damage == 150 and Groups.to_recipe(p):find("damage=200", 1, true) ~= nil
   end)())
   check("tune: a card with custom mods says 'Custom' in its modifier line", CardsMod.modifier_line(Groups.parse("2 crushers[enraged]{size=120}"), Groups) == "Enraged \194\183 Custom" and CardsMod.modifier_line(Groups.parse("2 hounds{speed=150}"), Groups) == "Custom" and CardsMod.modifier_line(Groups.parse("2 hounds"), Groups) == "")
 end

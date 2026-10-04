@@ -174,6 +174,8 @@ return {
 	popup_tune_title = { en = "%s of %s, in percent" },
 	popup_tune_hint = { en = "From %d to %d. 100 = unchanged." },
 	tune_health = { en = "Health" },
+	tune_damage = { en = "Damage dealt" },
+	tune_damage_info = { en = "How hard its attacks and shots hit: 200 = twice the damage (a sniper's shot too). %d to %d." },
 	tune_health_info = { en = "Maximum health. 200 = twice as much. %d to %d." },
 	tune_size = { en = "Size" },
 	tune_size_info = { en = "Model size, %d to %d. A burster's blast grows with it. Others see it only if they have this mod. Hit areas may not grow." },

@@ -222,6 +222,9 @@ Groups.TUNE = {
 	{ id = "mass", name = "Hit mass", min = 10, max = 1000, step = 10, aliases = { "mass", "hit mass", "hitmass" } },
 	{ id = "explosion", name = "Explosion damage taken", min = 0, max = 300, step = 5, aliases = { "explosion", "explosions", "explosion damage", "blast" } },
 	{ id = "dot", name = "Damage over time taken", min = 0, max = 300, step = 5, aliases = { "dot", "dot damage", "damage over time", "burn", "burning", "toxin" } },
+	-- (2026-10-04) how hard it hits: its `damage` stat, which the game's damage calculation applies to every attacker (melee and
+	-- shots alike: a sniper's shot too)
+	{ id = "damage", name = "Damage dealt", min = 10, max = 500, step = 10, aliases = { "damage", "dmg", "damage dealt", "attack damage", "hits" } },
 }
 
 local tune_by_id = {}

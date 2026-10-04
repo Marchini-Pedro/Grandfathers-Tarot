@@ -1,5 +1,5 @@
 -- Custom mods of one enemy group (the screen "tune"), opened with the "Custom" button of a row in a card's own screen,
--- beside "Mods". Nine rows (catalog/groups.lua, Groups.TUNE): health, size, run speed, time between attacks, gunner fire
+-- beside "Mods". Ten rows (catalog/groups.lua, Groups.TUNE; damage dealt since 2026-10-04): health, size, run speed, time between attacks, gunner fire
 -- rate, shots per burst, hit mass, explosion and damage over time taken, each a number in percent of the normal value (100 = unchanged) with - and +, a
 -- click on the number for a number box, and Reset while it is not 100. Everything is written into the group (part.tune)
 -- and saved with the card's recipe ("3 crushers{health=150 size=130}"), like the modifiers of the Mods screen. How the

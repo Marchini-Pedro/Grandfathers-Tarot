@@ -46,9 +46,10 @@ Tuning.STAT_KEYS = {
 	burst = { "minion_num_shots_modifier" },
 	explosion = { "damage_taken_from_explosions" },
 	dot = { "damage_taken_from_burning", "damage_taken_from_toxin", "damage_taken_from_bleeding" },
+	damage = { "damage" }, -- (the damage it deals: utilities/attack/damage_calculation.lua adds attacker_stat_buffs.damage - 1)
 }
 
-local STAT_IDS = { "gap", "fire", "burst", "explosion", "dot" }
+local STAT_IDS = { "gap", "fire", "burst", "explosion", "dot", "damage" }
 -- custom mods that are a TIME while the stat they write is a speed: the factor is 100 / value
 local INVERSE = { gap = true }
 local ATTACK_END_OFFSET = 0.26666666666666666 -- the game's ATTACK_SPEED_THRESHOLD_FRAME_OFFSET (bt_melee_attack_action.lua:118)
