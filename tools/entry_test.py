@@ -234,6 +234,13 @@ end
 check("entry: editor view registered under its name with the right class", #views == 1 and views[1].view_name == "realms_waves_editor" and views[1].view_settings.class == "RealmsWavesView")
 check("entry: /rw_test_close is registered too", type(commands.rw_test_close) == "function")
 check("entry: /rw_drawtest and /rw_fulltest are registered (a staged draw to test the HUD, with or without the sound and the wave)", type(commands.rw_drawtest) == "function" and type(commands.rw_fulltest) == "function")
+do
+  local before = #echoed
+  commands.rw_drawtest(); commands.rw_fulltest("  ")
+  local usage = echoed[before + 1] and echoed[before + 2] and echoed[before + 1]:find("usage /rw_drawtest", 1, true) and echoed[before + 2]:find("usage /rw_fulltest", 1, true)
+  commands.rw_drawtest("The", "Fool")
+  check("entry: /rw_drawtest and /rw_fulltest say how to use them without a name, and pass a name on (refused here: no running cycle)", usage ~= nil and #echoed == before + 3 and echoed[#echoed]:find("RealmsWaves:", 1, true) ~= nil, echoed[#echoed])
+end
 check("entry: three HUD elements are registered, the Spread, the Nightmare's dread (full screen, not HUD-scaled) and the window of the last card (own node, so custom_hud moves it on its own)", #hud_elements == 3 and hud_elements[1].class_name == "HudElementRealmsWavesPanel" and hud_elements[2].class_name == "HudElementRealmsWavesDread" and hud_elements[2].use_hud_scale == false and hud_elements[3].class_name == "HudElementRealmsWavesLast" and hud_elements[3].filename:find("hud_element_last_card$") ~= nil and hud_elements[3].use_hud_scale == true, #hud_elements)
 check("entry: commands registered (rw_test, rw_editor, rw_status, rw_custom, rw_roll, rw_start, rw_skip, rw_vote)", commands.rw_test and commands.rw_editor and commands.rw_status and commands.rw_custom and commands.rw_roll and commands.rw_start and commands.rw_skip and commands.rw_vote ~= nil)
 check("entry: keybind functions exist (open_editor, vote_1..vote_5)", type(mod.open_editor) == "function" and type(mod.vote_1) == "function" and type(mod.vote_5) == "function")
