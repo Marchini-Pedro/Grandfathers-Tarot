@@ -8,10 +8,28 @@ local lights, buffs, outlines, audio = {}, {}, {}, {}
 local sequence, received, warned = 0, nil, {}
 local grants, grant_sequence, grant_received = {}, 0, nil
 local rescues_left = 0 -- Instant rescue: how many of the next players to go down are helped up at once (host)
+-- Raise the fallen: rescued players waiting to be brought back once they stand (host); BRING_WAIT seconds at most
+local pending_bring, BRING_WAIT = {}, 15
 local revision, received_revision, received_time = 0, nil, nil
 local REVEAL = "rw_guidance"
 local function alive(unit) return unit and Unit.alive(unit) and (not HEALTH_ALIVE or HEALTH_ALIVE[unit] ~= false) end
 local function ext(unit, name) return alive(unit) and ScriptUnit.has_extension(unit, name) end
+-- The player units this machine controls (a client applies the host's grants to them): its local player through the player manager
+-- (2026-10-04: the party list a client builds may miss its own unit), else the party's units whose ability is local.
+local function own_players()
+	local manager = Managers.player
+	local find = manager and (manager.local_player_safe or manager.local_player)
+	local ok, player = pcall(function () return find and find(manager, 1) end)
+	if ok and player and alive(player.player_unit) and ScriptUnit.has_extension(player.player_unit, "ability_system") then
+		return { { id = "local", unit = player.player_unit } }
+	end
+	local list = {}
+	for id, other in pairs(manager and manager:players() or {}) do
+		if alive(other.player_unit) then list[#list + 1] = { id = tostring(id), unit = other.player_unit } end
+	end
+	table.sort(list, function (a, b) return a.id < b.id end)
+	return list
+end
 local function host()
 	local session = Managers.state and Managers.state.game_session
 	return session and session:is_server() == true
@@ -226,15 +244,30 @@ local function revive(list, count)
 		if freed < count and input and not Status.is_assisted(input) and Status.is_hogtied(state) then
 			input.force_assist = true
 			freed = freed + 1
-			local near = nearest_standing(list, player.unit, Status)
-			if near then
-				local ok, err = pcall(bring, player.unit, Unit.world_position(near, 1))
-				if not ok then warn("the rescued player was not brought back: " .. tostring(err)) end
-			end
+			if #pending_bring < 8 then pending_bring[#pending_bring + 1] = { unit = player.unit, until_t = clock + BRING_WAIT } end
 		end
 	end
 	return freed > 0, "nobody is hogtied"
 end
+-- Every quarter second on the host: a rescued player who stands again is brought to the nearest standing player (their position now)
+local function bring_pending(list)
+	local Status = require("scripts/utilities/attack/player_unit_status")
+	for i = #pending_bring, 1, -1 do
+		local item = pending_bring[i]
+		local _, state = state_of(item.unit)
+		if not state or clock > item.until_t then
+			table.remove(pending_bring, i)
+		elseif not Status.is_hogtied(state) and not Status.is_knocked_down(state) then
+			table.remove(pending_bring, i)
+			local near = nearest_standing(list, item.unit, Status)
+			if near then
+				local ok, err = pcall(bring, item.unit, Unit.world_position(near, 1))
+				if not ok then warn("the rescued player was not brought back: " .. tostring(err)) end
+			end
+		end
+	end
+end
+Effects.pending_bring = function () return #pending_bring end
 -- Instant rescue: the next players to go down are helped up at once (checked every quarter second on the host, Effects.update)
 local function instant_rescue(list)
 	local Status = require("scripts/utilities/attack/player_unit_status")
@@ -419,6 +452,10 @@ Effects.update = function (dt, paused)
 		local ok, err = pcall(instant_rescue, players())
 		if not ok then warn("instant rescue: " .. tostring(err)) end
 	end
+	if #pending_bring > 0 and host() then
+		local ok, err = pcall(bring_pending, players())
+		if not ok then warn("raise the fallen: " .. tostring(err)) end
+	end
 end
 Effects.snapshot = function () return { revision = revision, time = clock, reveal = math.max(0, reveal_until - clock), sequence = sequence, audio = audio, grants = grants, grant_sequence = grant_sequence } end
 Effects.receive = function (state)
@@ -434,7 +471,7 @@ Effects.receive = function (state)
 	local grant_seq = Schema.number(state.grant_sequence, 2147483647)
 	if grant_seq then
 		if grant_received and grant_seq > grant_received and type(state.grants) == "table" then
-			local list, spawner = players(), Managers.state.unit_spawner
+			local list, spawner = own_players(), Managers.state.unit_spawner
 			for i = 1, math.min(64, #state.grants) do
 				local entry = state.grants[i]
 				if type(entry) == "table" and entry[4] == "teleport" and type(entry[1]) == "number" and entry[1] > grant_received and entry[1] <= grant_seq and type(entry[3]) == "table" and type(entry[5]) == "table" then
@@ -445,7 +482,7 @@ Effects.receive = function (state)
 						if ability and ability._is_local_unit and spawner and entry[3][1] == spawner:game_object_id(player.unit) and type(p[1]) == "number" and type(p[2]) == "number" and type(p[3]) == "number" then
 							local owner = Managers.state.player_unit_spawn and Managers.state.player_unit_spawn:owner(player.unit)
 							local ok, err = pcall(function () require("scripts/utilities/player_movement").teleport(owner, Vector3(p[1], p[2], p[3])) end)
-							if not ok then warn(tostring(err)) end
+							if not ok then warn(tostring(err)) elseif mod.info then mod:info("RealmsWaves card effects: brought back to the others (Raise the fallen)") end
 						end
 					end
 				elseif type(entry) == "table" and type(entry[1]) == "number" and entry[1] > grant_received and entry[1] <= grant_seq and type(entry[3]) == "table" then
@@ -456,7 +493,7 @@ Effects.receive = function (state)
 							for j = 1, math.min(4, #entry[3]) do
 								if entry[3][j] == spawner:game_object_id(player.unit) then
 									local ok, err = pcall(ability.restore_ability_resource_percentage, ability, "combat_ability", amount / 100, true)
-									if not ok then warn(tostring(err)) end
+									if not ok then warn(tostring(err)) elseif mod.info then mod:info("RealmsWaves card effects: combat ability restored by %d percent (host grant %d)", amount, entry[1]) end
 									break
 								end
 							end
@@ -484,6 +521,7 @@ Effects.cancel = function ()
 	for _, buff in ipairs(buffs) do if alive(buff.unit) and buff.extension:has_running_buff_with_index(buff.index, buff.component) then pcall(buff.extension.remove_externally_controlled_buff, buff.extension, buff.index, buff.component) end end
 	buffs = {}
 	rescues_left = 0
+	pending_bring = {}
 end
 Effects.reset = function () Effects.cancel(); chain = {}; clock, sequence, received, audio = 0, 0, nil, {}; grants, grant_sequence, grant_received = {}, 0, nil; revision, received_revision, received_time = 0, nil, nil end
 return Effects

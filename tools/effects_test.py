@@ -223,17 +223,26 @@ check("raise the fallen leaves a downed player alone (Instant rescue does that)"
 p1.state.state_name="hogtied";p2.state.state_name="walking";p3.state.state_name="hogtied"
 p1.position,p2.position,p3.position=0,50,3
 check("raise the fallen rescues ONE hogtied player with the native forced assist (the second stays tied)", start(effect("revive",1)) and p1.assist.force_assist and not p3.assist.force_assist)
-check("...and the host brings its own player to the nearest standing player (p2; p3 is tied too)", #moved==1 and moved[1][1]==owners[p1] and moved[1][2].x==50)
+E.update(0.3)
+check("...not while the rescue is still going on (a teleport during the hogtied state did not stick in game)", #moved==0 and E.pending_bring()==1)
+p1.state.state_name="walking";E.update(0.3)
+check("...and once the player stands, the host brings its own player to the nearest standing player (p2; p3 is tied too)", #moved==1 and moved[1][1]==owners[p1] and moved[1][2].x==50 and E.pending_bring()==0)
 p1.assist.force_assist=false;p1.state.state_name="walking";p3.state.state_name="walking"
 p2.state.state_name="hogtied";p2.position=10;p1.position=40;p3.position=12
 Managers.state.unit_spawner.game_object_id=function(_,u) return u.id end
 local before_grants=#E.snapshot().grants
-check("a remote human is rescued too, and brought by a teleport grant to the nearest standing player (p3 at 12, not p1 at 40)", start(effect("revive",1)) and p2.assist.force_assist and #moved==1 and #E.snapshot().grants==before_grants+1 and E.snapshot().grants[#E.snapshot().grants][4]=="teleport" and E.snapshot().grants[#E.snapshot().grants][5][1]==12 and E.snapshot().grants[#E.snapshot().grants][2]==0)
-p2.assist.force_assist=false
+check("a remote human is rescued too", start(effect("revive",1)) and p2.assist.force_assist)
+p2.state.state_name="walking";E.update(0.3)
+check("...and once up, brought by a teleport grant to the nearest standing player (p3 at 12, not p1 at 40)", #moved==1 and #E.snapshot().grants==before_grants+1 and E.snapshot().grants[#E.snapshot().grants][4]=="teleport" and E.snapshot().grants[#E.snapshot().grants][5][1]==12 and E.snapshot().grants[#E.snapshot().grants][2]==0)
+p2.assist.force_assist=false;p2.state.state_name="hogtied"
 p2.assist.in_progress=true
 check("a hogtied player someone is already helping is skipped", not start(effect("revive",1)) and not p2.assist.force_assist)
 p2.assist.in_progress=false;p1.state.state_name="netted";p3.state.state_name="knocked_down"
-check("with nobody standing the rescue still happens, without a teleport", start(effect("revive",1)) and p2.assist.force_assist and #moved==1 and #E.snapshot().grants==before_grants+1)
+check("with nobody standing the rescue still happens", start(effect("revive",1)) and p2.assist.force_assist)
+p2.state.state_name="walking";E.update(0.3)
+check("...without a teleport (nobody to bring them to)", #moved==1 and #E.snapshot().grants==before_grants+1 and E.pending_bring()==0)
+p2.state.state_name="hogtied";start(effect("revive",1));E.update(16)
+check("a rescue that never finishes is given up after 15 seconds", E.pending_bring()==0 and #moved==1)
 p2.assist.force_assist=false;p1.state.state_name="walking";p2.state.state_name="walking";p3.state.state_name="walking"
 -- Instant rescue: the next N players who go down are helped up at once, checked every quarter second; nothing for those already up
 check("instant rescue: armed with its count, at most four", start(effect("instant_rescue",2)) and E.rescues_left()==2 and start(effect("instant_rescue",4)) and E.rescues_left()==4)

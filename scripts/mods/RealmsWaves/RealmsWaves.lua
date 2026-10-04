@@ -363,6 +363,12 @@ mod.update = function (...)
 	end
 
 	-- the second completion sound of a card follows the first everywhere, also in the editor's preview in the hub
+	-- a client runs the effects update itself (the host's runs in the executor): the Specialists' outlines of a reveal are drawn by
+	-- it on every machine (2026-10-04: they showed only for the host)
+	if RW.effects and RW.effects.update and dt and RW.director and RW.director.is_host and not RW.director.is_host() then
+		pcall(RW.effects.update, dt, false)
+	end
+
 	if RW.effects and RW.effects.tick_audio and dt then
 		pcall(RW.effects.tick_audio, dt)
 	end
