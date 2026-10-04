@@ -306,3 +306,23 @@ Things we know are missing or unverified, each with the next concrete step.
   so resulting coverage failures are incomplete evidence, not measured losses.
   Use the already-tested 280-second per-harness allowance in CI, retain the
   ten-minute job limit and gates, and await a complete hosted report.
+
+- 2026-10-03 (black stimm analysis): recheck only the native material-vector
+  reset and current appearance schema/runtime for the new question. Zero RGB
+  matches `_stop_material_vector_effect`'s reset, not an established black
+  material. Shader blending is unavailable in the Lua reference: low RGB may
+  only weaken glow. A=255 greys 8/16/24/32/48 are live-test candidates, not a
+  measured minimum. Both VMs preserve seven greys across three stimm methods
+  and outline/protect flags (21 cases each), plus the A=0 reset calculation.
+  The independent outline shares RGB/A; a contrasting rim needs separate
+  colour support. One uniform cannot carry independent competing tints; other
+  groups/methods remain available. Direct buff/mod writes outside existing
+  hooks still require compatibility tests. Keep the request's stimm shape as
+  the acceptance criterion; do not relabel an invisible effect or outline as
+  black stimm. No new production option or asset was installed.
+  An initial design lookup used `04-design-decisions.md`; correct it to
+  `04-design-and-rationale.md`. Broad material/black searches exceeded output
+  budgets; use targeted source slices and the existing research references.
+  A combined patch used a results-log sentence as learning-log context and
+  failed before writes; verify the target's final lines and apply corrected
+  context rather than assuming another document has the same ending.

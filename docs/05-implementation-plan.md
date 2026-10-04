@@ -21,6 +21,14 @@
 
 Details and live checklist: [Enemy colour experiments](enemy-appearance.md).
 
+- [x] Analyze the PR #9 black/near-black stimm scenario: trace native zero reset,
+  verify grey recipe/flag/strength support on both VMs and document coexistence
+  plus the shared tint/outline colour limitation.
+- [ ] Native black/charcoal proof: compare matched controls and nonzero grey
+  candidates in varied lighting/LODs; select a preset only if its stimm shape
+  remains readable. No black preset or new material path is implemented by
+  this analysis. [Procedure](enemy-appearance.md#black--near-black-stimm-feasibility-2026-10-03).
+
 Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\ayko4\.claude\plans\pasted-content-id-fdf1-i-have-valiant-parasol.md` (may not persist; this file is the durable one).
 
 ## Checklist

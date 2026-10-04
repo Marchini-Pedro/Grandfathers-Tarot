@@ -110,7 +110,9 @@ SimpleAudio can play completion sounds. No new dependency is required.
   exact (normal health times your percent, whatever Havoc adds); a boss below its
   normal health keeps the game's own **Weakened** name.
 - Enemy colour **A** means tint strength, not mesh transparency. Natural stimm
-  keeps vanilla gameplay buffs on supported breeds. Surface recolouring and
+  keeps vanilla gameplay buffs on supported breeds. Black matches the stimm
+  reset; [near-black readability](docs/enemy-appearance.md#black--near-black-stimm-feasibility-2026-10-03)
+  is unverified. Surface recolouring and
   private shader patches are unavailable until compatible material data/assets
   are verified. Colour coverage and cleanup still need game acceptance; disable
   removes experimental colours and re-enable needs fresh coloured spawns.

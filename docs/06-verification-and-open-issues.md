@@ -414,3 +414,13 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   (Lua 5.5 82.37% / LuaJIT 2.1 79.13%). Production Lua, tests and floors are
   identical to `9f9082b`; final follow-up changes these records only. Native
   acceptance remains pending and PR #9 stays a draft.
+
+- 2026-10-03 (black stimm analysis): native zero RGB is the effect reset;
+  actual shader darkening/readability remains unproved. Both VMs pass 21 grey
+  recipe/flag/vector cases and an A=0 probe. Document a matched-control charcoal
+  test, existing experiment coexistence and shared outline/tint colour. No
+  production code, preset or material asset changes; native visual proof pending.
+  Full runners pass **2,321 assertions each**, 39 Lua compilation inputs and all
+  38 module gates (Lua 5.5 82.37% / LuaJIT 2.1 79.13%). All Markdown stays under
+  100 KiB and the three new guide links resolve. Publish this documentation
+  follow-up on the existing PR #9 branch; no main merge or native acceptance.

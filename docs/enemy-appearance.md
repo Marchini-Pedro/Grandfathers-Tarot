@@ -50,6 +50,52 @@ Protection defaults off. When enabled, native buff material-effect start/stop
 hooks reapply the edited vector; buffs and gameplay stats stay native.
 See [card effects and UI](12-card-effects-and-ui.md) for verification and limits.
 
+## Black / near-black stimm feasibility (2026-10-03)
+
+The current controls can express a near-black input, but **a visible black stimm
+has not been established**. Native `MinionBuffExtension._stop_material_vector_effect`
+clears the effect with `Vector3(0, 0, 0)` (`minion_buff_extension.lua:529`, source
+revision `419fe18d`). Pure black therefore writes the same value as removal.
+The exact shader blend is absent from the inspected Lua source. If it adds glow,
+reducing RGB weakens that glow rather than painting the underlying surface black;
+low RGB alone is not evidence of a dark surface or a readable stimm pattern.
+
+Use **Applied stimm colour**, A=255 and equal nonzero RGB channels for the
+smallest live test. Compare untreated and zero-reset controls with greys 8, 16,
+24, 32 and 48 on matched enemies. For example, RGB 16 (`#101010`) uses
+`<applied_stimm!:FF101010>` and writes approximately `(0.062745, 0.062745, 0.062745)`.
+These are diagnostic candidates, not a verified darkest/readable preset. A=0
+returns to the zero vector; A is strength, not mesh transparency. Natural stimm
+retains vanilla particles/buffs, which this one parameter does not recolour.
+
+If a candidate passes, offer **Charcoal stimm (experimental)** as a preset of
+the existing method and channels, keeping other methods and the outline/protect
+flags available. It needs no new buff, renderer, dependency or packet format.
+Different groups retain independent choices. On one enemy, competing writes to
+`stimmed_color` cannot display two independent tint colours at once; use the
+existing protection policy, whose hook coverage does not include every direct
+write made by another mod or native template.
+
+The independent outline is an independent operation, **not an independent
+colour**: it currently shares the tint's RGB and A. Enabling it with charcoal
+does not supply a contrasting bright edge. A separate outline colour would be
+a further implementation change and must preserve native tag precedence; an
+outline must not be presented as proof of a black stimm.
+
+Choose the darkest candidate that still preserves the stimm pattern, body
+silhouette and texture detail in bright and dark areas, at several distances
+and LODs. Check armour, skin, legs, weapons/shields, other colour buffs, unrelated
+enemies and cleanup on each participating peer. Reject candidates that merely
+remove the effect or obscure its shape. If all fail, actual black requires a
+verified surface/mask material path or compatible private assets; the existing
+unavailable methods remain unavailable. Negative/HDR vectors and guessed
+properties are not established alternatives.
+
+Offline probes on Lua 5.5 and LuaJIT 2.1 preserve seven grey values (0, 1, 8,
+16, 24, 32, 48) across applied, explicit-slot and natural recipes, including
+outline/protect flags, and confirm the strength calculation. These probes
+establish input support only; no native screenshot or shader result was obtained.
+
 ## Recipe and runtime behaviour
 
 The suffix follows modifiers/custom stats and precedes repeat notation:

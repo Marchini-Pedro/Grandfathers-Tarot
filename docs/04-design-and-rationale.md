@@ -34,6 +34,14 @@ Late joins get living snapshots; native colour support and restoration of
 untracked direct material writes remain live-test limits. See the linked design
 for cleanup, lease limits, test controls and advanced-method gates.
 
+The [black/near-black follow-up](enemy-appearance.md#black--near-black-stimm-feasibility-2026-10-03)
+is an analysis, not an implemented black renderer. Zero RGB matches native
+removal; a nonzero charcoal preset can reuse the current schema only if live
+comparison preserves the stimm pattern. Keep other experiments available.
+Outline and tint currently share one colour; contrasting outline RGB would
+require a separate change. Surface darkening and the darkest readable grey
+remain shader/rendering questions, not outcomes of an offline input probe.
+
 ## Requirements (user's words, verbatim)
 User has two installed mods, "Twitch Versus (Beta) (Realms Compatible)" and "RealmsEvent" (both installed via Vortex). Merge them into a complete new version/mod:
 - Compatible with the Realms Server mod ("Adds LAN multiplayer support to Darktide. A local single-player game can also run as a LAN listen server.").

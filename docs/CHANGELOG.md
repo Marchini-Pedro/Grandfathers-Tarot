@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Analyze black and near-black enemy stimm (PR #9 follow-up)
+- Trace native zero reset and verify nonzero greys, recipes, flags and strength on both Lua runtimes. Actual black rendering and the darkest readable grey remain unverified.
+- Document a matched-control charcoal experiment, reuse of existing methods, tint ownership and the shared outline colour limitation. Update design/plan/results/learnings and current limits; no production option or shader asset is added.
+- Full offline runners pass 2,321 assertions each and every coverage gate (Lua 5.5 82.37% / LuaJIT 2.1 79.13%); documentation sizes and new guide links pass. Native rendering remains pending.
+
 ## 2026-10-03 - Confirm corrected PR #9 checks
 - Both corrected hosted branch and [PR runs](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170808353) at `7b74e39` pass with the 280-second harness allowance. Downloaded branch artifacts match 2,321 assertions each, all 38 module gates and Lua 5.5 82.37% / LuaJIT 2.1 79.13%.
 - Record the resolved CI timeout; production Lua, tests and floors are unchanged. The PR remains a draft pending native acceptance.
