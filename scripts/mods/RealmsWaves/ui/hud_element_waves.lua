@@ -1027,7 +1027,7 @@ HudElementRealmsWavesPanel._tick_living = function (self)
 		if suit and suit.fog then
 			rec.fog = rec.fog or Spread.new_fog()
 
-			local veil = Spread.fog(Cards, clock + i * 0.5, rec.ch, rec.fog, Spread.fog_strength(mod:get("nightmare_fog_strength")))
+			local veil = Spread.fog(Cards, clock + i * 0.5, rec.ch, rec.fog, mod:get("nightmare_fog_strength"))
 
 			box(style.fog_veil, rec.x, rec.y, rec.cw, rec.ch)
 			paint(style.fog_veil, veil, BLACK)

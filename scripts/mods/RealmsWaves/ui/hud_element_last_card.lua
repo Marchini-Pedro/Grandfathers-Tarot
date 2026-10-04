@@ -310,7 +310,7 @@ HudElementRealmsWavesLast._tick_fog = function (self, t)
 
 	local Cards = cards_module()
 	local style = self._widget.style
-	local veil = Spread.fog(Cards, t, b[4], self._fog, Spread.fog_strength(mod:get("nightmare_fog_strength")))
+	local veil = Spread.fog(Cards, t, b[4], self._fog, mod:get("nightmare_fog_strength"))
 
 	box(style.fog_veil, b[1], b[2], b[3], b[4])
 	paint(style.fog_veil, veil, BLACK)

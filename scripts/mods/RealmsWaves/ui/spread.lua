@@ -610,8 +610,8 @@ end
 Spread.FOG_HEIGHT = 0.45 -- of the card's height, one bank
 Spread.FOG_ALPHA, Spread.VEIL_ALPHA = 215, 165
 
-Spread.fog = function (Cards, t, ch, out, strength)
-	strength = strength or 1
+Spread.fog = function (Cards, t, ch, out, percent)
+	local veil_alpha, bank_alpha = Spread.darkness(Spread.VEIL_ALPHA, percent), Spread.darkness(Spread.FOG_ALPHA, percent)
 
 	for i = 1, Cards.FOG_BANDS do
 		local centre, thick = Cards.fog(t, i)
@@ -619,15 +619,25 @@ Spread.fog = function (Cards, t, ch, out, strength)
 		local top, bottom = max(0, centre * ch - half), min(ch, centre * ch + half)
 		local bank = out[i]
 
-		bank[1], bank[2], bank[3] = top, max(0, bottom - top), floor(Spread.FOG_ALPHA * thick * strength + 0.5)
+		bank[1], bank[2], bank[3] = top, max(0, bottom - top), floor(bank_alpha * thick + 0.5)
 	end
 
-	return floor(Spread.VEIL_ALPHA * Cards.fog(t) * strength + 0.5)
+	return floor(veil_alpha * Cards.fog(t) + 0.5)
 end
 
--- The option "Nightmare card darkness" (nightmare_fog_strength, percent; 0 = no fog): the fog's strength 0..1
-Spread.fog_strength = function (value)
-	return math.max(0, math.min(100, tonumber(value) or 100)) / 100
+-- The option "Nightmare darkness" (nightmare_fog_strength, percent; 2026-10-04, the user: "100 almost completely dark, 30 the
+-- baseline we use"): the strongest alpha of a dark layer whose baseline (at DARK_BASE percent) is `base`: none at 0, `base` at 30,
+-- DARK_MAX (almost black) at 100, straight lines between.
+Spread.DARK_BASE, Spread.DARK_MAX = 30, 245
+
+Spread.darkness = function (base, percent)
+	percent = math.max(0, math.min(100, tonumber(percent) or Spread.DARK_BASE))
+
+	if percent <= Spread.DARK_BASE then
+		return base * percent / Spread.DARK_BASE
+	end
+
+	return base + (math.max(base, Spread.DARK_MAX) - base) * (percent - Spread.DARK_BASE) / (100 - Spread.DARK_BASE)
 end
 
 Spread.new_fog = function ()

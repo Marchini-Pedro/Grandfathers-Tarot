@@ -867,7 +867,7 @@ DeckView.install = function (View, h)
 
 			fx.fog = fx.fog or Spread.new_fog()
 
-			local veil = Spread.fog(Cards, t, H, fx.fog, Spread.fog_strength(mod:get("nightmare_fog_strength")))
+			local veil = Spread.fog(Cards, t, H, fx.fog, mod:get("nightmare_fog_strength"))
 
 			style.fog_veil.size[2] = H
 			style.fog_veil.color[1] = veil

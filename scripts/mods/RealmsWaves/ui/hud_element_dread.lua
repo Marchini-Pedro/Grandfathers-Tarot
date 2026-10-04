@@ -9,6 +9,7 @@
 local mod = get_mod("RealmsWaves")
 
 local Definitions = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/hud_element_dread_definitions")
+local Spread = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/spread")
 
 local HudElementRealmsWavesDread = class("HudElementRealmsWavesDread", "HudElementBase")
 
@@ -81,7 +82,39 @@ HudElementRealmsWavesDread.init = function (self, parent, draw_layer, start_scal
 	end
 end
 
+-- While the dread lasts every player sees the world as on their last wound (grey, drained of colour): the game's own "last_wound"
+-- mood on this machine's player, kept on by RealmsWaves.lua (its hook on PlayerUnitMoodExtension._remove_mood reads
+-- mod.rw.dread_active). Only the look: nobody's health changes.
+local function grey_world(on)
+	local rw = mod.rw
+
+	if rw then
+		rw.dread_active = on
+	end
+
+	if not on then
+		return
+	end
+
+	local manager = Managers.player
+	local find = manager and (manager.local_player_safe or manager.local_player)
+	local player = find and find(manager, 1)
+	local mood = player and player.player_unit and ScriptUnit.has_extension(player.player_unit, "mood_system")
+
+	local clock = Managers.time and Managers.time.has_timer and Managers.time:has_timer("gameplay") and Managers.time:time("gameplay")
+
+	if mood and mood._add_mood and clock then
+		mood:_add_mood(clock, "last_wound")
+	end
+end
+
+HudElementRealmsWavesDread.grey_world = grey_world
+
 HudElementRealmsWavesDread._hide = function (self)
+	if self._age and mod.rw and mod.rw.dread_active then
+		pcall(grey_world, false)
+	end
+
 	self._age = nil
 	self._widget.visible = false
 end
@@ -99,6 +132,13 @@ HudElementRealmsWavesDread._watch = function (self, view, Cards)
 	-- (a late joiner does not get the dread of a card drawn long before)
 	if card and Cards.normalize_suit(card.suit) == "nightmare" and (tonumber(view.drawn_age) or 0) < 2 then
 		self._age = 0
+
+		local ok, err = pcall(grey_world, true)
+
+		if not ok and not self._grey_reported and mod.warning then
+			self._grey_reported = true
+			mod:warning("RealmsWaves: the Nightmare's grey world could not start: %s", tostring(err))
+		end
 	end
 end
 
@@ -127,14 +167,18 @@ HudElementRealmsWavesDread._refresh = function (self, dt)
 
 	local style, t = self._widget.style, self._clock
 	local breath, flash = Cards.dread(t)
+	-- the option "Nightmare darkness" (30 = this look, 100 = almost black)
+	local dark = mod:get("nightmare_fog_strength")
+	local veil, edge, fog = Spread.darkness(VEIL_ALPHA, dark), Spread.darkness(EDGE_ALPHA, dark), Spread.darkness(FOG_ALPHA, dark)
 
 	self._widget.visible = true
 	box(style.veil, 0, 0, W, H)
-	paint(style.veil, strength * (VEIL_ALPHA * (0.7 + 0.3 * breath) + FLASH_ALPHA * flash), BLACK)
+	-- (the breath takes the same amount off at every darkness, so 100 stays almost black)
+	paint(style.veil, strength * (veil - 0.3 * VEIL_ALPHA * (1 - breath) + FLASH_ALPHA * flash * veil / VEIL_ALPHA), BLACK)
 
 	for i = 1, #FOG do
 		local middle = ((t * (0.035 + 0.012 * i) + i * 0.29) % 1.4 - 0.2) * H
-		local alpha = strength * FOG_ALPHA * (0.6 + 0.4 * math.sin(t * 0.7 + i * 1.9)) / #Definitions.FOG_LAYERS
+		local alpha = strength * fog * (0.6 + 0.4 * math.sin(t * 0.7 + i * 1.9)) / #Definitions.FOG_LAYERS
 
 		for l = 1, #Definitions.FOG_LAYERS do
 			local h = Definitions.FOG_HEIGHT * Definitions.FOG_LAYERS[l]
@@ -145,7 +189,7 @@ HudElementRealmsWavesDread._refresh = function (self, dt)
 	end
 
 	for j = 1, #VIG do
-		local alpha = strength * EDGE_ALPHA * (1 - (j - 1) / #VIG) ^ 1.6
+		local alpha = strength * edge * (1 - (j - 1) / #VIG) ^ 1.6
 
 		for k = 1, 4 do
 			paint(style[VIG[j][k]], alpha, BLACK)

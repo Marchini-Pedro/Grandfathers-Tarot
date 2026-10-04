@@ -60,9 +60,27 @@ pcall(function ()
 	})
 end)
 
+-- The Nightmare's grey world (ui/hud_element_dread.lua): the game drops the "last wound" mood every frame when the player is not on
+-- their last wound; while the dread lasts it is kept on.
+pcall(function ()
+	mod:hook("PlayerUnitMoodExtension", "_remove_mood", function (func, self, t, mood_type, ...)
+		if mood_type == "last_wound" and RW.dread_active then
+			return
+		end
+
+		return func(self, t, mood_type, ...)
+	end)
+end)
+
 mod.on_all_mods_loaded = function ()
 	-- once (2026-10-04): the longest card cooldown becomes 30 minutes for players who kept the old default of 10 saved; afterwards
 	-- the option is theirs again
+	-- once (2026-10-04): the Nightmare darkness option changed scale (30 is the old full strength): a saved 100 becomes 30
+	if mod:get("nightmare_dark_v2_done") ~= true then
+		if tonumber(mod:get("nightmare_fog_strength")) == 100 then mod:set("nightmare_fog_strength", 30) end
+		mod:set("nightmare_dark_v2_done", true)
+	end
+
 	if mod:get("tarot_longest_30_done") ~= true then
 		if (tonumber(mod:get("tarot_longest")) or 10) < 30 then mod:set("tarot_longest", 30) end
 		mod:set("tarot_longest_30_done", true)

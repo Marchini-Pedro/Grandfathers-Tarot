@@ -972,10 +972,15 @@ do
   local seen_fog = false
   for k = 1, 120 do frame(e, 0.05); if h(1).style.fog_veil.visible or h(1).style.fog_1.visible then seen_fog = true end end
   check("nightmare: the option 'Nightmare card darkness' at 0 clears the fog", not seen_fog)
-  settings.nightmare_fog_strength = 40
-  local most40 = 0
-  for k = 1, 300 do frame(e, 0.033); if h(1).style.fog_veil.visible then most40 = math.max(most40, h(1).style.fog_veil.color[1]) end end
-  check("nightmare: at 40 percent the fog is lighter (the veil at most 40 percent of its full darkness)", most40 > 20 and most40 <= math.floor(Spread.VEIL_ALPHA * 0.4 + 0.5), most40)
+  local function peak(value)
+    settings.nightmare_fog_strength = value
+    local most = 0
+    for k = 1, 300 do frame(e, 0.033); if h(1).style.fog_veil.visible then most = math.max(most, h(1).style.fog_veil.color[1]) end end
+    return most
+  end
+  local base, black = peak(30), peak(100)
+  check("nightmare darkness: 30 is the usual darkness, 100 almost black (2026-10-04 scale)", base > 120 and base <= Spread.VEIL_ALPHA and black > 220 and black <= Spread.DARK_MAX, base .. " / " .. black)
+  check("nightmare darkness: the scale is straight lines through 0, 30 and 100", Spread.darkness(165, 0) == 0 and Spread.darkness(165, 15) == 82.5 and Spread.darkness(165, 30) == 165 and Spread.darkness(165, 100) == Spread.DARK_MAX and Spread.darkness(165, nil) == 165 and Spread.darkness(165, 500) == Spread.DARK_MAX)
   settings.nightmare_fog_strength = nil
   check("nightmare: no other suit is fogged", not h(2).style.fog_veil.visible and not h(3).style.fog_veil.visible and not h(3).style.fog_1.visible)
   audit_ok("nightmare and warp hand", e)
@@ -1114,6 +1119,30 @@ do
   settings.nightmare_dread = false; tick(0.1)
   check("dread: turning the option off hides it at once", not w.visible)
   settings.nightmare_dread = nil
+  -- the screen follows the darkness option too; while it lasts the world is grey (the game's last-wound look)
+  settings.nightmare_fog_strength = 100
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 306, drawn = true, drawn_age = 0.1 })
+  for _ = 1, 30 do tick(0.1) end
+  check("dread: at 100 percent darkness the veil is almost black", w.style.veil.color[1] > 200, w.style.veil.color[1])
+  settings.nightmare_fog_strength = nil
+  for _ = 1, 80 do tick(0.1) end
+  local added, rw_flag = {}, nil
+  local saved_managers, saved_su = Managers, ScriptUnit
+  Managers = Managers or {}
+  ScriptUnit = ScriptUnit or { has_extension = function() return nil end }
+  local saved_player, saved_time = Managers.player, Managers.time
+  local me = { name = "me" }
+  Managers.player = { local_player_safe = function() return { player_unit = me } end }
+  Managers.time = { has_timer = function() return true end, time = function() return 7 end }
+  local saved_has = ScriptUnit.has_extension
+  ScriptUnit.has_extension = function(u, name) if u == me and name == "mood_system" then return { _add_mood = function(_, t, m) added[#added + 1] = { t, m } end } end return saved_has(u, name) end
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 307, drawn = true, drawn_age = 0.1 })
+  tick(0.1)
+  check("dread: a Nightmare draw turns this player's world grey (the last-wound look) and says so to the mood hook", added[1] and added[1][2] == "last_wound" and mod.rw.dread_active == true)
+  for _ = 1, 90 do tick(0.1) end
+  check("dread: when it is over the grey world ends", mod.rw.dread_active == false)
+  ScriptUnit.has_extension, Managers.player, Managers.time = saved_has, saved_player, saved_time
+  Managers, ScriptUnit = saved_managers, saved_su
   check("dread: the envelope rises, holds and fades", Dread.envelope(0.4) > 0.4 and Dread.envelope(0.4) < 0.6 and Dread.envelope(3) == 1 and Dread.envelope(7) > 0 and Dread.envelope(7) < 0.5 and Dread.envelope(Dread.DURATION) == 0 and Dread.envelope(-1) == 0)
 end
 
