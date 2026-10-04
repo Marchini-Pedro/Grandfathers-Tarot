@@ -152,6 +152,7 @@ return {
 					numeric("hud_last_transparency", 0, 0, 100, "unit_percent", 5),
 					{ setting_id = "card_share_icons", type = "checkbox", default_value = true },
 					{ setting_id = "card_sounds", type = "checkbox", default_value = true },
+					{ setting_id = "nightmare_dread", type = "checkbox", default_value = true },
 					{ setting_id = "hud_show_percent", type = "checkbox", default_value = true },
 					{ setting_id = "colour_enemies", type = "checkbox", default_value = true },
 					{ setting_id = "colour_spidey", type = "checkbox", default_value = true },

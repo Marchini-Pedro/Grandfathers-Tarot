@@ -59,6 +59,8 @@ return {
 	hud_last_transparency = { en = "Last Card transparency" },
 	card_share_icons = { en = "Show Share Card sigils" },
 	card_sounds = { en = "Play card sounds (when a card is drawn)" },
+	nightmare_dread = { en = "Nightmare's dread on screen" },
+	nightmare_dread_description = { en = "When a Nightmare card is drawn, a black fog darkens the whole screen for a few seconds (still see-through) while its sound plays." },
 	suit_desc_prayer = { en = "Teal devotion: strength and aid for the faithful." },
 	suit_desc_miracle = { en = "Holy gold: healing in the darkest hour." },
 	suit_desc_grace = { en = "Angel white: renewed strength for the party." },

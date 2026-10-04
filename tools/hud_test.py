@@ -986,6 +986,57 @@ do
   end
 end
 
+-- the Nightmare's dread (ui/hud_element_dread.lua, 2026-10-04): a full-screen black fog when a Nightmare card is drawn, a toggle
+do
+  local DreadDefs = dofile(BASE .. "/ui/hud_element_dread_definitions.lua")
+  local Dread = dofile(BASE .. "/ui/hud_element_dread.lua")
+  local el = setmetatable({}, Dread)
+  Dread.init(el, nil, 0, 1)
+  local w = el._widgets_by_name.dread
+  local function tick(dt) Dread.update(el, dt, 0, nil, nil, nil) end
+  local function night_hand() return { card("n", "The Dark", "nightmare", 6, { "chaos_daemonhost" }, "It was never a dream."), card("p", "The Fool", "swarm", 1, { "chaos_poxwalker" }, "x") } end
+  local hidden = true
+  for _, st in pairs(DreadDefs.widget_definitions.dread.style) do if st.visible ~= false then hidden = false end end
+  check("dread: one widget on the root node only (custom_hud offers nothing to move), every pass starts hidden", DreadDefs.widget_definitions.dread.scenegraph_id == "screen" and (function() local n = 0 for id in pairs(DreadDefs.scenegraph_definition) do n = n + 1 end return n end)() == 1 and hidden)
+  settings.nightmare_dread = nil
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 300, drawn = false })
+  tick(0.1)
+  check("dread: nothing while the Nightmare card is only in the hand", not w.visible)
+  current_view = view_of({ hand = night_hand(), win = 2, hand_seq = 301, drawn = true, drawn_age = 0.1 })
+  tick(0.1)
+  check("dread: nothing when another card of the hand is drawn", not w.visible)
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 302, drawn = true, drawn_age = 0.1 })
+  tick(0.1)
+  check("dread: a drawn Nightmare card starts it at once, rising", w.visible and w.style.veil.visible and w.style.veil.color[1] > 0 and w.style.veil.color[1] < 60)
+  for _ = 1, 30 do tick(0.1) end
+  local veil, edge, inner = w.style.veil.color[1], w.style.vig_1_t.color[1], w.style.vig_16_t.color[1]
+  check("dread: at full strength the screen stays see-through (the veil under 60 percent), black, darker at the edges", veil > 50 and veil < 155 and w.style.veil.color[2] == 0 and edge > inner and edge > 150, veil .. " " .. edge .. " " .. inner)
+  check("dread: it covers the whole screen, the vignette frames on its edges, ash-grey fog across it", w.style.veil.size[1] == 1920 and w.style.veil.size[2] == 1080 and w.style.vig_1_t.offset[2] == 0 and w.style.vig_1_r.offset[1] + w.style.vig_1_r.size[1] == 1920 and w.style.fog_1_1.size[1] == 1920 and w.style.fog_1_1.color[2] > 0 and w.style.fog_1_1.color[2] < 60 and w.style.fog_1_3.size[2] < w.style.fog_1_1.size[2])
+  local seen = {}
+  for _ = 1, 20 do tick(0.05); seen[w.style.veil.color[1]] = true end
+  local n = 0 for _ in pairs(seen) do n = n + 1 end
+  check("dread: the veil breathes while it holds", n >= 3)
+  for _ = 1, 60 do tick(0.1) end
+  check("dread: it fades and is gone after about eight seconds", not w.visible and el._age == nil)
+  tick(0.1)
+  check("dread: the same draw does not start it again", not w.visible)
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 303, drawn = true, drawn_age = 9 })
+  tick(0.1)
+  check("dread: a player joining after the card was drawn is not shown it late", not w.visible)
+  settings.nightmare_dread = false
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 304, drawn = true, drawn_age = 0.1 })
+  tick(0.1)
+  check("dread: the option off: never shown", not w.visible)
+  settings.nightmare_dread = nil
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 305, drawn = true, drawn_age = 0.1 })
+  tick(0.1); tick(2)
+  check("dread: the option on again: the next Nightmare draw shows it", w.visible)
+  settings.nightmare_dread = false; tick(0.1)
+  check("dread: turning the option off hides it at once", not w.visible)
+  settings.nightmare_dread = nil
+  check("dread: the envelope rises, holds and fades", Dread.envelope(0.4) > 0.4 and Dread.envelope(0.4) < 0.6 and Dread.envelope(3) == 1 and Dread.envelope(7) > 0 and Dread.envelope(7) < 0.5 and Dread.envelope(Dread.DURATION) == 0 and Dread.envelope(-1) == 0)
+end
+
 -- the window of the last fulfilled card (ui/hud_element_last_card.lua)
 do
   local LastDefs = dofile(BASE .. "/ui/hud_element_last_card_definitions.lua")

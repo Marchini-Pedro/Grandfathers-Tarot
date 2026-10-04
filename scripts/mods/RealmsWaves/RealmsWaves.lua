@@ -39,6 +39,17 @@ pcall(function ()
 	})
 end)
 
+-- The Nightmare's dread: a full-screen overlay when a Nightmare card is drawn (ui/hud_element_dread.lua). Not scaled with the HUD: it
+-- covers the screen whatever the HUD scale.
+pcall(function ()
+	mod:register_hud_element({
+		class_name = "HudElementRealmsWavesDread",
+		filename = BASE .. "/ui/hud_element_dread",
+		use_hud_scale = false,
+		visibility_groups = { "alive", "dead", "communication_wheel", "tactical_overlay" },
+	})
+end)
+
 -- The window of the last fulfilled card: its own element, so custom_hud moves it on its own.
 pcall(function ()
 	mod:register_hud_element({
