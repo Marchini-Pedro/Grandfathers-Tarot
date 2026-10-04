@@ -419,13 +419,17 @@ settings.pct_boss_ambush = nil
 -- HERESY: the crimson frame, the glow that smoulders, the name on the face
 settings.su_boss_ambush = "heresy"
 view:_reload(); view:_apply_screen()
-check("heresy: the tile has the blood-red frame, a glow that smoulders and its name on the face", tile(5).style.border_t.color[2] == 0xa3 and tile(5).style.border_t.color[3] == 0x20 and tile(5).style.glow.visible and tile(5).style.glow.color[1] == 150 and tile(5).style.glow.color[2] == 0xa3 and tile(5).content.suit_label == "HERESY", tile(5).content.suit_label)
+check("heresy: the tile has the fresh-blood frame, a glow and its name on the face", tile(5).style.border_t.color[2] == 0x8a and tile(5).style.border_t.color[3] == 0x0f and tile(5).style.glow.visible and tile(5).style.glow.color[1] == 150 and tile(5).style.glow.color[2] == 0x8a and tile(5).content.suit_label == "HERESY", tile(5).content.suit_label)
 settings.su_boss_ambush = "fester"
 view:_reload(); view:_apply_screen()
-check("heresy: a card saved with the old suit name fester is drawn as Heresy", tile(5).content.suit_label == "HERESY" and tile(5).style.border_t.color[2] == 0xa3)
+check("heresy: a card saved with the old suit name fester is drawn as Heresy", tile(5).content.suit_label == "HERESY" and tile(5).style.border_t.color[2] == 0x8a)
 settings.su_boss_ambush = "heresy"; settings.pct_boss_ambush = 2
 view:_reload(); view:_apply_screen()
-check("heresy: rare and Heresy together: the frame stays blood red (not pus yellow) and the label says both", tile(5).style.border_t.color[2] == 0xa3 and tile(5).content.suit_label:find("HERESY", 1, true) ~= nil and tile(5).content.suit_label:find("TILE_RARE", 1, true) ~= nil and tile(5).style.glow.color[2] == 0xa3)
+check("heresy: rare and Heresy together: the frame stays blood red (not pus yellow) and the label says both", tile(5).style.border_t.color[2] == 0x8a and tile(5).content.suit_label:find("HERESY", 1, true) ~= nil and tile(5).content.suit_label:find("TILE_RARE", 1, true) ~= nil and tile(5).style.glow.color[2] == 0x8a)
+  view:update(0.2, 39.63, { get = function() return nil end, is_null_service = function() return false end })
+  local beat_a = tile(5).style.glow.color[1]
+  view:update(0.2, 40.0, { get = function() return nil end, is_null_service = function() return false end })
+  check("heresy: on the Deck its glow beats like a heart (its strength changes from frame to frame, between 55 and 100 percent of 150)", beat_a ~= tile(5).style.glow.color[1] and beat_a >= 82 and beat_a <= 150 and tile(5).style.glow.color[1] >= 82)
 settings.su_boss_ambush = nil; settings.pct_boss_ambush = nil
 view:_reload(); view:_apply_screen()
 
@@ -792,52 +796,18 @@ do
   check("ready: the ping can be turned off (the card just returns to 'In the draw')", tile(3).content.state_left == "tile_in" and not tile(3).style.ping_t.visible)
   settings.tarot_ping = nil
 
-  -- the murmur returns: the whisper writes itself letter by letter, the card is faint (60 percent) until it is back
+  -- one cooldown look for every card (2026-10-04): a card saved with the old murmur or vial look rots and renews like the others
   settings.cl_wave_medium = "whisper"
-  rem.wave_medium = C
-  reload()
-  check("murmur: a resting card with this look is faint (60 percent) and its whisper has not started", tile(2).alpha_multiplier == 0.6 and tile(2).content.whisper == "\"", tostring(tile(2).alpha_multiplier) .. " " .. tostring(tile(2).content.whisper))
   rem.wave_medium = C / 2
-  step(0.01)
-  local text = "Too many to count."
-  local letters = Cards.whisper_letters(text, 0.5)
-  check("murmur: halfway it has written " .. letters .. " of its " .. #text .. " letters, the quote is still open, the card is at 80 percent", tile(2).content.whisper == "\"" .. text:sub(1, letters) and letters > 8 and letters < #text and math.abs(tile(2).alpha_multiplier - 0.8) < 1e-9, tile(2).content.whisper)
-  check("murmur: nothing else of the card changes colour (that is the rot look's job)", same(tile(2).style.suit_label.text_color, Cards.SUITS.swarm.accent))
-  rem.wave_medium = C * 0.005
-  step(0.01)
-  check("murmur: at the end the whisper is whole and closed", tile(2).content.whisper == "\"" .. text .. "\"" and tile(2).alpha_multiplier > 0.99, tile(2).content.whisper)
-  rem.wave_medium = 0; step(0.01)
-  check("murmur: back: normal opacity and the ring", tile(2).alpha_multiplier == 1 and tile(2).style.ping_t.visible)
-  step(1.2)
-  settings.cl_wave_medium = nil
-  -- a custom whisper with a multi-byte character is never cut in the middle of it
-  settings.wh_wave_medium = "Sch\195\182n und gut"; settings.cl_wave_medium = "whisper"
-  rem.wave_medium = C * 0.7; reload()
-  check("murmur: a whisper with a two-byte letter (o with umlaut) is cut between letters, never inside one", (function()
-    for k = 0, 8 do
-      local p = k / 8
-      rem.wave_medium = C * (1 - p); step(0.01)
-      local w = tile(2).content.whisper:gsub("^\"", ""):gsub("\"$", "")
-      if w:sub(-1) == "\195" then return false end -- a cut after the first byte of the umlaut is invalid in LuaJIT too
-    end
-    return true
-  end)())
-  settings.wh_wave_medium = nil; settings.cl_wave_medium = nil; rem.wave_medium = nil
-
-  -- the vial fills (Rain of Rot has this look by default)
+  reload()
+  check("one look: a card saved with the murmur look rots like every card (no faint card, the whisper whole, the label greyed toward brown)", tile(2).alpha_multiplier == 1 and tile(2).content.whisper == "\"Too many to count.\"" and not same(tile(2).style.suit_label.text_color, Cards.SUITS.swarm.accent), tostring(tile(2).alpha_multiplier) .. " " .. tostring(tile(2).content.whisper))
+  rem.wave_medium = 0; step(0.01); step(1.2)
+  settings.cl_wave_medium = nil; rem.wave_medium = nil
   rem.grenade_legion = view._waves[8].cooldown / 2
   reload()
   local rain = nil
   for i = 1, 14 do if tile(i).visible and tile(i).content.card_key == "grenade_legion" then rain = tile(i) end end
-  check("vial: Rain of Rot has the vial look by default, half-way the liquid is half the tile high, in pus yellow, with a top line", rain ~= nil and rain.style.vial.visible and math.abs(rain.style.vial.size[2] - 135) < 1 and math.abs(rain.style.vial.offset[2] - 135) < 1 and same(rain.style.vial.color, Cards.BASE.pus) and rain.style.vial_line.visible and math.abs(rain.style.vial_line.offset[2] - 135) < 1)
-  check("vial: three bubbles rise inside the liquid", rain.style.bubble_1.visible and rain.style.bubble_2.visible and rain.style.bubble_3.visible and rain.style.bubble_1.offset[2] > 135 - 12 and rain.style.bubble_1.offset[2] < 270)
-  local y1 = rain.style.bubble_1.offset[2]
-  step(0.5, 1.5)
-  check("vial: the bubbles move with time", rain.style.bubble_1.offset[2] ~= y1)
-  rem.grenade_legion = view._waves[8].cooldown * 0.97
-  step(0.01, 2)
-  check("vial: with only a little liquid there are no bubbles yet", not rain.style.bubble_1.visible and rain.style.vial.visible)
-  check("vial: the card keeps its own colours (nothing is greyed)", same(rain.style.suit_label.text_color, Cards.SUITS.blight.accent))
+  check("one look: Rain of Rot keeps its saved vial look in the settings, but no liquid rises: it rots", rain ~= nil and not rain.style.vial.visible and not rain.style.bubble_1.visible and not same(rain.style.suit_label.text_color, Cards.SUITS.blight.accent))
   rem.grenade_legion = nil
 
   -- a card out of the draw does not rest visibly, and a repaint (a change in the editor) keeps the look
@@ -869,8 +839,7 @@ do
   local stage = W.rw_stage_card
   local function plate_of(id) for i, sid in ipairs(Cards.SUIT_ORDER) do if sid == id then return W["rw_plate_" .. i] end end end
   local function click_plate(id) plate_of(id).content.hotspot.pressed_callback() end
-  local function click_look(kind) for i, k in ipairs({ "rot", "whisper", "vial" }) do if k == kind then W["rw_look_" .. i].content.hotspot.pressed_callback() end end end
-  local function look_of(kind) for i, k in ipairs({ "rot", "whisper", "vial" }) do if k == kind then return W["rw_look_" .. i] end end end
+  local function look_of(kind) if kind == "rot" then return W.rw_look_1 end end
   local function near(a, b) return math.abs(a - b) < 1e-6 end
 
   view:_open_detail("boss_ambush")
@@ -878,15 +847,15 @@ do
   click("btn_face")
   local plates = 0
   for i = 1, 12 do if W["rw_plate_" .. i].visible then plates = plates + 1 end end
-  check("face: the Mirror: twelve suit plates, the threat diamonds, the whisper field, the cooldown stepper, three look plates and four headers; Back, the tabs and the stage; nothing of the Cauldron", view._screen == "face" and plates == 12 and W.rw_threat_big.visible and W.whisper_field.visible and W.stepper_cooldown.visible and W.rw_look_1.visible and W.rw_look_3.visible and W.mirror_head_4.visible and W.btn_back.visible and W.btn_face.content.hotspot_on == true and W.btn_enemies.visible and stage.visible and W.stage_plate.visible and not W.shelf_panel.visible and not W.rw_erow_1.visible and not W["rw_chip_1"].visible and not W.rw_suit_1.visible and not W.btn_dreg.visible and not W.rw_threat.visible and not W.list_panel.visible and not W.rw_row_1.visible and not W.bottom_panel.visible)
-  check("face: the buttons of the Mirror and the shared ones: Change, Use the suit's line, Automatic for this suit, Reset face, Auto | By hand, the toolbar; the Cauldron's own buttons are hidden", W.btn_whisper_change.visible and W.btn_whisper_suit.visible and W.btn_look_auto.visible and W.btn_reset_face.visible and not W.btn_thr_auto.visible and not W.btn_thr_hand.visible and W.btn_enabled.visible and W.btn_preview.visible and not W.btn_rename.visible and not W.btn_delete.visible and not W.btn_add.visible and not W.btn_quickface.visible and not W.rw_scroll_up.visible and not W.stepper_chance.visible and not W.stepper_spread.visible)
+  check("face: the Mirror: twelve hostile suit plates (the beneficial four are behind the switch), the threat diamonds, the whisper field, the cooldown stepper, the one look plate and four headers; Back, the tabs and the stage; nothing of the Cauldron", view._screen == "face" and plates == 12 and not W.rw_plate_13.visible and not W.rw_plate_16.visible and W.rw_threat_big.visible and W.whisper_field.visible and W.stepper_cooldown.visible and W.rw_look_1.visible and W.rw_look_2 == nil and W.btn_kind_hostile.visible and W.btn_kind_ben.visible and W.btn_kind_hostile.content.hotspot_on and not W.btn_kind_ben.content.hotspot_on and W.mirror_head_4.visible and W.btn_back.visible and W.btn_face.content.hotspot_on == true and W.btn_enemies.visible and stage.visible and W.stage_plate.visible and not W.shelf_panel.visible and not W.rw_erow_1.visible and not W["rw_chip_1"].visible and not W.rw_suit_1.visible and not W.btn_dreg.visible and not W.rw_threat.visible and not W.list_panel.visible and not W.rw_row_1.visible and not W.bottom_panel.visible)
+  check("face: the buttons of the Mirror and the shared ones: Change, Use the suit's line, Reset face, the toolbar; no Automatic look and no Auto | By hand any more; the Cauldron's own buttons are hidden", W.btn_whisper_change.visible and W.btn_whisper_suit.visible and W.btn_look_auto == nil and W.btn_reset_face.visible and W.btn_thr_auto == nil and W.btn_thr_hand == nil and W.btn_enabled.visible and W.btn_preview.visible and not W.btn_rename.visible and not W.btn_delete.visible and not W.btn_add.visible and not W.btn_quickface.visible and not W.rw_scroll_up.visible and not W.stepper_chance.visible and not W.stepper_spread.visible)
   check("face: the headers and the title", W.title_text.content.title_text == "view_title_mirror" and W.mirror_head_1.content.head_title == "MIRROR_SUIT" and W.mirror_head_2.content.head_title == "MIRROR_THREAT" and W.mirror_head_3.content.head_title == "MIRROR_WHISPER" and W.mirror_head_4.content.head_title == "MIRROR_COOLDOWN" and W.mirror_head_4.content.head_hint == "mirror_cooldown_hint:10" and W.description_text.content.description_text == "view_desc_face:The Devil")
   check("face: the stage card is this card's tile at 1.4, not clickable, the same widget as on the Cauldron", stage.content.metrics.k == 1.4 and stage.content.name == "The Devil" and stage.content.suit_label == "FATEFUL" and stage.content.hotspot_top.disabled == true)
 
   -- the suits: all twelve at once, each in its own colours, the card's own lit
   check("suit: twelve plates, each with its name, its line of whisper and its colours; the card's suit (Fateful, a boss) is the selected one, nothing is suggested", plate_of("plague").content.suit_name == "Plague" and plate_of("plague").content.suit_line == "Something is growing." and plate_of("plague").content.suit.accent[1] == 183 and plate_of("warp").content.suit_name == "Warp" and plate_of("warp").content.suit.accent[1] == 0xb1 and plate_of("fateful").content.selected == true and plate_of("rage").content.selected == false and plate_of("fateful").content.sug_label == "" and plate_of("volley").style.icon_c1.visible)
   check("suit: the description of the card's suit stands under the plates, its name in the suit's colour", W.mirror_desc.content.mirror_desc:find("{#color(230,223,201)}Fateful{#reset()}  suit_desc_fateful", 1, true) ~= nil or W.mirror_desc.content.mirror_desc:find("Fateful{#reset()}  suit_desc_fateful", 1, true) ~= nil, W.mirror_desc.content.mirror_desc)
-  check("suit: the numbers: a boss alone (1 enemy gives 1, a boss +2) is threat 3", W.mirror_numbers.content.mirror_numbers:find("^face_numbers:3,1,1") ~= nil and W.mirror_numbers.content.mirror_numbers:find("face_boss", 1, true) ~= nil, W.mirror_numbers.content.mirror_numbers)
+  check("suit: the line beside the diamonds says the level (a boss alone works out at threat 3) and nothing about a murmur", W.mirror_numbers.content.mirror_numbers:find("^face_level:3") ~= nil and W.mirror_numbers.content.mirror_numbers:find("face_murmur", 1, true) == nil, W.mirror_numbers.content.mirror_numbers)
   click_plate("rage")
   check("suit: clicking Rage writes su_<key>, selects its plate, and the card on the stage, its plate and the buttons follow", settings.su_boss_ambush == "rage" and plate_of("rage").content.selected and not plate_of("fateful").content.selected and stage.content.suit_label == "RAGE" and mod.rw_accent[1] == 0xc2 and W.stage_plate.content.stage.accent[1] == 0xc2)
   check("suit: the numbers now point at the suggested suit (Fateful) that the card no longer has, and the Fateful plate says Suggested", W.mirror_numbers.content.mirror_numbers:find("face_suggest:Fateful", 1, true) ~= nil and plate_of("fateful").content.sug_label == "MIRROR_SUGGESTED", plate_of("fateful").content.sug_label)
@@ -894,14 +863,20 @@ do
   check("suit: back on the suggestion there is nothing more to suggest", settings.su_boss_ambush == "fateful" and W.mirror_numbers.content.mirror_numbers:find("face_suggest", 1, true) == nil and plate_of("fateful").content.sug_label == "")
 
   -- threat
-  check("threat: auto at first: the diamonds show the worked-out value (3), Auto is selected, the numbers do not say by hand", W.rw_threat_big.content.threat == 3 and W.btn_thr_auto.content.hotspot_on == true and W.btn_thr_hand.content.hotspot_on == false and W.mirror_numbers.content.mirror_numbers:find("face_override", 1, true) == nil)
+  check("threat: at first the diamonds show the worked-out value (3) of a card never set by hand", W.rw_threat_big.content.threat == 3)
   W.rw_threat_big.content.hotspot_t1.pressed_callback()
-  check("threat: the first diamond sets 1 by hand (th_<key>); the diamonds, the card and the numbers follow", settings.th_boss_ambush == 1 and W.rw_threat_big.content.threat == 1 and stage.style.th_o2.color[1] == 64 and stage.style.th_o1.color[1] == 255 and W.mirror_numbers.content.mirror_numbers:find("face_override:1", 1, true) ~= nil and W.btn_thr_hand.content.hotspot_on == true)
+  check("threat: the first diamond sets 1 (th_<key>); the diamonds, the card and the line follow", settings.th_boss_ambush == 1 and W.rw_threat_big.content.threat == 1 and stage.style.th_o2.color[1] == 64 and stage.style.th_o1.color[1] == 255 and W.mirror_numbers.content.mirror_numbers:find("^face_level:1") ~= nil)
   W.rw_threat_big.content.hotspot_t5.pressed_callback()
-  check("threat: the fifth sets 5, never more", settings.th_boss_ambush == 5 and W.rw_threat_big.content.threat == 5 and stage.style.th_o5.color[1] == 255)
-  W.btn_thr_auto.content.hotspot.pressed_callback()
-  check("threat: Auto works it out again (3)", settings.th_boss_ambush == 0 and W.rw_threat_big.content.threat == 3 and W.btn_thr_auto.content.hotspot_on == true)
-  check("threat: six manual diamonds stay available without mode switches", W.rw_threat_big.def.size[1] == 324 and W.rw_threat_big.content.hotspot_t6 ~= nil and not W.btn_thr_auto.visible and not W.btn_thr_hand.visible)
+  check("threat: the fifth sets 5, and from 5 the line says the whisper murmurs when the card is drawn", settings.th_boss_ambush == 5 and W.rw_threat_big.content.threat == 5 and stage.style.th_o5.color[1] == 255 and W.mirror_numbers.content.mirror_numbers:find("face_murmur", 1, true) ~= nil)
+  W.rw_threat_big.content.hotspot_t6.pressed_callback()
+  check("threat: the sixth is DESPAIR on a hostile card (named on the line) and the sixth diamond shows", settings.th_boss_ambush == 6 and W.mirror_numbers.content.mirror_numbers:find("^face_level_six:DESPAIR") ~= nil and stage.style.th_o6.visible)
+  view:update(0.4, 10, inp)
+  local halo_a = stage.style.th_h6.size[1]
+  view:update(0.4, 10.4, inp)
+  check("threat: the sixth diamond's halo breathes on the stage card (it changes size with time)", stage.style.th_h6.size[1] ~= halo_a and stage.style.th_h6.size[1] > 9.4 * 1.4 - 1e-6)
+  settings.th_boss_ambush = 0; view:_reload(); view:_apply_screen(true)
+  check("threat: back to 0 the card works its threat out again (3)", W.rw_threat_big.content.threat == 3)
+  check("threat: six manual diamonds stay available without mode switches", W.rw_threat_big.def.size[1] == 324 and W.rw_threat_big.content.hotspot_t6 ~= nil and W.btn_thr_auto == nil and W.btn_thr_hand == nil)
 
   -- In the hand: the card as the Spread HUD draws it, 1.5 times its size
   local hand = W.rw_hand_card
@@ -921,7 +896,7 @@ do
   click_plate("rage")
   check("hand: a new suit repaints it (Rage: the bar is rust, the card dark brown); and it is gone when the Cauldron is shown", hand.style.hand_bar.color[2] == 0xc2 and hand.style.hand_bg.color[2] == 0x24)
   click_plate("heresy")
-  check("hand: Heresy gets its frame in the preview too (two units at 1.5 times = 3, blood red, all four sides); the other suits none", hand.style.hand_edge_t.visible and hand.style.hand_edge_b.visible and hand.style.hand_edge_l.visible and hand.style.hand_edge_r.visible and hand.style.hand_edge_t.size[2] == 3 and hand.style.hand_edge_l.size[1] == 3 and hand.style.hand_edge_t.color[2] == 0xa3 and hand.style.hand_edge_r.offset[1] == hand.style.hand_bg.size[1] - 3 and hand.style.hand_edge_b.offset[2] == hand.style.hand_bg.size[2] - 3)
+  check("hand: Heresy gets its frame in the preview too (two units at 1.5 times = 3, blood red, all four sides); the other suits none", hand.style.hand_edge_t.visible and hand.style.hand_edge_b.visible and hand.style.hand_edge_l.visible and hand.style.hand_edge_r.visible and hand.style.hand_edge_t.size[2] == 3 and hand.style.hand_edge_l.size[1] == 3 and hand.style.hand_edge_t.color[2] == 0x8a and hand.style.hand_edge_r.offset[1] == hand.style.hand_bg.size[1] - 3 and hand.style.hand_edge_b.offset[2] == hand.style.hand_bg.size[2] - 3)
   click_plate("fateful")
   check("hand: ...and a suit that is not Heresy hides it again", not hand.style.hand_edge_t.visible and not hand.style.hand_edge_l.visible)
   click("btn_enemies")
@@ -948,17 +923,13 @@ do
   check("whisper: a card with no line of its own (The Pilgrims) shows the suit's line, dimmer (not its own)", W.whisper_field.content.whisper_text == "\"" .. Cards.SUITS.swarm.whisper .. "\"" and W.whisper_field.content.whisper_own == false and stage.content.whisper == "\"" .. Cards.SUITS.swarm.whisper .. "\"")
   click("btn_back"); view:_open_detail("boss_ambush"); click("btn_face")
 
-  -- the looks of the cooldown
-  check("look: three plates; automatic is on (Rot and renewal for Fateful, marked Automatic), the other two are not chosen; the rot plate's last stripe is the suit's colour", look_of("rot").content.hotspot_on == true and look_of("rot").content.look_auto == "LOOK_AUTOMATIC" and look_of("whisper").content.hotspot_on == false and look_of("vial").content.hotspot_on == false and W.btn_look_auto.content.hotspot_on == true and look_of("rot").content.look_name == "look_rot" and look_of("vial").content.look_desc == "look_vial_desc" and look_of("rot").content.accent_rgb[1] == 0xe6)
-  click_look("vial")
-  check("look: a click on The vial fills chooses it (cl_<key>); Automatic is off, the tag is gone, the card follows", settings.cl_boss_ambush == "vial" and look_of("vial").content.hotspot_on == true and look_of("rot").content.hotspot_on == false and look_of("rot").content.look_auto == "" and W.btn_look_auto.content.hotspot_on == false and stage.content.fx.look == "vial")
-  click_look("whisper")
-  check("look: ...and the murmur returns", settings.cl_boss_ambush == "whisper" and look_of("whisper").content.hotspot_on == true and stage.content.fx.look == "whisper")
-  W.btn_look_auto.content.hotspot.pressed_callback()
-  check("look: Automatic for this suit puts the choice back to the suit", settings.cl_boss_ambush == "" and look_of("rot").content.hotspot_on == true and look_of("rot").content.look_auto == "LOOK_AUTOMATIC" and W.btn_look_auto.content.hotspot_on == true)
+  -- the one look of every cooldown: a picture, not a choice
+  check("look: one plate, Rot and renewal, lit and marked EVERY CARD; its last stripe is the suit's colour; it is not a button", look_of("rot").content.hotspot_on == true and look_of("rot").content.look_auto == "LOOK_EVERY_CARD" and look_of("rot").content.look_name == "look_rot" and look_of("rot").content.accent_rgb[1] == 0xe6 and look_of("rot").content.hotspot.disabled == true and W.btn_look_auto == nil)
   click_plate("murmur")
-  check("look: ...for a Murmur card automatic is the murmur returns, marked", look_of("whisper").content.hotspot_on == true and look_of("whisper").content.look_auto == "LOOK_AUTOMATIC" and look_of("rot").content.look_auto == "" and look_of("whisper").content.look_sample:find("{#color", 1, true) ~= nil)
-  settings.su_boss_ambush = "fateful"; view:_reload(); view:_apply_screen(true)
+  check("look: ...a Murmur card rots too", stage.content.fx.look == "rot" and look_of("rot").content.hotspot_on == true)
+  settings.cl_boss_ambush = "vial"; view:_reload(); view:_apply_screen(true)
+  check("look: ...and so does a card saved with the old vial look", stage.content.fx.look == "rot")
+  settings.cl_boss_ambush = nil; settings.su_boss_ambush = "fateful"; view:_reload(); view:_apply_screen(true)
 
   -- the cooldown: 30 s steps, 30 s up to the longest option
   check("cooldown: the stepper shows the card's cooldown as a clock (240 s = 4:00) and says it in seconds", W.stepper_cooldown.content.stepper_value == "4:00" and W.stepper_cooldown.content.extra == "mirror_cooldown_extra:240" and W.stepper_cooldown.content.label == "", W.stepper_cooldown.content.stepper_value)
@@ -994,7 +965,7 @@ do
   check("toolbar: ...and ends after five seconds", view._preview == nil and stage.content.fx.p == -1)
 
   -- Reset face: the suit, the threat, the whisper, the look and the cooldown back to their defaults; the enemies stay
-  click_plate("snare"); W.rw_threat_big.content.hotspot_t4.pressed_callback(); click_look("vial"); click("stepper_cooldown", "hotspot_plus")
+  click_plate("snare"); W.rw_threat_big.content.hotspot_t4.pressed_callback(); settings.cl_boss_ambush = "vial"; click("stepper_cooldown", "hotspot_plus")
   settings.wh_boss_ambush = "Mine"; view:_reload(); view:_apply_screen(true)
   local parts_before = #view._parts
   click("btn_reset_face")
@@ -1004,7 +975,7 @@ do
   click("btn_whisper_change")
   check("popup: while a box is open the plates, looks, diamonds and the field cannot be clicked", W.rw_plate_1.content.hotspot.disabled == true and W.rw_look_1.content.hotspot.disabled == true and W.rw_threat_big.content.hotspot_t1.disabled == true and W.whisper_field.content.hotspot.disabled == true and W.stepper_cooldown.content.hotspot_plus.disabled == true)
   PPf.Popup.cancel(view)
-  check("popup: ...and they work again after it", W.rw_plate_1.content.hotspot.disabled == false and W.rw_look_1.content.hotspot.disabled == false and W.rw_threat_big.content.hotspot_t1.disabled == false and W.whisper_field.content.hotspot.disabled == false)
+  check("popup: ...and they work again after it (the look plate stays a picture)", W.rw_plate_1.content.hotspot.disabled == false and W.rw_look_1.content.hotspot.disabled == true and W.rw_threat_big.content.hotspot_t1.disabled == false and W.whisper_field.content.hotspot.disabled == false)
 
   -- the layout: nothing lies on another, every part is inside the left pane (to x 1240) or the right pane (from 1290), the sections end above the action bar
   local boxes, problems = {}, {}
@@ -1031,7 +1002,7 @@ do
       if a.x < b.x + b.w - 1e-6 and b.x < a.x + a.w - 1e-6 and a.y < b.y + b.h - 1e-6 and b.y < a.y + a.h - 1e-6 then problems[#problems + 1] = a.name .. "/" .. b.name end
     end
   end
-  check("layout: on the Mirror no clickable widget lies on another and everything is inside its pane, above y 1014", #problems == 0 and #boxes > 30, #boxes .. " widgets: " .. table.concat(problems, ", "))
+  check("layout: on the Mirror no clickable widget lies on another and everything is inside its pane, above y 1014", #problems == 0 and #boxes > 25, #boxes .. " widgets: " .. table.concat(problems, ", "))
   check("layout: the sections end above the action bar and Back is where it is on every screen of a card", WK.MIRROR.bottom + 16 <= view._definitions.under_shelf.actions_y and view._sg.btn_back[1] == 105 and view._sg.btn_back[2] == view._definitions.under_shelf.actions_y and WK.MIRROR.head[1] + 28 <= WK.MIRROR.plate.y0 and WK.plate_pos(12) and select(2, WK.plate_pos(12)) + WK.MIRROR.plate.h <= WK.MIRROR.desc_y and WK.MIRROR.desc_y + WK.MIRROR.desc_h <= WK.MIRROR.head[2] and WK.MIRROR.threat_y + WK.MIRROR.threat_h <= WK.MIRROR.head[3] and WK.MIRROR.whisper_y + WK.MIRROR.whisper_h <= WK.MIRROR.head[4] and WK.MIRROR.cooldown_y + 48 <= WK.MIRROR.look.y and WK.MIRROR.look.y + WK.MIRROR.look.h <= WK.MIRROR.auto_y)
 
   -- the help text, the tabs, Back
@@ -1052,7 +1023,7 @@ do
 
   -- the suits beyond the first six, and a Daemonhost
   view:_open_detail("boss_ambush"); click("btn_face")
-  check("suit: the six newer suits (Volley, Snare, Brute, Dusk, Warp, Heresy) are on the same screen in their own colours, each with its line", plate_of("volley").content.suit.accent[1] == 0x7f and plate_of("snare").content.suit.accent[1] == 0x5f and plate_of("brute").content.suit.accent[1] == 0xcf and plate_of("heresy").content.suit.accent[1] == 0xe5 and plate_of("dusk").content.suit.accent[1] == 0x8e and plate_of("warp").content.suit.accent[1] == 0xb1 and plate_of("dusk").content.suit_line == Cards.SUITS.dusk.whisper)
+  check("suit: the six newer suits (Volley, Snare, Brute, Dusk, Warp, Heresy) are on the same screen in their own colours, each with its line", plate_of("volley").content.suit.accent[1] == 0x7f and plate_of("snare").content.suit.accent[1] == 0x5f and plate_of("brute").content.suit.accent[1] == 0xcf and plate_of("heresy").content.suit.accent[1] == 0xd4 and plate_of("dusk").content.suit.accent[1] == 0x8e and plate_of("warp").content.suit.accent[1] == 0xb1 and plate_of("dusk").content.suit_line == Cards.SUITS.dusk.whisper)
   click_plate("warp")
   check("suit: clicking Warp writes su_<key> and the card shows it with its mark (an eye in a triangle), and says what it is for", settings.su_boss_ambush == "warp" and plate_of("warp").content.selected and stage.content.suit_label == "WARP" and stage.style.icon_t1.visible and W.mirror_desc.content.mirror_desc:find("suit_desc_warp", 1, true) ~= nil)
   click_plate("snare")
@@ -1969,7 +1940,7 @@ do
       return back[1] < n.position[1] + n.size[1] and n.position[1] < back[1] + back[3] and back[2] < n.position[2] + n.size[2] and n.position[2] < back[2] + back[4]
     end
     local hit = {}
-    local cauldron_widgets = { "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "btn_delete", "btn_share", "btn_enemies", "btn_face", "btn_dreg", "btn_scab", "btn_thr_auto", "btn_thr_hand", "btn_preview", "btn_quickface", "stepper_chance", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "rw_threat", "shelf_panel" }
+    local cauldron_widgets = { "btn_rename", "btn_text", "btn_add", "btn_enabled", "btn_reset", "btn_delete", "btn_share", "btn_enemies", "btn_face", "btn_dreg", "btn_scab", "btn_kind_hostile", "btn_kind_ben", "btn_preview", "btn_quickface", "stepper_chance", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "rw_threat", "shelf_panel" }
     for i = 1, 5 do cauldron_widgets[#cauldron_widgets + 1] = "rw_erow_" .. i end
     for i = 1, 12 do cauldron_widgets[#cauldron_widgets + 1] = "rw_suit_" .. i end
     for _, name in ipairs(cauldron_widgets) do
@@ -2445,10 +2416,10 @@ do
   local long = "The Magician Of Endless Plague"
   check("tile scale: a name takes the same number of lines at 1.4 as at 1 (the box and the font grow together)", view:_name_lines(long, small.style.name, small.content.metrics) == view:_name_lines(long, big.style.name, big.content.metrics) and view:_name_lines("The Wheel", small.style.name) == 1)
 
-  -- the vial and its bubbles at the scale
-  view:_animate_vial(big, big.content.fx, 0.5, 1)
-  view:_animate_vial(small, small.content.fx, 0.5, 1)
-  check("tile scale: the vial rises through half the scaled tile, the bubbles are 6 -> 8.4", near(big.style.vial.size[2], 378 / 2) and near(big.style.vial.offset[2], 378 / 2) and near(small.style.vial.size[2], 135) and near(big.style.bubble_1.size[1], 6 * K) and near(small.style.bubble_1.size[1], 6))
+  -- what lives on a tile (the heartbeat of Heresy, the sixth diamond's shine) at the scale: the halo grows around its diamond
+  big.content.fx.threat, small.content.fx.threat = 6, 6
+  view:_tick_living_tile(big, 1); view:_tick_living_tile(small, 1)
+  check("tile scale: the sixth diamond's shine grows its halo by the tile's scale and keeps it centred on the diamond", big.content.fx.mix ~= nil and near(big.style.th_h6.size[1] / small.style.th_h6.size[1], K) and near(big.style.th_h6.offset[1] + big.style.th_h6.size[1] / 2, big.style.th_o6.offset[1] + big.style.th_o6.size[1] / 2) and not big.style.vial.visible)
 
   -- the ready ping at the scale stays around the tile
   big.content.fx.ping_t = 0
@@ -2491,7 +2462,7 @@ do
   check("cauldron: four enemy rows of five, the shelf with its 30 chips, twelve suit tiles, the threat control, the stage with the card", W.rw_erow_4.visible and not W.rw_erow_5.visible and W.shelf_panel.visible and n_chips == 30 and n_suits == 12 and W.rw_threat.visible and W.stage_plate.visible and stage.visible and W.enemy_header.visible and W.spawn_label.visible)
   check("cauldron: the table of the other screens is gone: no generic rows, no table panel, no bottom panel", not W.rw_row_1.visible and not W.list_panel.visible and not W.list_header.visible and not W.bottom_panel.visible)
   check("cauldron: the settings of the card: the chance under the card, six spawn steppers, no cooldown stepper", W.stepper_chance.visible and W.stepper_spread.visible and W.stepper_every.visible and W.stepper_for.visible and W.stepper_dmin.visible and W.stepper_dmax.visible and W.stepper_timer.visible and not W.stepper_cooldown.visible)
-  check("cauldron: the tabs: Enemies is selected, Face is not; the toolbar, the quick face and the shelf's switch are shown", W.btn_enemies.visible and W.btn_enemies.content.hotspot_on == true and W.btn_face.visible and W.btn_face.content.hotspot_on == false and W.btn_preview.visible and W.btn_quickface.visible and W.btn_dreg.visible and W.btn_scab.visible and not W.btn_thr_auto.visible and not W.btn_thr_hand.visible)
+  check("cauldron: the tabs: Enemies is selected, Face is not; the toolbar, the quick face and the shelf's switch are shown", W.btn_enemies.visible and W.btn_enemies.content.hotspot_on == true and W.btn_face.visible and W.btn_face.content.hotspot_on == false and W.btn_preview.visible and W.btn_quickface.visible and W.btn_dreg.visible and W.btn_scab.visible and W.btn_thr_auto == nil and W.btn_thr_hand == nil)
 
   -- the card on the stage
   check("stage: the card is the Deck's tile at 1.4 times its size, painted from the card being edited", stage.content.metrics.k == 1.4 and near(stage.def.size[1], 319.2) and near(stage.def.size[2], 378) and stage.content.name == "The Magician" and stage.content.suit_label == "BLIGHT" and plain_lines(stage):find("3 Trapper", 1, true) ~= nil and stage.style.name.font_size == 28)
@@ -2591,15 +2562,12 @@ do
   check("suit: choosing the suggested suit takes the hint away (it is the card's own now)", settings.su_custom_1 == "blight" and W.rw_suit_4.content.selected == true and W.rw_suit_4.content.suggested == false)
 
   -- threat
-  check("threat: auto at first: the diamonds show the worked-out value, Auto is selected", W.rw_threat.content.threat >= 1 and W.btn_thr_auto.content.hotspot_on == true and W.btn_thr_hand.content.hotspot_on == false)
-  local auto_value = W.rw_threat.content.threat
+  check("threat: at first the diamonds show the worked-out value and its level is named beside them; no Auto | By hand", W.rw_threat.content.threat >= 1 and W.threat_name.visible and W.threat_name.content.threat_name == "threat_level:" .. W.rw_threat.content.threat and W.btn_thr_auto == nil and W.btn_thr_hand == nil)
   W.rw_threat.content.hotspot_t5.pressed_callback()
-  check("threat: a click on the fifth diamond sets five by hand: saved, shown on the card, By hand is selected", settings.th_custom_1 == 5 and W.rw_threat.content.threat == 5 and W.btn_thr_hand.content.hotspot_on == true and W.btn_thr_auto.content.hotspot_on == false and stage.style.th_o5.color[1] == 255)
-  W.btn_thr_auto.content.hotspot.pressed_callback()
-  check("threat: Auto works it out again", settings.th_custom_1 == 0 and W.rw_threat.content.threat == auto_value and W.btn_thr_auto.content.hotspot_on == true)
-  W.btn_thr_hand.content.hotspot.pressed_callback()
-  check("threat: By hand keeps the value that shows now (nothing jumps)", settings.th_custom_1 == auto_value and W.rw_threat.content.threat == auto_value and W.btn_thr_hand.content.hotspot_on == true)
-  W.btn_thr_auto.content.hotspot.pressed_callback()
+  check("threat: a click on the fifth diamond sets five: saved, shown on the card and named", settings.th_custom_1 == 5 and W.rw_threat.content.threat == 5 and stage.style.th_o5.color[1] == 255 and W.threat_name.content.threat_name == "threat_level:5")
+  W.rw_threat.content.hotspot_t6.pressed_callback()
+  check("threat: the sixth is named DESPAIR on a hostile card", settings.th_custom_1 == 6 and W.threat_name.content.threat_name == "threat_level_six:DESPAIR")
+  settings.th_custom_1 = 0; view:_reload(); view:_apply_screen(true)
 
   -- the chance and the toolbar
   local pct = settings.pct_custom_1
@@ -2694,11 +2662,11 @@ do
   check("preview: after five seconds it is over and the card is painted as before", view._preview == nil and stage.content.fx.p == -1 and stage.alpha_multiplier == 1)
   settings.cl_custom_1 = "whisper"; view:_reload(); view:_apply_screen(true)
   click("btn_preview"); view:update(2.5, 110, inp)
-  check("preview: the murmur look writes the whisper letter by letter and fades the card", stage.content.whisper:find("^\"") ~= nil and #stage.content.whisper < #("\"" .. stage.content.fx.whisper .. "\"") and stage.alpha_multiplier < 1)
+  check("preview: a card saved with the murmur look previews rot and renewal (its whisper stays whole, the card is not faded)", stage.content.fx.look == "rot" and stage.content.whisper == "\"" .. stage.content.fx.whisper .. "\"" and stage.alpha_multiplier == 1)
   view:update(3, 113, inp)
   settings.cl_custom_1 = "vial"; view:_reload(); view:_apply_screen(true)
   click("btn_preview"); view:update(2.5, 120, inp)
-  check("preview: the vial look fills half the card (a liquid with a bright top line)", stage.style.vial.visible and near(stage.style.vial.size[2], 378 * 0.5) and stage.style.vial_line.visible)
+  check("preview: a card saved with the vial look previews rot and renewal too (no liquid)", not stage.style.vial.visible and stage.content.fx.look == "rot")
   view:update(3, 123, inp)
   settings.cl_custom_1 = nil; view:_reload(); view:_apply_screen(true)
 

@@ -187,9 +187,14 @@ scenegraph_definition.stage_stats = node(P.x, Workshop.STATS_Y, P.w, 28, 4)
 scenegraph_definition.btn_enabled = node(P.x, Workshop.TOOLBAR_Y, 230, 44, 2)
 scenegraph_definition.btn_preview = node(P.x + 242, Workshop.TOOLBAR_Y, 283, 44, 2)
 scenegraph_definition.quick_label = node(P.x, Workshop.QUICK_Y, 200, 28, 2)
-scenegraph_definition.btn_quickface = node(P.x + P.w - 250, Workshop.QUICK_Y - 4, 250, 36, 2)
+scenegraph_definition.btn_quickface = node(P.x + P.w - Workshop.QUICKFACE_W, Workshop.QUICK_Y - 4, Workshop.QUICKFACE_W, 36, 2)
+-- the switch between the hostile and the beneficial suits (the view moves it onto the Mirror's Suit header there)
+scenegraph_definition.btn_kind_hostile = node(Workshop.KIND.x, Workshop.QUICK_Y - 2, Workshop.KIND.w_hostile, Workshop.KIND.h, 3)
+scenegraph_definition.btn_kind_ben = node(Workshop.KIND.x + Workshop.KIND.w_hostile, Workshop.QUICK_Y - 2, Workshop.KIND.w_ben, Workshop.KIND.h, 3)
+-- the name of the threat beside the quick face's diamonds ("Level 4", "6 DESPAIR", "6 APOTHEOSIS"), where Auto | By hand were
+scenegraph_definition.threat_name = node(Workshop.THREAT_X + 6 * Workshop.THREAT_PITCH + 12, Workshop.THREAT_Y, P.x + P.w - (Workshop.THREAT_X + 6 * Workshop.THREAT_PITCH + 12), 44, 2)
 
-for i = 1, 15 do
+for i = 1, #mod.rw.cards.SUIT_ORDER do
 	local x, y = Workshop.suit_pos(i)
 
 	scenegraph_definition[definitions.SUIT_NODE_PREFIX .. i] = node(x, y, Workshop.SUIT_W, Workshop.SUIT_H, 3)
@@ -197,15 +202,14 @@ end
 
 scenegraph_definition.threat_label = node(P.x, Workshop.THREAT_Y, Workshop.ROW_LABEL_W, 44, 2)
 scenegraph_definition.rw_threat = node(Workshop.THREAT_X, Workshop.THREAT_Y, 6 * Workshop.THREAT_PITCH, 44, 2)
-scenegraph_definition.btn_thr_auto = node(Workshop.THREAT_X + 6 * Workshop.THREAT_PITCH + 12, Workshop.THREAT_Y + 4, 76, 36, 2)
-scenegraph_definition.btn_thr_hand = node(Workshop.THREAT_X + 6 * Workshop.THREAT_PITCH + 12 + 76, Workshop.THREAT_Y + 4, 100, 36, 2)
 scenegraph_definition.stepper_chance = node(P.x, Workshop.CHANCE_Y, P.w, 48, 2)
 
 -- ---- the Mirror (the card face screen): four sections on the left, the stage of the Cauldron on the right
 local M = Workshop.MIRROR
 
 definitions.PLATE_NODE_PREFIX, definitions.LOOK_NODE_PREFIX = "rw_plate_", "rw_look_"
-definitions.MIRROR_LOOKS = { "rot", "whisper", "vial" }
+-- one look for every card since 2026-10-04: the Mirror shows rot and renewal as what every card does, not a choice
+definitions.MIRROR_LOOKS = { "rot" }
 
 for i = 1, 4 do
 	scenegraph_definition["mirror_head_" .. i] = node(LX, M.head[i], Workshop.LEFT_W, M.head_h, 2)
@@ -213,7 +217,7 @@ end
 
 scenegraph_definition.mirror_desc = node(LX, M.desc_y, Workshop.LEFT_W, M.desc_h, 2)
 
-for i = 1, 15 do
+for i = 1, #mod.rw.cards.SUIT_ORDER do
 	local x, y = Workshop.plate_pos(i)
 
 	scenegraph_definition[definitions.PLATE_NODE_PREFIX .. i] = node(x, y, M.plate.w, M.plate.h, 3)
@@ -226,13 +230,12 @@ scenegraph_definition.btn_whisper_change = node(LX + M.whisper_w + 12, M.whisper
 scenegraph_definition.btn_whisper_suit = node(LX + M.whisper_w + 12 + 150 + 12, M.whisper_y + 4, Workshop.LEFT_W - (M.whisper_w + 12 + 150 + 12), 36, 2)
 scenegraph_definition.stepper_cooldown = node(LX, M.cooldown_y, 700, 48, 2)
 
-for i = 1, 3 do
+for i = 1, #definitions.MIRROR_LOOKS do
 	local x, y = Workshop.look_pos(i)
 
 	scenegraph_definition[definitions.LOOK_NODE_PREFIX .. i] = node(x, y, M.look.w, M.look.h, 3)
 end
 
-scenegraph_definition.btn_look_auto = node(LX, M.auto_y, 330, M.auto_h, 2)
 scenegraph_definition.hand_caption = node(Workshop.HAND.x, Workshop.HAND.caption_y, P.w, 28, 2)
 scenegraph_definition.rw_hand_card = node(Workshop.HAND.x, Workshop.HAND.y, Workshop.HAND.w, Workshop.HAND.max_h, 2)
 scenegraph_definition.btn_reset_face = node(1070, under.actions_y, 170, 44, 2)
@@ -376,8 +379,8 @@ local widget_definitions = {
 	-- the Workshop's static widgets (shown by the view only while the Cauldron is)
 	enemy_header = UIWidget.create_definition({
 		header_pass("col_1", Workshop.COL.name, 300),
-		header_pass("col_2", Workshop.COL.weight, 136, "center"),
-		header_pass("col_3", Workshop.COL.repeat_ - 30, 196, "center"),
+		header_pass("col_2", Workshop.COL.weight, 2 * Workshop.STEPPER.button + Workshop.STEPPER.value, "center"),
+		header_pass("col_3", Workshop.COL.repeat_ - 40, 2 * Workshop.STEPPER.button + Workshop.STEPPER.value + 80, "center"),
 		header_pass("col_4", Workshop.COL.same - 40, 80, "center"),
 	}, "enemy_header"),
 	shelf_panel = WB.shelf_panel("shelf_panel", shelf),
@@ -386,6 +389,7 @@ local widget_definitions = {
 	stage_stats = plain_text("stage_stats", "stage_stats", 18, colors.muted, P.w, 28, "center"),
 	quick_label = plain_text("quick_label", "quick_label", 16, colors.text, 200, 28, "left"),
 	threat_label = plain_text("threat_label", "threat_label", 16, colors.muted, Workshop.ROW_LABEL_W, 44, "left"),
+	threat_name = plain_text("threat_name", "threat_name", 17, colors.muted, P.x + P.w - (Workshop.THREAT_X + 6 * Workshop.THREAT_PITCH + 12), 44, "left"),
 	spawn_label = plain_text("spawn_label", "spawn_label", 16, colors.muted, 600, 22, "left"),
 
 	-- the Mirror's static widgets: the section headers, the suit's description, the threat sum

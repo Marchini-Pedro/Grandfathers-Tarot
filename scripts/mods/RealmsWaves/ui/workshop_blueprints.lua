@@ -84,13 +84,17 @@ WB.enemy_row = function (node_id)
 	end)
 	Components.hotspot_pass(passes, "hotspot_name", { 0, 0, 3 }, { C.weight - 10, H })
 
+	local sy = (H - S.height) / 2
+
 	local function stepper_layout(x)
 		return {
-			minus_offset = { x, 4, 2 },
-			value_offset = { x + S.button, 4, 2 },
+			minus_offset = { x, sy, 2 },
+			value_offset = { x + S.button, sy, 2 },
 			value_size = { S.value, S.height },
-			plus_offset = { x + S.button + S.value, 4, 2 },
+			plus_offset = { x + S.button + S.value, sy, 2 },
 			button_size = { S.button, S.height },
+			font_size = S.font,
+			sign = S.sign,
 		}
 	end
 
@@ -100,9 +104,12 @@ WB.enemy_row = function (node_id)
 	Components.checkbox_passes(passes, { C.same - 14, 10, 1 }, { 28, 28 }, nil, "same", "same_selected", "hotspot_same")
 	Components.hotspot_pass(passes, "hotspot_same", { C.same - 18, 6, 2 }, { 36, 36 })
 
-	Components.button(passes, "hotspot_mods", { C.mods, 6, 2 }, { C.mods_w, 36 }, { font_size = 18, role = "chip", pip = true })
-	Components.button(passes, "hotspot_tune", { C.tune, 6, 2 }, { C.tune_w, 36 }, { font_size = 18, role = "chip", pip = true })
-	Components.button(passes, "hotspot_action", { C.remove, 6, 2 }, { C.remove_w, 36 }, { font_size = 18, role = "danger", brackets = false })
+	-- the chips are as compact as the steppers: 30 high, centred in the row
+	local cy = (H - 30) / 2
+
+	Components.button(passes, "hotspot_mods", { C.mods, cy, 2 }, { C.mods_w, 30 }, { font_size = 17, role = "chip", pip = true })
+	Components.button(passes, "hotspot_tune", { C.tune, cy, 2 }, { C.tune_w, 30 }, { font_size = 17, role = "chip", pip = true })
+	Components.button(passes, "hotspot_action", { C.remove, cy, 2 }, { C.remove_w, 30 }, { font_size = 17, role = "danger", brackets = false })
 
 	return UIWidget.create_definition(passes, node_id, {
 		row_name = "",
@@ -374,7 +381,7 @@ WB.threat_control = function (node_id, side, pitch, height)
 		Components.diamond_passes(passes, "threat_" .. i, (i - 1) * pitch + pitch / 2, height / 2, side, 3, nil, function (color, content, halo)
 			local on = i <= (content.threat or 0)
 			local rgb = on and mod.rw.cards.threat_color(i, content.suit) or R.muted
-			if halo and i == 6 then rgb = mod.rw.cards.DESPAIR_EDGE end
+			if halo and i == 6 then rgb = mod.rw.cards.threat_edge(content.suit) end
 			local hover = content["hotspot_t" .. i].is_hover
 
 			put_rgb(color, on and (halo and (i == 6 and 255 or 70) or 255) or (hover and (halo and 40 or 150) or (halo and 22 or 64)), rgb)
@@ -497,10 +504,9 @@ WB.whisper_field = function (node_id)
 	return UIWidget.create_definition(passes, node_id, { whisper_text = "", whisper_own = false }, { W, H })
 end
 
--- One look of the cooldown on the Mirror (365 x 110): its name, what it does, a small picture of it, and AUTOMATIC in the
--- corner when the suit chooses it. The chosen look has an accent frame (the button's own flag, hotspot_on). `kind`: "rot" (four
--- stripes from grey through brown and ochre to the suit's colour, content.accent_rgb), "whisper" (a line that writes itself)
--- or "vial" (a liquid rising in a vial).
+-- The look of the cooldown on the Mirror (365 x 110): its name, what it does, a small picture of it (four stripes from grey through
+-- brown and ochre to the suit's colour, content.accent_rgb), and EVERY CARD in the corner, lit with an accent frame (the button's
+-- own flag, hotspot_on). Since 2026-10-04 rot and renewal is the only look, so `kind` is "rot"; the plate is never clicked.
 WB.look_plate = function (node_id, kind)
 	local passes = {}
 	local W, H = Workshop.MIRROR.look.w, Workshop.MIRROR.look.h
@@ -539,23 +545,6 @@ WB.look_plate = function (node_id, kind)
 
 		rect(passes, "swatch_4", SX + 3 * cell, SY, cell, SH, 4, function (content, style)
 			put_rgb(style.color, 255, content.accent_rgb)
-		end)
-	elseif kind == "whisper" then
-		text(passes, "look_sample", SX, SY - 4, SW, SH + 8, 4, 18, "left", "center", function (content, style)
-			put_rgb(style.text_color, 255, R.muted)
-		end)
-	else
-		rect(passes, "vial_track", SX, SY, SW, SH, 4, function (content, style)
-			put_rgb(style.color, 255, R.frame)
-		end)
-		rect(passes, "vial_inside", SX + 1, SY + 1, SW - 2, SH - 2, 4.5, function (content, style)
-			put_rgb(style.color, 255, FIELD)
-		end)
-		rect(passes, "vial_fill", SX + 1, SY + 1, (SW - 2) * 0.6, SH - 2, 5, function (content, style)
-			put_rgb(style.color, 110, PUS)
-		end)
-		rect(passes, "vial_line", SX + 1 + (SW - 2) * 0.6, SY + 1, 2, SH - 2, 5, function (content, style)
-			put_rgb(style.color, 255, PUS)
 		end)
 	end
 

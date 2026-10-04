@@ -60,16 +60,16 @@ local BUTTONS = {
 	-- the shelf's Dreg / Scab switch, the quick face's threat switch, the toolbar under the card
 	{ name = "btn_dreg", width = 80, height = 36, font = 19, cb = "cb_faction", arg = "dreg", role = "tab" },
 	{ name = "btn_scab", width = 80, height = 36, font = 19, cb = "cb_faction", arg = "scab", role = "tab" },
-	{ name = "btn_thr_auto", width = 76, height = 36, font = 19, cb = "cb_threat_auto", role = "tab" },
-	{ name = "btn_thr_hand", width = 100, height = 36, font = 19, cb = "cb_threat_hand", role = "tab" },
 	{ name = "btn_preview", width = 283, cb = "cb_preview_cooldown" },
 	-- "How it spawns": a random group rolls once for the whole wave and keeps its enemy on every repeat (shown when the card has one)
 	{ name = "btn_keep_pick", width = 360, height = 30, font = 17, cb = "cb_keep_pick", pip = true },
-	{ name = "btn_quickface", width = 250, height = 36, font = 17, cb = "cb_face", role = "quiet" },
+	{ name = "btn_quickface", width = 236, height = 36, font = 17, cb = "cb_face", role = "quiet" },
+	-- the switch between the twelve hostile suits and the four beneficial ones (quick face and Mirror)
+	{ name = "btn_kind_hostile", width = 104, height = 32, font = 17, cb = "cb_suit_view", arg = "hostile", role = "tab" },
+	{ name = "btn_kind_ben", width = 112, height = 32, font = 17, cb = "cb_suit_view", arg = "ben", role = "tab" },
 	-- the Mirror (the card face screen)
 	{ name = "btn_whisper_change", width = 150, cb = "cb_whisper_change" },
 	{ name = "btn_whisper_suit", width = 261, height = 36, font = 17, cb = "cb_whisper_suit", role = "quiet" },
-	{ name = "btn_look_auto", width = 330, height = 36, font = 19, cb = "cb_look_auto", pip = true },
 	{ name = "btn_reset_face", width = 170, cb = "cb_face_reset", role = "danger" },
 	-- presets (list screen -> presets screen -> one preset)
 	{ name = "btn_presets", width = 290, cb = "cb_presets" },
@@ -226,6 +226,7 @@ RealmsWavesView.update = function (self, dt, t, input_service)
 
 	Popup.update(self, input_service)
 	self:_update_colour(input_service)
+	self:_update_sound(input_service)
 
 	-- a pending "Sure?" (second click to delete/reset) runs out after a few seconds
 	self._t = t or self._t or 0
@@ -729,6 +730,7 @@ end
 
 RealmsWavesView._open_detail = function (self, key)
 	self._key = key
+	self._suit_kind = nil -- the hostile / beneficial switch starts on the card's own kind
 	self:_reload()
 	self._parts = copy_parts(self._wave.parts)
 	self._screen = "detail"
@@ -825,9 +827,10 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		widgets.bottom_title.content.bottom_title = ""
 		widgets.hint_text.content.hint_text = ""
 	elseif screen == "sounds" then
-		widgets.description_text.content.description_text = "Completion sounds: matching card contents first. Select a sound to preview it; select Silence to clear it."
+		widgets.description_text.content.description_text = mod:localize("view_desc_sounds")
 		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", "Sound", "Game event", "", ""
 		widgets.bottom_title.content.bottom_title = ""
+		widgets.hint_text.content.hint_text = ""
 	elseif screen == "appearance" then
 		local part = self._parts[self._part_index]
 		widgets.description_text.content.description_text = mod:localize("view_desc_appearance", part and rw.groups.describe_part(part) or "")
@@ -964,19 +967,23 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 	end
 
 	-- (the stage's toolbar and the threat switch are on both screens, in their own places; the Mirror's buttons only on the Mirror)
-	for _, name in ipairs({ "btn_thr_auto", "btn_thr_hand", "btn_preview", "btn_enabled" }) do
+	for _, name in ipairs({ "btn_preview", "btn_enabled" }) do
 		widgets[name].visible = detail or mirror
 	end
 
-	for _, name in ipairs({ "btn_whisper_change", "btn_whisper_suit", "btn_look_auto", "btn_reset_face" }) do
+	for _, name in ipairs({ "btn_whisper_change", "btn_whisper_suit", "btn_reset_face" }) do
 		widgets[name].visible = mirror
 	end
 
-	local thr_y = mirror and Workshop.MIRROR.threat_y + 10 or Workshop.THREAT_Y + 4
-	local thr_x = mirror and Workshop.LEFT_X + 5 * Workshop.MIRROR.threat_pitch + 12 or Workshop.THREAT_X + 5 * Workshop.THREAT_PITCH + 12
+	-- the hostile / beneficial switch: beside FACE under the card on the Cauldron, at the end of the Suit header on the Mirror
+	local kind_x = mirror and Workshop.MIRROR.kind_x or Workshop.KIND.x
+	local kind_y = mirror and Workshop.MIRROR.kind_y or Workshop.QUICK_Y - 2
 
-	self:_set_scenegraph_position("btn_thr_auto", thr_x, thr_y, 2)
-	self:_set_scenegraph_position("btn_thr_hand", thr_x + 76, thr_y, 2)
+	self:_set_scenegraph_position("btn_kind_hostile", kind_x, kind_y, 3)
+	self:_set_scenegraph_position("btn_kind_ben", kind_x + Workshop.KIND.w_hostile, kind_y, 3)
+	widgets.btn_kind_hostile.visible = detail or mirror
+	widgets.btn_kind_ben.visible = detail or mirror
+
 	widgets.rw_scroll_up.visible = not mirror and screen ~= "appearance"
 	widgets.rw_scroll_down.visible = not mirror and screen ~= "appearance"
 	widgets.bottom_title.visible = not mirror
@@ -1158,9 +1165,11 @@ RealmsWavesView._refresh_rows = function (self)
 				content.hotspot_mods_on, content.hotspot_tune_on = false, false
 
 				if screen == "sounds" then
-					content.row_name = item.event ~= "" and item.event:match("([^/]+)$") or "Silence"
+					content.row_name = item.event ~= "" and item.event:match("([^/]+)$") or mod:localize("snd_silence")
 					content.info = item.event
-					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods, content.show_rep = false, false, false, true, false, false
+					-- Preview (the row's chip) plays the sound without choosing it; Silence has nothing to play
+					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods, content.show_rep = false, false, false, true, item.event ~= "", false
+					content.hotspot_mods_text = mod:localize("snd_preview")
 					content.hotspot_action_text = "Select"
 				elseif screen == "tune" then
 					name_color = self:_tune_row(item, content)
@@ -1485,6 +1494,11 @@ RealmsWavesView._toggle_mod = function (self, id)
 end
 
 RealmsWavesView.cb_row_mods = guarded(function (self, row)
+	-- on the completion sound screen the chip of a row is Preview
+	if self._screen == "sounds" then
+		return self:_preview_sound_row(row)
+	end
+
 	if self._screen == "detail" and self._parts[self._offset + row] then
 		self._part_index = self._offset + row
 		self._screen = "mods"

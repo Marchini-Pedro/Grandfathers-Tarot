@@ -23,6 +23,16 @@ end
 
 -- Seconds of cooldown left on a card (0 when it is not resting, when there is no director, or when asking it fails: the
 -- editor is also opened in the hub, where no mission runs).
+-- a + (b - a) * k for {r, g, b}, written into out (no new table: this runs every frame)
+local function mix_into(out, a, b, k)
+	out[1], out[2], out[3] = a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k, a[3] + (b[3] - a[3]) * k
+
+	return out
+end
+
+local DESPAIR_DEEP = { 44, 24, 70 } -- the dark end of Despair's breathing halo (as in the HUD)
+local WARM_WHITE = { 255, 250, 236 } -- the bright end of Apotheosis' glitter
+
 local function cooldown_left(key, length)
 	local director = mod.rw and mod.rw.director
 
@@ -33,27 +43,6 @@ local function cooldown_left(key, length)
 	local ok, left = pcall(director.cooldown_remaining, key, length)
 
 	return ok and tonumber(left) or 0
-end
-
--- the first n bytes of a text, never cutting a multi-byte character
-local function utf8_cut(text, n)
-	if n >= #text then
-		return text
-	end
-
-	local cut = n
-
-	while cut > 0 do
-		local byte = text:byte(cut + 1)
-
-		if byte and byte >= 0x80 and byte < 0xC0 then
-			cut = cut - 1
-		else
-			break
-		end
-	end
-
-	return text:sub(1, cut)
 end
 
 -- the name's font in the tile, and its average glyph width (of the font size): how many lines a name takes, see Spread.wrap_lines
@@ -508,8 +497,12 @@ DeckView.install = function (View, h)
 			outer.offset[1], outer.offset[2] = cx - 4 * k, T.row_y - 4 * k
 			halo.offset[1], halo.offset[2] = cx - 4.7 * k, T.row_y - 4.7 * k
 			paint(outer, filled and 255 or 64, rgb)
-			paint(halo, card.threat == 6 and 255 or filled and 70 or 22, card.threat == 6 and Cards.DESPAIR_EDGE or rgb)
+			paint(halo, card.threat == 6 and 255 or filled and 70 or 22, card.threat == 6 and Cards.threat_edge(card.suit) or rgb)
 		end
+
+		-- what _tick_living_tile needs every frame (the heartbeat of Heresy, the shine of the sixth diamond)
+		fx.threat, fx.sat, fx.k, fx.dx, fx.row_y = card.threat, sat, k, T.diamonds_x, T.row_y
+		fx.mix, fx.mix2, fx.tmp, fx.tmp2 = { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }
 
 		-- one dot per enemy colour, right aligned, each on a feather
 		local dots = card.dots
@@ -599,10 +592,8 @@ DeckView.install = function (View, h)
 	-- ---------------------------------------------------------------------------------- cooldown looks
 	-- A resting card shows how far its cooldown has come (p = 0..1) in the look of its card:
 	--   rot      "rot and renewal": everything that has the suit's colour goes grey, then brown, then ochre, then back to
-	--            the suit's colour; the text is faint (50 percent) and returns to full
-	--   whisper  "the murmur returns": the whisper writes itself letter by letter and the whole card is faint (60
-	--            percent) until it is back
-	--   vial     "the vial fills": a liquid rises from the bottom, pus yellow, with a bright top line and bubbles
+	--            the suit's colour; the text is faint (50 percent) and returns to full. Since 2026-10-04 it is the only look
+	--            (the murmur and the vial were removed: Cards.look is always "rot")
 	View._apply_look = function (self, widget, fx, p, time)
 		local rw = mod.rw
 		local Cards = rw.cards
@@ -650,40 +641,6 @@ DeckView.install = function (View, h)
 			paint(style.name, alpha, fx.ink)
 			paint(style.comp, alpha, Cards.BASE.muted)
 			paint(style.whisper, alpha, fx.suit == Cards.SUITS.murmur and Cards.BASE.whisper or Cards.BASE.muted)
-		elseif fx.look == "whisper" then
-			local letters = Cards.whisper_letters(fx.whisper, p)
-
-			widget.alpha_multiplier = Cards.murmur_card_alpha(p)
-			content.whisper = "\"" .. utf8_cut(fx.whisper, letters) .. (letters >= #fx.whisper and "\"" or "")
-		elseif fx.look == "vial" then
-			self:_animate_vial(widget, fx, p, time)
-		end
-	end
-
-	-- the vial: the liquid's height follows the cooldown, three bubbles rise through it (every frame)
-	View._animate_vial = function (self, widget, fx, p, time)
-		local style = widget.style
-		local Cards = mod.rw.cards
-		local T = widget.content.metrics or T
-		local k = T.k or 1
-		local fill = T.h * p
-
-		fx.p = p
-		style.vial.visible = fill > 0.5
-		style.vial.offset[2], style.vial.size[2] = T.h - fill, fill
-		paint(style.vial, 70, Cards.BASE.pus)
-		style.vial_line.visible = fill > 0.5
-		style.vial_line.offset[2] = T.h - fill
-		paint(style.vial_line, 230, Cards.BASE.pus)
-
-		for i = 1, #IDS.bubble do
-			local bubble = style[IDS.bubble[i]]
-			local rise = ((time or 0) * 0.38 + (i - 1) / 3) % 1
-
-			bubble.visible = fill > 24 * k
-			bubble.offset[1], bubble.offset[2] = (28 + (i - 1) * 84) * k, T.h - 10 * k - rise * (fill - 10 * k)
-			bubble.size[1], bubble.size[2] = 6 * k, 6 * k
-			paint(bubble, math.floor(150 * (1 - rise)), Cards.BASE.pus)
 		end
 	end
 
@@ -828,6 +785,63 @@ DeckView.install = function (View, h)
 
 	-- Per frame (only while the Deck is shown): which tile (and which pip) the pointer is on, for the Edit pill, the pips,
 	-- the strip and the caption.
+	-- Every frame, on a tile that is shown (the Deck's and the stage card): a Heresy card's glow (and, while it is not cooling, its
+	-- frame) beats like a heart; the sixth diamond of a threat 6 card shines, Despair darkly, Apotheosis in light. As in the HUD.
+	View._tick_living_tile = function (self, widget, t)
+		local fx = widget and widget.content.fx
+
+		if not fx or fx.state == "off" or not fx.mix then
+			return
+		end
+
+		local Cards = mod.rw.cards
+		local style, suit = widget.style, fx.suit
+
+		t = t or 0
+
+		if suit.blood then
+			local beat = Cards.heartbeat(t)
+
+			paint(style.glow, math.floor(150 * (0.55 + 0.45 * beat) + 0.5), Spread.grey(fx.tmp, mix_into(fx.mix, suit.frame, suit.lit, 0.6 * beat), fx.sat))
+
+			if fx.state ~= "cooling" then
+				local edge = Spread.grey(fx.tmp2, mix_into(fx.mix2, suit.frame, suit.lit, 0.5 * beat), fx.sat)
+
+				for i = 1, #IDS.border do
+					paint(style[IDS.border[i]], 255, edge)
+				end
+			end
+		end
+
+		if fx.threat == 6 then
+			local shine = Cards.six_shine(t, suit)
+			local k = fx.k
+			local size = (9.4 + 2.6 * shine) * k
+			local fill = Cards.threat_color(6, suit)
+
+			for i = 1, 6 do
+				local halo, outer = style[IDS.th_h[i]], style[IDS.th_o[i]]
+				local cx = fx.dx + (i - 1) * Spread.THREAT_PITCH * k
+
+				halo.size[1], halo.size[2] = size, size
+
+				if halo.pivot then
+					halo.pivot[1], halo.pivot[2] = size / 2, size / 2
+				end
+
+				halo.offset[1], halo.offset[2] = cx - size / 2, fx.row_y - size / 2
+
+				if suit.beneficial then
+					paint(halo, math.floor(160 + 95 * shine), Spread.grey(fx.tmp, mix_into(fx.mix, suit.accent, Cards.APOTHEOSIS_EDGE, shine), fx.sat))
+					paint(outer, 255, Spread.grey(fx.tmp2, mix_into(fx.mix2, fill, WARM_WHITE, 0.45 * shine), fx.sat))
+				else
+					paint(halo, math.floor(140 + 115 * shine), Spread.grey(fx.tmp, mix_into(fx.mix, DESPAIR_DEEP, Cards.DESPAIR_EDGE, shine), fx.sat))
+					paint(outer, 255, Spread.grey(fx.tmp2, mix_into(fx.mix2, fill, DESPAIR_DEEP, 0.6 * shine), fx.sat))
+				end
+			end
+		end
+	end
+
 	View._update_deck = function (self, dt, t)
 		local widgets = self._widgets_by_name
 		local hovered, hovered_widget, hovered_pip = nil, nil, nil
@@ -927,9 +941,7 @@ DeckView.install = function (View, h)
 						widget.content.state_clock = Deck.clock_text(remaining)
 					end
 
-					if fx.look == "vial" then
-						self:_animate_vial(widget, fx, p, t)
-					elseif math.abs(p - fx.p) >= 0.004 then
+					if math.abs(p - fx.p) >= 0.004 then
 						self:_apply_look(widget, fx, p, t)
 					end
 				end
@@ -939,6 +951,10 @@ DeckView.install = function (View, h)
 
 			if fx and fx.ping_t then
 				self:_tick_ping(widget, fx, dt or 0)
+			end
+
+			if fx then
+				self:_tick_living_tile(widget, t)
 			end
 		end
 

@@ -649,9 +649,11 @@ function Components.stepper_passes(passes, layout, flag, ids)
 		end
 	end
 
-	rect_pass(passes, text_id .. "_minus", minus_x - 7, sign_y - 1, 14, 2, z + 3, visible, sign_color(minus_id))
-	rect_pass(passes, text_id .. "_plus_h", plus_cx - 7, sign_y - 1, 14, 2, z + 3, visible, sign_color(plus_id))
-	rect_pass(passes, text_id .. "_plus_v", plus_cx - 1, sign_y - 7, 2, 14, z + 3, visible, sign_color(plus_id))
+	local sign = layout.sign or 7 -- half the length of a sign (the compact steppers of the rows use 6)
+
+	rect_pass(passes, text_id .. "_minus", minus_x - sign, sign_y - 1, 2 * sign, 2, z + 3, visible, sign_color(minus_id))
+	rect_pass(passes, text_id .. "_plus_h", plus_cx - sign, sign_y - 1, 2 * sign, 2, z + 3, visible, sign_color(plus_id))
+	rect_pass(passes, text_id .. "_plus_v", plus_cx - 1, sign_y - sign, 2, 2 * sign, z + 3, visible, sign_color(plus_id))
 
 	-- the value, and a line under it while the pointer is on it (a click opens the number box)
 	passes[#passes + 1] = {
@@ -661,7 +663,7 @@ function Components.stepper_passes(passes, layout, flag, ids)
 		value = "",
 		style = {
 			font_type = "proxima_nova_bold",
-			font_size = 22,
+			font_size = layout.font_size or 22,
 			text_color = { 255, 255, 255, 255 },
 			text_horizontal_alignment = "center",
 			text_vertical_alignment = "center",

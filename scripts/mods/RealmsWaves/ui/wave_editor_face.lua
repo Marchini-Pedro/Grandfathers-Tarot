@@ -12,7 +12,6 @@ local FaceView = {}
 FaceView.install = function (View, h)
 	local guarded, set_setting, Popup = h.guarded, h.set_setting, h.Popup
 	local COOLDOWN_STEP = 30
-	local LOOKS = h.definitions.MIRROR_LOOKS -- the three looks in the order of the plates
 
 	-- the cooldown can be as long as the "Longest cooldown" option (minutes) says, 10 minutes by default
 	View._longest_cooldown = function (self)
@@ -23,31 +22,22 @@ FaceView.install = function (View, h)
 		return self._wave and self._wave.key
 	end
 
-	-- "Threat 3 by the numbers: 24 enemies give 2, elites +1." (and the override, and the suggested suit)
+	-- What the threat means (2026-10-04: Auto is gone, the threat is set with the diamonds): "Level 6: DESPAIR." (APOTHEOSIS on a
+	-- beneficial card) or "Level 3.", the murmur from 5 on, and the suit the enemies suggest.
 	View._face_numbers_text = function (self)
 		local rw = mod.rw
 		local Cards, wave = rw.cards, self._wave
-		if Cards.suit(wave.suit).beneficial then return "Blessing strength: " .. Cards.threat(wave.parts, wave.threat_override, rw.groups) .. ". Set the pips at any time." end
 		local parts = wave.parts or {}
-		local value, pieces = Cards.threat_auto(parts, rw.groups)
-		local text = mod:localize("face_numbers", value, pieces.count, pieces.base)
+		local level = Cards.threat(parts, wave.threat_override, rw.groups)
+		local six = Cards.threat_name(level, wave.suit)
+		local text = six and mod:localize("face_level_six", string.upper(six)) or mod:localize("face_level", level)
 
-		if pieces.elite then
-			text = text .. mod:localize("face_elites")
+		if Cards.murmurs(level) then
+			text = text .. mod:localize("face_murmur")
 		end
 
-		if pieces.special then
-			text = text .. mod:localize("face_specials")
-		end
-
-		if pieces.boss then
-			text = text .. mod:localize("face_boss")
-		end
-
-		text = text .. "."
-
-		if (wave.threat_override or 0) > 0 then
-			text = text .. " " .. mod:localize("face_override", wave.threat_override)
+		if Cards.suit(wave.suit).beneficial then
+			return text
 		end
 
 		local suggested = Cards.suggest_suit(parts, rw.groups)
@@ -96,22 +86,6 @@ FaceView.install = function (View, h)
 	View.cb_whisper_suit = guarded(function (self)
 		set_setting("wh_" .. key_of(self), "")
 		changed(self)
-	end)
-
-	-- a plate of the cooldown looks: that look, chosen for this card
-	View.cb_look_pick = guarded(function (self, index)
-		if self._screen == "face" and LOOKS[index] then
-			set_setting("cl_" .. key_of(self), LOOKS[index])
-			changed(self)
-		end
-	end)
-
-	-- Automatic for this suit: the suit decides the look (rot and renewal, the murmur returns for Murmur)
-	View.cb_look_auto = guarded(function (self)
-		if self._screen == "face" then
-			set_setting("cl_" .. key_of(self), "")
-			changed(self)
-		end
 	end)
 
 	-- the cooldown stepper (30 s steps, between 30 s and the longest cooldown option) and its number box

@@ -34,7 +34,9 @@ Workshop.COL = {
 	tune = 879, tune_w = 116,
 	remove = 1003, remove_w = 108,
 }
-Workshop.STEPPER = { button = 40, value = 56, height = 40 } -- the plate of a stepper: minus, value, plus
+-- the plate of a stepper on a row: minus, value, plus. Compact since 2026-10-04 (the user: "too large, make it cleaner"): it was
+-- 40, 56 and 40 high with a 22 unit value; the signs are 6 units from the middle instead of 7
+Workshop.STEPPER = { button = 32, value = 46, height = 32, font = 19, sign = 6 }
 
 -- the summary line under the rows ("The Magician: 9 enemies in total", "1 - 4 of 4" and the scroll buttons)
 Workshop.SUMMARY_Y = Workshop.ROW_Y0 + Workshop.ROWS * Workshop.ROW_PITCH + 4
@@ -93,6 +95,46 @@ Workshop.shelf_layout = function (shelf, groups)
 	return { chips = chips, bands = bands, height = y - Workshop.GROUP_GAP + Workshop.SHELF_PAD - (Workshop.CHIP_PITCH - Workshop.CHIP_H) }
 end
 
+-- ------------------------------------------------------------------------------------------------- the beneficial Cauldron
+-- A beneficial card's rows (ui/wave_editor_effects.lua): the name and its group under it, the amount stepper (its value cell wide
+-- enough for "100 percent"), the players stepper (Blue Stimm only), Remove at the enemy rows' place.
+Workshop.FX = { name = 24, name_w = 400, amount = 470, amount_w = 150, players = 712, players_w = 110 }
+Workshop.FX_CHIP_W = 236 -- four chips to a row: "Health and corruption" fits at the shelf's font
+
+-- Where every effect chip of the beneficial shelf goes: the groups (`categories` = Effects.CATEGORIES) in order, each a band with
+-- its label at the left and its chips flowing to the right (like Workshop.shelf_layout). `defs` = the effects (not Blackout).
+-- Returns { chips = { { def, x, y, w } ... }, bands = { { id, y, rows } ... }, height }, inside the panel.
+Workshop.fx_shelf_layout = function (categories, defs)
+	local chips, bands = {}, {}
+	local x0 = Workshop.SHELF_PAD + Workshop.GROUP_LABEL_W
+	local avail = Workshop.LEFT_W - Workshop.SHELF_PAD - x0
+	local w = Workshop.FX_CHIP_W
+	local y = Workshop.SHELF_HEAD
+
+	for _, category in ipairs(categories) do
+		local x, row, any = 0, 0, false
+
+		for _, def in ipairs(defs) do
+			if def.category == category.id then
+				x, row = (x > 0 and x + w > avail) and 0 or x, (x > 0 and x + w > avail) and row + 1 or row
+				chips[#chips + 1] = { def = def, x = x0 + x, y = y + row * Workshop.CHIP_PITCH, w = w }
+				x, any = x + w + Workshop.CHIP_GAP, true
+			end
+		end
+
+		if any then
+			bands[#bands + 1] = { id = category.id, y = y, rows = row + 1 }
+			y = y + (row + 1) * Workshop.CHIP_PITCH + Workshop.GROUP_GAP
+		end
+	end
+
+	return { chips = chips, bands = bands, height = y - Workshop.GROUP_GAP + Workshop.SHELF_PAD - (Workshop.CHIP_PITCH - Workshop.CHIP_H) }
+end
+
+-- The completion sound screen, in the bottom panel (y 750 to 1030): the two slots, Remove the second and Search in one line, the
+-- volume sliders under it, right of Back (125, 800).
+Workshop.SOUND = { slots_y = 754, slots_h = 40, slot1_x = 125, slot2_x = 745, slot_w = 600, remove_x = 1365, remove_w = 200, search_x = 1585, search_w = 215, slider_x = 325, slider_y = { 802, 860 }, slider_h = 52, label_w = 160, track_x = 170, track_w = 760 }
+
 -- ------------------------------------------------------------------------------------------------- spawn settings, actions
 Workshop.SPAWN_COLS = { 105, 491, 877 }
 Workshop.SPAWN_W = 360
@@ -136,6 +178,11 @@ Workshop.THREAT_Y = Workshop.SUIT_Y0 + 2 * Workshop.SUIT_H + Workshop.SUIT_GAP_Y
 Workshop.CHANCE_Y = Workshop.THREAT_Y + 52
 Workshop.ROW_LABEL_W = 84
 
+-- The quick face's switch between the twelve hostile suits and the four beneficial ones (right of the FACE label), and the quiet
+-- "Whisper and cooldown" button at the right end of the same line
+Workshop.KIND = { x = Workshop.RIGHT_X + 64, w_hostile = 104, w_ben = 112, h = 32 }
+Workshop.QUICKFACE_W = 236
+
 Workshop.suit_pos = function (index)
 	local col, row = (index - 1) % 8, floor((index - 1) / 8)
 
@@ -161,6 +208,9 @@ Workshop.MIRROR = {
 	auto_y = 876, auto_h = 36,
 }
 Workshop.MIRROR.bottom = Workshop.MIRROR.auto_y + Workshop.MIRROR.auto_h
+-- the same switch on the Mirror, at the right end of the Suit header
+Workshop.MIRROR.kind_x = Workshop.LEFT_X + Workshop.LEFT_W - Workshop.KIND.w_hostile - Workshop.KIND.w_ben
+Workshop.MIRROR.kind_y = Workshop.MIRROR.head[1] - 4
 
 -- "In the hand" (under the toolbar): the card as the Spread HUD draws it, at 1.5 times its HUD size (176 wide there).
 Workshop.HAND = { x = Workshop.RIGHT_X, caption_y = Workshop.TOOLBAR_Y + 44 + 28, scale = 1.5, hud_w = 176, pad = 12, bar = 4, icon = 18, name_font = 18 }
