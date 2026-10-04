@@ -111,7 +111,9 @@ end
 local function look(target)
 	local tags = Managers.state.extension:system("smart_tag_system")
 	if tags and tags:is_unit_tagged(target) then return true end
-	local player = Managers.player:local_player(1)
+	local manager = Managers.player
+	local find = manager and (manager.local_player_safe or manager.local_player)
+	local player = find and find(manager, 1)
 	local world = Managers.world:world("level_world")
 	local camera = player and Managers.state.camera and Managers.state.camera:camera_position(player.viewport_name)
 	if not camera or not world then return false end

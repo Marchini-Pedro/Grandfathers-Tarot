@@ -134,8 +134,59 @@ local encoded=Schema.recipe(combined)
 check("simultaneous outline/protected tint recipe",Schema.parse(encoded:sub(2,-2)).outline and Schema.parse(encoded:sub(2,-2)).protect)
 A.apply(treated,combined,treated.breed);A.update(0.25)
 local selected=treated.extensions.outline_system.settings.rw_selected_colour
-check("ordinary outline obeys depth and manual tags keep precedence",#selected.material_layers==1 and selected.material_layers[1]=="minion_outline" and selected.priority==2 and treated.extensions.outline_system.settings.tag==shared_settings.tag)
+check("ordinary outline: one layer, priority 2, manual tags keep precedence",#selected.material_layers==1 and selected.material_layers[1]=="minion_outline" and selected.priority==2 and treated.extensions.outline_system.settings.tag==shared_settings.tag)
 check("independent outline and tint coexist",outlines[treated]==1 and treated.colour[3]==1)
+-- line of sight (2026-10-04: the outline was seen through walls): the outline's visibility_check casts a ray from the local camera to
+-- the spine, then the head (static geometry only), unless a player tagged the enemy; each enemy at most every 0.15 s
+do
+  local vis = selected.visibility_check
+  local saved = { system = Managers.state.extension.system, player = Managers.player, camera = Managers.state.camera, world = Managers.world, time = Managers.time, V = Vector3, has_node = Unit.has_node, node = Unit.node, pos = Unit.world_position }
+  local now, tagged, walls, filters, rays = 0, {}, {}, {}, 0
+  Managers.state.extension.system = function(_, name) if name == "smart_tag_system" then return { is_unit_tagged = function(_, u) return tagged[u] == true end } end return outline_system end
+  Managers.player = { local_player_safe = function() return { viewport_name = "player1" } end }
+  Managers.state.camera = { camera_position = function() return 0 end }
+  Managers.world = { world = function() return "level" end }
+  Managers.time = { has_timer = function() return true end, time = function() return now end }
+  World = { physics_world = function() return "physics" end }
+  PhysicsWorld = { raycast = function(_, from, dir, dist, mode, key, filter)
+    rays = rays + 1; filters[#filters + 1] = filter
+    local wall = walls[current_node]
+    if wall == "error" then error("physics gone") end
+    if wall then return true, nil, wall end
+    return false
+  end }
+  Vector3 = setmetatable({ distance = function(a, b) return math.abs(b - a) end, normalize = function(v) return v >= 0 and 1 or -1 end }, { __call = saved.V })
+  Unit.has_node = function(u, name) return u.nodes == nil or u.nodes[name] == true end
+  Unit.node = function(u, name) current_node = name; return name end
+  Unit.world_position = function(u, node) current_node = node; return 10 end
+  local enemy = unit(900, "renegade_gunner")
+  check("line of sight: is the outline's visibility check", type(vis) == "function")
+  check("line of sight: a clear view shows the outline, the ray uses the minions' static line-of-sight filter", vis(enemy) == true and filters[#filters] == "filter_minion_line_of_sight_check")
+  now = 1; walls.j_spine = 4; walls.j_head = 4
+  check("line of sight: a wall between the camera and the enemy hides it", vis(enemy) == false)
+  local before = rays; walls.j_spine, walls.j_head = nil, nil
+  check("line of sight: asked again within 0.15 s the answer is kept (no new ray)", vis(enemy) == false and rays == before)
+  now = 1.2
+  check("line of sight: after 0.15 s it is cast again (the wall is gone: shown)", vis(enemy) == true and rays > before)
+  now = 2; walls.j_spine = 4
+  check("line of sight: the spine behind cover but the head in view still shows it", vis(enemy) == true)
+  now = 3; walls.j_spine, walls.j_head = 9.8, 9.8
+  check("line of sight: a hit at the enemy itself (within 0.4) is not a wall", vis(enemy) == true)
+  now = 4; walls.j_spine, walls.j_head = 4, 4; tagged[enemy] = true; before = rays
+  check("line of sight: a tagged enemy shows through walls, no ray needed", vis(enemy) == true and rays == before)
+  tagged[enemy] = nil; now = 5
+  local odd = unit(901, "chaos_hound"); odd.nodes = { root_point = true }; walls.root_point = nil
+  check("line of sight: an enemy without spine or head nodes is cast to its root", vis(odd) == true)
+  enemy.alive = false; now = 6
+  check("line of sight: a dead enemy has no outline", vis(enemy) == false)
+  enemy.alive = true; now = 7; walls.j_spine = "error"; local w0 = #warnings
+  check("line of sight: a failing ray hides the outline and warns once", vis(enemy) == false and #warnings == w0 + 1)
+  now = 8; vis(enemy); check("line of sight: ...only once", #warnings == w0 + 1)
+  walls.j_spine = nil; Managers.state.camera = { camera_position = function() return nil end }; now = 9
+  check("line of sight: no camera (no local player view) hides it", vis(enemy) == false)
+  Managers.state.extension.system, Managers.player, Managers.state.camera, Managers.world, Managers.time = saved.system, saved.player, saved.camera, saved.world, saved.time
+  Vector3, Unit.has_node, Unit.node, Unit.world_position = saved.V, saved.has_node, saved.node, saved.pos
+end
 treated.extensions.buff_system._current_material_vector_effect={material_vector_name="stimmed_color",value={0.2,0.3,0.4}}
 A.update(0.25);check("protected tint survives native buff colour",treated.colour[3]==1)
 treated.colour={0,0,0};safe_hooks._start_material_vector_effect({_unit=treated})
