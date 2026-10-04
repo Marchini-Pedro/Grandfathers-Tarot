@@ -3330,8 +3330,12 @@ do
     check("default cooldown: rounded to the 30 s grid (45 -> 60)", cd() == 60, cd())
     settings.tarot_default_cooldown = 5
     check("default cooldown: never below 30 s", cd() == 30)
+    settings.tarot_default_cooldown = 3600
+    check("default cooldown: never above the longest cooldown option (30 minutes by default and at most)", cd() == 1800, cd())
+    settings.tarot_longest = 10
     settings.tarot_default_cooldown = 1800
-    check("default cooldown: never above the longest cooldown option (10 minutes by default, 30 at most)", cd() == 600)
+    check("default cooldown: a player's shorter longest cooldown (10 minutes) still caps it", cd() == 600, cd())
+    settings.tarot_longest = nil
     settings.tarot_longest = 30
     check("default cooldown: ...which follows that option", cd() == 1800)
     settings.tarot_longest = 4

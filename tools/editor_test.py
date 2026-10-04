@@ -462,8 +462,8 @@ do
   check("cooldown: the minus takes 30 away (two clicks: 1:30)", settings.cd_wave_small == 90 and tile(1).content.cd_value == "1:30")
   for _ = 1, 10 do click_tile(1, "hotspot_cd_minus") end
   check("cooldown: never below 30 seconds, and the minus is dimmed there (its plate and glyph take the empty colour)", settings.cd_wave_small == 30 and tile(1).content.cd_value == "0:30" and tile(1).style.cd_minus_h.color[2] == tile(1).content.fx.empty[1] and tile(1).style.cd_plus_h.color[2] == 0x9a)
-  for _ = 1, 40 do click_tile(1, "hotspot_cd_plus") end
-  check("cooldown: never above the longest cooldown option (10 minutes by default), and the plus is dimmed there", settings.cd_wave_small == 600 and tile(1).content.cd_value == "10:00" and tile(1).style.cd_plus_h.color[2] == tile(1).content.fx.empty[1] and tile(1).style.cd_minus_h.color[2] == 0x9a)
+  for _ = 1, 70 do click_tile(1, "hotspot_cd_plus") end
+  check("cooldown: never above the longest cooldown option (30 minutes by default since 2026-10-04), and the plus is dimmed there", settings.cd_wave_small == 1800 and tile(1).content.cd_value == "30:00" and tile(1).style.cd_plus_h.color[2] == tile(1).content.fx.empty[1] and tile(1).style.cd_minus_h.color[2] == 0x9a)
   settings.tarot_longest = 4; reload()
   click_tile(1, "hotspot_cd_plus")
   check("cooldown: the limit follows the 'Longest cooldown' option (4 minutes: a longer value is brought back by the next click)", settings.cd_wave_small == 240 and tile(1).content.cd_value == "4:00", tostring(settings.cd_wave_small))
@@ -497,7 +497,7 @@ do
 
   -- the value: a number box
   click_tile(1, "hotspot_cd_value")
-  check("cooldown: clicking the value opens a number box with the cooldown in seconds (30 to the longest), titled with the card", view._popup ~= nil and view._popup.spec.min == 30 and view._popup.spec.max == 600 and view._popup.spec.value == "120" and view._popup.spec.label == "popup_cooldown_title:The Fool")
+  check("cooldown: clicking the value opens a number box with the cooldown in seconds (30 to the longest), titled with the card", view._popup ~= nil and view._popup.spec.min == 30 and view._popup.spec.max == 1800 and view._popup.spec.value == "120" and view._popup.spec.label == "popup_cooldown_title:The Fool")
   type_in("5000"); PPc.Popup.commit(view)
   check("cooldown: more than the longest is refused and the box stays open", view._popup ~= nil and view._popup.error ~= nil and settings.cd_wave_small == nil)
   type_in("200"); PPc.Popup.commit(view)
@@ -849,7 +849,7 @@ do
   for i = 1, 12 do if W["rw_plate_" .. i].visible then plates = plates + 1 end end
   check("face: the Mirror: twelve hostile suit plates (the beneficial four are behind the switch), the threat diamonds, the whisper field, the cooldown stepper, the one look plate and four headers; Back, the tabs and the stage; nothing of the Cauldron", view._screen == "face" and plates == 12 and not W.rw_plate_13.visible and not W.rw_plate_16.visible and W.rw_threat_big.visible and W.whisper_field.visible and W.stepper_cooldown.visible and W.rw_look_1.visible and W.rw_look_2 == nil and W.btn_kind_hostile.visible and W.btn_kind_ben.visible and W.btn_kind_hostile.content.hotspot_on and not W.btn_kind_ben.content.hotspot_on and W.mirror_head_4.visible and W.btn_back.visible and W.btn_face.content.hotspot_on == true and W.btn_enemies.visible and stage.visible and W.stage_plate.visible and not W.shelf_panel.visible and not W.rw_erow_1.visible and not W["rw_chip_1"].visible and not W.rw_suit_1.visible and not W.btn_dreg.visible and not W.rw_threat.visible and not W.list_panel.visible and not W.rw_row_1.visible and not W.bottom_panel.visible)
   check("face: the buttons of the Mirror and the shared ones: Change, Use the suit's line, Reset face, the toolbar; no Automatic look and no Auto | By hand any more; the Cauldron's own buttons are hidden", W.btn_whisper_change.visible and W.btn_whisper_suit.visible and W.btn_look_auto == nil and W.btn_reset_face.visible and W.btn_thr_auto == nil and W.btn_thr_hand == nil and W.btn_enabled.visible and W.btn_preview.visible and not W.btn_rename.visible and not W.btn_delete.visible and not W.btn_add.visible and not W.btn_quickface.visible and not W.rw_scroll_up.visible and not W.stepper_chance.visible and not W.stepper_spread.visible)
-  check("face: the headers and the title", W.title_text.content.title_text == "view_title_mirror" and W.mirror_head_1.content.head_title == "MIRROR_SUIT" and W.mirror_head_2.content.head_title == "MIRROR_THREAT" and W.mirror_head_3.content.head_title == "MIRROR_WHISPER" and W.mirror_head_4.content.head_title == "MIRROR_COOLDOWN" and W.mirror_head_4.content.head_hint == "mirror_cooldown_hint:10" and W.description_text.content.description_text == "view_desc_face:The Devil")
+  check("face: the headers and the title", W.title_text.content.title_text == "view_title_mirror" and W.mirror_head_1.content.head_title == "MIRROR_SUIT" and W.mirror_head_2.content.head_title == "MIRROR_THREAT" and W.mirror_head_3.content.head_title == "MIRROR_WHISPER" and W.mirror_head_4.content.head_title == "MIRROR_COOLDOWN" and W.mirror_head_4.content.head_hint == "mirror_cooldown_hint:30" and W.description_text.content.description_text == "view_desc_face:The Devil")
   check("face: the stage card is this card's tile at 1.4, not clickable, the same widget as on the Cauldron", stage.content.metrics.k == 1.4 and stage.content.name == "The Devil" and stage.content.suit_label == "FATEFUL" and stage.content.hotspot_top.disabled == true)
 
   -- the suits: all twelve at once, each in its own colours, the card's own lit
@@ -937,8 +937,11 @@ do
   check("cooldown: + adds 30 s and writes cd_<key>", settings.cd_boss_ambush == 270 and W.stepper_cooldown.content.stepper_value == "4:30")
   for _ = 1, 30 do click("stepper_cooldown", "hotspot_minus") end
   check("cooldown: never below 30 s", settings.cd_boss_ambush == 30 and W.stepper_cooldown.content.stepper_value == "0:30")
-  for _ = 1, 40 do click("stepper_cooldown", "hotspot_plus") end
-  check("cooldown: never above the longest cooldown option (10 minutes by default)", settings.cd_boss_ambush == 600 and W.stepper_cooldown.content.stepper_value == "10:00")
+  for _ = 1, 70 do click("stepper_cooldown", "hotspot_plus") end
+  check("cooldown: never above the longest cooldown option (30 minutes by default)", settings.cd_boss_ambush == 1800 and W.stepper_cooldown.content.stepper_value == "30:00")
+  settings.tarot_longest = 10; click("stepper_cooldown", "hotspot_plus")
+  check("cooldown: a player's shorter longest cooldown (10 minutes) still caps it", settings.cd_boss_ambush == 600, settings.cd_boss_ambush)
+  settings.tarot_longest = nil
   settings.tarot_longest = 4
   click("stepper_cooldown", "hotspot_minus"); click("stepper_cooldown", "hotspot_plus"); click("stepper_cooldown", "hotspot_plus")
   check("cooldown: the limit follows the option (4 minutes), and the header says so", settings.cd_boss_ambush == 240 and W.mirror_head_4.content.head_hint == "mirror_cooldown_hint:4", tostring(settings.cd_boss_ambush))
@@ -2513,20 +2516,28 @@ do
   check("shelf: the new group is on the screen (the list scrolled to its last row), the range says 2 - 5 of 5", view._offset == 0 and W.rw_erow_5.visible and plain(W.rw_erow_5.content.row_name) == "2 Hound" and W.list_range.content.list_range == "list_range:1,5,5", W.list_range.content.list_range)
 
   -- Dreg or Scab
-  check("faction: the switch starts on Scab (renegades) and shows it; the chips have no S or D tag but a tint: steel grey over black for the Scab ones, putrid yellow-green for the Dreg Mutant, none for Chaos units", view._faction == "scab" and W.btn_scab.content.hotspot_on == true and W.btn_dreg.content.hotspot_on == false and W["rw_chip_" .. chip_of("Gunner")].content.tint.frame[1] == 82 and W["rw_chip_" .. chip_of("cultist_mutant")].content.tint.frame[1] == 104 and W["rw_chip_" .. chip_of("chaos_poxwalker")].content.tint == false and W["rw_chip_" .. chip_of("Gunner")].content.chip_tag == nil)
+  -- (2026-10-04, the design page: plain chips, the Dreg / Scab switch says which faction a click adds; four columns, chips as wide as
+  -- their labels, a one unit outline)
+  check("faction: the switch starts on Scab (renegades) and shows it; the chips are plain (no tint, no S or D tag)", view._faction == "scab" and W.btn_scab.content.hotspot_on == true and W.btn_dreg.content.hotspot_on == false and W["rw_chip_" .. chip_of("Gunner")].content.tint == false and W["rw_chip_" .. chip_of("cultist_mutant")].content.tint == false and W["rw_chip_" .. chip_of("Gunner")].content.chip_tag == nil)
   do
     local gun, pox = W["rw_chip_" .. chip_of("Gunner")], W["rw_chip_" .. chip_of("chaos_poxwalker")]
     local function fill(w) local pass = pass_by_style(w, "chip_fill"); pass.change_function(w.content, w.style.chip_fill); local c = w.style.chip_fill.color; return { c[2], c[3], c[4] } end
-    local function label(w) local pass = pass_by_style(w, "chip_label"); pass.change_function(w.content, w.style.chip_label); local c = w.style.chip_label.text_color; return { c[2], c[3], c[4] } end
-    check("chips: a Scab chip is near black, a Dreg chip olive-dark, a neutral one the button plate; hovering lights it", fill(gun)[1] < 30 and fill(gun)[3] > fill(gun)[1] and (function() local dreg = W["rw_chip_" .. chip_of("cultist_mutant")]; local f = fill(dreg); return f[2] > f[3] + 15 end)() and fill(pox)[1] == mod.rw.cards.suit(view._wave.suit).card[1] and (function() gun.content.hotspot.is_hover = true; local f = fill(gun); gun.content.hotspot.is_hover = false; return f[1] > 30 end)())
-    check("chips: the label of a Scab chip is steel grey, of a Dreg chip putrid yellow (its lit brighter form here: the card has a mutant), of a neutral chip the bone text colour", label(W["rw_chip_" .. chip_of("renegade_executor")])[1] == 170 and label(W["rw_chip_" .. chip_of("renegade_executor")])[3] == 184 and label(W["rw_chip_" .. chip_of("cultist_mutant")])[1] == 238 and label(pox)[1] == mod.rw.cards.suit(view._wave.suit).text[1], table.concat(label(W["rw_chip_" .. chip_of("renegade_executor")]), ",") .. "|" .. table.concat(label(W["rw_chip_" .. chip_of("cultist_mutant")]), ",") .. "|" .. table.concat(label(pox), ","))
-    check("chips: labels stay inside the shared chip and left aligned", gun.style.chip_label.size[1] <= gun.style.hotspot.size[1] - 22 and gun.style.chip_label.text_horizontal_alignment == "left")
-    check("chips: every enemy shares a compact 156-unit cell", WK.chip_width("Hound") == 156 and WK.chip_width("Armored Hound") == 156)
+    check("chips: every chip has the button plate; hovering lights it", fill(gun)[1] == fill(pox)[1] and fill(pox)[1] == mod.rw.cards.suit(view._wave.suit).card[1] and (function() gun.content.hotspot.is_hover = true; local f = fill(gun); gun.content.hotspot.is_hover = false; return f[1] ~= fill(gun)[1] or f[2] ~= fill(gun)[2] end)())
+    check("chips: labels stay inside the chip and left aligned; no second thick frame", gun.style.chip_label.size[1] <= gun.style.hotspot.size[1] - 22 and gun.style.chip_label.text_horizontal_alignment == "left" and gun.style.chip_edge_t == nil and gun.style.chip_edge == nil)
+    check("chips: a chip is as wide as its label (a longer name, a wider chip), never wider than its column", WK.chip_width("Armored Hound") > WK.chip_width("Hound") and WK.chip_width("Hound") < 156 and (function() for _, c in ipairs(chips) do local band = DEFS.shelf_layout.bands[c.group]; if c.x < band.x - 0.5 or c.x + c.w > band.x + band.w + 0.5 then return false end end return true end)())
+    local bands = DEFS.shelf_layout.bands
+    check("shelf: four columns side by side (Fodder, Elites, Specials, Bosses), each title at the top, widest last", #bands == 4 and bands[1].id == "fodder" and bands[4].id == "boss" and bands[1].x < bands[2].x and bands[2].x < bands[3].x and bands[3].x < bands[4].x and bands[1].y == bands[4].y and bands[4].w > bands[1].w)
+    check("shelf: the chips of a column flow under its title and never overlap", (function()
+      for i, c in ipairs(chips) do
+        if c.y < bands[c.group].y + WK.COLUMN_LABEL_H - 0.5 then return false end
+        for j = i + 1, #chips do local d = chips[j]; if c.x < d.x + d.w and d.x < c.x + c.w and c.y < d.y + WK.CHIP_H and d.y < c.y + WK.CHIP_H then return false end end
+      end
+      return true end)())
   end
   click_chip("Gunner")
   check("faction: with Scab chosen the Gunner chip adds the Scab gunner (renegade_gunner), the row says Scab", view._parts[#view._parts].breed == "renegade_gunner" and plain(W["rw_erow_" .. math.min(#view._parts, WK.ROWS)].content.row_name) == "1 Gunner  Scab", view._parts[#view._parts].breed)
   W.btn_dreg.content.hotspot.pressed_callback()
-  check("faction: the switch to Dreg is kept in the settings; the chips of the pairs turn Dreg-coloured; the single-faction chips keep theirs", view._faction == "dreg" and settings.shelf_faction == "dreg" and W.btn_dreg.content.hotspot_on == true and W.btn_scab.content.hotspot_on == false and W["rw_chip_" .. chip_of("Gunner")].content.tint.frame[1] == 104 and W["rw_chip_" .. chip_of("renegade_executor")].content.tint.frame[1] == 82)
+  check("faction: the switch to Dreg is kept in the settings; the chips stay plain", view._faction == "dreg" and settings.shelf_faction == "dreg" and W.btn_dreg.content.hotspot_on == true and W.btn_scab.content.hotspot_on == false and W["rw_chip_" .. chip_of("Gunner")].content.tint == false)
   click_chip("Gunner")
   check("faction: with Dreg chosen the same chip adds the Dreg gunner, in its own group, and says Dreg Gunner", view._parts[#view._parts].breed == "cultist_gunner" and view._parts[#view._parts - 1].breed == "renegade_gunner", view._parts[#view._parts].breed)
   local count_before = #view._parts

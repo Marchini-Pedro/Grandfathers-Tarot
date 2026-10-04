@@ -43,7 +43,8 @@ local CHAIN_GAP, CHAIN_LONGEST = 2.5, 12
 local chain, audio_clock = {}, 0
 local function listener_unit()
 	local manager = Managers.player
-	local player = manager and (manager.local_player_safe and manager:local_player_safe(1) or manager:local_player(1))
+	local find = manager and (manager.local_player_safe or manager.local_player)
+	local player = find and find(manager, 1)
 	local unit = player and player.player_unit
 	return unit and Unit.alive(unit) and unit or nil
 end
