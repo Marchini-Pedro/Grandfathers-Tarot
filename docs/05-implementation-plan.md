@@ -240,5 +240,7 @@ Ten changes the user asked for in one list. Everything below is implemented and 
 - [x] Publish [draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9); both jobs on the
   [first hosted branch run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170104362) pass at `9f9082b`.
   Downloaded artifacts match local counts, scores and module gates.
+- [x] Give hosted instrumented harnesses the same 280-second allowance used
+  locally; preserve the ten-minute job limit and every coverage/assertion gate.
 - [ ] Native acceptance of [the new game checklist](12-card-effects-and-ui.md).
   Keep the feature branch open until the user's confirmation.

@@ -399,3 +399,11 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   **2,321 assertions each, Lua 5.5 82.37% / LuaJIT 2.1 79.13%**. This follow-up
   records publication in documentation only. Native acceptance remains pending;
   no installed mods, repository settings or main merge.
+
+- 2026-10-03 (PR #9 hosted timeout): first branch run passes both VMs, but the
+  parallel PR run `37170106824` times out in Lua 5.5 logic after 120 seconds.
+  Its preceding harnesses pass; missing collector output causes the expected
+  fail-closed coverage errors. Give CI the same explicit 280-second harness
+  allowance used in local verification and contributor commands. Retain the
+  ten-minute job limit and all assertions/module floors. Production Lua is
+  unchanged; the corrected hosted run is the remaining verification step.

@@ -35,7 +35,7 @@ jobs:
       - name: Install verification dependencies
         run: python -m pip install -r tools/requirements-test.txt
       - name: Compile Lua, run offline tests and enforce coverage
-        run: python tools/run_tests.py --runtime ${{ matrix.runtime }} --output-dir test-results/${{ matrix.runtime }}
+        run: python tools/run_tests.py --runtime ${{ matrix.runtime }} --output-dir test-results/${{ matrix.runtime }} --timeout-seconds 280
       - name: Upload test logs and coverage
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

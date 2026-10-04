@@ -125,8 +125,8 @@ From the repository root, with Python 3.13 installed, run:
 
 ```powershell
 python -m pip install -r tools/requirements-test.txt
-python tools/run_tests.py --runtime lua55 --output-dir test-results/lua55
-python tools/run_tests.py --runtime luajit21 --output-dir test-results/luajit21
+python tools/run_tests.py --runtime lua55 --output-dir test-results/lua55 --timeout-seconds 280
+python tools/run_tests.py --runtime luajit21 --output-dir test-results/luajit21 --timeout-seconds 280
 ```
 
 The runner compiles Lua, runs every offline harness, checks documentation sizes

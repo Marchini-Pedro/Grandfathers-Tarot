@@ -266,8 +266,8 @@ reports retain their original baseline.
 
 ```powershell
 python -m pip install -r tools/requirements-test.txt
-python tools/run_tests.py --runtime lua55 --output-dir test-results/lua55
-python tools/run_tests.py --runtime luajit21 --output-dir test-results/luajit21
+python tools/run_tests.py --runtime lua55 --output-dir test-results/lua55 --timeout-seconds 280
+python tools/run_tests.py --runtime luajit21 --output-dir test-results/luajit21 --timeout-seconds 280
 ```
 
 Python 3.13 and Lupa 2.8 are the CI dependencies. The editor's repository-owned
@@ -277,7 +277,10 @@ game, Realms files or external source checkout. Compilation has 30 inputs.
 Reports are `test-results/<runtime>/test-results.json`, `lua-coverage.json` and
 one log per check. Coverage JSON lists modules, floors and uncovered lines.
 Generated results are ignored by Git. Harness timeout defaults to 120 seconds;
-`--timeout-seconds` adjusts it for slower local machines.
+the commands above and CI explicitly allow 280 seconds for instrumented suites
+on slower machines. CI retains its ten-minute job limit. The first PR #9 run
+timed out in Lua 5.5 logic at 120 seconds while the same branch push passed;
+missing coverage after termination remains a failure, with no floor reduced.
 Both standalone-checkout suites pass all 1,837 assertions. The workflow passes
 actionlint 1.7.12; Python syntax, 46 local documentation links, Markdown size
 limits and the repository's normal Git whitespace checks pass.

@@ -299,3 +299,10 @@ Things we know are missing or unverified, each with the next concrete step.
   separate from documentation-only publication follow-ups and native acceptance.
   A publication scratch f-string delimiter error failed before any writes;
   correct the literal and rerun artifact comparison before recording success.
+
+- 2026-10-03 (PR #9): one Ubuntu runner finishes the full source at the default
+  deadline while another needs 109.70 seconds for appearance and hits the
+  logic harness's 120-second limit. A timeout removes the collector artifact,
+  so resulting coverage failures are incomplete evidence, not measured losses.
+  Use the already-tested 280-second per-harness allowance in CI, retain the
+  ten-minute job limit and gates, and await a complete hosted report.

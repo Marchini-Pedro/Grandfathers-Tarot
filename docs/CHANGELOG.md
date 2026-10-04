@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03 - Align hosted verification timeout with local runs (PR #9)
+- The first branch run passes, but the parallel PR run times out in Lua 5.5 logic at 120 seconds on a slower runner. Keep missing coverage fail-closed and distinguish termination from a behavior assertion failure.
+- CI and documented contributor commands explicitly allow 280 seconds per harness, matching the passing local invocation. Keep the ten-minute job limit, every assertion and all coverage floors; production Lua is unchanged.
+
 ## 2026-10-03 - Publish draft PR #9 and confirm hosted verification
 - Push the four coherent implementation/verification commits and open [draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9). GitHub reports no merge conflicts.
 - Both jobs on the [first hosted branch run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170104362) at `9f9082b` pass; downloaded artifacts match local module scores, all gates and 2,321 assertions each (Lua 5.5 82.37% / LuaJIT 2.1 79.13%).
