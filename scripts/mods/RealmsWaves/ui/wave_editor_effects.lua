@@ -221,10 +221,10 @@ EffectsView.install = function (View, h)
 	end
 
 	local function value_text(def, value)
-		if def.unit == "players" then
-			return value .. (value == 1 and " player" or " players")
-		elseif def.fixed then
+		if def.fixed then
 			return mod:localize("fx_fixed_" .. def.id)
+		elseif def.unit == "players" then
+			return value .. (value == 1 and " player" or " players")
 		elseif def.unit == "grenades" then
 			return value .. (value == 1 and " grenade" or " grenades")
 		elseif def.unit == "charges" then

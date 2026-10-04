@@ -120,10 +120,13 @@ local function player(id,local_unit)
   u.extensions.unit_data_system={read_component=function() return u.inventory end}
   u.extensions.visual_loadout_system={}
   local ability={restored=0,_is_local_unit=local_unit}
+  ability.grenades=0
+  function ability:ability_is_equipped(kind) return kind=="grenade_ability" and not self.no_grenade end
+  function ability:restore_ability_charge(kind,n) assert(kind=="grenade_ability");local room=math.max(0,(self.grenade_room or 3)-self.grenades);local got=math.min(room,n);self.grenades=self.grenades+got;return n,got end
   function ability:restore_ability_resource_percentage(kind,amount,ignore) assert(self._is_local_unit,"husk mutation"); assert(kind=="combat_ability" and ignore);self.restored=self.restored+amount end
   u.extensions.ability_system=ability
   local buff={_buffs_by_index={},next=0,removed=0}
-  function buff:add_externally_controlled_buff(name,t) assert(name=="syringe_speed_boost_buff" and t==3);self.next=self.next+1;self._buffs_by_index[self.next]={extra=0,add_duration=function(b,n) b.extra=b.extra+n end};return 4,self.next,7 end
+  function buff:add_externally_controlled_buff(name,t) assert((name=="syringe_speed_boost_buff" or name=="syringe_ability_boost_buff" or name=="syringe_power_boost_buff") and t==3);self.names=self.names or {};self.names[#self.names+1]=name;self.next=self.next+1;self._buffs_by_index[self.next]={extra=0,add_duration=function(b,n) b.extra=b.extra+n end};return 4,self.next,7 end
   function buff:has_running_buff_with_index(index,component) assert(component==7);return self._buffs_by_index[index]~=nil end
   function buff:remove_externally_controlled_buff(index,component) assert(component==7 and self._buffs_by_index[index]);self._buffs_by_index[index]=nil;self.removed=self.removed+1 end
   u.extensions.buff_system=buff
@@ -159,6 +162,21 @@ check("items preserve occupied slots and use stable eligible order", #gifts==1 a
 check("yellow stim uses remaining empty slot", start(effect("yellow_stimm",4)) and #gifts==2 and gifts[2][1]==p3)
 check("full inventory fails gracefully", not start(effect("green_stimm",4)))
 check("medcrate independent large slot", start(effect("med_crate",2)) and #gifts==4)
+-- (2026-10-04) the Blue and Red Stimm items, the Ammo Crate: the same native equip, their own items and slots
+for _,p in ipairs({p1,p2,p3}) do p.inventory.slot_pocketable_small="not_equipped";p.inventory.slot_pocketable="not_equipped" end
+check("blue stimm item: the native celerity syringe into an empty small slot", start(effect("blue_stimm_item",1)) and gifts[#gifts][2]=="content/items/pocketable/syringe_speed_boost_pocketable" and gifts[#gifts][3]=="slot_pocketable_small")
+check("red stimm item: the native combat syringe", start(effect("red_stimm_item",1)) and gifts[#gifts][2]=="content/items/pocketable/syringe_power_boost_pocketable")
+local before_crates=#gifts
+check("ammo crate: the native ammo cache into the large slot, as many players as set", start(effect("ammo_crate",2)) and #gifts==before_crates+2 and gifts[#gifts][2]=="content/items/pocketable/ammo_cache_pocketable" and gifts[#gifts][3]=="slot_pocketable")
+check("ammo crate: a party whose large slots are full gets none and the effect reports it", start(effect("ammo_crate",4)) and not start(effect("ammo_crate",4)))
+-- replenish grenades: the native charge restore on the host, for every living player with a grenade ability
+p2.extensions.ability_system.no_grenade=true;p3.extensions.ability_system.grenade_room=1
+check("grenades: each living player with a grenade ability gets the charges (capped by what the native ability takes)", start(effect("grenades",2)) and p1.extensions.ability_system.grenades==2 and p2.extensions.ability_system.grenades==0 and p3.extensions.ability_system.grenades==1)
+p1.extensions.ability_system.grenade_room=2
+check("grenades: when every pouch is full the effect reports nothing given", not start(effect("grenades",2)))
+p2.extensions.ability_system.no_grenade=nil;p1.extensions.ability_system.restore_ability_charge=function() error("no ability") end
+check("grenades: one failing player is contained (warned) and the others still get theirs", start(effect("grenades",1)) and p2.extensions.ability_system.grenades==1)
+p1.extensions.ability_system.restore_ability_charge=nil
 local far,near={alive=true,position=100},{alive=true,position=2}
 local function station(charges)
   return {charges=charges,battery_in_slot=function() return true end,charge_amount=function(s) return s.charges end,max_amount_charges=function() return 4 end,set_charge_amount=function(s,n) s.charges=n end,sync_charge_amount=function(s) s.synced=true end}
@@ -168,31 +186,37 @@ systems.health_station_system={_unit_to_extension_map={[far]=fs,[near]=ns}}
 check("Med Station recharge is disabled for now: saved charges never run", not start(effect("med_station",4)) and ns.charges==3 and not ns.synced and fs.charges==0)
 check("disabled effects stay parsed and encoded but are not allowed", Schema.parse("med_station=2:4").med_station.value==2 and not Schema.allowed({med_station={value=2,players=4}},"miracle").med_station)
 systems.health_station_system=nil
-check("four beneficial suits including Faith; categories are Healing, Buffs, Items and Game Effects", Schema.beneficial("faith") and Schema.CATEGORIES[2].id=="Buffs" and Schema.CATEGORIES[3].id=="Items" and Schema.CATEGORIES[4].id=="Game Effects" and Schema.definition("cooldown").category=="Buffs" and Schema.definition("blue_stimm").category=="Items" and Schema.definition("revive").category=="Game Effects")
+check("four beneficial suits including Faith; categories are Healing, Buffs, Items and Game Effects", Schema.beneficial("faith") and Schema.CATEGORIES[2].id=="Buffs" and Schema.CATEGORIES[3].id=="Items" and Schema.CATEGORIES[4].id=="Game Effects" and Schema.definition("cooldown").category=="Buffs" and Schema.definition("blue_stimm").category=="Buffs" and Schema.definition("blue_stimm_item").category=="Items" and Schema.definition("revive").category=="Game Effects")
 -- the card's lines (2026-10-04, the design page): the amount first, then the short name
-check("summary: amount then name", Schema.summary({revive={value=2,players=4}})=="2 Raise the fallen" and Schema.summary({ammo={value=50,players=4}})=="50% Refill ammunition" and Schema.summary({reveal={value=15,players=4}})=="15s Reveal Specialists")
+check("summary: amount then name", Schema.summary({revive={value=2,players=4}})=="1+1 Raise the fallen" and Schema.summary({ammo={value=50,players=4}})=="50% Refill ammunition" and Schema.summary({reveal={value=15,players=4}})=="15s Reveal Specialists")
 local tags = {}
 local marked = Schema.summary({heal={value=95,players=4},reveal={value=15,players=4}}, nil, nil, function (text, rgb) tags[#tags + 1] = text .. "=" .. table.concat(rgb, ","); return "<" .. text .. ">" end, {1,2,3})
 check("summary: colour tags, the amount in the text colour and the name in its group's", marked == "<95%> <Party health>\n<15s> <Reveal Specialists>" and tags[1] == "95%=1,2,3" and tags[2] == "Party health=98,200,106" and tags[4] == "Reveal Specialists=108,180,255", marked)
 check("summary: hostile Blackout is not a line; a name cut to the characters; +N more", Schema.summary({blackout={value=15,players=4}}) == "" and Schema.summary({cleanse={value=100,players=4}}, nil, 14) == "100% Health..." and Schema.summary({heal={value=5,players=4},cleanse={value=5,players=4},reveal={value=5,players=4}}, 2) == "5% Party health\n+2 more")
 local dots = Schema.dots({heal={value=5,players=4},cleanse={value=5,players=4},ammo={value=5,players=4},blackout={value=5,players=4}})
 check("dots: one per group of the card's effects, in group order", #dots == 2 and dots[1][1] == 98 and dots[2][1] == 240 and #Schema.dots(nil) == 0)
--- Raise the fallen: only knocked-down players, through the native assisted-state input, at most N, never twice
-local states={}
+-- Raise the fallen (2026-10-04): ONE knocked-down player (the native assisted-state input) and ONE hogtied player (the rescue
+-- interaction's writes on the host), never the netted, never twice, never one someone is already helping
 for _,p in ipairs({p1,p2,p3}) do
   local data=p.extensions.unit_data_system
-  p.state={state_name="walking"}; p.assist={force_assist=false,in_progress=false}
+  p.state={state_name="walking"}; p.assist={force_assist=false,in_progress=false,success=false}; p.hog={hogtie=true}
   data.read_component=function(_,name) if name=="character_state" then return p.state end return p.inventory end
-  data.write_component=function(_,name) assert(name=="assisted_state_input");return p.assist end
+  data.write_component=function(_,name) if name=="hogtied_state_input" then return p.hog end assert(name=="assisted_state_input");return p.assist end
 end
 package.preload["scripts/utilities/attack/player_unit_status"]=function() return {
-  is_knocked_down=function(c) return c.state_name=="knocked_down" end, is_assisted=function(a) return a.in_progress end } end
-check("nobody down: raise the fallen fails without touching anyone", not start(effect("revive",4)) and not p1.assist.force_assist)
+  is_knocked_down=function(c) return c.state_name=="knocked_down" end, is_hogtied=function(c) return c.state_name=="hogtied" end, is_assisted=function(a) return a.in_progress end } end
+check("raise the fallen: its amount is fixed (one downed and one hogtied), whatever a card text says", Schema.definition("revive").fixed and Schema.parse("revive=4:4").revive.value==1)
+check("nobody down: raise the fallen fails without touching anyone", not start(effect("revive",1)) and not p1.assist.force_assist and p1.hog.hogtie)
 p1.state.state_name="knocked_down";p2.state.state_name="knocked_down";p3.state.state_name="netted"
-check("raise the fallen lifts at most the configured number of knocked-down players", start(effect("revive",1)) and p1.assist.force_assist and not p2.assist.force_assist and not p3.assist.force_assist)
+check("raise the fallen lifts one knocked-down player, not two, and not a netted one", start(effect("revive",1)) and p1.assist.force_assist and not p2.assist.force_assist and not p3.assist.force_assist)
 p1.assist.force_assist=false;p1.assist.in_progress=true
-check("a player already being helped is skipped", start(effect("revive",4)) and not p1.assist.force_assist and p2.assist.force_assist and not p3.assist.force_assist)
-p1.assist.in_progress=false;p1.state.state_name="walking";p2.state.state_name="walking";p3.state.state_name="walking"
+check("a player already being helped is skipped", start(effect("revive",1)) and not p1.assist.force_assist and p2.assist.force_assist and not p3.assist.force_assist)
+p1.assist.in_progress=false;p2.assist.force_assist=false
+p1.state.state_name="hogtied";p2.state.state_name="knocked_down";p3.state.state_name="hogtied"
+check("raise the fallen also frees ONE hogtied player, as the rescue does (assist success, hogtie off); the second stays tied", start(effect("revive",1)) and p1.assist.success and p1.hog.hogtie==false and p2.assist.force_assist and not p3.assist.success and p3.hog.hogtie==true)
+p1.assist.success=false;p1.hog.hogtie=true;p2.assist.force_assist=false;p2.state.state_name="walking"
+check("only hogtied players: one is freed and the effect counts as done", start(effect("revive",1)) and p1.assist.success and not p3.assist.success)
+p1.assist.success=false;p1.state.state_name="walking";p2.state.state_name="walking";p3.state.state_name="walking";p1.hog.hogtie=true
 -- Refill ammunition: the native helper with a fraction, a full party reports nothing gained, one failing player is contained
 local ammo_calls={}
 package.preload["scripts/utilities/ammo"]=function() return { add_to_all_slots=function(u,f) ammo_calls[#ammo_calls+1]={u,f}; if u.ammo_error then error("no weapon system") end return u.ammo_gain or 0 end } end
@@ -210,6 +234,10 @@ p1.extensions.buff_system._buffs_by_index[1]=nil;E.update(4,true)
 check("native expiry is never removed twice", p1.extensions.buff_system.removed==0)
 p2.alive=true;start(effect("blue_stimm",30,1));E.cancel()
 check("stop removes only owned active native buffs", p1.extensions.buff_system.removed==1)
+-- (2026-10-04) the Yellow and Red Stimm buffs: the native concentration and combat syringe buffs, their seconds, their players
+check("yellow stimm buff: the native concentration buff for the set players and seconds", start(effect("yellow_stimm_buff",20,1)) and p1.extensions.buff_system.names[#p1.extensions.buff_system.names]=="syringe_ability_boost_buff" and p1.extensions.buff_system._buffs_by_index[p1.extensions.buff_system.next].extra==5)
+check("red stimm buff: the native combat buff", start(effect("red_stimm_buff",15,1)) and p1.extensions.buff_system.names[#p1.extensions.buff_system.names]=="syringe_power_boost_buff")
+E.cancel()
 local l1,l2={alive=true},{alive=true}
 local function light(on) return {on=on,is_enabled=function(s) return s.on end,set_enabled=function(s,on,hotjoin) assert(hotjoin==false);s.on=on end} end
 local a,b=light(true),light(false)
@@ -244,31 +272,27 @@ check("duplicate active-guidance snapshot does not extend or revive duration",cl
 server=true;E.cancel();local stopped_snapshot=E.snapshot();server=false;client.receive(stopped_snapshot);client.receive(snapshot)
 check("older guidance revision cannot undo stop",client.snapshot().reveal==0)
 server=true
-E.reset();simple={play=function(sound) played[#played+1]=sound end}
+-- the card's sound is an ALERT at the draw (2026-10-04): no completion ticket, no sound when the wave ends
+E.reset()
 local ok,ticket=start(effect("heal",100),nil,event)
-check("sounding card tracks completion", ok and ticket)
-local enemy={alive=true};E.add_unit(ticket,enemy);E.update(0.25)
-check("no sound before scheduling finishes", #played==0)
-E.finish(ticket);E.update(0.25);check("living enemies delay completion", #played==0)
-enemy.alive=false;E.update(0.25);E.update(0.25)
-check("fulfilled wave sounds exactly once", #played==1 and E.snapshot().sequence==1)
-ok,ticket=start(effect("reveal",2),nil,event);E.finish(ticket);E.update(1)
-check("timed benefit waits for effect expiry", #played==1)
-E.update(1.1);check("timed completion sounds at expiry", #played==2)
-ok,ticket=start(effect("heal",100),nil,event);E.finish(ticket,true);E.update(0.25)
-check("failed spawn ticket suppresses sound", #played==2)
-ok,ticket=start(effect("heal",100),nil,event);E.cancel();E.update(1)
-check("cancelled cards stay silent", #played==2)
-for i=1,64 do check("sounding card budget admission "..i,start(effect("heal",1),nil,event)) end
-check("bounded completion tracking rejects 65th card", not start(effect("heal",1),nil,event))
-check("silent cards do not consume audio budget", start(effect("heal",1)))
-E.reset();for i=1,10 do ok,ticket=start(effect("heal",1),nil,event);E.finish(ticket);E.update(0.25) end
+check("a card's effects start without a completion ticket", ok and ticket==nil and E.add_unit==nil and E.finish==nil)
+E.update(5);check("nothing sounds when the wave's effects start or end", #played==0)
+local before=#played
+local job=E.alert(event)
+check("alert: the host plays the card's sound at once and journals it for the other players", job~=nil and not job.done and #played==before+1 and E.snapshot().sequence==1 and E.snapshot().audio[1][2]==event)
+E.tick_audio(1);check("alert: not over while its sound may still play", not job.done)
+E.tick_audio(2);check("alert: over when its sound has ended (a sound without an id: after the gap)", job.done)
+check("alert: no sound, no alert (the wave goes at once), nothing journaled", E.alert("")==nil and E.alert(nil)==nil and E.alert("arbitrary/file")==nil and E.snapshot().sequence==1)
+settings.card_sounds=false;local muted=E.alert(event)
+check("alert: a host who muted card sounds hears nothing and does not hold the wave; the others still get it", muted==nil and E.snapshot().sequence==2 and #played==before+1);settings.card_sounds=nil
+server=false;check("alert: only the host raises one", E.alert(event)==nil);server=true
+for i=1,10 do E.alert(event) end
 check("audio history bounded", #E.snapshot().audio==8)
-client.reset();server=false;local before=#played;client.receive(E.snapshot())
+client.reset();server=false;before=#played;client.receive(E.snapshot())
 check("late join audio baseline silent", #played==before)
-server=true;ok,ticket=start(effect("heal",1),nil,event);E.finish(ticket);E.update(0.25);snapshot=E.snapshot();before=#played
+server=true;E.alert(event);snapshot=E.snapshot();before=#played
 server=false;client.receive(snapshot);client.receive(snapshot)
-check("duplicate snapshots never repeat sound", #played==before+1)
+check("duplicate snapshots never repeat sound (a client hears the alert once)", #played==before+1)
 client.receive({sequence=0,reveal=300});client.update(0.25)
 check("stale snapshot cannot revive guidance", client.snapshot().reveal==0)
 client.receive({sequence=0/0});client.receive(false);client.receive({sequence=999,audio={{999,"arbitrary/file"}}})
@@ -286,13 +310,13 @@ E.preview_sound(event);check("optional audio failure contained",#warnings>0);Wwi
 local X=dofile(BASE .. "/spawn/execute.lua")
 Managers.state.minion_spawn={}
 X.init({positions={},bypass={count=function()return 0 end,purge=function()end,reset=function()end},groups=Groups,effects=E})
-E.reset();simple={play=function(sound)played[#played+1]=sound end};before=#played
+E.reset();before=#played
 local hostile_recipe=Groups.parse("3 hounds")
 check("executor: malicious enemy recipe on beneficial face is masked",X.start_wave({suit="prayer",parts=hostile_recipe,effects=effect("heal",10),sound=event}) and X.status().queued==0)
 X.update(0.25);X.update(0.25)
-check("executor: real empty-queue completion reaches audio",#played==before+1 and X.status().jobs==0)
+check("executor: a wave that ends plays nothing (its sound was the draw's alert)",#played==before and X.status().jobs==0)
 X.start_wave({suit="prayer",parts={},effects=effect("reveal",30),sound=event});X.cancel();X.update(1)
-check("executor: stop cancels pending timed audio",#played==before+1)
+check("executor: stop leaves no job and no sound",#played==before and X.status().jobs==0)
 enabled=false;check("executor: disabled admission rejected",not X.start_wave({suit="prayer",parts={},effects=effect("heal",10)}));enabled=true
 X.reset();mod.rw.dead=true;check("executor: captured retired executor inert",not X.start_wave({parts=hostile_recipe}));mod.rw.dead=nil
 local old_heal=p2.extensions.health_system.add_heal;p2.extensions.health_system.add_heal=function()error("disconnected player")end
@@ -320,12 +344,13 @@ WwiseWorld.make_manual_source=function() sources[#sources+1]="s"..#sources;retur
 WwiseWorld.set_source_parameter=function(_,s,name,v) params[#params+1]={s,name,v} end
 WwiseWorld.destroy_manual_source=function(_,s) sources.destroyed=(sources.destroyed or 0)+1 end
 Vector3.zero=function() return 0 end;Quaternion={identity=function() return 1 end};Application={user_setting=function() return 80 end}
-simple=nil;local n0=#native_played
+simple=nil;E.tick_audio(13);local n0=#native_played -- (flush the sounds the checks above left in the chain)
 E.preview_sound(ev1..";"..ev2)
 check("the first sound plays at once, the second waits", #native_played==n0+1 and native_played[#native_played]==ev1 and E.chain_size()==1)
 E.tick_audio(1);check("while the first still plays the second waits", #native_played==n0+1)
 playing[ids]=false;E.tick_audio(0.1)
-check("the second starts when the first has ended", #native_played==n0+2 and native_played[#native_played]==ev2 and E.chain_size()==0)
+check("the second starts when the first has ended (and is followed until it ends too)", #native_played==n0+2 and native_played[#native_played]==ev2 and E.chain_size()==1)
+playing[ids]=false;E.tick_audio(0.4);check("...then the chain is empty", E.chain_size()==0)
 local_player={player_unit={name="me"}};E.preview_sound(ev1.."@50")
 check("a quieter sound sets the sfx volume, scaled, on the player's auto source", params[#params][1]=="auto:me" and params[#params][2]=="options_sfx_slider" and params[#params][3]==40 and #sources==0)
 n0=#params;E.preview_sound(ev1);check("full volume sets no parameter", #params==n0);local_player=nil
@@ -333,13 +358,18 @@ n0=#native_played;E.preview_sound(ev1.."@0;"..ev2)
 check("a muted sound is skipped and the next one plays", #native_played==n0+1 and native_played[#native_played]==ev2)
 n0=#native_played;E.preview_sound(ev1..";"..ev2);E.tick_audio(12.5)
 check("a sound that never reports its end lets the next one start after twelve seconds", #native_played==n0+2)
+E.tick_audio(13)
+server=true;local aj=E.alert(ev1..";"..ev2)
+playing[ids]=false;E.tick_audio(0.1);check("alert: a sound is never over before 0.3 s (it may not report itself on its first frame)", not aj.done)
+E.tick_audio(0.3);check("alert of two sounds: the second starts when the first has ended, the alert goes on", not aj.done and native_played[#native_played]==ev2)
+playing[ids]=false;E.tick_audio(0.4);check("alert of two sounds: over when the second has ended", aj.done)
 local with_id=WwiseWorld.trigger_resource_event;WwiseWorld.trigger_resource_event=function(_,ev) played[#played+1]=ev end;local p0=#played
 E.preview_sound(ev1..";"..ev2);check("a sound without a playing id: the second follows after a short gap", #played==p0+1)
 E.tick_audio(2.6);check("...and plays", #played==p0+2 and played[#played]==ev2);WwiseWorld.trigger_resource_event=with_id
 for i=1,12 do E.preview_sound(ev1..";"..ev2) end;check("the chain is bounded", E.chain_size()<=8)
 E.reset();check("reset empties the chain", E.chain_size()==0)
-local ok2,t2=start(effect("heal",5),nil,ev1.."@30;"..ev2);E.finish(t2);E.update(0.25)
-check("a card's two sounds travel in the audio journal as one text", ok2 and E.snapshot().audio[#E.snapshot().audio][2]==ev1.."@30;"..ev2)
+E.alert(ev1.."@30;"..ev2)
+check("a card's two sounds travel in the audio journal as one text", E.snapshot().audio[#E.snapshot().audio][2]==ev1.."@30;"..ev2)
 simple=nil
 '''
 
@@ -381,10 +411,16 @@ do
   view:cb_fx_step(brow,"players",-1);check("effects UI: one player fewer",view._wave.effects.blue_stimm.players==3)
   view:cb_fx_number(brow,"players");PP.set_text(view,"2");PP.commit(view);check("effects UI: blue targets configurable in the box",view._wave.effects.blue_stimm.players==2)
   local ri=chip("revive");view:cb_fx_chip(ri)
-  check("effects UI: Raise the fallen (Game Effects) arrives as 4 players",view._wave.effects.revive.value==4 and (function() for i=1,6 do if row_name(W["rw_fxrow_"..i])=="Raise the fallen" and W["rw_fxrow_"..i].visible then return W["rw_fxrow_"..i].content.amount_value=="4 players" end end end)())
+  check("effects UI: Raise the fallen (Game Effects) arrives as one downed and one hogtied, with no amount to step",view._wave.effects.revive.value==1 and (function() for i=1,6 do local w=W["rw_fxrow_"..i]; if row_name(w)=="Raise the fallen" and w.visible then return w.content.amount_value=="fx_fixed_revive" and row_lead(w)=="1+1" and w.content.amount_plus.disabled and w.content.amount_value_hotspot.disabled end end end)())
+  do
+    local row;for i=1,6 do if row_name(W["rw_fxrow_"..i])=="Raise the fallen" and W["rw_fxrow_"..i].visible then row=i end end
+    view:cb_fx_step(row,"value",1);view:cb_fx_number(row,"value")
+    check("effects UI: its stepper and its number box do nothing",view._wave.effects.revive.value==1 and view._popup==nil)
+  end
+  check("effects UI: the stimm buffs are in Buffs and the stimm items in Items, the new Game Effects there too",(function() local col={} for _,c in ipairs(EV.shelf_layout.chips) do col[c.def.id]=EV.shelf_layout.bands[c.column].id end return col.yellow_stimm_buff=="Buffs" and col.blue_stimm=="Buffs" and col.red_stimm_buff=="Buffs" and col.yellow_stimm=="Items" and col.blue_stimm_item=="Items" and col.red_stimm_item=="Items" and col.grenades=="Game Effects" and col.ammo_crate=="Game Effects" end)())
   view:cb_fx_remove(1);check("effects UI: Remove on a row takes its effect off",not view._wave.effects.heal and view._wave.effects.blue_stimm)
   check("effects UI: APOTHEOSIS: a beneficial card's sixth diamond is visible and not edged in Despair's lilac",W.rw_stage_card.style.th_o6.visible and W.rw_stage_card.style.th_h6.color[2]~=0xc7)
-  check("effects UI: the beneficial shelf ends above the timer and the action bar",WK.SHELF_Y+EV.shelf_layout.height<=view._definitions.scenegraph_definition.stepper_timer.position[2] and #EV.shelf_layout.chips==11)
+  check("effects UI: the beneficial shelf ends above the timer and the action bar",WK.SHELF_Y+EV.shelf_layout.height<=view._definitions.scenegraph_definition.stepper_timer.position[2] and #EV.shelf_layout.chips==17)
   -- the completion sound
   view:cb_sound_picker();check("effects UI: ranked searchable list opens at start, slot 1 open",view._screen=="sounds" and view._offset==0 and view._popup and view._sound_results[1].event=="" and W.rw_snd_slot1.visible and W.rw_snd_slot1.content.hotspot_on and W.rw_snd_search.visible)
   PP.set_text(view,"hound");PP.update(view,{get=function() return nil end,is_null_service=function()return false end})

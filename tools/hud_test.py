@@ -317,7 +317,7 @@ for _, suit_name in ipairs(Cards.SUIT_ORDER) do
   if n == 0 then icons_ok = false end
 end
 check("icons: every suit mark draws something and stays inside its 18 px box", icons_ok, "plague " .. used.plague .. " murmur " .. used.murmur .. " rage " .. used.rage .. " blight " .. used.blight .. " swarm " .. used.swarm .. " fateful " .. used.fateful)
-check("icons: sixteen suits, and the newer ones use their own slots (volley 7, snare 4, brute 5, dusk 5, warp 5, heresy 6, faith 7)", #Cards.SUIT_ORDER == 16 and used.faith == 7 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.dusk == 5 and used.warp == 5 and used.heresy == 6, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " dusk " .. used.dusk .. " warp " .. used.warp .. " heresy " .. tostring(used.heresy))
+check("icons: sixteen suits, and the newer ones use their own slots (volley 7, snare 4, brute 5, warp 5, heresy 6, nightmare 7, faith 7)", #Cards.SUIT_ORDER == 16 and used.faith == 7 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.nightmare == 7 and used.warp == 5 and used.heresy == 6, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " nightmare " .. tostring(used.nightmare) .. " warp " .. used.warp .. " heresy " .. tostring(used.heresy))
 check("icons: at the Deck's 26 units every mark also stays inside its box", (function()
   for _, suit_name in ipairs(Cards.SUIT_ORDER) do
     Spread.icon(Cards.SUITS[suit_name].icon, 26, icon)
@@ -330,11 +330,11 @@ check("icons: at the Deck's 26 units every mark also stays inside its box", (fun
   end
   return true
 end)())
-check("icons: every shape of the cut-outs is drawn above the shape it cuts (the warp's inside, the sun's lower half)", (function()
+check("icons: every shape of the cut-outs is drawn above the shape it cuts (the warp's inside, the nightmare eye's hollow and its pupil)", (function()
   Spread.icon("warp", 18, icon)
   local ok = icon.tri[2].col == 2 and icon.tri[2].z > icon.tri[1].z and icon.tri[3].z > icon.tri[2].z and icon.circ[1].col == 2 and icon.circ[1].z > icon.tri[3].z
-  Spread.icon("dusk", 18, icon)
-  return ok and icon.tri[1].col == 2 and icon.tri[1].z > icon.circ[1].z and icon.tri[3].z > icon.tri[1].z
+  Spread.icon("nightmare", 18, icon)
+  return ok and icon.circ[2].col == 2 and icon.circ[2].z > icon.circ[1].z and icon.tri[3].z > icon.circ[2].z and icon.tri[4].z > icon.circ[2].z and icon.tri[1].col == 1
 end)())
 Spread.icon("moon", 18, icon)
 check("icons: the moon is a circle with a bite taken out in the card's colour", icon.circ[1].on and icon.circ[1].col == 1 and icon.circ[2].on and icon.circ[2].col == 2)

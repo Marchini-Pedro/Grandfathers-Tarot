@@ -1026,7 +1026,7 @@ do
 
   -- the suits beyond the first six, and a Daemonhost
   view:_open_detail("boss_ambush"); click("btn_face")
-  check("suit: the six newer suits (Volley, Snare, Brute, Dusk, Warp, Heresy) are on the same screen in their own colours, each with its line", plate_of("volley").content.suit.accent[1] == 0x7f and plate_of("snare").content.suit.accent[1] == 0x5f and plate_of("brute").content.suit.accent[1] == 0xcf and plate_of("heresy").content.suit.accent[1] == 0xd4 and plate_of("dusk").content.suit.accent[1] == 0x8e and plate_of("warp").content.suit.accent[1] == 0xb1 and plate_of("dusk").content.suit_line == Cards.SUITS.dusk.whisper)
+  check("suit: the six newer suits (Volley, Snare, Brute, Warp, Heresy, Nightmare) are on the same screen in their own colours, each with its line", plate_of("volley").content.suit.accent[1] == 0x7f and plate_of("snare").content.suit.accent[1] == 0x5f and plate_of("brute").content.suit.accent[1] == 0xcf and plate_of("heresy").content.suit.accent[1] == 0xd4 and plate_of("nightmare").content.suit.accent[1] == 0x9b and plate_of("warp").content.suit.accent[1] == 0xb1 and plate_of("nightmare").content.suit_line == Cards.SUITS.nightmare.whisper)
   click_plate("warp")
   check("suit: clicking Warp writes su_<key> and the card shows it with its mark (an eye in a triangle), and says what it is for", settings.su_boss_ambush == "warp" and plate_of("warp").content.selected and stage.content.suit_label == "WARP" and stage.style.icon_t1.visible and W.mirror_desc.content.mirror_desc:find("suit_desc_warp", 1, true) ~= nil)
   click_plate("snare")
@@ -2567,7 +2567,7 @@ do
   local selected = {}
   for i = 1, 12 do if W["rw_suit_" .. i].content.selected then selected[#selected + 1] = i end end
   check("suit: exactly one tile is selected (Rage, the third), and it stands 4 units higher than its neighbours", #selected == 1 and selected[1] == 3 and view._sg.rw_suit_3[2] == select(2, WK.suit_pos(3)) - 4 and view._sg.rw_suit_4[2] == select(2, WK.suit_pos(4)))
-  check("suit: every tile carries its own colours and name, the mark is painted (Rage: a flame of triangles and circles)", W.rw_suit_3.content.suit_name == "RAGE" and W.rw_suit_3.content.suit.accent[1] == 0xc2 and W.rw_suit_1.content.suit.accent[1] == 0xb7 and W.rw_suit_11.content.suit_name == "WARP" and W.rw_suit_12.content.suit_name == "HERESY" and W.rw_suit_3.style.icon_c1.visible and W.rw_suit_3.style.icon_ch1.visible and W.rw_suit_1.style.icon_c1.visible)
+  check("suit: every tile carries its own colours and name, the mark is painted (Rage: a flame of triangles and circles)", W.rw_suit_3.content.suit_name == "RAGE" and W.rw_suit_3.content.suit.accent[1] == 0xc2 and W.rw_suit_1.content.suit.accent[1] == 0xb7 and W.rw_suit_10.content.suit_name == "WARP" and W.rw_suit_11.content.suit_name == "HERESY" and W.rw_suit_12.content.suit_name == "NIGHTMARE" and W.rw_suit_3.style.icon_c1.visible and W.rw_suit_3.style.icon_ch1.visible and W.rw_suit_1.style.icon_c1.visible)
   check("suit: the hint diamond marks the suit the enemies suggest (specials: Blight) when it is not the card's own suit", W.rw_suit_4.content.suggested == true and W.rw_suit_3.content.suggested == false)
   click("rw_suit_4")
   check("suit: choosing the suggested suit takes the hint away (it is the card's own now)", settings.su_custom_1 == "blight" and W.rw_suit_4.content.selected == true and W.rw_suit_4.content.suggested == false)
@@ -2867,7 +2867,7 @@ if DUMP and DUMP ~= "" then
   settings.wave_def_custom_1 = "The Pale Choir\t24 mauler, 3 crusher[enraged], 2 hound, 1 plague ogryn, 4 sniper"; settings.on_custom_1 = true; settings.su_custom_1 = "murmur"; settings.wh_custom_1 = "They were never quiet."; settings.pct_custom_1 = 8
   settings.wave_def_custom_2 = "The Host\t1 daemonhost, 6 poxwalker"; settings.on_custom_2 = true; settings.th_custom_2 = 4 -- warp by default
   -- the new suits and a two line name, so the preview shows them all
-  settings.su_wave_huge = "volley"; settings.su_bomber_frenzy = "snare"; settings.su_hound_frenzy = "brute"; settings.su_special_pack = "heresy"; settings.su_sniper_elite = "dusk"
+  settings.su_wave_huge = "volley"; settings.su_bomber_frenzy = "snare"; settings.su_hound_frenzy = "brute"; settings.su_special_pack = "heresy"; settings.su_sniper_elite = "nightmare"
   settings.wave_def_special_pack = "The Magician Of Endless Plague\t"; settings.pct_wave_huge = 4; settings.pct_wave_small = 5
   settings.on_wave_medium = true; settings.cl_wave_medium = "whisper"
   local resting = { wave_large = 75, wave_medium = 90, grenade_legion = 100, hound_frenzy = 20 }
