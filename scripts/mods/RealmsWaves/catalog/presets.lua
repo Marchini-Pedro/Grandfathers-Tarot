@@ -33,7 +33,7 @@ Presets.UNDO_ID = "preset_undo"
 -- inclusive ranges, the same as the editor's steppers/popups
 local SUITS = {
 	plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true,
-	volley = true, snare = true, brute = true, dusk = true, warp = true, heresy = true, prayer = true, miracle = true, grace = true,
+	volley = true, snare = true, brute = true, dusk = true, warp = true, heresy = true, prayer = true, miracle = true, grace = true, faith = true,
 }
 local SUIT_ALIAS = { fester = "heresy" } -- the old name of Heresy: old presets and texts from friends still say it
 
@@ -371,7 +371,7 @@ local function parse_wave(text, Groups)
 	local parsed_effects, effect_error = Effects.parse(effects)
 	if not parsed_effects then return nil, effect_error end
 	local sound = unescape(parts[20] or "")
-	if sound ~= "" and not Sounds.valid(sound) then return nil, "invalid card sound" end
+	if not Sounds.check(sound) then return nil, "invalid card sound" end
 	local recipe = unescape(parts[9])
 	local name = trim(unescape(parts[2]):gsub("[%c]", " "))
 	local label = name ~= "" and name or parts[1]

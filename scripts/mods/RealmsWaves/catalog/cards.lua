@@ -28,10 +28,13 @@ Cards.BASE = {
 
 -- the suits: card, selected card, frame, text, accent. The first six are the reference page's exact values; the next four
 -- (volley, snare, brute, dusk) are the same kind of colours (dark, desaturated, one accent), "warp" is the purple one, the
--- Daemonhost's own card (Cards.suggest_suit gives it to every card that holds a Daemonhost), and HERESY, last, is the one card that
--- is not just another suit (it replaced "fester"): black and blood with a gilded accent, `special = true`, and every place that
--- draws a card gives it what no other suit has: a frame at rest, a glow that smoulders, a line of its own when it is drawn.
-Cards.SUIT_ORDER = { "plague", "murmur", "rage", "blight", "swarm", "fateful", "volley", "snare", "brute", "dusk", "warp", "heresy", "prayer", "miracle", "grace" }
+-- Daemonhost's own card (Cards.suggest_suit gives it to every card that holds a Daemonhost), and HERESY, the last hostile one, is the
+-- one card that is not just another suit (it replaced "fester"): black and blood, crimson all the way through (since 2026-10-04: the
+-- gilded accent became crimson), `special = true`, and every place that draws a card gives it what no other suit has: a frame at
+-- rest, a glow that beats like a heart, a line of its own when it is drawn. The four BENEFICIAL suits follow (catalog/effects.lua):
+-- Prayer, Miracle, Grace and Faith (the Order of the Sacred Rose, added 2026-10-04: the only pink in the deck).
+Cards.SUIT_ORDER = { "plague", "murmur", "rage", "blight", "swarm", "fateful", "volley", "snare", "brute", "dusk", "warp", "heresy", "prayer", "miracle", "grace", "faith" }
+Cards.HOSTILE_COUNT = 12 -- the first twelve of SUIT_ORDER are hostile, the rest beneficial
 
 -- Names a suit used to have: cards saved, presets, shared texts and the hands other players sync may still say them (Fester became
 -- Heresy). Catalog/events.lua keeps the same list for the settings.
@@ -49,17 +52,57 @@ Cards.SUITS = {
 	brute = { name = "Brute", card = hex("#241311"), hi = hex("#35201b"), frame = hex("#74352b"), text = hex("#efdcd4"), accent = hex("#cf5c45"), whisper = "It does not stop for walls.", icon = "plate" },
 	dusk = { name = "Dusk", card = hex("#14152a"), hi = hex("#1f2142"), frame = hex("#3e4380"), text = hex("#d9dbef"), accent = hex("#8e97e3"), whisper = "Do not look away.", icon = "dusk" },
 	warp = { name = "Warp", card = hex("#1a1127"), hi = hex("#281a3b"), frame = hex("#5e408f"), text = hex("#e9dff5"), accent = hex("#b184e0"), whisper = "It knows your name.", icon = "warp" },
-	-- HERESY: blackened red, a frame the colour of dried blood, a gilded accent; `lit` is the brighter red of its words on a dark ground
-	heresy = { name = "Heresy", special = true, card = hex("#14070a"), hi = hex("#260c11"), frame = hex("#a3202f"), text = hex("#f3e1d3"), accent = hex("#e5b94c"), lit = hex("#e8505f"), whisper = "He does not answer.", icon = "heresy" },
+	-- HERESY: near black with blood in it, a frame the colour of fresh blood, a crimson accent; `lit` is the brighter red of its words on
+	-- a dark ground, `blood` the deep red of its heartbeat glow and of the drops the HUD lets fall from it
+	heresy = { name = "Heresy", special = true, card = hex("#0d0204"), hi = hex("#1f060a"), frame = hex("#8a0f1c"), text = hex("#efd3cc"), accent = hex("#d42a3a"), lit = hex("#ff3344"), blood = hex("#5a0610"), whisper = "He does not answer.", icon = "heresy" },
 	prayer = { name = "Prayer", beneficial = true, special = true, card = hex("#0b2023"), hi = hex("#17363b"), frame = hex("#4F9CA3"), text = hex("#dcf1ed"), accent = hex("#4F9CA3"), whisper = "The faithful are not forsaken.", icon = "prayer" },
 	miracle = { name = "Miracle", beneficial = true, special = true, card = hex("#231b0b"), hi = hex("#392d13"), frame = hex("#D8B45A"), text = hex("#fff2cf"), accent = hex("#D8B45A"), whisper = "A light in the darkest hour.", icon = "miracle" },
 	grace = { name = "Grace", beneficial = true, special = true, card = hex("#1b2229"), hi = hex("#2c3540"), frame = hex("#E8EEF4"), text = hex("#f8fafc"), accent = hex("#E8EEF4"), whisper = "Rise, and carry the light.", icon = "grace" },
+	-- FAITH: the Order of the Sacred Rose, a wine-rose card with a sacred rose pink (no other suit is pink), a rose in a ring
+	faith = { name = "Faith", beneficial = true, special = true, card = hex("#220f1c"), hi = hex("#391a2e"), frame = hex("#c25a8c"), text = hex("#ffe4ef"), accent = hex("#f08cb8"), whisper = "Believe, and endure.", icon = "faith" },
 }
 
 -- one colour per threat level 1..6 (unfilled diamonds are an outline in the muted colour)
 Cards.THREAT_COLORS = { hex("#a7c27c"), hex("#74b22c"), hex("#e3cf4a"), hex("#d98a2e"), hex("#cf4a30"), hex("#16131f") }
 Cards.THREAT_MAX = 6
 Cards.DESPAIR_EDGE = hex("#c7b8e0")
+-- the sixth diamond of a BENEFICIAL card is not Despair: it is Apotheosis, the suit's accent edged in a warm white light
+Cards.APOTHEOSIS_EDGE = hex("#fff6dc")
+Cards.threat_edge = function (suit)
+	local face = type(suit) == "table" and suit or Cards.suit(suit)
+
+	return face.beneficial and Cards.APOTHEOSIS_EDGE or Cards.DESPAIR_EDGE
+end
+-- The name of a threat level, nil below 6: level 6 is DESPAIR on a hostile card and APOTHEOSIS on a beneficial one.
+Cards.threat_name = function (level, suit)
+	if tonumber(level) ~= 6 then
+		return nil
+	end
+
+	local face = type(suit) == "table" and suit or Cards.suit(suit)
+
+	return face.beneficial and "Apotheosis" or "Despair"
+end
+-- The strong shine of the sixth diamond (HUD, Deck tile, editor): a pulse 0..1 at time t. Despair breathes slowly and darkly,
+-- Apotheosis glitters faster; both stay above 0.35 so the diamond never fades away.
+Cards.six_shine = function (t, suit)
+	local face = type(suit) == "table" and suit or Cards.suit(suit)
+	local speed = face.beneficial and 3.4 or 2.1
+	local wave = 0.5 + 0.5 * math.sin((tonumber(t) or 0) * speed)
+
+	return 0.35 + 0.65 * wave * wave
+end
+-- The heartbeat of a Heresy card (a double beat, then rest, about 70 per minute): 0..1 at time t.
+Cards.heartbeat = function (t)
+	local p = ((tonumber(t) or 0) % 0.86) / 0.86
+	local function beat(centre, width)
+		local d = (p - centre) / width
+
+		return math.exp(-d * d)
+	end
+
+	return math.min(1, beat(0.08, 0.06) + 0.7 * beat(0.28, 0.07))
+end
 Cards.threat_color = function (level, suit)
 	local face = type(suit) == "table" and suit or Cards.suit(suit)
 	return face.beneficial and face.accent or Cards.THREAT_COLORS[level]
@@ -68,7 +111,7 @@ end
 -- a card with this weight or less is "rare": pus-yellow outline (the old, absolute rule: only used where no deck is known)
 Cards.RARE_WEIGHT = 2
 
--- the place of a suit in Cards.SUIT_ORDER (1 to 12; an unknown suit is plague, 1; an old name counts as its new one)
+-- the place of a suit in Cards.SUIT_ORDER (1 to 16; an unknown suit is plague, 1; an old name counts as its new one)
 Cards.suit_index = function (suit)
 	local wanted = Cards.normalize_suit(suit)
 
@@ -154,9 +197,17 @@ Cards.normalize_look = function (look)
 	return VALID_LOOK[look] and look or nil
 end
 
--- The look a card uses: its own choice, else whisper for every Murmur card, else rot.
+-- The look a card uses. Since 2026-10-04 every card rots and renews (the user removed the choice of look): a saved look (cl_ setting,
+-- presets, shared cards) is still read and kept, so old texts load, but it no longer changes anything. The murmur lives on as the
+-- way a threat 5 or 6 card shows its whisper when it is drawn (Cards.murmurs).
 Cards.look = function (card)
-	return Cards.normalize_look(card.look) or (Cards.normalize_suit(card.suit) == "murmur" and "whisper" or "rot")
+	return "rot"
+end
+
+-- True when a card of this threat murmurs its whisper letter by letter when it is drawn and chosen (threat 5 and 6).
+Cards.MURMUR_THREAT = 5
+Cards.murmurs = function (threat)
+	return (tonumber(threat) or 0) >= Cards.MURMUR_THREAT
 end
 
 Cards.COOLDOWN_STEP = 30 -- seconds, also the shortest cooldown
@@ -217,6 +268,27 @@ end
 
 Cards.murmur_card_alpha = function (p)
 	return 0.6 + 0.4 * math.max(0, math.min(1, p or 0))
+end
+
+-- The first n bytes of a text, cut back to the start of a letter (a two-byte letter is never cut in half).
+Cards.utf8_cut = function (text, n)
+	if n >= #text then
+		return text
+	end
+
+	local cut = n
+
+	while cut > 0 do
+		local byte = text:byte(cut + 1)
+
+		if byte and byte >= 0x80 and byte < 0xC0 then
+			cut = cut - 1
+		else
+			break
+		end
+	end
+
+	return text:sub(1, cut)
 end
 
 -- How much of a whisper (n characters) has appeared at progress p ("letter by letter").

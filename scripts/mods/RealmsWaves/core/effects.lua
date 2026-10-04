@@ -1,4 +1,4 @@
--- Native gameplay effects run on the host. Guidance and completion audio render locally.
+-- Native gameplay effects run on the host. Guidance (Buffs: reveal Specialists) and completion audio render locally.
 local mod = get_mod("RealmsWaves")
 local Schema = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/effects")
 local Sounds = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/sounds")
@@ -31,19 +31,63 @@ local function players()
 	return list
 end
 local function game_time() return require("scripts/utilities/fixed_frame").get_latest_fixed_time() end
-local function play(event)
-	if not Sounds.valid(event) or mod:get("card_sounds") == false then return end
-	local ok, err = pcall(function ()
-		local simple = get_mod("SimpleAudio")
-		if simple and simple.play and (not simple.is_enabled or simple:is_enabled()) then return simple.play(event) end
-		local world = Managers.ui and Managers.ui:world()
-		if not world or not Managers.world then return end
-		local wwise = Managers.world:wwise_world(world)
-		return WwiseWorld.trigger_resource_event(wwise, event)
-	end)
-	if not ok then warn("sound unavailable: " .. tostring(err)) end
+-- Completion audio: a card's text holds one or two sounds, each with a volume (catalog/sounds.lua). The second starts when the first
+-- ends: the native player is asked whether the first is still playing (WwiseWorld.is_playing); SimpleAudio gives no id, so its
+-- second sound follows after CHAIN_GAP seconds. Nothing waits longer than CHAIN_LONGEST. Volume below 100 plays through a source of
+-- its own with the game's sfx volume parameter scaled on it: EXPERIMENTAL (the game exposes no per-sound volume; this needs the live
+-- check in docs/06). Volume 0 never plays.
+local CHAIN_GAP, CHAIN_LONGEST = 2.5, 12
+local chain, audio_clock = {}, 0
+local function trigger(event, volume)
+	local simple = get_mod("SimpleAudio")
+	if simple and simple.play and (not simple.is_enabled or simple:is_enabled()) then simple.play(event); return nil end
+	local world = Managers.ui and Managers.ui:world()
+	if not world or not Managers.world then return nil end
+	local wwise = Managers.world:wwise_world(world)
+	if volume < 100 and WwiseWorld.make_manual_source and Vector3 and Vector3.zero and Quaternion then
+		local source = WwiseWorld.make_manual_source(wwise, Vector3.zero(), Quaternion.identity())
+		local sfx = Application and Application.user_setting and Application.user_setting("sound_settings", "options_sfx_slider") or 100
+		pcall(WwiseWorld.set_source_parameter, wwise, source, "options_sfx_slider", sfx * volume / 100)
+		return WwiseWorld.trigger_resource_event(wwise, event, source), wwise, source
+	end
+	return WwiseWorld.trigger_resource_event(wwise, event), wwise
+end
+local function start_entry(list, index)
+	local entry = list[index]
+	if not entry then return end
+	if entry.volume <= 0 then return start_entry(list, index + 1) end
+	local ok, id, wwise, source = pcall(trigger, entry.event, entry.volume)
+	if not ok then warn("sound unavailable: " .. tostring(id)); id, wwise, source = nil, nil, nil end
+	if list[index + 1] or source then
+		chain[#chain + 1] = { list = list, next = index + 1, id = id, wwise = wwise, source = source, started = audio_clock }
+		if #chain > 8 then table.remove(chain, 1) end
+	end
+end
+local function play(text)
+	if mod:get("card_sounds") == false then return end
+	local list = Sounds.parse(text)
+	if #list > 0 then start_entry(list, 1) end
 end
 Effects.preview_sound = play
+-- Every frame, everywhere (the editor's preview plays in the hub too): the second sounds of the chain.
+Effects.tick_audio = function (dt)
+	audio_clock = audio_clock + math.max(0, tonumber(dt) or 0)
+	for i = #chain, 1, -1 do
+		local item = chain[i]
+		local age, done = audio_clock - item.started, false
+		if age >= CHAIN_LONGEST then done = true
+		elseif item.id and item.wwise then
+			local ok, playing = pcall(WwiseWorld.is_playing, item.wwise, item.id)
+			done = not ok or not playing
+		else done = age >= CHAIN_GAP end
+		if done then
+			table.remove(chain, i)
+			if item.source then pcall(WwiseWorld.destroy_manual_source, item.wwise, item.source) end
+			start_entry(item.list, item.next)
+		end
+	end
+end
+Effects.chain_size = function () return #chain end
 local function restore_lights()
 	for unit, saved in pairs(lights) do
 		if alive(unit) then pcall(saved.extension.set_enabled, saved.extension, saved.enabled, false) end
@@ -95,8 +139,43 @@ local function recharge(list, charges)
 	nearest:sync_charge_amount()
 	return true
 end
+-- Raise the fallen: a knocked-down player is helped up the way a Veteran's shout and the servo skull do it (the native assisted
+-- state input, written on the host: scripts/extension_systems/ability/utilities/shout_ability.lua). Only knocked-down players,
+-- never the netted, pounced or dead; at most `count` of them, in the party's stable order.
+local function revive(list, count)
+	local Status = require("scripts/utilities/attack/player_unit_status")
+	local raised = 0
+	for _, player in ipairs(list) do
+		if raised >= count then break end
+		local data = ext(player.unit, "unit_data_system")
+		local state = data and data:read_component("character_state")
+		if state and Status.is_knocked_down(state) then
+			local input = data:write_component("assisted_state_input")
+			if input and not Status.is_assisted(input) then
+				input.force_assist = true
+				raised = raised + 1
+			end
+		end
+	end
+	return raised > 0, "nobody is knocked down"
+end
+-- Refill ammunition: `percent` of every weapon's reserve, through the native helper the Veteran's coherency talents use on the host
+-- (scripts/utilities/ammo.lua Ammo.add_to_all_slots). A full reserve stays full; weapons without ammunition are skipped.
+local function refill(list, percent)
+	local Ammo = require("scripts/utilities/ammo")
+	local gained = 0
+	for _, player in ipairs(list) do
+		if ext(player.unit, "unit_data_system") and ext(player.unit, "visual_loadout_system") then
+			local ok, amount = pcall(Ammo.add_to_all_slots, player.unit, percent / 100)
+			if ok then gained = gained + (tonumber(amount) or 0) else warn(tostring(amount)) end
+		end
+	end
+	return gained > 0, "everyone's ammunition is already full"
+end
 local function apply(id, effect, list)
 	if id == "blackout" then return blackout(effect.value) end
+	if id == "revive" then return revive(list, effect.value) end
+	if id == "ammo" then return refill(list, effect.value) end
 	if id == "reveal" then reveal_until = math.max(reveal_until, clock + effect.value); return true end
 	if id == "med_station" then return recharge(list, effect.value) end
 	if id == "cooldown" then
@@ -149,7 +228,7 @@ local function apply(id, effect, list)
 end
 Effects.start = function (def)
 	if not host() then return false, "card effects require host authority" end
-	if Sounds.valid(def.sound) and #tickets >= 64 then return false, "64 unfinished sounding cards are already tracked" end
+	if Sounds.has(def.sound) and #tickets >= 64 then return false, "64 unfinished sounding cards are already tracked" end
 	local values = Schema.allowed(Schema.parse(Schema.encode(def.effects)) or {}, def.suit)
 	local list, duration, success = players(), 0, false
 	for _, entry in ipairs(Schema.ORDER) do
@@ -164,8 +243,8 @@ Effects.start = function (def)
 	end
 	if not success and not (def.parts and #def.parts > 0) then return false, "no card effects could be applied" end
 	revision = revision + 1
-	if not Sounds.valid(def.sound) then return true end
-	local ticket = { sound = Sounds.valid(def.sound) and def.sound or "", units = {}, expires = clock + duration, created = clock }
+	if not Sounds.has(def.sound) then return true end
+	local ticket = { sound = Sounds.encode(Sounds.parse(def.sound)), units = {}, expires = clock + duration, created = clock }
 	tickets[#tickets + 1] = ticket
 	return true, ticket
 end
@@ -292,5 +371,5 @@ Effects.cancel = function ()
 	for _, buff in ipairs(buffs) do if alive(buff.unit) and buff.extension:has_running_buff_with_index(buff.index, buff.component) then pcall(buff.extension.remove_externally_controlled_buff, buff.extension, buff.index, buff.component) end end
 	buffs, tickets = {}, {}
 end
-Effects.reset = function () Effects.cancel(); clock, sequence, received, audio = 0, 0, nil, {}; grants, grant_sequence, grant_received = {}, 0, nil; revision, received_revision, received_time = 0, nil, nil end
+Effects.reset = function () Effects.cancel(); chain = {}; clock, sequence, received, audio = 0, 0, nil, {}; grants, grant_sequence, grant_received = {}, 0, nil; revision, received_revision, received_time = 0, nil, nil end
 return Effects

@@ -5,6 +5,44 @@ for event in ("wwise/events//ui/play_ui_silence wwise/events/cinematics/play_cin
 local known = {}
 for _, event in ipairs(Sounds.EVENTS) do known[event] = true end
 Sounds.valid = function (event) return type(event) == "string" and known[event] == true end
+-- A card's completion sound as its snd_ setting stores it (2026-10-04): the old form, one event at full volume ("event"), or up to two
+-- "event@volume" (volume 0..100) separated by ";", the second played when the first ends. Old peers only know the old form: a card
+-- with a volume or a second sound is silent for them.
+Sounds.MAX_SOUNDS = 2
+Sounds.MAX_TEXT = 400
+local function entries(text) local list = {}; for entry in (text .. ";"):gmatch("([^;]*);") do list[#list + 1] = entry end; return list end
+local function split_entry(entry) local event, volume = entry:match("^([^@]+)@(%d+)$"); return event or entry, volume and tonumber(volume) or 100 end
+local function clamp_volume(volume) return math.max(0, math.min(100, math.floor(tonumber(volume) or 100))) end
+-- The valid sounds of a text: { { event, volume } ... }, at most MAX_SOUNDS, unknown events dropped, volume kept within 0..100.
+Sounds.parse = function (text)
+	local list = {}
+	if type(text) ~= "string" or text == "" or #text > Sounds.MAX_TEXT then return list end
+	for _, entry in ipairs(entries(text)) do
+		local event, volume = split_entry(entry)
+		if Sounds.valid(event) and #list < Sounds.MAX_SOUNDS then list[#list + 1] = { event = event, volume = clamp_volume(volume) } end
+	end
+	return list
+end
+-- The text of a list of sounds (the inverse of parse); full volume writes the old form, so a plain card stays readable by old peers.
+Sounds.encode = function (list)
+	local out = {}
+	for i = 1, math.min(#(list or {}), Sounds.MAX_SOUNDS) do
+		local sound, volume = list[i], clamp_volume(list[i] and list[i].volume)
+		if sound and Sounds.valid(sound.event) then out[#out + 1] = volume == 100 and sound.event or (sound.event .. "@" .. volume) end
+	end
+	return table.concat(out, ";")
+end
+-- True when a text a shared card carries is a correct sound (empty is fine): every entry known, at most two, volumes 0..100.
+Sounds.check = function (text)
+	if text == nil or text == "" then return true end
+	if type(text) ~= "string" or #text > Sounds.MAX_TEXT or #entries(text) > Sounds.MAX_SOUNDS then return false end
+	for _, entry in ipairs(entries(text)) do
+		local event, volume = split_entry(entry)
+		if not Sounds.valid(event) or volume > 100 then return false end
+	end
+	return true
+end
+Sounds.has = function (text) return #Sounds.parse(text) > 0 end
 Sounds.search = function (query, wave, Groups)
 	query = tostring(query or ""):lower()
 	local terms, results = {}, {}

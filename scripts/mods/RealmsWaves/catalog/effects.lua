@@ -1,17 +1,29 @@
 -- Bounded card effects shared by the editor, presets and host runtime.
 local Effects = {}
-Effects.SUITS = { prayer = true, miracle = true, grace = true }
+Effects.SUITS = { prayer = true, miracle = true, grace = true, faith = true }
+-- The four groups of the editor's shelf (2026-10-04: Guidance became Buffs, Prayer became Items, and Game Effects is new), in order,
+-- with the colour of their dot. `short` is the name on the shelf chip and on the card line.
+Effects.CATEGORIES = {
+	{ id = "Healing", rgb = { 98, 200, 106 } },
+	{ id = "Buffs", rgb = { 108, 180, 255 } },
+	{ id = "Items", rgb = { 227, 207, 74 } },
+	{ id = "Game Effects", rgb = { 240, 221, 170 } },
+}
+-- `disabled`: the effect is shown greyed out and never runs (Recharge Med Station, off until it works: user, 2026-10-04); a saved value
+-- is kept but ignored.
 Effects.ORDER = {
-	{ id = "heal", name = "Healing: party health", max = 100, default = 100, unit = "percent", category = "Healing" },
-	{ id = "cleanse", name = "Healing: health and corruption", max = 100, default = 100, unit = "percent", category = "Healing" },
-	{ id = "green_stimm", name = "Healing: give Green Stimm", max = 4, default = 4, unit = "players", category = "Healing" },
-	{ id = "med_crate", name = "Healing: give Med Crates", max = 4, default = 4, unit = "players", category = "Healing" },
-	{ id = "med_station", name = "Healing: recharge nearest Med Station", max = 4, default = 1, unit = "charges", category = "Healing" },
-	{ id = "cooldown", name = "Guidance: restore combat abilities", max = 100, default = 100, unit = "percent", category = "Guidance" },
-	{ id = "reveal", name = "Guidance: reveal Specialists", max = 300, default = 15, unit = "seconds", category = "Guidance" },
-	{ id = "yellow_stimm", name = "Prayer: give Yellow Stimm", max = 4, default = 4, unit = "players", category = "Prayer" },
-	{ id = "blue_stimm", name = "Prayer: Blue Stimm buff", max = 300, default = 15, unit = "seconds", category = "Prayer", targets = true },
-	{ id = "blackout", name = "Blackout: power interruption", max = 300, default = 15, unit = "seconds", hostile = true },
+	{ id = "heal", name = "Healing: party health", short = "Party health", max = 100, default = 100, unit = "percent", category = "Healing" },
+	{ id = "cleanse", name = "Healing: health and corruption", short = "Health and corruption", max = 100, default = 100, unit = "percent", category = "Healing" },
+	{ id = "green_stimm", name = "Healing: give Green Stimm", short = "Green Stimm", max = 4, default = 4, unit = "players", category = "Healing" },
+	{ id = "med_crate", name = "Healing: give Med Crates", short = "Med Crates", max = 4, default = 4, unit = "players", category = "Healing" },
+	{ id = "med_station", name = "Healing: recharge nearest Med Station", short = "Med Station", max = 4, default = 1, unit = "charges", category = "Healing", disabled = true },
+	{ id = "cooldown", name = "Buffs: restore combat abilities", short = "Combat abilities", max = 100, default = 100, unit = "percent", category = "Buffs" },
+	{ id = "reveal", name = "Buffs: reveal Specialists", short = "Reveal Specialists", max = 300, default = 15, unit = "seconds", category = "Buffs" },
+	{ id = "yellow_stimm", name = "Items: give Yellow Stimm", short = "Yellow Stimm", max = 4, default = 4, unit = "players", category = "Items" },
+	{ id = "blue_stimm", name = "Items: Blue Stimm buff", short = "Blue Stimm buff", max = 300, default = 15, unit = "seconds", category = "Items", targets = true },
+	{ id = "revive", name = "Game Effects: raise the fallen", short = "Raise the fallen", max = 4, default = 4, unit = "players", category = "Game Effects" },
+	{ id = "ammo", name = "Game Effects: refill ammunition", short = "Refill ammunition", max = 100, default = 100, unit = "percent", category = "Game Effects" },
+	{ id = "blackout", name = "Blackout: power interruption", short = "Blackout", max = 300, default = 15, unit = "seconds", hostile = true },
 }
 local defs = {}
 for _, def in ipairs(Effects.ORDER) do defs[def.id] = def end
@@ -50,7 +62,7 @@ end
 Effects.allowed = function (values, suit)
 	local result = {}
 	for _, def in ipairs(Effects.ORDER) do
-		if values and values[def.id] and (Effects.beneficial(suit) ~= (def.hostile == true)) then result[def.id] = values[def.id] end
+		if values and values[def.id] and not def.disabled and (Effects.beneficial(suit) ~= (def.hostile == true)) then result[def.id] = values[def.id] end
 	end
 	return result
 end
@@ -59,7 +71,7 @@ Effects.summary = function (values, max_lines, max_chars)
 	for _, def in ipairs(Effects.ORDER) do
 		local effect = values and values[def.id]
 		if effect and effect.value > 0 then
-			local line = def.name:gsub("^%w+: ", "") .. " (" .. effect.value .. " " .. def.unit .. ")"
+			local line = def.name:gsub("^[^:]+: ", "") .. " (" .. effect.value .. " " .. def.unit .. ")"
 			if max_chars and #line > max_chars then line = line:sub(1, max_chars - 3) .. "..." end
 			text[#text + 1] = line
 		end

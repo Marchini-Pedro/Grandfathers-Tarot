@@ -10,6 +10,7 @@
 local Events = {}
 local Effects = get_mod("RealmsWaves"):io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/effects")
 Events.Effects = Effects
+local Sounds = get_mod("RealmsWaves"):io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/sounds")
 Events.has_content = Effects.has_content
 
 -- The most cards a deck holds: the standard cards and the custom slots together (the keys custom_1 ... custom_N, N = CUSTOM_SLOTS, are
@@ -236,7 +237,7 @@ Events.DEFAULT_REPEAT_FOR = 60 -- seconds the repeats keep coming
 -- the suits of the Tarot (visuals: catalog/cards.lua) and the cooldown looks
 Events.SUITS = {
 	plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true,
-	volley = true, snare = true, brute = true, dusk = true, warp = true, heresy = true, prayer = true, miracle = true, grace = true,
+	volley = true, snare = true, brute = true, dusk = true, warp = true, heresy = true, prayer = true, miracle = true, grace = true, faith = true,
 }
 -- names a suit used to have (Fester became Heresy): saved settings, presets, shared texts and synced hands may still say them
 Events.SUIT_ALIAS = { fester = "heresy" }
@@ -400,7 +401,7 @@ Events.get = function (key, get_setting, Groups)
 	end
 
 	wave.effects = Effects.allowed(Effects.parse(get_setting("fx_" .. key)) or {}, wave.suit)
-	wave.sound = get_setting("snd_" .. key) or ""
+	wave.sound = Sounds.encode(Sounds.parse(get_setting("snd_" .. key) or ""))
 	if Effects.beneficial(wave.suit) then wave.parts, wave.monster = {}, false end
 	return wave
 end

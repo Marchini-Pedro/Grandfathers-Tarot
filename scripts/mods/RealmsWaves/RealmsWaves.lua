@@ -344,6 +344,11 @@ mod.update = function (...)
 		return
 	end
 
+	-- the second completion sound of a card follows the first everywhere, also in the editor's preview in the hub
+	if RW.effects and RW.effects.tick_audio and dt then
+		pcall(RW.effects.tick_audio, dt)
+	end
+
 	if RW.director and not RW.dead and dt then
 		local ok, err = pcall(RW.director.update, dt)
 
