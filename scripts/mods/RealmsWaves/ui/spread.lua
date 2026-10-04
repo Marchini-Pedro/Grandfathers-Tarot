@@ -610,17 +610,24 @@ end
 Spread.FOG_HEIGHT = 0.45 -- of the card's height, one bank
 Spread.FOG_ALPHA, Spread.VEIL_ALPHA = 215, 165
 
-Spread.fog = function (Cards, t, ch, out)
+Spread.fog = function (Cards, t, ch, out, strength)
+	strength = strength or 1
+
 	for i = 1, Cards.FOG_BANDS do
 		local centre, thick = Cards.fog(t, i)
 		local half = ch * Spread.FOG_HEIGHT / 2
 		local top, bottom = max(0, centre * ch - half), min(ch, centre * ch + half)
 		local bank = out[i]
 
-		bank[1], bank[2], bank[3] = top, max(0, bottom - top), floor(Spread.FOG_ALPHA * thick + 0.5)
+		bank[1], bank[2], bank[3] = top, max(0, bottom - top), floor(Spread.FOG_ALPHA * thick * strength + 0.5)
 	end
 
-	return floor(Spread.VEIL_ALPHA * Cards.fog(t) + 0.5)
+	return floor(Spread.VEIL_ALPHA * Cards.fog(t) * strength + 0.5)
+end
+
+-- The option "Nightmare card darkness" (nightmare_fog_strength, percent; 0 = no fog): the fog's strength 0..1
+Spread.fog_strength = function (value)
+	return math.max(0, math.min(100, tonumber(value) or 100)) / 100
 end
 
 Spread.new_fog = function ()

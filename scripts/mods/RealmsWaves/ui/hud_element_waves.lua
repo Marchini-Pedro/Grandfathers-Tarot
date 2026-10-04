@@ -1027,7 +1027,7 @@ HudElementRealmsWavesPanel._tick_living = function (self)
 		if suit and suit.fog then
 			rec.fog = rec.fog or Spread.new_fog()
 
-			local veil = Spread.fog(Cards, clock + i * 0.5, rec.ch, rec.fog)
+			local veil = Spread.fog(Cards, clock + i * 0.5, rec.ch, rec.fog, Spread.fog_strength(mod:get("nightmare_fog_strength")))
 
 			box(style.fog_veil, rec.x, rec.y, rec.cw, rec.ch)
 			paint(style.fog_veil, veil, BLACK)
@@ -1367,7 +1367,7 @@ end
 -- changes are undone afterwards (the widgets and the shared render settings are left as they were).
 HudElementRealmsWavesPanel.draw = function (self, dt, t, ui_renderer, render_settings, input_service)
 	local o = self._o
-	local size, opacity = o.scale, o.opacity
+	local size, opacity = o.scale, o.opacity * (self._boss_fade or 1)
 	local push = self._boss_push or 0
 
 	if not self._visible or (size == 1 and opacity == 1 and push == 0) then
@@ -1415,49 +1415,107 @@ end
 -- that band, the panel is drawn lower by the push (it slides at BOSS_SLIDE units a second, both ways); the node itself (where
 -- custom_hud put it) never moves. The option "Move the Draw HUD below boss bars" (hud_avoid_boss_bars) turns it off.
 local BOSS_BAND, BOSS_TOP, BOSS_BOTTOM, BOSS_SLIDE = 748, 36, 172, 500
+-- (2026-10-04, second round) while a boss is up the Draw HUD is also drawn see-through (option hud_boss_opacity, percent; it fades
+-- there and back at BOSS_FADE a second), and the option hud_boss_bars_below swaps the two: the Draw HUD stays at the top and the
+-- boss bars are moved below it (their element's own node, put back where it was, custom_hud's place included, when the boss is gone).
+local BOSS_FADE, BARS_BELOW_GAP = 2, 30
 
-HudElementRealmsWavesPanel._boss_push_target = function (self)
-	if mod:get("hud_avoid_boss_bars") == false then
-		return 0
-	end
-
+-- whether a boss is up, and whether the panel is in the bars' band
+HudElementRealmsWavesPanel._boss_state = function (self)
 	local hud = self._parent
 	local bosses = hud and hud.element and hud:element("HudElementBossHealth")
 	local active = bosses and bosses._active_targets_array
-
-	if not active or #active == 0 then
-		return 0
-	end
-
+	local up = active ~= nil and #active > 0
 	local node = self._ui_scenegraph and self._ui_scenegraph.panel and self._ui_scenegraph.panel.world_position
 
-	if not node then
-		return 0
+	if not up or not node then
+		return up, false, bosses, node
 	end
 
 	local left, right = (1920 - BOSS_BAND) / 2, (1920 + BOSS_BAND) / 2
 	local width = Spread.NODE_WIDTH * (self._o.scale or 1)
 
-	if node[1] >= right or node[1] + width <= left or node[2] >= BOSS_BOTTOM then
+	return up, not (node[1] >= right or node[1] + width <= left or node[2] >= BOSS_BOTTOM), bosses, node
+end
+
+HudElementRealmsWavesPanel._boss_push_target = function (self)
+	if mod:get("hud_avoid_boss_bars") == false or mod:get("hud_boss_bars_below") == true then
 		return 0
 	end
 
-	return BOSS_BOTTOM - node[2]
+	local _, overlap, _, node = self:_boss_state()
+
+	return overlap and BOSS_BOTTOM - node[2] or 0
+end
+
+local function slide(value, target, step)
+	if value < target then
+		return math.min(target, value + step)
+	end
+
+	return math.max(target, value - step)
+end
+
+-- the boss bars below the Draw HUD (hud_boss_bars_below): their node moves down by `bars_push`, back to its own place at 0
+HudElementRealmsWavesPanel._move_bars = function (self, bosses, push)
+	if not bosses or not bosses.set_scenegraph_position or not bosses.scenegraph_position then
+		return
+	end
+
+	if not self._bars_home or self._bars_owner ~= bosses then
+		if push == 0 then
+			return
+		end
+
+		local x, y, z = bosses:scenegraph_position("background")
+
+		if type(x) == "table" then
+			x, y, z = x[1], x[2], x[3]
+		end
+
+		self._bars_home, self._bars_owner = { x or 0, y or BOSS_TOP, z or 0 }, bosses
+	end
+
+	local home = self._bars_home
+
+	if push ~= self._bars_written then
+		self._bars_written = push
+		bosses:set_scenegraph_position("background", home[1], home[2] + push, home[3])
+	end
+
+	if push == 0 then
+		self._bars_home, self._bars_owner, self._bars_written = nil, nil, nil
+	end
 end
 
 HudElementRealmsWavesPanel._update_boss_push = function (self, dt)
-	local ok, target = pcall(self._boss_push_target, self)
-	local push = self._boss_push or 0
+	local ok, up, overlap, bosses, node = pcall(self._boss_state, self)
 
-	target = ok and target or 0
-
-	if push < target then
-		push = math.min(target, push + BOSS_SLIDE * dt)
-	elseif push > target then
-		push = math.max(target, push - BOSS_SLIDE * dt)
+	if not ok then
+		up, overlap, bosses, node = false, false, nil, nil
 	end
 
-	self._boss_push = push
+	local ok2, target = pcall(self._boss_push_target, self)
+
+	self._boss_push = slide(self._boss_push or 0, ok2 and target or 0, BOSS_SLIDE * dt)
+
+	-- see-through while a boss is up
+	local opacity = math.max(10, math.min(100, tonumber(mod:get("hud_boss_opacity")) or 50)) / 100
+
+	self._boss_fade = slide(self._boss_fade or 1, up and opacity or 1, BOSS_FADE * dt)
+
+	-- or the bars below the Draw HUD
+	local below = mod:get("hud_boss_bars_below") == true and mod:get("hud_avoid_boss_bars") ~= false and overlap and node
+	local bars_target = below and math.max(0, node[2] + Spread.NODE_HEIGHT * (self._o.scale or 1) - BARS_BELOW_GAP - BOSS_TOP) or 0
+
+	self._bars_push = slide(self._bars_push or 0, bars_target, BOSS_SLIDE * dt)
+
+	local moved, err = pcall(self._move_bars, self, bosses or self._bars_owner, self._bars_push)
+
+	if not moved and not self._bars_reported then
+		self._bars_reported = true
+		mod:warning("RealmsWaves: the boss bars could not be moved: %s", tostring(err))
+	end
 end
 
 HudElementRealmsWavesPanel.update = function (self, dt, t, ui_renderer, render_settings, input_service)

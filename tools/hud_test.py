@@ -809,6 +809,33 @@ do
   for _ = 1, 10 do frame(e, 0.1) end
   check("boss bars: the option off: it never moves", e._boss_push == 0)
   settings.hud_avoid_boss_bars = nil
+  -- see-through while a boss is up (hud_boss_opacity), and the bars below instead (hud_boss_bars_below)
+  local positions = {}
+  boss.scenegraph_position = function(_, id) return { 0, 36, 0 } end
+  boss.set_scenegraph_position = function(_, id, x, y, z) positions[#positions + 1] = { id, x, y, z } end
+  e._parent = { element = function(_, name) return name == "HudElementBossHealth" and boss or nil end }
+  boss._active_targets_array = {}
+  for _ = 1, 20 do frame(e, 0.1) end
+  check("boss fade: without a boss the Draw HUD is fully opaque", e._boss_fade == 1)
+  boss._active_targets_array = { { unit = "beast" } }
+  frame(e, 0.1)
+  check("boss fade: with a boss it fades (not at once) toward the option's 50 percent", e._boss_fade < 1 and e._boss_fade > 0.5, e._boss_fade)
+  for _ = 1, 10 do frame(e, 0.1) end
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("boss fade: ...to 50 percent, drawn so", e._boss_fade == 0.5 and near(draws[1].a, 0.5))
+  settings.hud_boss_opacity = 80; for _ = 1, 10 do frame(e, 0.1) end
+  check("boss fade: the option sets how see-through", near(e._boss_fade, 0.8))
+  settings.hud_boss_opacity = nil
+  settings.hud_boss_bars_below = true
+  for _ = 1, 15 do frame(e, 0.1) end
+  local last = positions[#positions]
+  check("bars below: the Draw HUD stays at the top and the boss bars' node is moved below it (36 + 262 - 30 - 36 lower)", e._boss_push == 0 and last and last[1] == "background" and last[2] == 0 and near(last[3], 36 + 232), last and last[3])
+  boss._active_targets_array = {}
+  for _ = 1, 15 do frame(e, 0.1) end
+  last = positions[#positions]
+  check("bars below: when the boss is gone the bars go back to their own place, and are left alone after", near(last[3], 36) and e._bars_home == nil and (function() local n = #positions; frame(e, 0.1); return #positions == n end)())
+  settings.hud_boss_bars_below = nil
   e._parent = { element = function() error("hud gone") end }
   frame(e, 0.1)
   check("boss bars: a failing lookup is contained (no push)", e._boss_push == 0)
@@ -940,6 +967,16 @@ do
   end
   check("nightmare: a black fog comes and goes over the card (the veil thickens past 100 of 255 and clears again)", most > 100 and least < 20, most .. " / " .. least)
   check("nightmare: its banks of fog drift inside the card, black, above everything on it", bank_seen and inside_card and h(1).style.fog_1.offset[3] > h(1).style.name.offset[3])
+  settings.nightmare_fog_strength = 0
+  for k = 1, 60 do frame(e, 0.1) end
+  local seen_fog = false
+  for k = 1, 120 do frame(e, 0.05); if h(1).style.fog_veil.visible or h(1).style.fog_1.visible then seen_fog = true end end
+  check("nightmare: the option 'Nightmare card darkness' at 0 clears the fog", not seen_fog)
+  settings.nightmare_fog_strength = 40
+  local most40 = 0
+  for k = 1, 300 do frame(e, 0.033); if h(1).style.fog_veil.visible then most40 = math.max(most40, h(1).style.fog_veil.color[1]) end end
+  check("nightmare: at 40 percent the fog is lighter (the veil at most 40 percent of its full darkness)", most40 > 20 and most40 <= math.floor(Spread.VEIL_ALPHA * 0.4 + 0.5), most40)
+  settings.nightmare_fog_strength = nil
   check("nightmare: no other suit is fogged", not h(2).style.fog_veil.visible and not h(3).style.fog_veil.visible and not h(3).style.fog_1.visible)
   audit_ok("nightmare and warp hand", e)
 end
