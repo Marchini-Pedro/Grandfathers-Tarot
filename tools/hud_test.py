@@ -771,6 +771,49 @@ do
   settings.tarot_font = nil
 end
 
+-- out of the way of the boss health bars (2026-10-04): the Draw HUD slides below them while a boss is up, and back
+do
+  local e = new_element()
+  local boss = { _active_targets_array = {} }
+  e._parent = { element = function(_, name) return name == "HudElementBossHealth" and boss or nil end }
+  current_view = view_of({ remaining = 9, hand_seq = 61 }); frame(e)
+  local rs = {}
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("boss bars: without a boss the Draw HUD stays where it is", (e._boss_push or 0) == 0 and draws[1].oy == 0)
+  boss._active_targets_array = { { unit = "beast" } }
+  frame(e, 0.1)
+  check("boss bars: with a boss it starts sliding down (not a jump)", e._boss_push > 0 and e._boss_push < 136, e._boss_push)
+  for _ = 1, 10 do frame(e, 0.1) end
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("boss bars: ...until it is below them (its top at y 172 instead of 36), the node itself where custom_hud put it", e._boss_push == 136 and near(draws[1].oy, 136) and e._ui_scenegraph.panel.world_position[2] == 36, e._boss_push)
+  check("boss bars: after the draw the widgets are back where they were", e._widgets_by_name.card_1.offset[2] == 0)
+  settings.tarot_scale = 150; frame(e)
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("boss bars: at another size the push is still 136 on the screen (divided by the size in the widgets' units)", near(draws[1].oy, 36 * (1 / 1.5 - 1) + 136 / 1.5, 1e-6), draws[1].oy)
+  settings.tarot_scale = nil; frame(e)
+  boss._active_targets_array = {}
+  frame(e, 0.1)
+  check("boss bars: the boss dead, it slides back up", e._boss_push > 0 and e._boss_push < 136)
+  for _ = 1, 10 do frame(e, 0.1) end
+  check("boss bars: ...to where it was", e._boss_push == 0)
+  boss._active_targets_array = { { unit = "beast" } }
+  local saved = e._ui_scenegraph.panel.world_position[1]
+  e._ui_scenegraph.panel.world_position[1] = 1500
+  for _ = 1, 10 do frame(e, 0.1) end
+  check("boss bars: a Draw HUD moved away from the bars (custom_hud) does not move", e._boss_push == 0)
+  e._ui_scenegraph.panel.world_position[1] = saved
+  settings.hud_avoid_boss_bars = false
+  for _ = 1, 10 do frame(e, 0.1) end
+  check("boss bars: the option off: it never moves", e._boss_push == 0)
+  settings.hud_avoid_boss_bars = nil
+  e._parent = { element = function() error("hud gone") end }
+  frame(e, 0.1)
+  check("boss bars: a failing lookup is contained (no push)", e._boss_push == 0)
+end
+
 -- size and opacity of everything
 do
   local e = new_element()

@@ -60,6 +60,8 @@ return {
 	card_share_icons = { en = "Show Share Card sigils" },
 	card_sounds = { en = "Play card sounds (when a card is drawn)" },
 	nightmare_dread = { en = "Nightmare's dread on screen" },
+	hud_avoid_boss_bars = { en = "Move the Draw HUD below boss bars" },
+	hud_avoid_boss_bars_description = { en = "While a boss health bar is shown at the top of the screen, the Draw HUD slides down below it, and back up when the boss is dead. Only when the Draw HUD is where the bars are." },
 	nightmare_dread_description = { en = "When a Nightmare card is drawn, a black fog darkens the whole screen for a few seconds (still see-through) while its sound plays." },
 	suit_desc_prayer = { en = "Teal devotion: strength and aid for the faithful." },
 	suit_desc_miracle = { en = "Holy gold: healing in the darkest hour." },

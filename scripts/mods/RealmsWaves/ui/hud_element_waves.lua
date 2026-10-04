@@ -1368,15 +1368,17 @@ end
 HudElementRealmsWavesPanel.draw = function (self, dt, t, ui_renderer, render_settings, input_service)
 	local o = self._o
 	local size, opacity = o.scale, o.opacity
+	local push = self._boss_push or 0
 
-	if not self._visible or (size == 1 and opacity == 1) then
+	if not self._visible or (size == 1 and opacity == 1 and push == 0) then
 		return HudElementRealmsWavesPanel.super.draw(self, dt, t, ui_renderer, render_settings, input_service)
 	end
 
 	local widgets = self._widgets
 	local node = self._ui_scenegraph.panel.world_position
 	local shift = 1 / size - 1
-	local dx, dy = node[1] * shift, node[2] * shift
+	-- (the push below the boss bars is in screen units: divided by the size, as the widgets are drawn `size` times bigger)
+	local dx, dy = node[1] * shift, node[2] * shift + push / size
 	local saved_scale, saved_inverse = render_settings.scale, render_settings.inverse_scale
 	local scale = (saved_scale or RESOLUTION_LOOKUP.scale) * size
 
@@ -1407,8 +1409,60 @@ HudElementRealmsWavesPanel.draw = function (self, dt, t, ui_renderer, render_set
 	end
 end
 
+-- Out of the way of the boss health bars (2026-10-04, the user: "when there are bosses the Draw HUD moves below them, and back up once
+-- they are killed"). The game's bars (scripts/ui/hud/elements/boss_health) sit at the top centre: a band BOSS_BAND wide from y
+-- BOSS_TOP down to BOSS_BOTTOM, in the same HUD-scaled space as this panel. While the element has an active boss and the panel overlaps
+-- that band, the panel is drawn lower by the push (it slides at BOSS_SLIDE units a second, both ways); the node itself (where
+-- custom_hud put it) never moves. The option "Move the Draw HUD below boss bars" (hud_avoid_boss_bars) turns it off.
+local BOSS_BAND, BOSS_TOP, BOSS_BOTTOM, BOSS_SLIDE = 748, 36, 172, 500
+
+HudElementRealmsWavesPanel._boss_push_target = function (self)
+	if mod:get("hud_avoid_boss_bars") == false then
+		return 0
+	end
+
+	local hud = self._parent
+	local bosses = hud and hud.element and hud:element("HudElementBossHealth")
+	local active = bosses and bosses._active_targets_array
+
+	if not active or #active == 0 then
+		return 0
+	end
+
+	local node = self._ui_scenegraph and self._ui_scenegraph.panel and self._ui_scenegraph.panel.world_position
+
+	if not node then
+		return 0
+	end
+
+	local left, right = (1920 - BOSS_BAND) / 2, (1920 + BOSS_BAND) / 2
+	local width = Spread.NODE_WIDTH * (self._o.scale or 1)
+
+	if node[1] >= right or node[1] + width <= left or node[2] >= BOSS_BOTTOM then
+		return 0
+	end
+
+	return BOSS_BOTTOM - node[2]
+end
+
+HudElementRealmsWavesPanel._update_boss_push = function (self, dt)
+	local ok, target = pcall(self._boss_push_target, self)
+	local push = self._boss_push or 0
+
+	target = ok and target or 0
+
+	if push < target then
+		push = math.min(target, push + BOSS_SLIDE * dt)
+	elseif push > target then
+		push = math.max(target, push - BOSS_SLIDE * dt)
+	end
+
+	self._boss_push = push
+end
+
 HudElementRealmsWavesPanel.update = function (self, dt, t, ui_renderer, render_settings, input_service)
 	HudElementRealmsWavesPanel.super.update(self, dt, t, ui_renderer, render_settings, input_service)
+	self:_update_boss_push(tonumber(dt) or 0)
 
 	local ok, err = pcall(self._refresh, self, dt)
 

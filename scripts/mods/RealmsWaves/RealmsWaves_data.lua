@@ -149,6 +149,7 @@ return {
 				sub_widgets = {
 					{ setting_id = "hud_enabled", type = "checkbox", default_value = true },
 					{ setting_id = "hud_last_card", type = "checkbox", default_value = true },
+					{ setting_id = "hud_avoid_boss_bars", type = "checkbox", default_value = true },
 					numeric("hud_last_transparency", 0, 0, 100, "unit_percent", 5),
 					{ setting_id = "card_share_icons", type = "checkbox", default_value = true },
 					{ setting_id = "card_sounds", type = "checkbox", default_value = true },
