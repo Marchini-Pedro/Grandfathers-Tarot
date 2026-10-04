@@ -219,8 +219,11 @@ Appearance.install = function ()
 		local ok, err = pcall(apply_record, record)
 		if not ok then warn("protected colour update failed: " .. tostring(err)) end
 	end
+	-- (once per class table: DMF runs this again whenever the game loads the file again, and a second hook_safe warns)
+	local hooked = setmetatable({}, { __mode = "k" })
 	mod:hook_require("scripts/extension_systems/buff/minion_buff_extension", function (class)
-		if retired then return end
+		if retired or hooked[class] then return end
+		hooked[class] = true
 		for _, name in ipairs({ "_start_material_vector_effect", "_stop_material_vector_effect" }) do mod:hook_safe(class, name, refresh) end
 	end)
 end

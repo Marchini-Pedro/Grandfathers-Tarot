@@ -126,7 +126,8 @@ treated.extensions.outline_system.settings.other_mod={}
 A.reset()
 check("outline removal preserves another mod's addition", outlines[treated]==0 and treated.extensions.outline_system.settings.other_mod and not treated.extensions.outline_system.settings.rw_selected_colour)
 local safe_hooks={}
-function mod:hook_require(path,fn) check("native tint hook path",path=="scripts/extension_systems/buff/minion_buff_extension");fn({}) end
+local require_hooks=0
+function mod:hook_require(path,fn) check("native tint hook path",path=="scripts/extension_systems/buff/minion_buff_extension");local class={};local h=mod.hook_safe;mod.hook_safe=function(...) require_hooks=require_hooks+1;return h(...) end;fn(class);fn(class);mod.hook_safe=h;check("the buff class loaded twice is hooked once (no DMF rehook warning)",require_hooks==2);fn({}) end
 function mod:hook_safe(class,name,fn) safe_hooks[name]=fn end
 A.install()
 local combined=Schema.copy(purple);combined.outline=true;combined.protect=true

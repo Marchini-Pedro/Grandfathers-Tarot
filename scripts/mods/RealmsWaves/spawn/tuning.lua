@@ -584,9 +584,14 @@ Tuning.install = function ()
 	end
 
 	if mod.hook_require then
-		mod:hook_require("scripts/utilities/minion_attack", function (MinionAttack)
-			if Tuning.dead then return end
+		-- DMF runs this every time the game loads the file again (at every game start): the same table is hooked once only, or DMF
+		-- warns "Attempting to rehook active hook [start_shooting]" (seen 2026-10-04)
+		local hooked_attack = setmetatable({}, { __mode = "k" })
 
+		mod:hook_require("scripts/utilities/minion_attack", function (MinionAttack)
+			if Tuning.dead or hooked_attack[MinionAttack] then return end
+
+			hooked_attack[MinionAttack] = true
 			mod:hook_safe(MinionAttack, "start_shooting", function (...)
 				Tuning.on_start_shooting(...)
 			end)

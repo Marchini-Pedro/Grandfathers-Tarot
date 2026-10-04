@@ -218,6 +218,19 @@ for _, h in ipairs(hooks) do if type(h.obj) == "string" then names[#names + 1] =
 table.sort(names)
 check("entry: the four budget-bypass hooks and the custom-mods hooks (stat recompute on both buff classes, melee attack start, burster explosion) are installed", table.concat(names, ",") == "BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BuffExtensionBase._update_stat_buffs_and_keywords,MinionBuffExtension._reset_stat_buffs,MinionBuffExtension._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion", table.concat(names, ","))
 check("entry: MinionAttack is hooked through hook_require (it may load after the mod)", #hook_requires == 2 and hook_requires[1] == "scripts/utilities/minion_attack" and hook_requires[2] == "scripts/extension_systems/buff/minion_buff_extension", table.concat(hook_requires, ","))
+do
+  -- (2026-10-04: "Attempting to rehook active hook [start_shooting]" at every game start) DMF runs a hook_require callback again
+  -- each time the game loads the file; the same table is hooked once, a new table is hooked again
+  local tuning, was_dead = mod.rw.tuning, mod.rw.tuning.dead
+  tuning.dead = false
+  local attack, other = {}, {}
+  local before = #hooks
+  require_callbacks[1](attack); require_callbacks[1](attack)
+  local once = #hooks - before
+  require_callbacks[1](other)
+  check("entry: a file loaded again does not hook the same table twice (start_shooting once; a new table again)", once == 1 and hooks[#hooks].method == "start_shooting" and #hooks - before == 2, once)
+  tuning.dead = was_dead
+end
 check("entry: editor view registered under its name with the right class", #views == 1 and views[1].view_name == "realms_waves_editor" and views[1].view_settings.class == "RealmsWavesView")
 check("entry: /rw_test_close is registered too", type(commands.rw_test_close) == "function")
 check("entry: two HUD elements are registered, the Spread and the window of the last card (own node, so custom_hud moves it on its own)", #hud_elements == 2 and hud_elements[1].class_name == "HudElementRealmsWavesPanel" and hud_elements[2].class_name == "HudElementRealmsWavesLast" and hud_elements[2].filename:find("hud_element_last_card$") ~= nil and hud_elements[2].use_hud_scale == true, #hud_elements)
