@@ -32,34 +32,47 @@ local function players()
 end
 local function game_time() return require("scripts/utilities/fixed_frame").get_latest_fixed_time() end
 -- Completion audio: a card's text holds one or two sounds, each with a volume (catalog/sounds.lua). The second starts when the first
--- ends: the native player is asked whether the first is still playing (WwiseWorld.is_playing); SimpleAudio gives no id, so its
--- second sound follows after CHAIN_GAP seconds. Nothing waits longer than CHAIN_LONGEST. Volume below 100 plays through a source of
--- its own with the game's sfx volume parameter scaled on it: EXPERIMENTAL (the game exposes no per-sound volume; this needs the live
--- check in docs/06). Volume 0 never plays.
+-- ends (WwiseWorld.is_playing); nothing waits longer than CHAIN_LONGEST, and a sound without an id lets the next follow after
+-- CHAIN_GAP seconds.
+-- Where it plays (2026-10-04 fix: no card sound was heard): almost every event of the list is a 3D game sound, and an event triggered
+-- without a source plays at the world's origin, far from the listener, so nothing was heard. Each sound now plays on an auto source on
+-- the local player's unit, in the level's own sound world (where the listener is), as the game plays the player's own sounds
+-- (player_unit_fx_extension.lua). Without a player unit (a menu) it falls back to the UI world with no source (2D events only).
+-- Volume below 100 sets the game's sfx volume parameter on that source: EXPERIMENTAL (no per-sound volume exists). Volume 0 never plays.
 local CHAIN_GAP, CHAIN_LONGEST = 2.5, 12
 local chain, audio_clock = {}, 0
+local function listener_unit()
+	local manager = Managers.player
+	local player = manager and (manager.local_player_safe and manager:local_player_safe(1) or manager:local_player(1))
+	local unit = player and player.player_unit
+	return unit and Unit.alive(unit) and unit or nil
+end
 local function trigger(event, volume)
-	local simple = get_mod("SimpleAudio")
-	if simple and simple.play and (not simple.is_enabled or simple:is_enabled()) then simple.play(event); return nil end
-	local world = Managers.ui and Managers.ui:world()
-	if not world or not Managers.world then return nil end
-	local wwise = Managers.world:wwise_world(world)
-	if volume < 100 and WwiseWorld.make_manual_source and Vector3 and Vector3.zero and Quaternion then
-		local source = WwiseWorld.make_manual_source(wwise, Vector3.zero(), Quaternion.identity())
-		local sfx = Application and Application.user_setting and Application.user_setting("sound_settings", "options_sfx_slider") or 100
-		pcall(WwiseWorld.set_source_parameter, wwise, source, "options_sfx_slider", sfx * volume / 100)
-		return WwiseWorld.trigger_resource_event(wwise, event, source), wwise, source
+	if not Managers.world then return nil end
+	local unit = listener_unit()
+	local level = unit and Managers.world:has_world("level_world") and Managers.world:world("level_world")
+	if level then
+		local wwise = Managers.world:wwise_world(level)
+		local source = WwiseWorld.make_auto_source(wwise, unit)
+		if volume < 100 then
+			local sfx = Application and Application.user_setting and Application.user_setting("sound_settings", "options_sfx_slider") or 100
+			pcall(WwiseWorld.set_source_parameter, wwise, source, "options_sfx_slider", sfx * volume / 100)
+		end
+		return WwiseWorld.trigger_resource_event(wwise, event, source), wwise
 	end
+	local world = Managers.ui and Managers.ui:world()
+	if not world then return nil end
+	local wwise = Managers.world:wwise_world(world)
 	return WwiseWorld.trigger_resource_event(wwise, event), wwise
 end
 local function start_entry(list, index)
 	local entry = list[index]
 	if not entry then return end
 	if entry.volume <= 0 then return start_entry(list, index + 1) end
-	local ok, id, wwise, source = pcall(trigger, entry.event, entry.volume)
-	if not ok then warn("sound unavailable: " .. tostring(id)); id, wwise, source = nil, nil, nil end
-	if list[index + 1] or source then
-		chain[#chain + 1] = { list = list, next = index + 1, id = id, wwise = wwise, source = source, started = audio_clock }
+	local ok, id, wwise = pcall(trigger, entry.event, entry.volume)
+	if not ok then warn("sound unavailable: " .. tostring(id)); id, wwise = nil, nil end
+	if list[index + 1] then
+		chain[#chain + 1] = { list = list, next = index + 1, id = id, wwise = wwise, started = audio_clock }
 		if #chain > 8 then table.remove(chain, 1) end
 	end
 end
@@ -82,7 +95,6 @@ Effects.tick_audio = function (dt)
 		else done = age >= CHAIN_GAP end
 		if done then
 			table.remove(chain, i)
-			if item.source then pcall(WwiseWorld.destroy_manual_source, item.wwise, item.source) end
 			start_entry(item.list, item.next)
 		end
 	end

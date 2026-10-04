@@ -132,15 +132,19 @@ blueprints.workshop_stepper = function (node_id, width, label_width, font_size, 
 	local passes = {}
 	local S = Workshop.STEPPER
 	local x0 = label_width
-	local after = x0 + 2 * S.button + S.value + 12
+	-- the value cell holds "30:00" and "auto" at the compact font (46 units broke "2:00" over two lines)
+	local value_w = 64
+	local after = x0 + 2 * S.button + value_w + 12
 
 	Components.text_pass(passes, "label", "label", { 0, 0, 2 }, { x0, 48 }, font_size or 20, label_color or colors.text)
 	Components.stepper_passes(passes, {
 		minus_offset = { x0, 4, 2 },
 		value_offset = { x0 + S.button, 4, 2 },
-		value_size = { S.value, S.height },
-		plus_offset = { x0 + S.button + S.value, 4, 2 },
+		value_size = { value_w, S.height },
+		plus_offset = { x0 + S.button + value_w, 4, 2 },
 		button_size = { S.button, S.height },
+		font_size = S.font,
+		sign = S.sign,
 	})
 	-- the trailing text may run a little past the node (the next column starts 26 units later)
 	Components.text_pass(passes, "extra", "extra", { after, 0, 2 }, { width - after + 20, 48 }, 17, colors.muted)

@@ -111,6 +111,18 @@ Out-of-date test expectations (not changed this round): the faction tint of shel
 `Consecrate` callback (`cb_bless_deck`, now `cb_deck_search`), the old Last Card geometry (176 x 250, card at y 24, window
 frame colours) and the old `Effects.summary` text. They need updating before the branch is merged.
 
+## Third round: steppers, cooldown, outline line of sight, sound (2026-10-04)
+
+Lua suites again not run or updated (the user's choice); every changed file was checked to load.
+
+| Report | Cause and fix |
+| --- | --- |
+| Stepper borders too thick | `Components.stepper_passes` drew a two unit edge over its one unit frame; the edges are one unit now (every stepper). |
+| The Mirror's cooldown "2:00" broke over two lines | `blueprints.workshop_stepper` used the 46 unit compact value cell with the default 22 unit font. It now has a 64 unit cell at the compact font (19) and sign size: "30:00" and "auto" fit. |
+| The enemy colour outline showed through walls | The outline material layers draw through geometry. Its `visibility_check` (asked every frame by the outline system) is now `in_sight` in `spawn/appearance.lua`: true when a player has tagged the enemy (`smart_tag_system:is_unit_tagged`), else a ray from the local camera to the enemy's spine, then its head (`filter_minion_line_of_sight_check`, static level geometry) must be clear. Each enemy is cast at most every 0.15 s, the answer kept in a weak table. A failed cast hides the outline and is warned once. |
+| Longest card cooldown 30 minutes | The option `tarot_longest` defaults to 30 (it allowed 2 to 30 already) in the settings, `Events`, the Face and the HUD, and `Cards.rot_strength` falls back to 1800 s. A one-time step on load raises a saved value below 30 to 30 (`tarot_longest_30_done`); after that the option is the player's again. |
+| No card sound was heard, neither the preview nor the completion | Nothing failed (no warning in the console log): almost every event of the list is a 3D game sound, and an event triggered without a source plays at the world's origin, out of hearing. Sounds now play on an auto source on the local player's unit in the level's sound world (`WwiseWorld.make_auto_source`, as `player_unit_fx_extension.lua` does); without a player unit (menus) they fall back to the UI world with no source. SimpleAudio is no longer used for this (it triggers the same native event without a source). The experimental volume now sets the sfx parameter on that auto source. |
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -136,3 +148,6 @@ frame colours) and the old `Effects.summary` text. They need updating before the
 10. Second round: both shelves in columns at every UI scale (no chip label spills over its outline); the effect chips' diamonds;
     the Deck's Search (typing filters, Escape restores, empty shows all); the Last Card for a long name, Heresy, Faith and a rare
     card, and when moved with custom_hud; the quick face's two rows of six.
+11. Third round: a card sound and its Preview are heard in the hub and in a mission (a 3D event like a syringe, a UI event, two in a
+    row); the coloured outline hides behind walls and shows when the enemy is in view or tagged; the cooldown stepper on the Face
+    screen at 30:00; the thinner stepper edges at every UI scale.

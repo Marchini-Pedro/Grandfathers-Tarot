@@ -140,7 +140,7 @@ return {
 						numeric("tarot_eye_size", 28, 10, 80, "unit_pixels"),
 						decimal("tarot_rot_short", 1.2, 0.4, 4, "unit_seconds"),
 						decimal("tarot_rot_long", 3.0, 0.8, 8, "unit_seconds"),
-						numeric("tarot_longest", 10, 2, 30, "unit_minutes"),
+						numeric("tarot_longest", 30, 2, 30, "unit_minutes"),
 					},
 				},
 				{

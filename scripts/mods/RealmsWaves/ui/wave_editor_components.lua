@@ -613,7 +613,8 @@ function Components.stepper_passes(passes, layout, flag, ids)
 		put_rgb(style.color, 255, dim(content) and FRAME_OFF or FRAME)
 	end)
 
-	for _, edge in ipairs({ { "_edge_t", x, y, w, 2 }, { "_edge_b", x, y + h - 2, w, 2 }, { "_edge_l", x, y, 2, h }, { "_edge_r", right - 2, y, 2, h } }) do
+	-- one unit edges (2026-10-04: the user found the two unit ones too heavy)
+	for _, edge in ipairs({ { "_edge_t", x, y, w, 1 }, { "_edge_b", x, y + h - 1, w, 1 }, { "_edge_l", x, y, 1, h }, { "_edge_r", right - 1, y, 1, h } }) do
 		rect_pass(passes, text_id .. edge[1], edge[2], edge[3], edge[4], edge[5], z + 3, visible, function (content, style)
 			put_rgb(style.color, 255, dim(content) and FRAME_OFF or FRAME)
 		end)

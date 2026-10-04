@@ -90,6 +90,53 @@ local function remove(unit)
 	end
 end
 
+-- Line of sight for the coloured outline (2026-10-04: the user saw it through walls). The outline material layers draw through
+-- geometry, so the outline's visibility_check (the outline system asks it every frame) hides it unless the local camera sees the
+-- enemy's torso or head through the level's static geometry (the minions' own line-of-sight collision filter), or a player has
+-- tagged the enemy (a tag shows it anyway, like the game's own tag outline). Each enemy is ray-cast at most every LOS_EVERY seconds;
+-- the answer is kept in a weak table of reused entries (no allocation per frame).
+local LOS_EVERY, LOS_FILTER = 0.15, "filter_minion_line_of_sight_check"
+local LOS_NODES = { "j_spine", "j_head" }
+local sight = setmetatable({}, { __mode = "k" })
+
+local function ray_clear(physics, from, target, node_name)
+	if not Unit.has_node(target, node_name) then return false end
+	local to = Unit.world_position(target, Unit.node(target, node_name))
+	local distance = Vector3.distance(from, to)
+	if distance < 0.5 then return true end
+	local hit, _, hit_distance = PhysicsWorld.raycast(physics, from, Vector3.normalize(to - from), distance, "closest", "collision_filter", LOS_FILTER)
+	return not hit or (hit_distance ~= nil and hit_distance >= distance - 0.4)
+end
+
+local function look(target)
+	local tags = Managers.state.extension:system("smart_tag_system")
+	if tags and tags:is_unit_tagged(target) then return true end
+	local player = Managers.player:local_player(1)
+	local world = Managers.world:world("level_world")
+	local camera = player and Managers.state.camera and Managers.state.camera:camera_position(player.viewport_name)
+	if not camera or not world then return false end
+	local physics = World.physics_world(world)
+	for i = 1, #LOS_NODES do
+		if ray_clear(physics, camera, target, LOS_NODES[i]) then return true end
+	end
+	return not Unit.has_node(target, LOS_NODES[1]) and not Unit.has_node(target, LOS_NODES[2]) and ray_clear(physics, camera, target, "root_point")
+end
+
+local function in_sight(target)
+	if not alive(target) then return false end
+	local now = Managers.time and Managers.time:has_timer("main") and Managers.time:time("main") or 0
+	local entry = sight[target]
+	if entry and now - entry[1] < LOS_EVERY and now >= entry[1] then return entry[2] end
+	local ok, visible = pcall(look, target)
+	if not ok then warn("outline line of sight failed: " .. tostring(visible)); visible = false end
+	entry = entry or {}
+	entry[1], entry[2] = now, visible == true
+	sight[target] = entry
+	return entry[2]
+end
+
+Appearance._in_sight = in_sight
+
 local function apply_record(record)
 	local unit, config = record.unit, record.config
 	local r, g, b = Schema.rgb(config)
@@ -99,8 +146,8 @@ local function apply_record(record)
 		if ext and manager then
 			local system, previous, owned = manager:system("outline_system"), ext.settings, {}
 			for key, value in pairs(previous) do owned[key] = value end
-			-- Depth-tested only. The game's higher-priority manual smart tag retains its through-wall layers.
-			owned[OUTLINE] = { priority = 2, color = { r, g, b }, material_layers = { "minion_outline" }, visibility_check = function (target) return alive(target) end }
+			-- Hidden behind walls unless tagged (in_sight); the game's higher-priority manual smart tag keeps its own outline.
+			owned[OUTLINE] = { priority = 2, color = { r, g, b }, material_layers = { "minion_outline" }, visibility_check = in_sight }
 			ext.settings = owned
 			record.outline = { ext = ext, system = system, previous = previous, owned = owned }
 			system:add_outline(unit, OUTLINE)

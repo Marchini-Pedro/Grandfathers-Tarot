@@ -223,10 +223,10 @@ Events.MAX_PCT = 10 -- the most a card's chance can be (older settings above it 
 Events.DEFAULT_CUSTOM_COOLDOWN = 120
 
 -- The cooldown of a card of your own that has none set: the option "Default card cooldown" (default 120 s), in 30 s
--- steps from 30 s up to the longest cooldown option (10 minutes by default).
+-- steps from 30 s up to the longest cooldown option (30 minutes by default since 2026-10-04).
 Events.default_cooldown = function (get_setting)
 	local value = tonumber(get_setting("tarot_default_cooldown")) or Events.DEFAULT_CUSTOM_COOLDOWN
-	local longest = math.max(2, tonumber(get_setting("tarot_longest")) or 10) * 60
+	local longest = math.max(2, tonumber(get_setting("tarot_longest")) or 30) * 60
 
 	return math.max(30, math.min(longest, math.floor(value / 30 + 0.5) * 30))
 end

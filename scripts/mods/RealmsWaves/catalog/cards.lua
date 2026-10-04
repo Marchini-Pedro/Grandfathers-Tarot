@@ -216,7 +216,7 @@ Cards.DEFAULT_COOLDOWN = 120
 -- Rot strength k = clamp(log(cooldown / 30) / log(longest / 30), 0, 1) (longest in seconds), the longer the cooldown
 -- the harder a consumed card rots (reference page `corr()`).
 Cards.rot_strength = function (cooldown, longest)
-	longest = math.max(Cards.COOLDOWN_STEP * 2, tonumber(longest) or 600)
+	longest = math.max(Cards.COOLDOWN_STEP * 2, tonumber(longest) or 1800)
 	cooldown = math.max(Cards.COOLDOWN_STEP, tonumber(cooldown) or Cards.DEFAULT_COOLDOWN)
 
 	local k = math.log(cooldown / Cards.COOLDOWN_STEP) / math.log(longest / Cards.COOLDOWN_STEP)

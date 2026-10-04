@@ -15,7 +15,7 @@ FaceView.install = function (View, h)
 
 	-- the cooldown can be as long as the "Longest cooldown" option (minutes) says, 10 minutes by default
 	View._longest_cooldown = function (self)
-		return math.max(2, tonumber(mod:get("tarot_longest")) or 10) * 60
+		return math.max(2, tonumber(mod:get("tarot_longest")) or 30) * 60
 	end
 
 	local function key_of(self)

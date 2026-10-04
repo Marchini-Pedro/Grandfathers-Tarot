@@ -79,7 +79,7 @@ local TIMING = {
 	eye_size = { "tarot_eye_size", 28 },
 	rot_short = { "tarot_rot_short", 1.2 },
 	rot_long = { "tarot_rot_long", 3.0 },
-	longest = { "tarot_longest", 10 }, -- minutes
+	longest = { "tarot_longest", 30 }, -- minutes
 }
 
 local function option(spec)

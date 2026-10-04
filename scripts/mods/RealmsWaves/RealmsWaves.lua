@@ -50,6 +50,13 @@ pcall(function ()
 end)
 
 mod.on_all_mods_loaded = function ()
+	-- once (2026-10-04): the longest card cooldown becomes 30 minutes for players who kept the old default of 10 saved; afterwards
+	-- the option is theirs again
+	if mod:get("tarot_longest_30_done") ~= true then
+		if (tonumber(mod:get("tarot_longest")) or 10) < 30 then mod:set("tarot_longest", 30) end
+		mod:set("tarot_longest_30_done", true)
+	end
+
 	RW.events = mod:io_dofile(BASE .. "/catalog/events")
 	RW.groups = mod:io_dofile(BASE .. "/catalog/groups")
 	RW.presets = mod:io_dofile(BASE .. "/catalog/presets")

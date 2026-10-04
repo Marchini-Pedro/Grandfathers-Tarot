@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-04 - Cauldron redesign, third round: sound, outline line of sight, cooldown (feature/cauldron-redesign)
+- Sound: card sounds and their previews play on the local player in the level's sound world (they played at the world's origin, out of hearing).
+- Enemy colour outline: hidden behind walls unless the enemy is in view of the camera or tagged by a player.
+- Longest card cooldown defaults to 30 minutes (a saved lower value is raised once); the Face screen's cooldown stepper fits "30:00"; stepper edges are one unit.
+- Lua suites not run or updated (user's choice). Not yet tested in game.
+
 ## 2026-10-04 - Cauldron redesign, second round: design-page shelves, card text, Deck search, Last Card (feature/cauldron-redesign)
 - Editor: the enemy and effect shelves are four columns with chips as wide as their labels and one unit outlines (no faction tint); effect chips show a lit diamond when on the card. Beneficial card text reads `95% Party health` with the amount in bone and the name in its group's colour, and its dots are its groups' colours; effect rows lead with the amount; the stage line counts effects. The quick face is two rows of six.
 - Deck: Search cards replaces Consecrate 12 cards (filters by name, suit, enemy or effect as you type).
