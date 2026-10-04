@@ -5,7 +5,7 @@ Written 2026-09-28. Findings backing each claim are in docs 01-03.
 ## Heresy branch continuation (2026-10-03)
 
 The last-card state is cleared before stop is broadcast; off snapshots cannot
-retain a last card. Long modifier lists grow the last-card panel inside its 320-unit node; existing names retain their three-line estimate. Pooled presets must fit both the 90,000-byte raw bound and
+retain a last card. PR #9 replaces that panel with a 176 × 250 card node and removes HUD modifier labels; existing names retain their three-line estimate. Pooled presets must fit both the 90,000-byte raw bound and
 Realms' encoded 96 KiB envelope, including JSON escaping. Reserve 1 KiB for
 the envelope and select the largest fitting prefix in at most seven probes
 for 100 cards; an empty preset clears old pools when no card fits. Health
@@ -33,6 +33,14 @@ validates host/token/IDs/breeds/byte channels and renews bounded local ownership
 Late joins get living snapshots; native colour support and restoration of
 untracked direct material writes remain live-test limits. See the linked design
 for cleanup, lease limits, test controls and advanced-method gates.
+
+The [black/near-black follow-up](enemy-appearance.md#black--near-black-stimm-feasibility-2026-10-03)
+is an analysis, not an implemented black renderer. Zero RGB matches native
+removal; a nonzero charcoal preset can reuse the current schema only if live
+comparison preserves the stimm pattern. Keep other experiments available.
+Outline and tint currently share one colour; contrasting outline RGB would
+require a separate change. Surface darkening and the darkest readable grey
+remain shader/rendering questions, not outcomes of an offline input probe.
 
 ## Requirements (user's words, verbatim)
 User has two installed mods, "Twitch Versus (Beta) (Realms Compatible)" and "RealmsEvent" (both installed via Vortex). Merge them into a complete new version/mod:
@@ -252,3 +260,18 @@ overall floor and a floor for every runtime module. Missing evidence and
 inventory mismatches fail closed. Allocation probes suspend instrumentation
 without weakening assertions. Native acceptance remains separate, and required
 merge checks need repository-owner configuration.
+
+## Card effects and UI (PR #9, 2026-10-03)
+
+Reuse the card catalog, preset envelope, host executor, director snapshots and
+shared vector UI. Effect schema bounds values before persistence/import/runtime.
+Beneficial suits mask enemies in the catalog and executor, with an effect panel
+and guarded enemy callbacks. Native health, inventory, buff, station and light
+APIs preserve game rules. Remote ability restoration runs on each owning peer
+because husk restoration throws; late joins establish a grant/audio baseline.
+Timed effects continue during scheduler pause and cancel their owned temporary
+state on stop/disable/reset. Ordinary outlines are depth-tested; specialist
+guidance deliberately uses the through-wall layer. Sound completion waits for
+repeats, deaths and effect expiry. Legacy card texts stay 18 fields; effects or
+sound append fields 19–20. Details and native limits are in
+[the feature guide](12-card-effects-and-ui.md).

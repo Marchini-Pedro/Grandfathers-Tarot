@@ -365,3 +365,62 @@ Final validation (2026-10-03): all six tools pass on both Lua 5.5 and LuaJIT 2.1
 - 2026-10-03: complete the Heresy merge-fix verification owed by the hand-off and the nine audit repairs. Both full runners pass **2,104 assertions** (appearance 79, coverage 11, editor 755, entry 72, HUD 219, logic 911, positions 35, protocol 22), 34 compilation inputs, docs sizes and every coverage gate. Scores: **Lua 5.5 81.97% / LuaJIT 2.1 78.75%**. All nine compiling reverse mutations trigger their intended behavior failure on both VMs, 18/18. The [current module table](10-ci-and-coverage.md) records all 34 floors, including explicit declaration/source-denominator exceptions. Real-widget Deck, Cauldron and last-card previews were inspected; native rendering, input, damage, RPC behavior, performance/soak and rows 114-121 remain unplayed. No installed files changed; prepare a draft PR and keep main unmerged.
 
 - 2026-10-03: push the reviewed Heresy continuation at `a163552` and open draft [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8), as explicitly requested. GitHub reports it conflict-free and unmerged. The [first hosted PR run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37159420038) passes both Ubuntu/Python 3.13 jobs: **2,104 assertions each**, all module gates and **Lua 5.5 81.97% / LuaJIT 2.1 78.75%**. Downloaded artifacts confirm these results. This publication follow-up changes documentation only and records the completed branch review; native rendering, damage, input, transport, appearance, performance/soak and rows 114-121 remain pending. Installed mods and repository settings were preserved.
+
+## 2026-10-03 — PR #9 implementation
+
+Confirmed PR #8 merged at `fe957632`; created `feature/card-effects-and-ui`
+from up-to-date main. Implemented the nine requested feature groups and added
+schema/native-contract/editor/HUD tests. All 39 Lua inputs compile.
+An initial Lua 5.5 run passed every harness but a blueprint coverage gate was
+invalidated by concurrent source edits; final suites must run on frozen source.
+PNG review found and fixed a sound/chance overlap, long face-line overflow,
+state-caption wrapping and a pre-existing ARGB/RGB ring-colour mix error.
+Last Card, shelf, beneficial panel/Mirror, DESPAIR, sounds and appearance previews
+use real widgets with substitute fonts. Native gameplay, materials, Wwise banks,
+HUD scales, host/client transport and multiplayer acceptance have not been run.
+The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
+
+
+- 2026-10-03 (PR #9 final offline verification): both full runners pass **2,321
+  assertions** (appearance 95, coverage 11, editor 755, effects 187, entry 72,
+  HUD 233, logic 911, positions 35, protocol 22), 39 Lua inputs, all 38 module
+  gates and the unchanged overall 78 floor. Source-line proxies: **Lua 5.5 82.37% / LuaJIT 2.1 79.13%**.
+  Every pre-existing floor is unchanged. Final real-widget PNGs cover the shelf,
+  beneficial panel/Mirror, DESPAIR, audio search, appearance controls/dropdown
+  and full compact Last Card; appearance switches now clear the explanation.
+  Markdown sizes, changed guide links and Git whitespace checks pass. No native
+  rendering, material/buff/bank, transport or multiplayer acceptance was run.
+  Publish a draft PR and retain the [native checklist](12-card-effects-and-ui.md).
+
+- 2026-10-03 (PR #9 publication): push four implementation/verification commits
+  and open [draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9). GitHub reports it conflict-free.
+  The [first hosted branch run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170104362) at `9f9082b`
+  passes both jobs. Downloaded reports match all local module scores and gates:
+  **2,321 assertions each, Lua 5.5 82.37% / LuaJIT 2.1 79.13%**. This follow-up
+  records publication in documentation only. Native acceptance remains pending;
+  no installed mods, repository settings or main merge.
+
+- 2026-10-03 (PR #9 hosted timeout): first branch run passes both VMs, but the
+  parallel PR run `37170106824` times out in Lua 5.5 logic after 120 seconds.
+  Its preceding harnesses pass; missing collector output causes the expected
+  fail-closed coverage errors. Give CI the same explicit 280-second harness
+  allowance used in local verification and contributor commands. Retain the
+  ten-minute job limit and all assertions/module floors. Production Lua is
+  unchanged; the corrected hosted run is the remaining verification step.
+
+- 2026-10-03 (PR #9 corrected CI): both branch and [PR runs](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170808353)
+  at `7b74e39` pass with the 280-second harness allowance. Downloaded branch
+  reports match all local module scores, all gates and **2,321 assertions each**
+  (Lua 5.5 82.37% / LuaJIT 2.1 79.13%). Production Lua, tests and floors are
+  identical to `9f9082b`; final follow-up changes these records only. Native
+  acceptance remains pending and PR #9 stays a draft.
+
+- 2026-10-03 (black stimm analysis): native zero RGB is the effect reset;
+  actual shader darkening/readability remains unproved. Both VMs pass 21 grey
+  recipe/flag/vector cases and an A=0 probe. Document a matched-control charcoal
+  test, existing experiment coexistence and shared outline/tint colour. No
+  production code, preset or material asset changes; native visual proof pending.
+  Full runners pass **2,321 assertions each**, 39 Lua compilation inputs and all
+  38 module gates (Lua 5.5 82.37% / LuaJIT 2.1 79.13%). All Markdown stays under
+  100 KiB and the three new guide links resolve. Publish this documentation
+  follow-up on the existing PR #9 branch; no main merge or native acceptance.

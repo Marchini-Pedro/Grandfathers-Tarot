@@ -27,6 +27,7 @@ FaceView.install = function (View, h)
 	View._face_numbers_text = function (self)
 		local rw = mod.rw
 		local Cards, wave = rw.cards, self._wave
+		if Cards.suit(wave.suit).beneficial then return "Blessing strength: " .. Cards.threat(wave.parts, wave.threat_override, rw.groups) .. ". Set the pips at any time." end
 		local parts = wave.parts or {}
 		local value, pieces = Cards.threat_auto(parts, rw.groups)
 		local text = mod:localize("face_numbers", value, pieces.count, pieces.base)

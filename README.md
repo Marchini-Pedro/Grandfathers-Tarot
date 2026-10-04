@@ -1,36 +1,40 @@
 # Grandfather's Tarot (RealmsWaves)
 
-A Darktide mod that adds configurable enemy waves to local and LAN missions
-hosted through Realms Server. Build a deck of waves, draw a tarot hand, or use
+A Darktide mod that adds enemy waves and beneficial tarot cards to local and LAN
+missions hosted through Realms Server. Build a deck, draw a tarot hand, or use
 random selection and player voting. No Twitch service is required.
 
-> Development status (2026-10-03): the workshop recovery and audit fixes are merged
-> into `main` through [PR #4](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/4).
-> Offline checks pass; the recovered changes still need in-game and multiplayer
-> verification. The runtime reports `2.0.0`; the last tagged release is `v1.13.0`.
-> Draft [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8) (`feature/heresy-card-and-ui-pass`) (exact custom health, the HERESY suit, 100 cards,
-> a last-card window, cooldowns on the Deck tiles, `/rw_test_close`, card-coloured pages) has offline
-> tests only: it is not merged and nothing of it has been played yet.
-> Enemy colour experiments are merged through [PR #7](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/7);
-> see the [methods and remaining prerequisites](docs/enemy-appearance.md).
+> Development status (2026-10-03): `main` includes merged
+> [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8).
+> [Draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9) contains card effects and compact UI
+> on `feature/card-effects-and-ui`. Both local and hosted runtime checks pass;
+> native acceptance remains pending in the [feature guide](docs/12-card-effects-and-ui.md).
+> Runtime version: `2.0.0`; last tagged release: `v1.13.0`.
 
 ## Features
 
 - **Three wave modes:** tarot draws with card cooldowns, weighted random waves,
   and player ballots, with a synchronized countdown and HUD.
-- **The Deck:** up to 100 cards; create, enable, share and import waves; set a
+- **The Deck:** up to 100 cards; create, enable, share and import cards; set a
   card's chance (the pips) and cooldown (the `-` / `+` on its tile) in place; save five
   **Deck presets**; sort cards by threat, rarity, enemy count or face; drag to swap
-  cards on a page. **HERESY** is the one special suit (frame and glow of its own).
+  cards on a page. **HERESY**, **Prayer**, **Miracle** and **Grace** have their own frames and sigils.
 - **The Cauldron:** build enemy groups with a searchable catalog and Dreg/Scab
   shelf, modifiers, custom stats and a live card preview.
 - **Enemy colour experiments:** per-group ARGB sliders and a method dropdown
   under **Custom > Enemy colour experiments**. Try natural/applied stimm,
-  explicit loadout tint or outlines; surface/shader options display their prerequisites.
-- **The Mirror:** customize the card's suit, threat, whisper and cooldown look,
+  explicit loadout tint with an independent outline and protected-colour toggle.
+  Surface/shader methods are visibly unavailable; their requirements remain documented.
+- **Beneficial cards:** party healing, corruption cleanse, pocketable items, Med
+  Station charges, ability restoration and timed guidance/Blue Stimm. Hostile
+  cards can add a timed **Blackout**. Consecrate the 12 standard slots with Undo.
+- **Completion sounds:** select content-ranked native sounds or search the library.
+  Playback waits for the wave/effect to finish; SimpleAudio is optional.
+- **The Mirror:** customize suit, six manual strength pips, whisper and cooldown look,
   with a preview of its appearance in the hand.
-- **Last card window:** a HUD window with the card whose wave went out last and how long
-  ago, the same on every player's screen (option "Last card", movable with Custom HUD).
+- **Last card window:** a compact full card face with its name, flavor, sigil and age,
+  synchronized for every player. It has its own transparency slider and is movable
+  with Custom HUD. Draw/Last Card omit enemy modifier labels.
   Stopping the cycle clears the window on host and clients.
 - **Wave controls:** weights, spawn distances, spread, repeating groups, fixed
   timers, enemy-type multipliers and optional pooling of players' waves.
@@ -56,13 +60,15 @@ Install the same development revision on participating players' machines for
 the shared HUD, voting, enemy-size and enemy-colour replication.
 
 Optional integrations: Custom HUD can reposition the wave panel; Spidey Sense
-and Improved Havoc Tags supply enemy/modifier colours when installed.
+and Improved Havoc Tags supply enemy/modifier colours when installed; optional
+SimpleAudio can play completion sounds. No new dependency is required.
 
 ## Getting started
 
 1. Open **Mod Options > Realms Waves** to choose a mode, timing and spawn limits.
 2. Press **F6** or use `/rw_editor` to open the Deck. Select a card to edit its
-   enemies in the Cauldron or its appearance in the Mirror.
+   enemies/effects in the Cauldron or its appearance in the Mirror. Share through
+   **Share Card** or the small per-card glyph (toggleable in Mod Options).
 3. Start a Realms mission as host. Use `/rw_status` to inspect the cycle and
    `/rw_test hound_frenzy` to test a wave. Vote keys default to **F1–F3**;
    the keybindings are configurable in Mod Options.
@@ -91,6 +97,10 @@ and Improved Havoc Tags supply enemy/modifier colours when installed.
 - Pooled decks send the first enabled cards that fit Realms' encoded message
   limit and warn once when cards are omitted; if no card fits, the shared pool
   is cleared. Local decks still hold up to 100 cards.
+- Beneficial effects, Blackout, colour protection and completion audio still need
+  [native acceptance](docs/12-card-effects-and-ui.md). Use matching development
+  revisions on peers for guidance and remote ability restoration. Blackout controls
+  native light controllers; event names do not guarantee all sound banks are loaded.
 - The recovered workshop, drag interactions and multiplayer changes have
   offline coverage; actual game rendering, frame time and process RAM remain
   unmeasured. Start with moderate enemy counts and restart for clean testing.
@@ -100,7 +110,9 @@ and Improved Havoc Tags supply enemy/modifier colours when installed.
   exact (normal health times your percent, whatever Havoc adds); a boss below its
   normal health keeps the game's own **Weakened** name.
 - Enemy colour **A** means tint strength, not mesh transparency. Natural stimm
-  keeps vanilla gameplay buffs on supported breeds. Surface recolouring and
+  keeps vanilla gameplay buffs on supported breeds. Black matches the stimm
+  reset; [near-black readability](docs/enemy-appearance.md#black--near-black-stimm-feasibility-2026-10-03)
+  is unverified. Surface recolouring and
   private shader patches are unavailable until compatible material data/assets
   are verified. Colour coverage and cleanup still need game acceptance; disable
   removes experimental colours and re-enable needs fresh coloured spawns.
@@ -115,8 +127,8 @@ From the repository root, with Python 3.13 installed, run:
 
 ```powershell
 python -m pip install -r tools/requirements-test.txt
-python tools/run_tests.py --runtime lua55 --output-dir test-results/lua55
-python tools/run_tests.py --runtime luajit21 --output-dir test-results/luajit21
+python tools/run_tests.py --runtime lua55 --output-dir test-results/lua55 --timeout-seconds 280
+python tools/run_tests.py --runtime luajit21 --output-dir test-results/luajit21 --timeout-seconds 280
 ```
 
 The runner compiles Lua, runs every offline harness, checks documentation sizes

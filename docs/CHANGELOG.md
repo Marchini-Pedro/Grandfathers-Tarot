@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-10-03 - Analyze black and near-black enemy stimm (PR #9 follow-up)
+- Trace native zero reset and verify nonzero greys, recipes, flags and strength on both Lua runtimes. Actual black rendering and the darkest readable grey remain unverified.
+- Document a matched-control charcoal experiment, reuse of existing methods, tint ownership and the shared outline colour limitation. Update design/plan/results/learnings and current limits; no production option or shader asset is added.
+- Full offline runners pass 2,321 assertions each and every coverage gate (Lua 5.5 82.37% / LuaJIT 2.1 79.13%); documentation sizes and new guide links pass. Native rendering remains pending.
+
+## 2026-10-03 - Confirm corrected PR #9 checks
+- Both corrected hosted branch and [PR runs](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170808353) at `7b74e39` pass with the 280-second harness allowance. Downloaded branch artifacts match 2,321 assertions each, all 38 module gates and Lua 5.5 82.37% / LuaJIT 2.1 79.13%.
+- Record the resolved CI timeout; production Lua, tests and floors are unchanged. The PR remains a draft pending native acceptance.
+
+## 2026-10-03 - Align hosted verification timeout with local runs (PR #9)
+- The first branch run passes, but the parallel PR run times out in Lua 5.5 logic at 120 seconds on a slower runner. Keep missing coverage fail-closed and distinguish termination from a behavior assertion failure.
+- CI and documented contributor commands explicitly allow 280 seconds per harness, matching the passing local invocation. Keep the ten-minute job limit, every assertion and all coverage floors; production Lua is unchanged.
+
+## 2026-10-03 - Publish draft PR #9 and confirm hosted verification
+- Push the four coherent implementation/verification commits and open [draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9). GitHub reports no merge conflicts.
+- Both jobs on the [first hosted branch run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170104362) at `9f9082b` pass; downloaded artifacts match local module scores, all gates and 2,321 assertions each (Lua 5.5 82.37% / LuaJIT 2.1 79.13%).
+- Update current publication status and preserve the native acceptance checklist. Documentation only; no installed mod changes, repository settings or main merge.
+
+## 2026-10-03 - Verify the complete card-effects branch (PR #9)
+- Both final runners pass 2,321 assertions, 39 Lua compilation inputs and all 38 source-line gates: Lua 5.5 82.37% / LuaJIT 2.1 79.13%. No existing coverage floor was lowered; inventory all four new modules.
+- Add native-effect lifecycle, authority, late-join, snapshot ordering, cancellation, audio, recipe and real-editor regression checks. Keep HUD allocation checks and inspect actual-widget previews, including the corrected appearance overlap.
+- Update README/design/plan/results/learnings, method/feature guides, coverage tables and the superseded PR #8 hand-off. Native game and multiplayer acceptance remain pending; installed mods are unchanged.
+
+## 2026-10-03 - Compact and theme the card editor and HUD (PR #9)
+- Normalize all shelf cells at the shared sizing rule and draw complete foreground shelf/repeat borders. Share HERESY and beneficial button palettes; fix the stage ring's ARGB/RGB mix and compact the 15-face controls.
+- Last Card becomes a compact full face with sigil, name, flavor and pips, an independent transparency slider and no large outer panel. Draw/Last Card omit modifier labels; level 6 uses DESPAIR's near-black/pale edge treatment.
+- Rename Share Card and add tiny toggleable card sigils. Replace beneficial enemy controls with effects, add ranked sound search, and allow six manual pips plus confirmed Consecrate/Undo for the standard slots. Inspect real-widget previews and retain HUD allocation checks.
+
+## 2026-10-03 - Add beneficial effects, Blackout and completion audio (PR #9)
+- Prayer, Miracle and Grace reuse the tarot catalog and mask enemy recipes in catalog reads, pooling and execution. Add healing/corruption, items, Med Station recharge, combat ability grants, guidance and timed Blue Stimm, plus hostile Blackout.
+- Native APIs retain their restrictions; bounded ownership restores streamed lighting states, buffs and outlines on expiry/cancel/reset. Host-authenticated revision/time snapshots deduplicate grants, audio and temporary reveal state.
+- Extend sealed shared-card text only when effects/audio are present; legacy formats remain readable. Rank/search 2,685 native event names; use optional SimpleAudio or native Wwise and wait for queues, living units and timed effects before sounding completion.
+
+## 2026-10-03 - Combine enemy outlines with protected tints (PR #9)
+- Ordinary outlines use the depth-tested native layer; manual tags retain through-wall precedence. Independent outline and tint protection flags survive recipes, peer validation, saving/reopening and removal packets.
+- Share native material-effect callbacks, retain buff/stat behavior, and disable unavailable surface/shader methods with their actual prerequisites. Place the new switches below the explanation and above Back.
+- Extend native-hook, recipe, cleanup and real-editor regressions; inspect the revised appearance PNG. Native colours, tag precedence and other-mod interaction remain game checks.
+
 ## 2026-10-03 - Publish the reviewed Heresy continuation
 - Push the completed continuation and open draft [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8) against main as requested. GitHub reports no merge conflicts; the branch remains unmerged pending game acceptance.
 - First hosted PR run at `a163552` passes both runtimes: 2,104 assertions each, all coverage gates and Lua 5.5 81.97% / LuaJIT 2.1 78.75%. Downloaded reports confirm the counts/scores. Update current README/plan/hand-off status and preserve native checks.

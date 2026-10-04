@@ -317,7 +317,7 @@ for _, suit_name in ipairs(Cards.SUIT_ORDER) do
   if n == 0 then icons_ok = false end
 end
 check("icons: every suit mark draws something and stays inside its 18 px box", icons_ok, "plague " .. used.plague .. " murmur " .. used.murmur .. " rage " .. used.rage .. " blight " .. used.blight .. " swarm " .. used.swarm .. " fateful " .. used.fateful)
-check("icons: twelve suits, and the new six use their own slots (volley 7, snare 4, brute 5, dusk 5, warp 5, heresy 6)", #Cards.SUIT_ORDER == 12 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.dusk == 5 and used.warp == 5 and used.heresy == 6, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " dusk " .. used.dusk .. " warp " .. used.warp .. " heresy " .. tostring(used.heresy))
+check("icons: fifteen suits, and the new six use their own slots (volley 7, snare 4, brute 5, dusk 5, warp 5, heresy 6)", #Cards.SUIT_ORDER == 15 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.dusk == 5 and used.warp == 5 and used.heresy == 6, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " dusk " .. used.dusk .. " warp " .. used.warp .. " heresy " .. tostring(used.heresy))
 check("icons: at the Deck's 26 units every mark also stays inside its box", (function()
   for _, suit_name in ipairs(Cards.SUIT_ORDER) do
     Spread.icon(Cards.SUITS[suit_name].icon, 26, icon)
@@ -580,7 +580,7 @@ audit_ok("one card", el)
 
 -- five cards with long names
 local five = { card("a", "The Watching Moon", "murmur", 3, { "renegade_sniper" }, "Someone is counting you."), card("b", "Rain of Rot", "blight", 4, { "cultist_grenadier", "renegade_grenadier" }, "The sky is sick."),
-  card("c", "Grandfather's Gift", "plague", 3, { "chaos_poxwalker" }, "It grows.", "Purple · Orange"), card("d", "Nurgle's Rage", "rage", 4, { "chaos_mutated_poxwalker" }, "Grandfather is hungry."), card("e", "Strength", "rage", 2, { "chaos_ogryn_executor" }, "Heavy.", "", true, 300) }
+  card("c", "Grandfather's Gift", "plague", 3, { "chaos_poxwalker" }, "It grows.", "Purple ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Orange"), card("d", "Nurgle's Rage", "rage", 4, { "chaos_mutated_poxwalker" }, "Grandfather is hungry."), card("e", "Strength", "rage", 2, { "chaos_ogryn_executor" }, "Heavy.", "", true, 300) }
 current_view = view_of({ hand = five, win = 5, remaining = 8, hand_seq = 10 })
 frame(el)
 check("five cards: 132 wide, the row fits the node, the card height grew for the three-line name", visible_cards(el) == 5 and c(1).style.bg.size[1] == 132 and c(1).style.bg.offset[1] == 4 and c(5).style.bg.offset[1] + 132 == 696 and c(1).style.bg.size[2] == 97)
@@ -881,6 +881,20 @@ do
   audit_ok("heresy reveal", e)
 end
 
+do
+  local e=new_element()
+  for i,suit in ipairs({"prayer","miracle","grace"}) do
+    local selected=card("b"..i,"The Light",suit,6,{},"Carry the light.")
+    current_view=view_of({hand={selected},remaining=9.5,win=1,hand_seq=80+i})
+    frame(e)
+    local w=e._widgets_by_name.card_1
+    check("blessing: full Draw face and six edged pips "..suit,w.visible and w.style.th_o6.visible and w.style.th_h6.color[2]==0xc7 and w.style.th_o6.color[2]==Cards.SUITS[suit].accent[1])
+    current_view=view_of({hand={selected},phase="waiting",remaining=100,hand_seconds=0,drawn=true,drawn_age=0.05,win=1,hand_seq=90+i});frame(e)
+    check("blessing: banner uses blessing caption and hides modifiers "..suit,e._widgets_by_name.banner.content.kicker=="HUD_CARD_DRAWN_BENEFICIAL" and not e._widgets_by_name.banner.style.mods.visible)
+    audit_ok("blessing Draw "..suit,e)
+  end
+end
+
 -- the window of the last fulfilled card (ui/hud_element_last_card.lua)
 do
   local LastDefs = dofile(BASE .. "/ui/hud_element_last_card_definitions.lua")
@@ -916,7 +930,7 @@ do
     end
   end
   check("last card: one movable node (custom_hud lists every non-root node), one widget, every pass starts hidden, only fonts that exist", sg_nodes == 1 and LastDefs.scenegraph_definition.panel ~= nil and LastDefs.widget_definitions.last ~= nil and hidden and fonts_known, sg_nodes)
-  check("last card: the node sits to the right of the Spread and reserves room for wrapped modifiers", LastDefs.scenegraph_definition.panel.position[1] >= 610 + 700 and LastDefs.scenegraph_definition.panel.size[1] == 200 and LastDefs.scenegraph_definition.panel.size[2] == 320)
+  check("last card: the node sits to the right of the Spread and reserves a compact card face", LastDefs.scenegraph_definition.panel.position[1] >= 610 + 700 and LastDefs.scenegraph_definition.panel.size[1] == 176 and LastDefs.scenegraph_definition.panel.size[2] == 250)
 
   settings.hud_last_card, settings.hud_enabled, settings.tarot_font = nil, nil, nil
   local el = new_last()
@@ -928,10 +942,10 @@ do
   local tower = lc("c", "The Tower", "blight", 3, { "chaos_poxwalker_bomber", "renegade_shocktrooper" }, "Pop, pop, pop.", "Enraged \194\183 Custom")
   current_view = last_view(tower, 1, 5.9)
   last_frame(el)
-  check("last card: the window shows when a card went out: caption, how long ago (rounded down), name, whisper in quotes, modifiers in capitals", w.visible and w.content.kicker == "HUD_LAST_CARD" and w.content.age == "hud_last_ago:0:05" and w.content.name == "The Tower" and w.content.whisper == "\"Pop, pop, pop.\"" and w.content.mods == "ENRAGED \194\183 CUSTOM", tostring(w.content.age))
+  check("last card: the window shows when a card went out: caption, how long ago (rounded down), name, whisper in quotes, modifiers hidden", w.visible and w.content.kicker == "HUD_LAST_CARD" and w.content.age == "hud_last_ago:0:05" and w.content.name == "The Tower" and w.content.whisper == "\"Pop, pop, pop.\"" and w.content.mods == "" and not w.style.mods.visible, tostring(w.content.age))
   check("last card: the card takes its suit's colours (blight: face #25240c, bar #e3cf4a, name #ebe6bf) and the window's frame is the suit's", w.style.card_bg.color[2] == 0x25 and w.style.card_bg.color[3] == 0x24 and w.style.card_accent.color[2] == 0xe3 and w.style.name.text_color[2] == 0xeb and w.style.win_t.color[2] == 0x3a and w.style.win_l.color[3] == 0x44 and w.style.bg.color[2] == 10)
   check("last card: the card has an outline of its own in the suit's frame colour (blight #5c5a1e), the window a neutral line and a panel darker than any card", w.style.rare_t.visible and w.style.rare_t.color[2] == 0x5c and w.style.rare_t.color[3] == 0x5a and w.style.rare_t.size[2] == 1 and w.style.rare_l.size[1] == 1)
-  check("last card: a card is 176 wide, the window 200 wide and as tall as its content, the card inside it", w.style.card_bg.size[1] == 176 and w.style.card_bg.offset[1] == 12 and w.style.card_bg.offset[2] == 34 and w.style.bg.size[1] == 200 and w.style.bg.size[2] > w.style.card_bg.offset[2] + w.style.card_bg.size[2] and w.style.bg.size[2] <= 196 and w.style.win_b.offset[2] == w.style.bg.size[2] - 1)
+  check("last card: a card is 176 wide, the node 176 wide and as tall as its content, the card inside it", w.style.card_bg.size[1] == 176 and w.style.card_bg.offset[1] == 0 and w.style.card_bg.offset[2] == 24 and w.style.bg.size[1] == 176 and not w.style.bg.visible and not w.style.win_b.visible)
   local ok_in, why_in = inside(el)
   check("last card: nothing is drawn outside the node", ok_in, why_in)
   check("last card: threat diamonds are filled up to the threat in its colour (3: light yellow) and the rest dimmed; one dot per enemy colour", w.style.th_o3.color[2] == 227 and w.style.th_o3.color[1] == 255 and w.style.th_o4.visible and w.style.th_o4.color[1] == 64 and (function() local n = 0 for j = 1, 6 do if w.style["dot_" .. j].visible then n = n + 1 end end return n == 2 end)())
@@ -964,12 +978,20 @@ do
   current_view = last_view(lc("m", "The Watching Moon", "murmur", 2, { "renegade_sniper", "chaos_poxwalker" }, "Someone is counting you, forever.", "Purple \194\183 Enraged \194\183 Custom"), 5, 12)
   last_frame(el)
   local ok_in2, why_in2 = inside(el)
-  check("last card: a three-line name with a two-line whisper and modifiers fits the node (the window is as tall as it needs)", ok_in2 and w.style.bg.size[2] <= LastDefs.HEIGHT and w.style.whisper.visible and w.style.mods.visible and w.style.whisper.offset[2] > w.style.card_bg.offset[2] + w.style.card_bg.size[2] and w.style.mods.offset[2] > w.style.whisper.offset[2], why_in2)
+  check("last card: a three-line name with a two-line whisper fits inside the card face", ok_in2 and w.style.bg.size[2] <= LastDefs.HEIGHT and w.style.whisper.visible and not w.style.mods.visible and w.style.whisper.offset[2] + w.style.whisper.size[2] <= w.style.card_bg.offset[2] + w.style.card_bg.size[2], why_in2)
 
   current_view = last_view(lc("long-mods", "The Watching Moon", "murmur", 2, {}, "Someone is counting you, forever.", string.rep("Enraged ", 12)), 51, 12)
   last_frame(el)
-  check("last card: a 96-byte modifier list has six lines of room and stays inside its panel", w.style.mods.size[2] >= 96 and w.style.mods.offset[2] + w.style.mods.size[2] + 8 <= w.style.bg.size[2] and w.style.bg.size[2] <= LastDefs.HEIGHT)
+  check("last card: long modifier lists remain hidden", not w.style.mods.visible and w.content.mods == "" and w.style.card_bg.offset[2] + w.style.card_bg.size[2] <= LastDefs.HEIGHT)
 
+  for i,suit in ipairs({"heresy","prayer","miracle","grace"}) do
+    local card=lc("bless-"..i,"The Light",suit,6,{},"Carry the light.","Purple")
+    current_view=last_view(card,60+i,1);last_frame(el)
+    check("last card: full special face and DESPAIR "..suit,w.style.th_o6.visible and w.style.th_h6.color[2]==0xc7 and w.style.sigil_ring.visible and not w.style.mods.visible and not w.style.bg.visible and inside(el))
+  end
+  settings.hud_last_transparency=75;settings.hud_transparency=0;last_frame(el)
+  check("last card: independent transparency changes without new card",w.alpha_multiplier==0.25)
+  settings.hud_last_transparency=nil
   -- the player's options
   settings.tarot_font = "machine_medium"
   current_view = last_view(tower, 6, 3)

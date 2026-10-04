@@ -2,6 +2,7 @@
 -- error ("invalid option '%' to 'format'"); write "%%" only in strings that are
 -- always localized with arguments, otherwise avoid the character (use "percent").
 return {
+	hud_card_drawn_beneficial = { en = "A blessing is drawn", ["pt-br"] = "Uma bênção é sorteada" },
 	btn_appearance = { en = "Enemy colour experiments" },
 	view_desc_appearance = { en = "Enemy colour experiments: %s" },
 	appearance_strength_info = { en = "A = tint strength. Swatch previews the input colour; the game result depends on the method and enemy materials." },
@@ -55,6 +56,12 @@ return {
 
 	group_hud = { en = "HUD and debug" },
 	hud_enabled = { en = "Show wave panel" },
+	hud_last_transparency = { en = "Last Card transparency" },
+	card_share_icons = { en = "Show Share Card sigils" },
+	card_sounds = { en = "Play card completion sounds" },
+	suit_desc_prayer = { en = "Teal devotion: strength and aid for the faithful." },
+	suit_desc_miracle = { en = "Holy gold: healing in the darkest hour." },
+	suit_desc_grace = { en = "Angel white: renewed guidance for the party." },
 	hud_last_card = { en = "Last card" },
 	hud_last_card_description = { en = "Show the window of the last card: the card whose wave went out last, with how long ago. It stays until the next card goes out. Move it with Custom HUD." },
 	hud_last_ago = { en = "%s ago" },
@@ -223,7 +230,7 @@ return {
 	bottom_list_deleted = { en = "%s default waves are deleted. Restore defaults brings them back." },
 	extra_not_random = { en = "(not used: random is off)" },
 	msg_defaults_restored = { en = "RealmsWaves: every wave is back to the defaults (Undo last load on the Deck presets screen restores your previous waves)." },
-	help_detail = { en = "Edit one card. The card on the right follows every change. Click an enemy on the shelf to add one (the Dreg / Scab switch chooses which kind); the - and + of a row change its brood (how many of that enemy), Mods adds Havoc-style conditions and Custom changes health, size, speed, attack speed, fire rate, burst and hit mass. Under the card: its suit, its threat and its chance; the whisper and the cooldown are on the Face tab. How it spawns: spread, repeats, its own min and max spawn distance and a fixed timer (a card with a fixed timer ignores its chance and spawns every N seconds). Share wave gives you its text, or paste a friend's card over it." },
+	help_detail = { en = "Edit one card. The card on the right follows every change. Click an enemy on the shelf to add one (the Dreg / Scab switch chooses which kind); the - and + of a row change its brood (how many of that enemy), Mods adds Havoc-style conditions and Custom changes health, size, speed, attack speed, fire rate, burst and hit mass. Under the card: its suit, its threat and its chance; the whisper and the cooldown are on the Face tab. How it spawns: spread, repeats, its own min and max spawn distance and a fixed timer (a card with a fixed timer ignores its chance and spawns every N seconds). Share Card gives you its text, or paste a friend's card over it." },
 	help_picker = { en = "Click an enemy to add it. Just start typing to search. The button next to Search chooses whether you stay here after adding, to add several in a row, or go back to the wave." },
 	help_preset_view = { en = "Load this setup replaces ALL your waves with the ones stored here (an empty slot loads the default waves). Save current waves here stores what you have now. Export gives you text to send to a friend, Import pastes theirs into this slot. Undo last load brings your previous waves back once." },
 	btn_delete = { en = "Delete" },
@@ -263,7 +270,7 @@ return {
 	set_colour_spidey_info = { en = "Take an enemy's colour from your Spidey Sense settings when that mod is installed." },
 
 	-- Sharing one wave
-	btn_share = { en = "Share wave" },
+	btn_share = { en = "Share Card" },
 	btn_wimport = { en = "Import card" },
 	btn_face = { en = "Face" },
 	btn_change = { en = "Change" },
@@ -329,7 +336,7 @@ return {
 	popup_whisper_title = { en = "Whisper of %s" },
 	popup_whisper_hint = { en = "At most 40 characters. Leave it empty to use the suit's own line." },
 	popup_threat_title = { en = "Threat of %s" },
-	popup_threat_hint = { en = "0 works it out from the enemies, 1 to 5 sets it by hand." },
+	popup_threat_hint = { en = "0 works it out from the enemies, 1 to 6 sets it by hand; 6 is DESPAIR." },
 	popup_share_title = { en = "Share: %s" },
 	popup_share_hint_copied = { en = "Copied to your clipboard. To import a friend's wave OVER THIS wave, paste it here and press OK." },
 	popup_share_hint = { en = "Press Ctrl+A then Ctrl+C to copy. To import a friend's wave OVER THIS wave, paste it here and press OK." },

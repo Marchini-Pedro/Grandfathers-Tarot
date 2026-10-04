@@ -13,7 +13,7 @@ local FixedFrame = require("scripts/utilities/fixed_frame")
 
 local Execute = {}
 
-local Positions, Bypass, Groups, Tuning, Appearance
+local Positions, Bypass, Groups, Tuning, Appearance, Effects
 
 local FEED_INTERVAL = 0.15
 local FEED_BATCH = 2
@@ -73,6 +73,7 @@ Execute.init = function (deps)
 	Groups = deps.groups
 	Tuning = deps.tuning
 	Appearance = deps.appearance
+	Effects = deps.effects
 end
 
 local warned = {}
@@ -341,6 +342,8 @@ Execute.start_wave = function (def)
 		return false, "no spawn authority"
 	end
 
+	if Groups.Effects.beneficial(def.suit) then def.parts = {} end
+	def.parts = def.parts or {}
 	local room = MAX_PENDING - queued_count()
 	local needed = 0
 
@@ -368,7 +371,7 @@ Execute.start_wave = function (def)
 	local rep_for = tonumber(def.rep_for) or 0
 	local has_repeat = Groups.has_repeat(def.parts) and every > 0 and rep_for > 0
 
-	if #queue == 0 and not has_repeat then
+	if #queue == 0 and not has_repeat and Groups.Effects.encode(def.effects) == "" then
 		return false, (#(def.parts or {}) > 0) and "the enemy type multipliers (mod options) removed every enemy of this wave" or "empty wave"
 	end
 
@@ -379,7 +382,15 @@ Execute.start_wave = function (def)
 		rep = { parts = def.parts, picks = picks, every = every, total = rep_for, clock = 0, next = every, done = every > rep_for }
 	end
 
+	local ticket
+	if Effects then
+		local ok, result = Effects.start(def)
+		if not ok then return false, result end
+		ticket = result
+	end
+
 	jobs[#jobs + 1] = {
+		ticket = ticket,
 		name = def.name,
 		test = def.test == true, -- explicit /rw_test: may fall back to a ring around the player where no hidden points exist
 		close = def.close == true, -- /rw_test_close: right in front of the local player, facing them (no hidden points, no ring)
@@ -636,6 +647,8 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 		return false, string.format("spawning %s failed: %s", tostring(breed_name), tostring(unit))
 	end
 
+	if not unit then return false, "native spawn returned no unit" end
+
 	if mod_ids and unit then
 		Execute.apply_modifiers(unit, mod_ids, breed_name)
 	end
@@ -646,7 +659,7 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 	end
 	if appearance and unit and Appearance then Appearance.apply(unit, appearance, breed_name) end
 
-	return true
+	return true, unit
 end
 
 Execute.update = function (dt, paused)
@@ -656,6 +669,8 @@ Execute.update = function (dt, paused)
 
 		return
 	end
+
+	if Effects then Effects.update(dt, paused) end
 
 	-- custom mods: keep the written stats on top, send new sizes (cheap when nothing is tuned)
 	if Tuning then
@@ -689,6 +704,7 @@ Execute.update = function (dt, paused)
 		run_repeats(job, dt)
 
 		if job.age > job.timeout or (#job.queue == 0 and (not job.rep or job.rep.done)) then
+			if Effects then Effects.finish(job.ticket, job.age > job.timeout or (job.failed or 0) > 0) end
 			table.remove(jobs, i)
 		end
 	end
@@ -764,7 +780,11 @@ Execute.update = function (dt, paused)
 
 		if ok then
 			job.spawned = job.spawned + 1
-		elseif why then
+			if Effects then Effects.add_unit(job.ticket, why) end
+		else
+			if job.ticket then job.ticket.failed = true end
+		end
+		if not ok and why then
 			job.failed = (job.failed or 0) + 1
 
 			if job.failed >= 3 then
@@ -776,6 +796,7 @@ end
 
 -- Scheduling cancellation leaves living units owned until mission teardown.
 Execute.cancel = function ()
+	if Effects then Effects.cancel() end
 	jobs = {}
 	cache = {}
 	feed_timer = 0
@@ -784,6 +805,7 @@ Execute.cancel = function ()
 end
 
 Execute.reset = function ()
+	if Effects then Effects.reset() end
 	Execute.cancel()
 	purge_timer = 0
 

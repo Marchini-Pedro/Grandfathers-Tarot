@@ -1,6 +1,76 @@
 # CI and post-PR #4 coverage review
 
-## Heresy continuation: current offline baseline (2026-10-03)
+## PR #9: current offline baseline (2026-10-03)
+
+`feature/card-effects-and-ui` starts from merged PR #8 at `fe957632`.
+Both final runners pass **2,321 assertions**, 39 compilation inputs, documentation
+sizes and all 38 module/aggregate gates. No existing floor was reduced;
+the four new modules are inventoried explicitly. Real-widget previews cover
+the compact shelf, beneficial panel/Mirror, DESPAIR, sound picker, appearance
+controls/dropdown and Last Card. Native gameplay/rendering/transport remain
+the [feature guide's acceptance checklist](12-card-effects-and-ui.md).
+
+These are source-line proxies, not executable-line or branch coverage:
+
+| Runtime | Hit source lines | Eligible source lines | Score | Overall floor |
+| --- | ---: | ---: | ---: | ---: |
+| Lua 5.5 | 12,404 | 15,058 | 82.37% | 78% |
+| LuaJIT 2.1 | 11,915 | 15,058 | 79.13% | 78% |
+
+| Module | Lua 5.5 | LuaJIT 2.1 | Floor |
+| --- | ---: | ---: | ---: |
+| `RealmsWaves.lua` | 72.97% | 68.90% | 68% |
+| `RealmsWaves_data.lua` | 90.57% | 73.58% | 72% |
+| `RealmsWaves_localization.lua` | 100.00% | 98.19% | 98% |
+| `catalog/appearance.lua` | 87.76% | 85.71% | 84% |
+| `catalog/cards.lua` | 79.64% | 78.74% | 78% |
+| `catalog/colors.lua` | 87.82% | 73.10% | 73% |
+| `catalog/effects.lua` | 85.71% | 80.52% | 78% |
+| `catalog/events.lua` | 81.24% | 77.70% | 76% |
+| `catalog/groups.lua` | 82.91% | 76.86% | 76% |
+| `catalog/presets.lua` | 82.46% | 79.95% | 79% |
+| `catalog/sounds.lua` | 91.67% | 80.56% | 80% |
+| `core/director.lua` | 72.76% | 71.58% | 70% |
+| `core/effects.lua` | 84.69% | 81.29% | 75% |
+| `core/protocol.lua` | 75.48% | 74.52% | 72% |
+| `core/votes.lua` | 73.33% | 71.67% | 71% |
+| `spawn/appearance.lua` | 83.00% | 79.05% | 79% |
+| `spawn/budget_bypass.lua` | 71.03% | 69.16% | 69% |
+| `spawn/execute.lua` | 76.21% | 75.85% | 74% |
+| `spawn/positions.lua` | 77.24% | 76.90% | 76% |
+| `spawn/tuning.lua` | 76.25% | 74.22% | 74% |
+| `ui/deck.lua` | 77.66% | 77.13% | 76% |
+| `ui/hud_element_last_card.lua` | 86.43% | 86.43% | 86% |
+| `ui/hud_element_last_card_definitions.lua` | 87.90% | 77.42% | 77% |
+| `ui/hud_element_waves.lua` | 79.11% | 76.89% | 76% |
+| `ui/hud_element_waves_definitions.lua` | 86.36% | 77.27% | 77% |
+| `ui/spread.lua` | 84.11% | 83.44% | 82% |
+| `ui/wave_editor_appearance.lua` | 95.12% | 90.24% | 90% |
+| `ui/wave_editor_blueprints.lua` | 86.76% | 78.43% | 77% |
+| `ui/wave_editor_components.lua` | 84.99% | 81.72% | 81% |
+| `ui/wave_editor_deck.lua` | 79.08% | 78.64% | 78% |
+| `ui/wave_editor_definitions.lua` | 90.21% | 78.04% | 77% |
+| `ui/wave_editor_effects.lua` | 93.75% | 89.06% | 80% |
+| `ui/wave_editor_face.lua` | 82.14% | 82.14% | 81% |
+| `ui/wave_editor_tune.lua` | 77.78% | 77.78% | 77% |
+| `ui/wave_editor_view.lua` | 85.17% | 83.66% | 83% |
+| `ui/wave_editor_workshop.lua` | 82.64% | 80.71% | 80% |
+| `ui/workshop.lua` | 90.24% | 80.49% | 80% |
+| `ui/workshop_blueprints.lua` | 88.40% | 80.80% | 79% |
+
+[Draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9) is open and conflict-free. The
+[first hosted branch run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170104362) at `9f9082b`
+passes both Ubuntu/Python 3.13 jobs. Downloaded reports match all local module
+scores, 2,321 assertions each and Lua 5.5 82.37% / LuaJIT 2.1 79.13%.
+The [corrected PR run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170808353) at `7b74e39`
+and its branch run pass both VMs with the explicit 280-second harness allowance.
+Downloaded branch reports again match every local score and assertion count.
+Production Lua, tests and floors are unchanged; publication records do not
+establish native acceptance.
+
+The earlier baselines below are retained as dated history.
+
+## Heresy continuation: historical offline baseline (2026-10-03)
 
 The resumed branch includes all original features, current main at `1290abc`
 and nine confirmed repairs from the [adversarial review](audits/2026-10-03/heresy-review.md).
@@ -200,8 +270,8 @@ reports retain their original baseline.
 
 ```powershell
 python -m pip install -r tools/requirements-test.txt
-python tools/run_tests.py --runtime lua55 --output-dir test-results/lua55
-python tools/run_tests.py --runtime luajit21 --output-dir test-results/luajit21
+python tools/run_tests.py --runtime lua55 --output-dir test-results/lua55 --timeout-seconds 280
+python tools/run_tests.py --runtime luajit21 --output-dir test-results/luajit21 --timeout-seconds 280
 ```
 
 Python 3.13 and Lupa 2.8 are the CI dependencies. The editor's repository-owned
@@ -211,7 +281,10 @@ game, Realms files or external source checkout. Compilation has 30 inputs.
 Reports are `test-results/<runtime>/test-results.json`, `lua-coverage.json` and
 one log per check. Coverage JSON lists modules, floors and uncovered lines.
 Generated results are ignored by Git. Harness timeout defaults to 120 seconds;
-`--timeout-seconds` adjusts it for slower local machines.
+the commands above and CI explicitly allow 280 seconds for instrumented suites
+on slower machines. CI retains its ten-minute job limit. The first PR #9 run
+timed out in Lua 5.5 logic at 120 seconds while the same branch push passed;
+missing coverage after termination remains a failure, with no floor reduced.
 Both standalone-checkout suites pass all 1,837 assertions. The workflow passes
 actionlint 1.7.12; Python syntax, 46 local documentation links, Markdown size
 limits and the repository's normal Git whitespace checks pass.

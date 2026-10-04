@@ -100,6 +100,8 @@ mod.on_all_mods_loaded = function ()
 	RW.votes = mod:io_dofile(BASE .. "/core/votes")
 	RW.positions = mod:io_dofile(BASE .. "/spawn/positions")
 	RW.bypass = mod:io_dofile(BASE .. "/spawn/budget_bypass")
+	RW.effects = mod:io_dofile(BASE .. "/core/effects")
+	RW.sounds = mod:io_dofile(BASE .. "/catalog/sounds")
 	RW.execute = mod:io_dofile(BASE .. "/spawn/execute")
 	RW.tuning = mod:io_dofile(BASE .. "/spawn/tuning")
 	RW.protocol = mod:io_dofile(BASE .. "/core/protocol")
@@ -109,7 +111,8 @@ mod.on_all_mods_loaded = function ()
 	RW.tuning.init({ protocol = RW.protocol })
 	RW.tuning.install()
 	RW.appearance.init({ schema = RW.groups.Appearance, protocol = RW.protocol })
-	RW.execute.init({ positions = RW.positions, bypass = RW.bypass, groups = RW.groups, tuning = RW.tuning, appearance = RW.appearance })
+	RW.appearance.install()
+	RW.execute.init({ positions = RW.positions, bypass = RW.bypass, groups = RW.groups, tuning = RW.tuning, appearance = RW.appearance, effects = RW.effects })
 	RW.director.init({
 		events = RW.events,
 		groups = RW.groups,
@@ -119,6 +122,7 @@ mod.on_all_mods_loaded = function ()
 		positions = RW.positions,
 		presets = RW.presets,
 		cards = RW.cards,
+		effects = RW.effects,
 		tuning = RW.tuning,
 	})
 

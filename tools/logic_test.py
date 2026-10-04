@@ -619,7 +619,7 @@ do
   check("sync: junk instead of a card shows no last card and breaks nothing", Director.view().last == nil and Director.view().last_seq == 0)
   Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 45.0, b = 1, k = {}, z = 0, lc = { k = "a", n = "A", s = "rage", t = 99, b = { 5, "ok" }, q = 12, c = -4 }, la = -50, ls = 5 })
   local clean_card = Director.view().last
-  check("sync: every field is validated (threat 99 -> 5, a non-string enemy dropped, the whisper a string, the age never negative)", clean_card and clean_card.threat == 5 and #clean_card.breeds == 1 and clean_card.whisper == "12" and clean_card.cooldown == 0 and Director.view().last_age >= 0)
+  check("sync: every field is validated (threat 99 -> 6, a non-string enemy dropped, the whisper a string, the age never negative)", clean_card and clean_card.threat == 6 and #clean_card.breeds == 1 and clean_card.whisper == "12" and clean_card.cooldown == 0 and Director.view().last_age >= 0)
   Director.on_state("host_peer", { p = "waiting", m = "tarot", r = 44.0, b = 1, k = {} })
   check("sync: a host without the feature (an older version) sends none: no last card", Director.view().last == nil)
   Director.on_exit_gameplay()
@@ -1287,7 +1287,7 @@ do
     cd = { wave_small = 30, junk = "x" } })
   local cv = Director.view()
   check("client: the tarot hand is rendered from the synced state (winner, sequence, cards)", cv.mode == "tarot" and cv.phase == "hand" and #cv.hand == 2 and cv.win == 2 and cv.hand_seq == 7 and cv.hand[1].name == "The Devil" and cv.hand[1].suit == "fateful" and cv.hand[1].rare == true and cv.hand[1].modifiers == "Purple", tostring(cv.win))
-  check("client: every field is validated (unknown suit -> plague, threat capped at 5, non-string enemies dropped, whisper made a string)", cv.hand[2].suit == "plague" and cv.hand[2].threat == 5 and #cv.hand[1].breeds == 2 and cv.hand[2].whisper == "12")
+  check("client: every field is validated (unknown suit -> plague, threat capped at 6, non-string enemies dropped, whisper made a string)", cv.hand[2].suit == "plague" and cv.hand[2].threat == 6 and #cv.hand[1].breeds == 2 and cv.hand[2].whisper == "12")
   Director.on_exit_gameplay(); Director.on_enter_gameplay()
   Director.on_state("host_peer", { p = "hand", m = "tarot", r = 8.0, b = 3, c = "", k = {}, e = 0, z = 0, sq = 1, w = 1, dn = 0, y = 10,
     h = { { k = "a", n = "Old", s = "fester", t = 2, b = {} }, { k = "b", n = "New", s = "heresy", t = 2, b = {} } } })
@@ -2655,7 +2655,7 @@ do
   local Presets = PresetsMod
   local function rec(r) return Groups.parse(r) end
   -- the palette is the reference page's, exactly
-  check("tarot: twelve suits in order (the six of the reference, then volley, snare, brute, dusk, warp, and HERESY last), every colour a 3-number rgb", #Cards.SUIT_ORDER == 12 and Cards.SUIT_ORDER[7] == "volley" and Cards.SUIT_ORDER[10] == "dusk" and Cards.SUIT_ORDER[11] == "warp" and Cards.SUIT_ORDER[12] == "heresy" and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
+  check("tarot: fifteen suits in order (the six of the reference, then volley, snare, brute, dusk, warp, and HERESY last), every colour a 3-number rgb", #Cards.SUIT_ORDER == 15 and Cards.SUIT_ORDER[7] == "volley" and Cards.SUIT_ORDER[10] == "dusk" and Cards.SUIT_ORDER[11] == "warp" and Cards.SUIT_ORDER[12] == "heresy" and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
   check("tarot: plague suit values from the palette", table.concat(Cards.SUITS.plague.card, ",") == "30,36,19" and table.concat(Cards.SUITS.plague.accent, ",") == "183,194,58" and table.concat(Cards.SUITS.fateful.frame, ",") == "138,122,74" and table.concat(Cards.SUITS.murmur.frame, ",") == "85,96,58")
   check("tarot: threat colours 1..5", table.concat(Cards.THREAT_COLORS[1], ",") == "167,194,124" and table.concat(Cards.THREAT_COLORS[3], ",") == "227,207,74" and table.concat(Cards.THREAT_COLORS[5], ",") == "207,74,48")
   check("tarot: the suit ids of the catalog and of the card module are the same set", (function() for id in pairs(Events.SUITS) do if not Cards.SUITS[id] then return false end end for id in pairs(Cards.SUITS) do if not Events.SUITS[id] then return false end end return true end)())
@@ -2672,7 +2672,7 @@ do
     local plain_sets_equal = true
     for from, to in pairs(Cards.SUIT_ALIAS) do if Events.SUIT_ALIAS[from] ~= to then plain_sets_equal = false end end
     for from, to in pairs(Events.SUIT_ALIAS) do if Cards.SUIT_ALIAS[from] ~= to then plain_sets_equal = false end end
-    check("heresy: only Heresy is special; its palette is its own (black red face, blood frame, gilded accent, a lit red for words)", Cards.SUITS.heresy.special == true and (function() local n = 0 for _, def in pairs(Cards.SUITS) do if def.special then n = n + 1 end end return n end)() == 1 and #Cards.SUITS.heresy.lit == 3 and Cards.SUITS.heresy.frame[1] == 0xa3 and Cards.SUITS.heresy.accent[1] == 0xe5)
+    check("heresy: Heresy and blessings are special; its palette is its own (black red face, blood frame, gilded accent, a lit red for words)", Cards.SUITS.heresy.special == true and (function() local n = 0 for _, def in pairs(Cards.SUITS) do if def.special then n = n + 1 end end return n end)() == 4 and #Cards.SUITS.heresy.lit == 3 and Cards.SUITS.heresy.frame[1] == 0xa3 and Cards.SUITS.heresy.accent[1] == 0xe5)
     check("heresy: Cards.is_special says it for Heresy and for its old name, not for the others or for nothing", Cards.is_special("heresy") and Cards.is_special("fester") and not Cards.is_special("warp") and not Cards.is_special(nil) and not Cards.is_special("nonsense"))
     check("heresy: the old name is an alias in the card module and in the catalog (the same list), an unknown name is plague", Cards.normalize_suit("fester") == "heresy" and Events.normalize_suit("fester") == "heresy" and Cards.normalize_suit("heresy") == "heresy" and Events.normalize_suit("heresy") == "heresy" and Events.normalize_suit("nonsense") == "plague" and Events.normalize_suit(nil) == "plague" and Cards.suit_index("fester") == 12 and Cards.suit_index("heresy") == 12 and plain_sets_equal)
     local function getter(id) return settings[id] end
@@ -2779,7 +2779,7 @@ do
   check("describe: a custom card gets name, suit, threat, dots, whisper, look, rarity, modifier line", card.name == "The Pale Choir" and card.suit == "murmur" and card.threat == 5 and card.threat_auto == 4 and card.whisper == "Listen." and card.own_whisper and card.look == "rot" and card.rare and card.weight == 2 and card.modifiers == "Rotten Armor" and #card.dots == 2 and card.breeds[1] == "chaos_poxwalker" and card.enabled, card.threat_auto)
   st.su_custom_1 = "bogus"; st.th_custom_1 = 99; st.cl_custom_1 = "x"; st.wh_custom_1 = nil
   local w2 = Events.get("custom_1", function(id) return st[id] end, Groups)
-  check("settings: junk values fall back (suit plague, threat 5 at most, no look, no whisper)", w2.suit == "plague" and w2.threat_override == 5 and w2.look == "" and w2.whisper == "")
+  check("settings: junk values fall back (suit plague, threat 6 at most, no look, no whisper)", w2.suit == "plague" and w2.threat_override == 6 and w2.look == "" and w2.whisper == "")
   local sets = {}
   Events.reset(function(id, v) sets[id] = v end, "custom_1")
   check("settings: reset clears the card data", sets.su_custom_1 == "" and sets.th_custom_1 == 0 and sets.wh_custom_1 == "" and sets.cl_custom_1 == "")
@@ -2795,7 +2795,7 @@ do
   Presets.apply_wave(back, "custom_9", function(id, v) target[id] = v end, Events, Groups)
   check("share: applying writes them onto the chosen slot", target.su_custom_9 == "rage" and target.th_custom_9 == 2 and target.wh_custom_9 == "Run | now ~ 100%" and target.cl_custom_9 == "vial" and target.cd_custom_9 == 180)
   local unknown = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~120~3~10~60~3 hounds~0~0~0~0~chaos~9~ok~sparkle"), Events, Groups)
-  check("share: an unknown suit from a friend becomes plague, a threat above 5 is capped, an unknown look is dropped", unknown and unknown.suit == "plague" and unknown.thr == 5 and unknown.look == "" and unknown.whisper == "ok")
+  check("share: an unknown suit from a friend becomes plague, a threat above 6 is capped, an unknown look is dropped", unknown and unknown.suit == "plague" and unknown.thr == 6 and unknown.look == "" and unknown.whisper == "ok")
   local older = Presets.decode_wave(Presets.seal("RWW1|custom_1~A~1~10~60~3~10~60~3 hounds~0~0~0~0"), Events, Groups)
   check("share: a text from before the tarot (13 fields) imports and keeps the card's own suit (suit nil)", older and older.suit == nil and older.thr == 0 and older.whisper == "" and older.look == "")
   local tw = {}

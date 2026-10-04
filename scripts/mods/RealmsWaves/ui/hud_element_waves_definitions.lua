@@ -129,7 +129,7 @@ rect(header_passes, "fuse_track", zh)
 rect(header_passes, "fuse_fill", zh + 1)
 
 -- ------------------------------------------------------------------------------------------------ cards
-definitions.THREAT_MAX = 5
+definitions.THREAT_MAX = 6
 definitions.DOTS_MAX = 6 -- the most dots a card shows (catalog/cards.lua MAX_DOTS)
 definitions.GLOW_MATERIAL = "content/ui/materials/frames/frame_glow_01" -- a soft glowing frame, used by stock HUD elements
 

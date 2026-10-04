@@ -105,9 +105,10 @@ end
 -- (one plate) and the diamond check. Every part is a rect, a triangle or a rotated rect (no textures: nothing to blur at
 -- another resolution); the colours are worked out per frame into the style's own tables (no allocation while drawing).
 -- ---------------------------------------------------------------------------
-local PLATE, PLATE_DOWN, PLATE_OFF = { 22, 27, 14 }, { 12, 15, 8 }, { 16, 19, 10 }
-local FRAME, FRAME_OFF = { 58, 68, 33 }, { 38, 43, 24 }
-local TEXT, BRIGHT, LABEL_OFF, MUTED = { 230, 223, 195 }, { 244, 239, 214 }, { 95, 93, 72 }, { 152, 147, 111 }
+mod.rw_button_palette = mod.rw_button_palette or { plate = { 22, 27, 14 }, down = { 12, 15, 8 }, frame = { 58, 68, 33 }, text = { 230, 223, 195 } }
+local PLATE, PLATE_DOWN, PLATE_OFF = mod.rw_button_palette.plate, mod.rw_button_palette.down, { 16, 19, 10 }
+local FRAME, FRAME_OFF = mod.rw_button_palette.frame, { 38, 43, 24 }
+local TEXT, BRIGHT, LABEL_OFF, MUTED = mod.rw_button_palette.text, { 244, 239, 214 }, { 95, 93, 72 }, { 152, 147, 111 }
 local GROUND, WHITE, BLACK = { 10, 12, 7 }, { 255, 255, 255 }, { 0, 0, 0 }
 local RUST, RUST_TEXT, RUST_BRIGHT = { 194, 122, 44 }, { 226, 164, 104 }, { 242, 199, 150 }
 local PRIMARY_OFF, PRIMARY_LABEL_OFF = { 43, 48, 23 }, { 107, 106, 80 }
@@ -158,6 +159,11 @@ end
 -- the default numbers: 0.65 and 0.8 of its card colour), the hover and the frames are the suit's own.
 function Components.set_theme(suit)
 	local theme = Components.theme
+	local source = suit or { card = { 22, 27, 14 }, hi = { 12, 15, 8 }, frame = { 58, 68, 33 }, text = { 230, 223, 195 } }
+	scale_into(PLATE, source.card, 1)
+	scale_into(PLATE_DOWN, source.hi, 0.65)
+	scale_into(FRAME, source.frame, 1)
+	scale_into(TEXT, source.text, 1)
 
 	if suit then
 		scale_into(theme.ground, suit.card, 1)
@@ -606,6 +612,12 @@ function Components.stepper_passes(passes, layout, flag, ids)
 	rect_pass(passes, text_id .. "_div2", plus_x - 1, y + 1, 1, h - 2, z + 2, visible, function (content, style)
 		put_rgb(style.color, 255, dim(content) and FRAME_OFF or FRAME)
 	end)
+
+	for _, edge in ipairs({ { "_edge_t", x, y, w, 2 }, { "_edge_b", x, y + h - 2, w, 2 }, { "_edge_l", x, y, 2, h }, { "_edge_r", right - 2, y, 2, h } }) do
+		rect_pass(passes, text_id .. edge[1], edge[2], edge[3], edge[4], edge[5], z + 3, visible, function (content, style)
+			put_rgb(style.color, 255, dim(content) and FRAME_OFF or FRAME)
+		end)
+	end
 
 	-- the cells light up under the pointer
 	for _, cell in ipairs({ { minus_id, x + 1, bw - 1, "_hl1" }, { plus_id, plus_x, bw - 1, "_hl2" } }) do

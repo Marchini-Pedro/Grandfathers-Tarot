@@ -211,8 +211,9 @@ WB.shelf_chip = function (node_id, w)
 		}
 	end
 
-	text(passes, "chip_label", Workshop.CHIP_DOT, 0, w * 2, H, 4, 16, "left", "center", function (content, style)
+	text(passes, "chip_label", Workshop.CHIP_DOT, 0, w - Workshop.CHIP_DOT - Workshop.CHIP_PAD, H, 4, 16, "left", "center", function (content, style)
 		local st, tint = state_of(content.hotspot), content.tint or nil
+		style.font_size = math.min(Workshop.CHIP_FONT, (w - Workshop.CHIP_DOT - Workshop.CHIP_PAD) / math.max(1, #content.chip_label * Workshop.GLYPH))
 
 		if st == STATE.OFF then
 			put_rgb(style.text_color, 255, R.label_off)
@@ -223,6 +224,7 @@ WB.shelf_chip = function (node_id, w)
 		end
 	end)
 
+	Components.frame_passes(passes, "chip_edge", w, H, 3, { thickness = 2, rgb = Components.theme.frame })
 	return UIWidget.create_definition(passes, node_id, { chip_label = "", dot_rgb = { 135, 135, 135 }, tint = false }, { w, H })
 end
 
@@ -235,7 +237,6 @@ end
 local RINGS = Workshop.STAGE_RINGS
 local PLATE_TINT = 0.30 -- share of the suit's frame colour in the plate
 local BASE = { 0, 0, 0 } -- scratch: the plate's colour (a literal table in a change function would be allocated every frame)
-local LINE = { 0, 0, 0 }
 
 local function plate_base(stage)
 	local frame = stage.frame
@@ -265,8 +266,7 @@ WB.stage_plate = function (node_id)
 			style_id = "ring_h" .. i,
 			style = { offset = { cx - r - 0.7, cy - r - 0.7, 0.4 + i * 0.1 }, size = { r * 2 + 1.4, r * 2 + 1.4 }, color = shape_color() },
 			change_function = function (content, style)
-				put_mix(LINE, 255, plate_base(content.stage), content.stage.accent, ring[2])
-				put_mix(style.color, 90, LINE, content.stage.accent, ring[3] and 0.35 or 0)
+				put_mix(style.color, 90, plate_base(content.stage), content.stage.accent, ring[2] + (1 - ring[2]) * (ring[3] and 0.35 or 0))
 			end,
 		}
 		passes[#passes + 1] = {
@@ -274,8 +274,7 @@ WB.stage_plate = function (node_id)
 			style_id = "ring_l" .. i,
 			style = { offset = { cx - r, cy - r, 0.45 + i * 0.1 }, size = { r * 2, r * 2 }, color = shape_color() },
 			change_function = function (content, style)
-				put_mix(LINE, 255, plate_base(content.stage), content.stage.accent, ring[2])
-				put_mix(style.color, 255, LINE, content.stage.accent, ring[3] and 0.35 or 0)
+				put_mix(style.color, 255, plate_base(content.stage), content.stage.accent, ring[2] + (1 - ring[2]) * (ring[3] and 0.35 or 0))
 			end,
 		}
 		passes[#passes + 1] = {
@@ -338,7 +337,7 @@ WB.suit_tile = function (node_id, tile_ids)
 		passes[#passes + 1] = { pass_type = "circle", style_id = tile_ids.icon_c[i], style = { offset = { 0, 0, 4 }, size = { 1, 1 }, color = shape_color(), visible = false } }
 	end
 
-	text(passes, "suit_name", 0, 36, W, 18, 5, 12, "center", "center", function (content, style)
+	text(passes, "suit_name", 0, 30, W, 16, 5, 11, "center", "center", function (content, style)
 		put_rgb(style.text_color, 255, content.suit.text)
 	end)
 
@@ -370,18 +369,19 @@ WB.threat_control = function (node_id, side, pitch, height)
 
 	side, pitch, height = side or 15, pitch or Workshop.THREAT_PITCH, height or 44
 
-	for i = 1, 5 do
+	for i = 1, 6 do
 		Components.hotspot_pass(passes, "hotspot_t" .. i, { (i - 1) * pitch, 0, 6 }, { pitch, height })
 		Components.diamond_passes(passes, "threat_" .. i, (i - 1) * pitch + pitch / 2, height / 2, side, 3, nil, function (color, content, halo)
 			local on = i <= (content.threat or 0)
-			local rgb = on and mod.rw.cards.THREAT_COLORS[i] or R.muted
+			local rgb = on and mod.rw.cards.threat_color(i, content.suit) or R.muted
+			if halo and i == 6 then rgb = mod.rw.cards.DESPAIR_EDGE end
 			local hover = content["hotspot_t" .. i].is_hover
 
-			put_rgb(color, on and (halo and 70 or 255) or (hover and (halo and 40 or 150) or (halo and 22 or 64)), rgb)
+			put_rgb(color, on and (halo and (i == 6 and 255 or 70) or 255) or (hover and (halo and 40 or 150) or (halo and 22 or 64)), rgb)
 		end)
 	end
 
-	return UIWidget.create_definition(passes, node_id, { threat = 3 }, { 5 * pitch, height })
+	return UIWidget.create_definition(passes, node_id, { threat = 3 }, { 6 * pitch, height })
 end
 
 -- ------------------------------------------------------------------------------------------------- the Mirror
@@ -456,7 +456,7 @@ WB.suit_plate = function (node_id, tile_ids)
 	text(passes, "suit_name", 56, 8, 190, 28, 5, 22, "left", "center", function (content, style)
 		put_rgb(style.text_color, 255, content.suit.text)
 	end)
-	text(passes, "suit_line", 56, 38, 206, 20, 5, 15, "left", "center", function (content, style)
+	text(passes, "suit_line", 56, 34, W - 64, 28, 5, 12, "left", "center", function (content, style)
 		put_rgb(style.text_color, 170, content.suit.text)
 	end)
 	text(passes, "sug_label", W - 118, 6, 106, 14, 5, 11, "right", "center", function (content, style)
@@ -600,11 +600,11 @@ WB.hand_card = function (node_id, tile_ids)
 		},
 	}
 
-	for i = 1, 5 do
+	for i = 1, 6 do
 		passes[#passes + 1] = { pass_type = "rotated_rect", style_id = tile_ids.th_h[i], style = { offset = { 0, 0, 3.8 }, size = { 13, 13 }, color = shape_color(), angle = math.pi / 4, pivot = { 6.5, 6.5 }, visible = false } }
 	end
 
-	for i = 1, 5 do
+	for i = 1, 6 do
 		passes[#passes + 1] = { pass_type = "rotated_rect", style_id = tile_ids.th_o[i], style = { offset = { 0, 0, 4 }, size = { 12, 12 }, color = shape_color(), angle = math.pi / 4, pivot = { 6, 6 }, visible = false } }
 	end
 

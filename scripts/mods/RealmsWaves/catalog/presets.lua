@@ -12,7 +12,7 @@
 --   RW1|<name>|<wave count>|<wave>|<wave>...|<check>
 --   wave = key~name~enabled(1/0)~chance~cooldown~spread~repeat_every~repeat_for~recipe~min_distance~max_distance
 --   ~fixed_timer_seconds (0 = off; see events.lua "ev_") ~deleted(1/0, a standard wave the player removed)
---   ~suit ~threat_override(0-5) ~whisper(text) ~cooldown_look(rot|whisper|vial or empty)   (the tarot card data)
+--   ~suit ~threat_override(0-6) ~whisper(text) ~cooldown_look(rot|whisper|vial or empty)   (the tarot card data)
 --   (texts exported before 1.8.0 have no distance fields (9 fields), before 1.11.0 no timer (11 fields): the missing
 --   values import as 0 = use the options / no timer)
 -- Every free-text field has %, |, ~ and control characters percent-encoded (%7C ...). <check> is 4 hex digits
@@ -21,6 +21,8 @@
 --
 -- Pure Lua (no engine calls); Events and Groups are passed in so it can be tested offline.
 local Presets = {}
+local Sounds = get_mod("RealmsWaves"):io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/sounds")
+local Effects = get_mod("RealmsWaves"):io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/effects")
 
 Presets.COUNT = 5
 Presets.MAX_NAME = 24
@@ -31,7 +33,7 @@ Presets.UNDO_ID = "preset_undo"
 -- inclusive ranges, the same as the editor's steppers/popups
 local SUITS = {
 	plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true,
-	volley = true, snare = true, brute = true, dusk = true, warp = true, heresy = true,
+	volley = true, snare = true, brute = true, dusk = true, warp = true, heresy = true, prayer = true, miracle = true, grace = true,
 }
 local SUIT_ALIAS = { fester = "heresy" } -- the old name of Heresy: old presets and texts from friends still say it
 
@@ -149,7 +151,7 @@ local function recipe_of(wave, Groups)
 end
 
 local function same_wave(a, b)
-	return a.name == b.name and a.recipe == b.recipe and a.enabled == b.enabled and a.pct == b.pct and a.cd == b.cd and a.sp == b.sp and a.re == b.re and a.rf == b.rf and a.dmin == b.dmin and a.dmax == b.dmax and a.timer == b.timer and a.deleted == b.deleted and a.suit == b.suit and a.thr == b.thr and a.whisper == b.whisper and a.look == b.look and a.keep == b.keep
+	return a.name == b.name and a.recipe == b.recipe and a.enabled == b.enabled and a.pct == b.pct and a.cd == b.cd and a.sp == b.sp and a.re == b.re and a.rf == b.rf and a.dmin == b.dmin and a.dmax == b.dmax and a.timer == b.timer and a.deleted == b.deleted and a.suit == b.suit and a.thr == b.thr and a.whisper == b.whisper and a.look == b.look and a.keep == b.keep and a.effects == b.effects and a.sound == b.sound
 end
 
 -- A wave as stored in a preset.
@@ -169,9 +171,11 @@ local function snapshot(key, wave, Groups)
 		timer = whole(wave.timer),
 		deleted = wave.deleted == true,
 		suit = suit_of(wave.suit) or "plague",
-		thr = math.max(0, math.min(5, whole(wave.threat_override))),
+		thr = math.max(0, math.min(6, whole(wave.threat_override))),
 		whisper = clean_whisper(wave.whisper),
 		look = LOOKS[wave.look] and wave.look or "",
+		effects = Effects.encode(wave.effects),
+		sound = wave.sound or "",
 		keep = wave.keep_pick ~= false,
 	}
 end
@@ -231,6 +235,8 @@ Presets.apply_wave = function (wave, key, set_setting, Events, Groups)
 	set_setting("wh_" .. key, wave.whisper or "")
 	set_setting("cl_" .. key, wave.look or "")
 	set_setting("rk_" .. key, wave.keep ~= false)
+	set_setting("fx_" .. key, wave.effects or "")
+	set_setting("snd_" .. key, wave.sound or "")
 end
 
 -- Writes a preset over the current setup: every wave goes back to its default first.
@@ -293,13 +299,15 @@ Presets.pool_waves = function (preset, owner, Events, Groups, limit)
 
 		local parts = wave.recipe ~= "" and Groups.parse(wave.recipe) or nil
 
-		if parts and #parts > 0 and wave.enabled and wave.pct > 0 and not ((wave.timer or 0) > 0) then
+		if Effects.has_content({ parts = parts, suit = wave.suit, effects = Effects.parse(wave.effects) }) and wave.enabled and wave.pct > 0 and not ((wave.timer or 0) > 0) then
 			local standard = Events.get_standard(wave.key)
 
 			list[#list + 1] = {
 				key = tostring(owner) .. ":" .. wave.key,
 				name = wave.name ~= "" and wave.name or wave.key,
-				parts = parts,
+				parts = Effects.beneficial(wave.suit) and {} or parts,
+				effects = Effects.allowed(Effects.parse(wave.effects) or {}, wave.suit),
+				sound = wave.sound or "",
 				enabled = true,
 				pct = wave.pct,
 				cooldown = wave.cd,
@@ -324,7 +332,7 @@ end
 -- ------------------------------------------------------------------- text format
 
 local function wave_text(wave)
-	return table.concat({
+	local fields = {
 		wave.key,
 		escape(wave.name),
 		wave.enabled and "1" or "0",
@@ -343,7 +351,11 @@ local function wave_text(wave)
 		escape(wave.whisper or ""),
 		wave.look or "",
 		wave.keep == false and "0" or "1",
-	}, "~")
+	}
+	if (wave.effects or "") ~= "" or (wave.sound or "") ~= "" then
+		fields[#fields + 1], fields[#fields + 2] = escape(wave.effects or ""), escape(wave.sound or "")
+	end
+	return table.concat(fields, "~")
 end
 
 -- One wave from its "key~name~..." text. Returns the wave, or nil and a message. The recipe is parsed here
@@ -351,10 +363,15 @@ end
 local function parse_wave(text, Groups)
 	local parts = split(text, "~")
 
-	if #parts ~= 9 and #parts ~= 11 and #parts ~= 12 and #parts ~= 13 and #parts ~= 17 and #parts ~= 18 then
+	if #parts ~= 9 and #parts ~= 11 and #parts ~= 12 and #parts ~= 13 and #parts ~= 17 and #parts ~= 18 and #parts ~= 20 then
 		return nil, "a wave in the text is damaged"
 	end
 
+	local effects = unescape(parts[19] or "")
+	local parsed_effects, effect_error = Effects.parse(effects)
+	if not parsed_effects then return nil, effect_error end
+	local sound = unescape(parts[20] or "")
+	if sound ~= "" and not Sounds.valid(sound) then return nil, "invalid card sound" end
 	local recipe = unescape(parts[9])
 	local name = trim(unescape(parts[2]):gsub("[%c]", " "))
 	local label = name ~= "" and name or parts[1]
@@ -406,10 +423,12 @@ local function parse_wave(text, Groups)
 		deleted = parts[13] == "1",
 		-- 17 fields = with the tarot data; an unknown suit from a friend becomes plague, an unknown look is dropped
 		suit = parts[14] ~= nil and (suit_of(parts[14]) or (parts[14] ~= "" and "plague" or nil)) or nil,
-		thr = math.max(0, math.min(5, whole(threat))),
+		thr = math.max(0, math.min(6, whole(threat))),
 		whisper = clean_whisper(unescape(parts[16] or "")),
 		look = LOOKS[parts[17]] and parts[17] or "",
 		-- 18 fields = with the roll switch; texts without it keep the default (on)
+		effects = Effects.encode(parsed_effects),
+		sound = sound,
 		keep = parts[18] ~= "0",
 	}
 end

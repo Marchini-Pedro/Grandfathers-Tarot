@@ -242,3 +242,87 @@ Things we know are missing or unverified, each with the next concrete step.
 - 2026-10-03: the hand-off listed three Lua 5.5 gate problems, but a fresh LuaJIT run also exposed editor definitions at 77.98 against 79. Add both new HUD files and record every measured module, with explicit Face/definitions source-proxy exceptions instead of pretending declaration coverage is behavior coverage. Stronger assertions and 18 valid mutation detections support the repairs; native performance, renderer and transport remain separate. Both full runners now have the same 2,104 assertions. Authentication confirms write/push access but neither admin nor maintain: publication is available; owner-side administration remains open.
 
 - 2026-10-03: the original branch push at `a95ee8b` had a failed hosted workflow. The repaired continuation at `a163552` passes both hosted jobs, with artifact counts and coverage matching local evidence. Use fully qualified branch-file links in the PR body; repository-relative links resolve from the pull-request URL. A PowerShell rg wildcard argument was treated as a literal invalid path; use the containing directory or an explicit file path for subsequent searches. Publication/CI do not replace the author's pending native game checks.
+
+- 2026-10-03 (PR #9): shelf rectangles are shared vector geometry, not individual
+  enemy image dimensions. Normalize width centrally and draw foreground edges;
+  native pixel snapping remains unproven. A preview exposed an existing ring
+  error: `put_mix` writes ARGB, but its output was reused as RGB. Compose the
+  two interpolation factors directly instead. New sound controls initially
+  overlapped the chance row; moving both to the free bottom row fixes it.
+- 2026-10-03 (PR #9): host `PlayerHuskAbilityExtension` exposes a restore method
+  that throws. Checking method presence alone is insufficient. Restore locally
+  owned ability resources through host-validated, bounded grants keyed by native
+  game-object ID; late joins must not replay instantaneous effects. Pocketable
+  equipment with nil pickup works only for definitions without retained charges;
+  the selected syringes/crate have no retained-charge pickup flag.
+- 2026-10-03 (PR #9): native Blue Stimm is 15 seconds. Adjust its duration through
+  the externally controlled native instance, track component ownership, and
+  check whether its native index still runs before removal. Death/disconnect or
+  another hook failing must not abort remaining party targets. Timed effects
+  should continue during scheduler pause, matching native buffs.
+- 2026-10-03 (PR #9): use bounded completion tickets and journals; wave admission
+  alone is not completion. Include repeat queues, living units and timed effects;
+  cancel/failure must suppress sounds. Verify native event names against source,
+  but do not assume their banks are loaded. SimpleAudio is optional.
+- 2026-10-03 (PR #9): initial integration failures included nil-suit pooled cards,
+  HERESY-only special-banner logic, stale 5-pip/12-suit tests, a mistaken timer
+  setting prefix and invalid test definition separators. Use the real catalog
+  setter in fixtures. Full coverage evidence becomes inconsistent when files
+  change during collection; freeze source before final dual-runtime runs.
+  PowerShell wildcard/quoting errors and a HUD preview expecting `widget.def`
+  were tooling failures, corrected using explicit paths and actual fixture data.
+
+- 2026-10-03 (PR #9): exercising the actual colour toggles exposed a recipe
+  parser conflict: `+outline` was split as another enemy, causing a saved wave
+  to reload empty. Protect angle-bracket suffixes before global separators;
+  verify all flag combinations, repeats, mixed enemies and saving/reopening.
+  Appearance removal packets must clear the independent flags as well as the
+  method, or remote cleanup can reattach an outline. Revision/time ordering
+  prevents duplicate guidance snapshots extending a duration or stale snapshots
+  undoing a stop. Keep existing coverage floors and exercise actual hook and UI
+  paths; remove the unused Workshop text-width helper after central cell sizing.
+- 2026-10-03 (PR #9): a frozen run passed all behavior checks but LuaJIT
+  remained below the sound and appearance source-proxy floors. Complete sound
+  ranking for Med Crates, Medicae, combat abilities and Veteran-style guidance.
+  Share the two tint hook callbacks; use the native extension lookup directly
+  and a one-line initializer instead of trivial wrappers. Preserve all existing
+  floors. Comparing assertion logs also found LuaJIT's buffered Lua print
+  interleaving with Python output, joining two PASS lines. Flush Lua stdout
+  before printing editor results so assertion counts are consistent.
+- 2026-10-03 (PR #9): the final appearance preview revealed the protection
+  toggle covered the bottom explanation. Place both switches in the free lower
+  panel, below the hint and above Back; add a real scenegraph bounds check and
+  inspect the revised PNG. Finite geometry alone did not detect this overlap.
+
+- 2026-10-03 (PR #9): hosted Ubuntu/Python 3.13 artifacts match both local
+  assertion counts and every module score. Keep the tested source revision
+  separate from documentation-only publication follow-ups and native acceptance.
+  A publication scratch f-string delimiter error failed before any writes;
+  correct the literal and rerun artifact comparison before recording success.
+
+- 2026-10-03 (PR #9): one Ubuntu runner finishes the full source at the default
+  deadline while another needs 109.70 seconds for appearance and hits the
+  logic harness's 120-second limit. A timeout removes the collector artifact,
+  so resulting coverage failures are incomplete evidence, not measured losses.
+  Use the already-tested 280-second per-harness allowance in CI, retain the
+  ten-minute job limit and gates, and await a complete hosted report.
+
+- 2026-10-03 (black stimm analysis): recheck only the native material-vector
+  reset and current appearance schema/runtime for the new question. Zero RGB
+  matches `_stop_material_vector_effect`'s reset, not an established black
+  material. Shader blending is unavailable in the Lua reference: low RGB may
+  only weaken glow. A=255 greys 8/16/24/32/48 are live-test candidates, not a
+  measured minimum. Both VMs preserve seven greys across three stimm methods
+  and outline/protect flags (21 cases each), plus the A=0 reset calculation.
+  The independent outline shares RGB/A; a contrasting rim needs separate
+  colour support. One uniform cannot carry independent competing tints; other
+  groups/methods remain available. Direct buff/mod writes outside existing
+  hooks still require compatibility tests. Keep the request's stimm shape as
+  the acceptance criterion; do not relabel an invisible effect or outline as
+  black stimm. No new production option or asset was installed.
+  An initial design lookup used `04-design-decisions.md`; correct it to
+  `04-design-and-rationale.md`. Broad material/black searches exceeded output
+  budgets; use targeted source slices and the existing research references.
+  A combined patch used a results-log sentence as learning-log context and
+  failed before writes; verify the target's final lines and apply corrected
+  context rather than assuming another document has the same ending.

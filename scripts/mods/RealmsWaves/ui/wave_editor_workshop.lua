@@ -33,7 +33,7 @@ WorkshopView.install = function (View, h)
 		DYNAMIC[#DYNAMIC + 1] = CHIP .. i
 	end
 
-	for i = 1, 12 do
+	for i = 1, 15 do
 		DYNAMIC[#DYNAMIC + 1] = SUIT .. i
 	end
 
@@ -67,7 +67,7 @@ WorkshopView.install = function (View, h)
 			widget.visible = false
 		end
 
-		for i = 1, 12 do
+		for i = 1, 15 do
 			local name = SUIT .. i
 			local widget = self:_create_dynamic_widget(name, WB.suit_tile(name, TILE_IDS))
 
@@ -77,7 +77,7 @@ WorkshopView.install = function (View, h)
 
 		local threat = self:_create_dynamic_widget("rw_threat", WB.threat_control("rw_threat"))
 
-		for k = 1, 5 do
+		for k = 1, 6 do
 			threat.content["hotspot_t" .. k].pressed_callback = callback(self, "cb_threat_pick", k)
 		end
 
@@ -93,6 +93,7 @@ WorkshopView.install = function (View, h)
 
 		stage.content.hotspot_name.pressed_callback = callback(self, "cb_rename")
 		stage.content.hotspot_whisper.pressed_callback = callback(self, "cb_whisper_change")
+		stage.content.hotspot_share.pressed_callback = callback(self, "cb_wave_share")
 
 		stage.visible = false
 		self:_create_mirror_widgets(WB)
@@ -148,7 +149,7 @@ WorkshopView.install = function (View, h)
 			end
 		end
 
-		for i = 1, 12 do
+		for i = 1, 15 do
 			local widget = widgets[SUIT .. i]
 
 			if widget then
@@ -159,7 +160,7 @@ WorkshopView.install = function (View, h)
 		local threat = widgets.rw_threat
 
 		if threat then
-			for k = 1, 5 do
+			for k = 1, 6 do
 				threat.content["hotspot_t" .. k].disabled = not (enabled and threat.visible)
 			end
 		end
@@ -172,6 +173,7 @@ WorkshopView.install = function (View, h)
 		local stage = self._widgets_by_name[STAGE]
 
 		if stage then
+			stage.content.hotspot_share.disabled = not (enabled and stage.visible and mod:get("card_share_icons") ~= false)
 			stage.content.hotspot_name.disabled = not (enabled and stage.visible)
 			stage.content.hotspot_whisper.disabled = not (enabled and stage.visible)
 		end
@@ -358,7 +360,7 @@ WorkshopView.install = function (View, h)
 		widgets.btn_quickface.content.hotspot_text = mod:localize("btn_quickface")
 		widgets.btn_preview.content.hotspot_text = mod:localize("btn_preview_cooldown")
 
-		for i = 1, 12 do
+		for i = 1, 15 do
 			local id = Cards.SUIT_ORDER[i]
 			local def = Cards.SUITS[id]
 			local widget = widgets[SUIT .. i]
@@ -371,13 +373,13 @@ WorkshopView.install = function (View, h)
 			content.selected = id == card.suit
 			content.suggested = suggested == id and id ~= card.suit
 			self:_set_scenegraph_position(SUIT .. i, x, content.selected and y - 4 or y, 3)
-			self:_paint_suit_mark(widget.style, def.icon, 26, 27, 6, def.accent, def.card)
+			self:_paint_suit_mark(widget.style, def.icon, 24, 17, 4, def.accent, def.card)
 		end
 
 		local threat = widgets.rw_threat
 
 		threat.visible = true
-		threat.content.threat = card.threat
+		threat.content.threat, threat.content.suit = card.threat, card.suit
 		widgets.btn_thr_auto.content.hotspot_text = mod:localize("btn_thr_auto")
 		widgets.btn_thr_auto.content.hotspot_on = card.threat_override == 0
 		widgets.btn_thr_hand.content.hotspot_text = mod:localize("btn_thr_hand")
@@ -430,7 +432,7 @@ WorkshopView.install = function (View, h)
 	local LOOKS = definitions.MIRROR_LOOKS
 	local MIRROR_DYNAMIC = { "rw_threat_big", "whisper_field", "rw_hand_card" }
 
-	for i = 1, 12 do
+	for i = 1, 15 do
 		MIRROR_DYNAMIC[#MIRROR_DYNAMIC + 1] = PLATE .. i
 	end
 
@@ -439,7 +441,7 @@ WorkshopView.install = function (View, h)
 	end
 
 	View._create_mirror_widgets = function (self, WB)
-		for i = 1, 12 do
+		for i = 1, 15 do
 			local name = PLATE .. i
 			local widget = self:_create_dynamic_widget(name, WB.suit_plate(name, TILE_IDS))
 
@@ -457,7 +459,7 @@ WorkshopView.install = function (View, h)
 
 		local big = self:_create_dynamic_widget("rw_threat_big", WB.threat_control("rw_threat_big", Workshop.MIRROR.threat_side, Workshop.MIRROR.threat_pitch, Workshop.MIRROR.threat_h))
 
-		for k = 1, 5 do
+		for k = 1, 6 do
 			big.content["hotspot_t" .. k].pressed_callback = callback(self, "cb_threat_pick", k)
 		end
 
@@ -509,25 +511,25 @@ WorkshopView.install = function (View, h)
 		-- the bottom row: the threat diamonds from the left, the dots to the right
 		local cy = height - (Spread.PAD_Y + Spread.ROW_HEIGHT / 2) * k
 		local side = Spread.THREAT_SIDE * k
-		local threat_rgb = rw.cards.THREAT_COLORS[card.threat]
+		local threat_rgb = rw.cards.threat_color(card.threat, card.suit)
 
-		for i = 1, 5 do
+		for i = 1, 6 do
 			local cx = (H.bar + pad + Spread.THREAT_SIDE / 2 + (i - 1) * Spread.THREAT_PITCH) * k
 			local outer, halo = style[TILE_IDS.th_o[i]], style[TILE_IDS.th_h[i]]
 			local filled = i <= card.threat
 			local rgb = filled and threat_rgb or rw.cards.BASE.muted
 
-			outer.visible, halo.visible = true, true
+			outer.visible, halo.visible = i <= 5 or card.threat == 6, i <= 5 or card.threat == 6
 			outer.size[1], outer.size[2], outer.pivot[1], outer.pivot[2] = side, side, side / 2, side / 2
 			halo.size[1], halo.size[2], halo.pivot[1], halo.pivot[2] = side + 1.1, side + 1.1, (side + 1.1) / 2, (side + 1.1) / 2
 			outer.offset[1], outer.offset[2] = cx - side / 2, cy - side / 2
 			halo.offset[1], halo.offset[2] = cx - (side + 1.1) / 2, cy - (side + 1.1) / 2
 			Spread.set_color(outer.color, filled and 255 or 64, rgb)
-			Spread.set_color(halo.color, filled and 70 or 22, rgb)
+			Spread.set_color(halo.color, card.threat == 6 and 255 or filled and 70 or 22, card.threat == 6 and rw.cards.DESPAIR_EDGE or rgb)
 		end
 
 		local dots = card.dots
-		local diameter, pitch, count = Spread.dots_fit(H.hud_w, #dots)
+		local diameter, pitch, count = Spread.dots_fit(H.hud_w, #dots, card.threat)
 
 		for i = 1, 6 do
 			local dot, halo = style[TILE_IDS.dot[i]], style[TILE_IDS.dot_h[i]]
@@ -575,7 +577,7 @@ WorkshopView.install = function (View, h)
 	View._set_mirror_interaction = function (self, enabled)
 		local widgets = self._widgets_by_name
 
-		for i = 1, 12 do
+		for i = 1, 15 do
 			local widget = widgets[PLATE .. i]
 
 			if widget then
@@ -600,7 +602,7 @@ WorkshopView.install = function (View, h)
 		local big = widgets.rw_threat_big
 
 		if big then
-			for k = 1, 5 do
+			for k = 1, 6 do
 				big.content["hotspot_t" .. k].disabled = not (enabled and big.visible)
 			end
 		end
@@ -634,7 +636,7 @@ WorkshopView.install = function (View, h)
 		end
 
 		-- the suit: twelve plates, then the description of the card's suit
-		for i = 1, 12 do
+		for i = 1, 15 do
 			local id = Cards.SUIT_ORDER[i]
 			local def = Cards.SUITS[id]
 			local widget = widgets[PLATE .. i]
@@ -661,7 +663,7 @@ WorkshopView.install = function (View, h)
 		local big = widgets.rw_threat_big
 
 		big.visible = true
-		big.content.threat = card.threat
+		big.content.threat, big.content.suit = card.threat, card.suit
 		widgets.btn_thr_auto.content.hotspot_text = mod:localize("btn_thr_auto")
 		widgets.btn_thr_auto.content.hotspot_on = card.threat_override == 0
 		widgets.btn_thr_hand.content.hotspot_text = mod:localize("btn_thr_hand")
@@ -758,6 +760,7 @@ WorkshopView.install = function (View, h)
 	end)
 
 	View._add_breed_quick = function (self, breed)
+		if mod.rw.groups.Effects.beneficial(self._wave.suit) then return end
 		local groups = mod.rw.groups
 
 		if groups.total_count(self._parts) >= groups.MAX_TOTAL then
@@ -811,10 +814,10 @@ WorkshopView.install = function (View, h)
 		end
 	end)
 
-	-- a threat diamond: the threat by hand (1 to 5)
+	-- a threat diamond: the threat by hand (1 to 6)
 	View.cb_threat_pick = guarded(function (self, level)
 		if self._screen == "detail" or self._screen == "face" then
-			set_setting("th_" .. self._key, math.max(1, math.min(5, level)))
+			set_setting("th_" .. self._key, math.max(1, math.min(6, level)))
 			changed(self)
 		end
 	end)
@@ -834,7 +837,7 @@ WorkshopView.install = function (View, h)
 			local override = tonumber(self._wave.threat_override) or 0
 			local value = override > 0 and override or rw.cards.threat_auto(self._parts, rw.groups)
 
-			set_setting("th_" .. self._key, math.max(1, math.min(5, value)))
+			set_setting("th_" .. self._key, math.max(1, math.min(6, value)))
 			changed(self)
 		end
 	end)

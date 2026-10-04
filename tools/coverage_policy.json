@@ -34,6 +34,10 @@
     "ui/workshop_blueprints.lua": 79,
     "catalog/appearance.lua": 84,
     "spawn/appearance.lua": 79,
-    "ui/wave_editor_appearance.lua": 90
+    "ui/wave_editor_appearance.lua": 90,
+    "catalog/effects.lua": 78,
+    "catalog/sounds.lua": 80,
+    "core/effects.lua": 75,
+    "ui/wave_editor_effects.lua": 80
   }
 }

@@ -45,6 +45,12 @@ for _, method in ipairs(Schema.METHODS) do
   local parts = assert(Groups.parse("2 crushers{size=130}" .. Schema.recipe(value) .. "@2, 1 crusher"))
   check("recipe round trip " .. method.id, #parts == 2 and Schema.recipe(Groups.parse(Groups.to_recipe(parts))[1].appearance) == Schema.recipe(value))
 end
+for _, flags in ipairs({{outline=true}, {protect=true}, {outline=true,protect=true}}) do
+  local value=Schema.copy(purple); value.outline=flags.outline; value.protect=flags.protect
+  local parts=assert(Groups.parse("2 crushers[enraged]{size=130}"..Schema.recipe(value).."@2 + 1 hound"))
+  local reopened=assert(Groups.parse(Groups.to_recipe(parts)))
+  check("flagged recipe preserves suffix and enemy separators",#reopened==2 and reopened[1].count==2 and reopened[1].rep==2 and Schema.recipe(reopened[1].appearance)==Schema.recipe(value) and not reopened[2].appearance)
+end
 check("differently coloured groups stay separate", #Groups.parse("1 hound<applied_stimm:FFFF0000>, 1 hound<applied_stimm:FF00FF00>") == 2)
 check("identical colours merge", Groups.parse("1 hound<applied_stimm:FFFF0000>, 1 hound<applied_stimm:FFFF0000>")[1].count == 2)
 for _, text in ipairs({"<bad:FFFFFFFF>","<applied_stimm:FFFF>","<applied_stimm:ZZFFFFFF>","<applied_stimm:FFFFFFFFF>"}) do
@@ -119,6 +125,27 @@ check("outline has one balanced stack and private settings", outlines[treated]==
 treated.extensions.outline_system.settings.other_mod={}
 A.reset()
 check("outline removal preserves another mod's addition", outlines[treated]==0 and treated.extensions.outline_system.settings.other_mod and not treated.extensions.outline_system.settings.rw_selected_colour)
+local safe_hooks={}
+function mod:hook_require(path,fn) check("native tint hook path",path=="scripts/extension_systems/buff/minion_buff_extension");fn({}) end
+function mod:hook_safe(class,name,fn) safe_hooks[name]=fn end
+A.install()
+local combined=Schema.copy(purple);combined.outline=true;combined.protect=true
+local encoded=Schema.recipe(combined)
+check("simultaneous outline/protected tint recipe",Schema.parse(encoded:sub(2,-2)).outline and Schema.parse(encoded:sub(2,-2)).protect)
+A.apply(treated,combined,treated.breed);A.update(0.25)
+local selected=treated.extensions.outline_system.settings.rw_selected_colour
+check("ordinary outline obeys depth and manual tags keep precedence",#selected.material_layers==1 and selected.material_layers[1]=="minion_outline" and selected.priority==2 and treated.extensions.outline_system.settings.tag==shared_settings.tag)
+check("independent outline and tint coexist",outlines[treated]==1 and treated.colour[3]==1)
+treated.extensions.buff_system._current_material_vector_effect={material_vector_name="stimmed_color",value={0.2,0.3,0.4}}
+A.update(0.25);check("protected tint survives native buff colour",treated.colour[3]==1)
+treated.colour={0,0,0};safe_hooks._start_material_vector_effect({_unit=treated})
+check("native buff start reapplies protected tint",treated.colour[3]==1)
+treated.colour={0,0,0};safe_hooks._stop_material_vector_effect({_unit=treated})
+check("native buff stop reapplies protected tint",treated.colour[3]==1)
+
+A.reset();combined.protect=false;A.apply(treated,combined,treated.breed);treated.extensions.buff_system._current_material_vector_effect.value={0.2,0.3,0.8};A.update(0.25)
+check("unprotected tint yields to native buff",treated.colour[3]==0.8 and outlines[treated]==1)
+A.reset();treated.extensions.buff_system._current_material_vector_effect.value={0.2,0.3,0.4}
 local natural=Schema.copy(purple); natural.method="natural_stimm"
 treated.breed="chaos_ogryn_executor"
 BLACKBOARDS[treated]={stim={can_use_stim=false,currently_using_stim=false}}
@@ -200,7 +227,10 @@ check("reused ID of a different breed rejected", A.status().selected==0 and A.st
 for i=1,1000 do A.receive({{id=10000+i,breed="chaos_hound",config=purple}}) end
 check("pending queue capped at 600", A.status().pending==600)
 A.update(20); check("missing IDs expire", A.status().pending==0)
-server=true; A.apply(treated,purple,treated.breed); local previous=A.epoch(); A.reset(true)
+server=true; A.apply(treated,combined,treated.breed); local previous=A.epoch(); A.reset(true)
+local removal=packets[sent[#sent][3]].entries[1]
+check("removal packets clear independent outline and protection",removal[2]=="none" and removal[8]==false and removal[9]==false)
+
 check("reset advances epoch and sends removal", A.epoch()~=previous and packets[sent[#sent][3]].entries[1][2]=="none")
 for i=20000,20999 do local u=unit(i); A.apply(u,purple,u.breed) end
 check("host selected-unit registry capped at 600", A.status().selected==600)
@@ -223,10 +253,21 @@ click_row(1,"hotspot_tune")
 check("colour: entry button visible and enabled", view._widgets_by_name.btn_appearance.visible and not view._widgets_by_name.btn_appearance.content.hotspot.disabled)
 click("btn_appearance")
 check("colour: sliders and method are visible; rows hidden", view._screen=="appearance" and view._widgets_by_name.rw_colour_a.visible and not row(1).visible)
+local outline_node=view._definitions.scenegraph_definition.rw_colour_outline
+local protect_node=view._definitions.scenegraph_definition.rw_colour_protect
+check("colour: toggle rows clear the explanation and Back button",outline_node.position[2]>=835 and protect_node.position[2]>=outline_node.position[2]+outline_node.size[2] and protect_node.position[2]+protect_node.size[2]<=970)
 click("rw_colour_method")
 check("colour: dropdown disables slider interaction", view._widgets_by_name.rw_colour_choice_1.visible and view._widgets_by_name.rw_colour_r.content.hotspot.disabled)
 click("rw_colour_choice_3")
 check("colour: method persists and dropdown closes", view._parts[1].appearance.method=="applied_stimm" and not view._colour_menu)
+click("rw_colour_outline");click("rw_colour_protect")
+check("colour: independent outline/protection toggles persist",view._parts[1].appearance.outline and view._parts[1].appearance.protect)
+view:cb_back();view:cb_back();view:_open_detail("custom_20")
+check("colour: reopening retains both flags and the second enemy row",#view._parts==2 and view._parts[1].appearance.outline and view._parts[1].appearance.protect and not view._parts[2].appearance.outline)
+click_row(1,"hotspot_tune");click("btn_appearance")
+click("rw_colour_outline");click("rw_colour_protect")
+check("colour: both toggles can return to defaults",not view._parts[1].appearance.outline and not view._parts[1].appearance.protect)
+
 click("rw_colour_r")
 view._render_settings={inverse_scale=0.5}
 local hold=true
@@ -245,8 +286,8 @@ check("colour: reopening preserves values and untreated row", view._parts[1].app
 view._part_index=2; view:_set_colour_channel("b",77)
 check("colour: merging identical colours keeps the edited group selected", #view._parts==1 and view._parts[1].count==3 and view._part_index==1 and view._parts[1].appearance.b==77)
 click_row(1,"hotspot_tune"); click("btn_appearance"); click("rw_colour_method"); click("rw_colour_choice_5")
-check("colour: surface prerequisite is explicit", view._parts[1].appearance.method=="surface" and view._widgets_by_name.rw_colour_info.content.text:find("Unavailable",1,true))
-click("rw_colour_method"); view:cb_back()
+check("colour: surface prerequisite is explicit", view._parts[1].appearance.method~="surface" and view._widgets_by_name.rw_colour_choice_5.content.hotspot.disabled and view._colour_menu)
+view:cb_back()
 check("colour: Back closes dropdown before leaving screen", view._screen=="appearance" and not view._colour_menu)
 view:cb_back(); check("colour: Back returns to Custom", view._screen=="tune")
 view:cb_back(); view:on_exit()

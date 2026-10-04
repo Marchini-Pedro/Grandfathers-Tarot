@@ -1,5 +1,4 @@
--- The "last card" HUD window: the card whose wave went out last, as the Spread draws it, with how long ago it was and its whisper and
--- modifiers. It renders what core/director.lua's view() returns (view.last, view.last_seq, view.last_age): on the host the
+-- The "last card" HUD window: the card whose wave went out last, as the Spread draws it, with how long ago it was and its whisper. It renders what core/director.lua's view() returns (view.last, view.last_seq, view.last_age): on the host the
 -- authoritative card, on clients the last one the host synced, so every player sees the same card. It stays on the screen until the
 -- next card goes out (the Spread itself is gone a few seconds after the pick); before the first card of a mission there is no window.
 --
@@ -30,8 +29,8 @@ local ICON_T = { "icon_t1", "icon_t2", "icon_t3", "icon_t4" }
 local ICON_C = { "icon_c1", "icon_c2", "icon_c3", "icon_c4" }
 local ICON_TH = { "icon_th1", "icon_th2", "icon_th3", "icon_th4" }
 local ICON_CH = { "icon_ch1", "icon_ch2", "icon_ch3", "icon_ch4" }
-local TH_H = { "th_h1", "th_h2", "th_h3", "th_h4", "th_h5" }
-local TH_O = { "th_o1", "th_o2", "th_o3", "th_o4", "th_o5" }
+local TH_H = { "th_h1", "th_h2", "th_h3", "th_h4", "th_h5", "th_h6" }
+local TH_O = { "th_o1", "th_o2", "th_o3", "th_o4", "th_o5", "th_o6" }
 local DOT_H = { "dh_1", "dh_2", "dh_3", "dh_4", "dh_5", "dh_6" }
 local DOT = { "dot_1", "dot_2", "dot_3", "dot_4", "dot_5", "dot_6" }
 
@@ -147,9 +146,9 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 	style.name.font_type = font
 
 	-- the card: as tall as its name needs (a one-card Spread is laid out the same way)
-	local name_w = cw - Spread.ACCENT_WIDTH - 2 * Spread.PAD_X - Spread.ICON - Spread.ICON_GAP
+	local name_w = cw - 2 * Spread.PAD_X
 	local lines = Spread.wrap_lines(card.name, name_w, Spread.NAME_FONT, Spread.GLYPH_BY_FONT[font])
-	local ch = math.max(Spread.MIN_CARD_HEIGHT, 2 * Spread.PAD_Y + lines * Spread.NAME_LINE + 4 + Spread.ROW_HEIGHT)
+	local ch = 144 + lines * Spread.NAME_LINE
 	local special = suit.special == true
 
 	box(style.card_bg, x, y, cw, ch)
@@ -182,16 +181,21 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 	end
 
 	-- the name and the suit mark in the top right corner
-	box(style.name, x + Spread.ACCENT_WIDTH + Spread.PAD_X, y + Spread.PAD_Y, name_w, lines * Spread.NAME_LINE)
+	box(style.name, x + Spread.PAD_X, y + 76, name_w, lines * Spread.NAME_LINE)
 	content.name = card.name
 	paint(style.name, 255, suit.text)
 	style.name.visible = true
 
 	local shape = self._shape_icon
 
-	Spread.icon(suit.icon, Spread.ICON, shape)
+	Spread.icon(suit.icon, 42, shape)
 
-	local ox, oy = x + cw - Spread.PAD_X - Spread.ICON, y + Spread.PAD_Y
+	local ox, oy = x + (cw - 42) / 2, y + 21
+	box(style.sigil_ring, x + (cw - 60) / 2, y + 12, 60, 60)
+	box(style.sigil_disc, x + (cw - 58) / 2, y + 13, 58, 58)
+	paint(style.sigil_ring, 180, suit.frame)
+	paint(style.sigil_disc, 255, suit.card)
+	style.sigil_ring.visible, style.sigil_disc.visible = true, true
 	local feather = Spread.alpha(Spread.FEATHER_ALPHA)
 
 	for j = 1, Spread.ICON_TRIS do
@@ -218,8 +222,8 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 	local cy = y + ch - Spread.PAD_Y - Spread.ROW_HEIGHT / 2
 	local side = Spread.THREAT_SIDE
 	local halo = side + 1.4
-	local threat = math.max(1, math.min(5, card.threat or 1))
-	local threat_rgb = Cards.THREAT_COLORS[threat]
+	local threat = math.max(1, math.min(6, card.threat or 1))
+	local threat_rgb = Cards.threat_color(threat, card.suit)
 
 	for j = 1, #TH_O do
 		local cx = x + Spread.ACCENT_WIDTH + Spread.PAD_X + side / 2 + (j - 1) * Spread.THREAT_PITCH
@@ -229,9 +233,9 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 
 		s_halo.offset[1], s_halo.offset[2] = cx - halo / 2, cy - halo / 2
 		s_outer.offset[1], s_outer.offset[2] = cx - side / 2, cy - side / 2
-		paint(s_halo, filled and 70 or 22, colour)
+		paint(s_halo, threat == 6 and 255 or filled and 70 or 22, threat == 6 and Cards.DESPAIR_EDGE or colour)
 		paint(s_outer, filled and 255 or 64, colour)
-		s_halo.visible, s_outer.visible = true, true
+		s_halo.visible, s_outer.visible = j <= 5 or threat == 6, j <= 5 or threat == 6
 	end
 
 	-- ... and the enemy dots to the right: one per distinct enemy colour (the player's own colour settings)
@@ -239,7 +243,7 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 	local dots = Cards.dots_from_breeds(card.breeds, function (breed)
 		return colors and colors.rgb(breed) or Cards.BASE.muted
 	end)
-	local d, pitch, shown = Spread.dots_fit(cw, #dots)
+	local d, pitch, shown = Spread.dots_fit(cw, #dots, threat)
 
 	for j = 1, #DOT do
 		local dot, dot_halo = style[DOT[j]], style[DOT_H[j]]
@@ -257,13 +261,13 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 	end
 
 	-- under the card: its whisper in quotes and its modifiers
-	local whisper_y = y + ch + 6
+	local whisper_y = y + ch - 54
 	local whisper = tostring(card.whisper or "")
-	local mods = string.upper(card.modifiers or "")
+	local mods = ""
 
 	content.whisper = whisper ~= "" and ("\"" .. whisper .. "\"") or ""
 	box(style.whisper, x, whisper_y, cw, 34)
-	paint(style.whisper, 255, Cards.BASE.whisper)
+	paint(style.whisper, 255, suit.text)
 	style.whisper.visible = whisper ~= ""
 
 	content.mods = mods
@@ -282,7 +286,7 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 
 	box(style.bg, 0, 0, w, bottom)
 	paint(style.bg, 225, Cards.BASE.ground)
-	style.bg.visible = true
+	style.bg.visible = false
 
 	box(style.win_t, 0, 0, w, 1)
 	box(style.win_b, 0, bottom - 1, w, 1)
@@ -291,15 +295,15 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 
 	for i = 1, #WIN do
 		paint(style[WIN[i]], 255, Cards.BASE.line)
-		style[WIN[i]].visible = true
+		style[WIN[i]].visible = false
 	end
 
 	content.kicker = string.upper(mod:localize("hud_last_card"))
-	box(style.kicker, 12, 8, 110, 18)
+	box(style.kicker, 0, 0, 88, 18)
 	paint(style.kicker, 255, Cards.BASE.muted)
 	style.kicker.visible = true
 
-	box(style.age, 88, 8, 100, 18)
+	box(style.age, 88, 0, 88, 18)
 	paint(style.age, 255, Cards.BASE.muted)
 	style.age.visible = true
 
@@ -344,6 +348,7 @@ HudElementRealmsWavesLast._refresh = function (self)
 		self:_setup(card, font)
 	end
 
+	self._widget.alpha_multiplier = 1 - math.max(0, math.min(100, tonumber(mod:get("hud_last_transparency")) or 0)) / 100
 	self._visible = true
 	self._widget.visible = true
 	self:_tick_age(age)

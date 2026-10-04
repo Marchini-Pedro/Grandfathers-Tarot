@@ -315,7 +315,7 @@ check("a tile's hotspots do not overlap (a click would reach two of them)", (fun
     local a, b = boxes[i], boxes[j]
     if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4] then return false end
   end end
-  return #boxes == 16
+  return #boxes == 17
 end)())
 check("the ten pip hotspots are side by side from the left edge of the tile to the right one (no dead strip) and only the pips are quiet when the pointer comes over them", (function()
   local boxes, quiet = {}, 0
@@ -323,7 +323,7 @@ check("the ten pip hotspots are side by side from the left edge of the tile to t
     if p.pass_type == "hotspot" and p.content_id:find("^hotspot_pip") then
       boxes[#boxes + 1] = { p.style.offset[1], p.style.size[1], p.style.offset[2], p.style.size[2] }
       if p.content.on_hover_sound == nil and p.content.on_pressed_sound ~= nil then quiet = quiet + 1 end
-    elseif p.pass_type == "hotspot" and p.content.on_hover_sound == nil then
+    elseif p.pass_type == "hotspot" and p.content_id ~= "hotspot_share" and p.content.on_hover_sound == nil then
       return false
     end
   end
@@ -737,17 +737,17 @@ do
   settings.su_custom_1 = "snare"; reload()
   check("warp: choosing another suit wins over the default", tile(13).content.suit_label == "SNARE" and tile(13).style.icon_c4.visible)
   settings.su_custom_1 = nil
-  -- all twelve suits draw a mark
+  -- all fifteen suits draw a mark
   local all_marks = true
   local Cards = mod.rw.cards
   for _, suit in ipairs(Cards.SUIT_ORDER) do
-    settings.su_custom_1 = suit; reload()
+    settings.su_custom_1 = suit; settings.fx_custom_1 = "heal=100:4"; reload()
     local any = false
     for k = 1, 4 do if tile(13).style["icon_t" .. k].visible or tile(13).style["icon_c" .. k].visible then any = true end end
     if not any or tile(13).content.suit_label ~= string.upper(Cards.SUITS[suit].name) then all_marks = false end
   end
-  check("suits: all twelve suits paint a mark and their name on a tile", all_marks)
-  settings.su_custom_1 = nil; settings.wave_def_custom_1 = nil; settings.on_custom_1 = nil; reload()
+  check("suits: all fifteen suits paint a mark and their name on a tile", all_marks)
+  settings.su_custom_1 = nil; settings.fx_custom_1 = nil; settings.wave_def_custom_1 = nil; settings.on_custom_1 = nil; reload()
 end
 
 -- cooldown looks on the tiles: rot and renewal, the murmur returns, the vial fills, the ready ping -------------------------
@@ -879,7 +879,7 @@ do
   local plates = 0
   for i = 1, 12 do if W["rw_plate_" .. i].visible then plates = plates + 1 end end
   check("face: the Mirror: twelve suit plates, the threat diamonds, the whisper field, the cooldown stepper, three look plates and four headers; Back, the tabs and the stage; nothing of the Cauldron", view._screen == "face" and plates == 12 and W.rw_threat_big.visible and W.whisper_field.visible and W.stepper_cooldown.visible and W.rw_look_1.visible and W.rw_look_3.visible and W.mirror_head_4.visible and W.btn_back.visible and W.btn_face.content.hotspot_on == true and W.btn_enemies.visible and stage.visible and W.stage_plate.visible and not W.shelf_panel.visible and not W.rw_erow_1.visible and not W["rw_chip_1"].visible and not W.rw_suit_1.visible and not W.btn_dreg.visible and not W.rw_threat.visible and not W.list_panel.visible and not W.rw_row_1.visible and not W.bottom_panel.visible)
-  check("face: the buttons of the Mirror and the shared ones: Change, Use the suit's line, Automatic for this suit, Reset face, Auto | By hand, the toolbar; the Cauldron's own buttons are hidden", W.btn_whisper_change.visible and W.btn_whisper_suit.visible and W.btn_look_auto.visible and W.btn_reset_face.visible and W.btn_thr_auto.visible and W.btn_thr_hand.visible and W.btn_enabled.visible and W.btn_preview.visible and not W.btn_rename.visible and not W.btn_delete.visible and not W.btn_add.visible and not W.btn_quickface.visible and not W.rw_scroll_up.visible and not W.stepper_chance.visible and not W.stepper_spread.visible)
+  check("face: the buttons of the Mirror and the shared ones: Change, Use the suit's line, Automatic for this suit, Reset face, Auto | By hand, the toolbar; the Cauldron's own buttons are hidden", W.btn_whisper_change.visible and W.btn_whisper_suit.visible and W.btn_look_auto.visible and W.btn_reset_face.visible and not W.btn_thr_auto.visible and not W.btn_thr_hand.visible and W.btn_enabled.visible and W.btn_preview.visible and not W.btn_rename.visible and not W.btn_delete.visible and not W.btn_add.visible and not W.btn_quickface.visible and not W.rw_scroll_up.visible and not W.stepper_chance.visible and not W.stepper_spread.visible)
   check("face: the headers and the title", W.title_text.content.title_text == "view_title_mirror" and W.mirror_head_1.content.head_title == "MIRROR_SUIT" and W.mirror_head_2.content.head_title == "MIRROR_THREAT" and W.mirror_head_3.content.head_title == "MIRROR_WHISPER" and W.mirror_head_4.content.head_title == "MIRROR_COOLDOWN" and W.mirror_head_4.content.head_hint == "mirror_cooldown_hint:10" and W.description_text.content.description_text == "view_desc_face:The Devil")
   check("face: the stage card is this card's tile at 1.4, not clickable, the same widget as on the Cauldron", stage.content.metrics.k == 1.4 and stage.content.name == "The Devil" and stage.content.suit_label == "FATEFUL" and stage.content.hotspot_top.disabled == true)
 
@@ -901,7 +901,7 @@ do
   check("threat: the fifth sets 5, never more", settings.th_boss_ambush == 5 and W.rw_threat_big.content.threat == 5 and stage.style.th_o5.color[1] == 255)
   W.btn_thr_auto.content.hotspot.pressed_callback()
   check("threat: Auto works it out again (3)", settings.th_boss_ambush == 0 and W.rw_threat_big.content.threat == 3 and W.btn_thr_auto.content.hotspot_on == true)
-  check("threat: the diamonds are big (26) in a row of 54, Auto and By hand sit beside them", W.rw_threat_big.def.size[1] == 270 and view._sg.btn_thr_auto[1] == WK.LEFT_X + 270 + 12 and view._sg.btn_thr_hand[1] == view._sg.btn_thr_auto[1] + 76 and view._sg.btn_thr_auto[2] == WK.MIRROR.threat_y + 10)
+  check("threat: six manual diamonds stay available without mode switches", W.rw_threat_big.def.size[1] == 324 and W.rw_threat_big.content.hotspot_t6 ~= nil and not W.btn_thr_auto.visible and not W.btn_thr_hand.visible)
 
   -- In the hand: the card as the Spread HUD draws it, 1.5 times its size
   local hand = W.rw_hand_card
@@ -2439,7 +2439,7 @@ do
     local a, b = boxes[i], boxes[j]
     if a[1] < b[1] + b[3] - 1e-9 and b[1] < a[1] + a[3] - 1e-9 and a[2] < b[2] + b[4] - 1e-9 and b[2] < a[2] + a[4] - 1e-9 then overlap = true end
   end end
-  check("tile scale: 16 hotspots, the ten pips are side by side from edge to edge of the scaled tile, none overlap", #boxes == 16 and flush and not overlap)
+  check("tile scale: 17 hotspots, the ten pips are side by side from edge to edge of the scaled tile, none overlap", #boxes == 17 and flush and not overlap)
 
   -- the name's lines are measured with the scaled box and font, so a name takes the same number of lines
   local long = "The Magician Of Endless Plague"
@@ -2491,15 +2491,15 @@ do
   check("cauldron: four enemy rows of five, the shelf with its 30 chips, twelve suit tiles, the threat control, the stage with the card", W.rw_erow_4.visible and not W.rw_erow_5.visible and W.shelf_panel.visible and n_chips == 30 and n_suits == 12 and W.rw_threat.visible and W.stage_plate.visible and stage.visible and W.enemy_header.visible and W.spawn_label.visible)
   check("cauldron: the table of the other screens is gone: no generic rows, no table panel, no bottom panel", not W.rw_row_1.visible and not W.list_panel.visible and not W.list_header.visible and not W.bottom_panel.visible)
   check("cauldron: the settings of the card: the chance under the card, six spawn steppers, no cooldown stepper", W.stepper_chance.visible and W.stepper_spread.visible and W.stepper_every.visible and W.stepper_for.visible and W.stepper_dmin.visible and W.stepper_dmax.visible and W.stepper_timer.visible and not W.stepper_cooldown.visible)
-  check("cauldron: the tabs: Enemies is selected, Face is not; the toolbar, the quick face and the shelf's switch are shown", W.btn_enemies.visible and W.btn_enemies.content.hotspot_on == true and W.btn_face.visible and W.btn_face.content.hotspot_on == false and W.btn_preview.visible and W.btn_quickface.visible and W.btn_dreg.visible and W.btn_scab.visible and W.btn_thr_auto.visible and W.btn_thr_hand.visible)
+  check("cauldron: the tabs: Enemies is selected, Face is not; the toolbar, the quick face and the shelf's switch are shown", W.btn_enemies.visible and W.btn_enemies.content.hotspot_on == true and W.btn_face.visible and W.btn_face.content.hotspot_on == false and W.btn_preview.visible and W.btn_quickface.visible and W.btn_dreg.visible and W.btn_scab.visible and not W.btn_thr_auto.visible and not W.btn_thr_hand.visible)
 
   -- the card on the stage
   check("stage: the card is the Deck's tile at 1.4 times its size, painted from the card being edited", stage.content.metrics.k == 1.4 and near(stage.def.size[1], 319.2) and near(stage.def.size[2], 378) and stage.content.name == "The Magician" and stage.content.suit_label == "BLIGHT" and plain_lines(stage):find("3 Trapper", 1, true) ~= nil and stage.style.name.font_size == 28)
   local pos = view._definitions.scenegraph_definition.rw_stage_card
   check("stage: the card is centred on its plate and sits inside it (22 below the top)", math.abs(pos.position[1] + pos.size[1] / 2 - (WK.PLATE.x + WK.PLATE.w / 2)) < 0.5 and pos.position[2] == WK.PLATE.y + 22 and pos.position[2] + pos.size[2] <= WK.PLATE.y + WK.PLATE.h - 30)
   local locked = true
-  for _, id in ipairs(view.TILE_HOTSPOTS) do if stage.content[id].disabled ~= true then locked = false end end
-  check("stage: nobody can click the card (every hotspot of the stage tile is disabled)", locked)
+  for _, id in ipairs(view.TILE_HOTSPOTS) do if id ~= "hotspot_share" and stage.content[id].disabled ~= true then locked = false end end
+  check("stage: nobody can click the card (only the share hotspot is active)", locked)
   check("stage: the plate takes the suit's colours (blight: card #25240c, frame #5c5a1e, glow in pus yellow)", W.stage_plate.content.stage.card[1] == 0x25 and W.stage_plate.content.stage.frame[1] == 0x5c and W.stage_plate.content.stage.accent[1] == 0xe3)
   check("stage: the line under the card: threat, enemies and the share of the draw", W.stage_stats.content.stage_stats:find("^stage_stats:3,9,") ~= nil, W.stage_stats.content.stage_stats)
   check("stage: the title, the caption and the labels are set", W.stage_caption.content.stage_caption == "STAGE_CAPTION" and W.quick_label.content.quick_label == "QUICK_LABEL" and W.threat_label.content.threat_label == "LBL_THREAT" and W.spawn_label.content.spawn_label == "SPAWN_LABEL")
@@ -2547,10 +2547,10 @@ do
     local gun, pox = W["rw_chip_" .. chip_of("Gunner")], W["rw_chip_" .. chip_of("chaos_poxwalker")]
     local function fill(w) local pass = pass_by_style(w, "chip_fill"); pass.change_function(w.content, w.style.chip_fill); local c = w.style.chip_fill.color; return { c[2], c[3], c[4] } end
     local function label(w) local pass = pass_by_style(w, "chip_label"); pass.change_function(w.content, w.style.chip_label); local c = w.style.chip_label.text_color; return { c[2], c[3], c[4] } end
-    check("chips: a Scab chip is near black, a Dreg chip olive-dark, a neutral one the button plate; hovering lights it", fill(gun)[1] < 30 and fill(gun)[3] > fill(gun)[1] and (function() local dreg = W["rw_chip_" .. chip_of("cultist_mutant")]; local f = fill(dreg); return f[2] > f[3] + 15 end)() and fill(pox)[1] == 22 and (function() gun.content.hotspot.is_hover = true; local f = fill(gun); gun.content.hotspot.is_hover = false; return f[1] > 30 end)())
-    check("chips: the label of a Scab chip is steel grey, of a Dreg chip putrid yellow (its lit brighter form here: the card has a mutant), of a neutral chip the bone text colour", label(W["rw_chip_" .. chip_of("renegade_executor")])[1] == 170 and label(W["rw_chip_" .. chip_of("renegade_executor")])[3] == 184 and label(W["rw_chip_" .. chip_of("cultist_mutant")])[1] == 238 and label(pox)[1] == 230, table.concat(label(W["rw_chip_" .. chip_of("renegade_executor")]), ",") .. "|" .. table.concat(label(W["rw_chip_" .. chip_of("cultist_mutant")]), ",") .. "|" .. table.concat(label(pox), ","))
-    check("chips: the label box is wider than the chip and left aligned, so a label wider than guessed never breaks in two lines", gun.style.chip_label.size[1] >= 2 * (gun.style.hotspot.size[1] - 14) and gun.style.chip_label.text_horizontal_alignment == "left")
-    check("chips: a chip is wide enough for its word with the real bold sans (Hound is 3.05 em at 16: 49 units), with the dot before and a margin after", WK.chip_width("Hound") >= WK.CHIP_DOT + 49 + 8 and WK.chip_width("Armored Hound") > WK.chip_width("Hound"))
+    check("chips: a Scab chip is near black, a Dreg chip olive-dark, a neutral one the button plate; hovering lights it", fill(gun)[1] < 30 and fill(gun)[3] > fill(gun)[1] and (function() local dreg = W["rw_chip_" .. chip_of("cultist_mutant")]; local f = fill(dreg); return f[2] > f[3] + 15 end)() and fill(pox)[1] == mod.rw.cards.suit(view._wave.suit).card[1] and (function() gun.content.hotspot.is_hover = true; local f = fill(gun); gun.content.hotspot.is_hover = false; return f[1] > 30 end)())
+    check("chips: the label of a Scab chip is steel grey, of a Dreg chip putrid yellow (its lit brighter form here: the card has a mutant), of a neutral chip the bone text colour", label(W["rw_chip_" .. chip_of("renegade_executor")])[1] == 170 and label(W["rw_chip_" .. chip_of("renegade_executor")])[3] == 184 and label(W["rw_chip_" .. chip_of("cultist_mutant")])[1] == 238 and label(pox)[1] == mod.rw.cards.suit(view._wave.suit).text[1], table.concat(label(W["rw_chip_" .. chip_of("renegade_executor")]), ",") .. "|" .. table.concat(label(W["rw_chip_" .. chip_of("cultist_mutant")]), ",") .. "|" .. table.concat(label(pox), ","))
+    check("chips: labels stay inside the shared chip and left aligned", gun.style.chip_label.size[1] <= gun.style.hotspot.size[1] - 22 and gun.style.chip_label.text_horizontal_alignment == "left")
+    check("chips: every enemy shares a compact 156-unit cell", WK.chip_width("Hound") == 156 and WK.chip_width("Armored Hound") == 156)
   end
   click_chip("Gunner")
   check("faction: with Scab chosen the Gunner chip adds the Scab gunner (renegade_gunner), the row says Scab", view._parts[#view._parts].breed == "renegade_gunner" and plain(W["rw_erow_" .. math.min(#view._parts, WK.ROWS)].content.row_name) == "1 Gunner  Scab", view._parts[#view._parts].breed)
@@ -2635,7 +2635,7 @@ do
     local st = view._widgets_by_name.rw_stage_card
     local hn, hw = st.style.hotspot_name, st.style.hotspot_whisper
     check("stage: the name and the line in quotes are click areas inside the card, the name above the line, one to three lines of name high", hn.size[1] > 100 and hn.size[2] >= 24 * 1.4 - 1e-6 and hn.size[2] <= 3 * 24 * 1.4 + 1e-6 and hw.size[2] > 20 and hn.offset[2] + hn.size[2] <= hw.offset[2] and hw.offset[2] + hw.size[2] <= st.content.metrics.h)
-    check("stage: the Deck's click areas of the card stay off (it is not a button)", (function() for _, id in ipairs(view.TILE_HOTSPOTS) do if st.content[id].disabled ~= true then return false end end return true end)())
+    check("stage: the stage enables sharing without Deck edits", (function() for _, id in ipairs(view.TILE_HOTSPOTS) do if id ~= "hotspot_share" and st.content[id].disabled ~= true then return false end end return true end)())
     st.content.hotspot_name.is_hover = true
     local ul = pass_by_style(st, "name_ul")
     check("stage: under the pointer the name is underlined in the suit's accent, the line is not", ul.visibility_function(st.content, st.style.name_ul) == true and pass_by_style(st, "whisper_ul").visibility_function(st.content, st.style.whisper_ul) == false and st.style.name_ul.color[2] == st.style.suit_label.text_color[2])
@@ -3033,6 +3033,15 @@ if UI_DIR and UI_DIR ~= "" then
   view:cb_back()
   click("btn_presets")
   dump_screen("presets")
+  view:cb_back()
+  mod.rw.events.set_def(function(id,v)settings[id]=v end,"custom_20","The Light",{},mod.rw.groups);settings.on_custom_20=true;settings.su_custom_20="prayer";settings.th_custom_20=6
+  settings.fx_custom_20="heal=100:4;cleanse=100:4;green_stimm=4:4;med_crate=4:4;med_station=2:4;cooldown=100:4;reveal=15:4;yellow_stimm=4:4;blue_stimm=15:2"
+  view:_open_detail("custom_20");dump_screen("beneficial")
+  click("btn_face");dump_screen("beneficial_face")
+  view:cb_sound_picker();dump_screen("sounds")
+  Popup_.cancel(view);view:cb_back()
+  settings.su_custom_20="heresy";settings.fx_custom_20="blackout=20:4";mod.rw.events.set_def(function(id,v)settings[id]=v end,"custom_20","DESPAIR",mod.rw.groups.parse("3 hounds"),mod.rw.groups)
+  view:_open_detail("custom_20");dump_screen("despair")
   view:cb_back()
 end
 

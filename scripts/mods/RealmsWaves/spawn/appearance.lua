@@ -13,10 +13,6 @@ local function alive(unit)
 	return unit ~= nil and Unit.alive(unit) and (not HEALTH_ALIVE or HEALTH_ALIVE[unit] ~= false)
 end
 
-local function extension(unit, name)
-	return ScriptUnit.has_extension(unit, name)
-end
-
 local function is_host()
 	local session = Managers.state and Managers.state.game_session
 	return session and session:is_server() == true
@@ -37,7 +33,7 @@ end
 
 local function targets(unit, explicit)
 	local list, seen = { unit }, { [unit] = true }
-	local loadout = extension(unit, "visual_loadout_system")
+	local loadout = ScriptUnit.has_extension(unit, "visual_loadout_system")
 	if explicit and loadout then
 		for slot_name in pairs(loadout:slot_items()) do
 			local slot, attachments = loadout:slot_unit(slot_name)
@@ -51,14 +47,14 @@ local function targets(unit, explicit)
 end
 
 local function normal_colour(unit)
-	local buffs = extension(unit, "buff_system")
+	local buffs = ScriptUnit.has_extension(unit, "buff_system")
 	local effect = buffs and buffs._current_material_vector_effect
 	local value = effect and effect.material_vector_name == "stimmed_color" and effect.value
 	return value and value[1] or 0, value and value[2] or 0, value and value[3] or 0
 end
 
-local function restore(record)
-	if record.outline then
+local function restore(record, keep_outline)
+	if record.outline and not keep_outline then
 		local outline = record.outline
 		if alive(record.unit) then
 			local ok, err = pcall(outline.system.remove_outline, outline.system, record.unit, OUTLINE)
@@ -72,7 +68,8 @@ local function restore(record)
 			for key, value in pairs(outline.previous) do if outline.owned[key] ~= value then unchanged = false end end
 			if unchanged then outline.ext.settings = outline.previous end
 		end
-	elseif record.written then
+	end
+	if record.written then
 		local r, g, b = 0, 0, 0
 		if alive(record.unit) then r, g, b = normal_colour(record.unit) end
 		for unit in pairs(record.written) do
@@ -95,6 +92,21 @@ end
 
 local function apply_record(record)
 	local unit, config = record.unit, record.config
+	local r, g, b = Schema.rgb(config)
+	if (config.method == "outline" or config.outline) and not record.outline and config.a > 0 then
+		local ext = ScriptUnit.has_extension(unit, "outline_system")
+		local manager = Managers.state and Managers.state.extension
+		if ext and manager then
+			local system, previous, owned = manager:system("outline_system"), ext.settings, {}
+			for key, value in pairs(previous) do owned[key] = value end
+			-- Depth-tested only. The game's higher-priority manual smart tag retains its through-wall layers.
+			owned[OUTLINE] = { priority = 2, color = { r, g, b }, material_layers = { "minion_outline" }, visibility_check = function (target) return alive(target) end }
+			ext.settings = owned
+			record.outline = { ext = ext, system = system, previous = previous, owned = owned }
+			system:add_outline(unit, OUTLINE)
+		end
+	end
+	if config.method == "outline" or config.method == "none" then return end
 	if config.method == "natural_stimm" then
 		local actions = require("scripts/settings/breed/breed_actions")[record.breed]
 		if not actions or not actions.use_stim then
@@ -115,31 +127,18 @@ local function apply_record(record)
 				record.armed = true
 			end
 		end
-		local buffs = extension(unit, "buff_system")
+		local buffs = ScriptUnit.has_extension(unit, "buff_system")
 		if not buffs or not buffs:has_keyword("stimmed") then
-			if record.written then restore(record); record.written = nil end
+			if record.written then restore(record, true); record.written = nil end
 			return
 		end
-	end
-	local r, g, b = Schema.rgb(config)
-	if config.method == "outline" then
-		if record.outline or config.a == 0 then return end
-		local ext = extension(unit, "outline_system")
-		local manager = Managers.state and Managers.state.extension
-		if not ext or not manager then return end
-		local system, previous, owned = manager:system("outline_system"), ext.settings, {}
-		for key, value in pairs(previous) do owned[key] = value end
-		owned[OUTLINE] = { priority = 2, color = { r, g, b }, material_layers = { "minion_outline", "minion_outline_reversed_depth" }, visibility_check = function (target) return alive(target) end }
-		ext.settings = owned
-		record.outline = { ext = ext, system = system, previous = previous, owned = owned }
-		system:add_outline(unit, OUTLINE)
-		return
 	end
 	local list, loadout = targets(unit, true)
 	if not loadout then return end -- extensions/loadout can finish after spawn
 	local nr, ng, nb = normal_colour(unit)
 	local stamp = tostring(nr) .. ":" .. tostring(ng) .. ":" .. tostring(nb)
 	local changed = record.stamp ~= stamp
+	if not config.protect and record.written and (nr ~= 0 or ng ~= 0 or nb ~= 0) then r, g, b = nr, ng, nb end
 	record.written = record.written or {}
 	local current = {}
 	for _, target in ipairs(list) do current[target] = true end
@@ -160,15 +159,28 @@ local function apply_record(record)
 	record.stamp = stamp
 end
 
-Appearance.init = function (deps)
-	Schema, Protocol = deps.schema, deps.protocol
+Appearance.init = function (deps) Schema, Protocol = deps.schema, deps.protocol end
+
+Appearance.install = function ()
+	if not mod.hook_require then return end
+	local function refresh(self)
+		local record = records[self._unit]
+		if retired or not record or not record.config.protect then return end
+		record.stamp = nil
+		local ok, err = pcall(apply_record, record)
+		if not ok then warn("protected colour update failed: " .. tostring(err)) end
+	end
+	mod:hook_require("scripts/extension_systems/buff/minion_buff_extension", function (class)
+		if retired then return end
+		for _, name in ipairs({ "_start_material_vector_effect", "_stop_material_vector_effect" }) do mod:hook_safe(class, name, refresh) end
+	end)
 end
 Appearance.epoch = function () return salt .. ":" .. generation end
 
 Appearance.apply = function (unit, config, breed, remote)
 	config = Schema.copy(config)
 	if retired or not config or not alive(unit) then return end
-	if config.method == "none" then remove(unit); return end
+	if config.method == "none" and not config.outline then remove(unit); return end
 	if not Schema.method(config.method).available then warn(Schema.method(config.method).info); return end
 	if not records[unit] and count(records) >= MAX_UNITS then warn("selected-unit limit reached (600)"); return end
 	local record = records[unit]
@@ -191,7 +203,7 @@ Appearance.send_all = function (recipient, clear)
 			local ok, id = pcall(spawner.game_object_id, spawner, unit)
 			if ok and id then
 				local c = record.config
-				list[#list + 1] = { id, clear and "none" or c.method, c.a, c.r, c.g, c.b, record.breed }
+				list[#list + 1] = { id, clear and "none" or c.method, c.a, c.r, c.g, c.b, record.breed, not clear and c.outline == true, not clear and c.protect == true }
 			end
 		end
 	end
@@ -224,7 +236,7 @@ Appearance.update = function (dt)
 		local ok, unit = pcall(function () return spawner and spawner:unit_exists(id) and spawner:unit(id) end)
 		if ok and unit then
 			local got, data, breed = pcall(function ()
-				local data = alive(unit) and extension(unit, "unit_data_system")
+				local data = alive(unit) and ScriptUnit.has_extension(unit, "unit_data_system")
 				return data, data and data:breed()
 			end)
 			if got and breed and breed.name == waiting.entry.breed then

@@ -189,16 +189,16 @@ scenegraph_definition.btn_preview = node(P.x + 242, Workshop.TOOLBAR_Y, 283, 44,
 scenegraph_definition.quick_label = node(P.x, Workshop.QUICK_Y, 200, 28, 2)
 scenegraph_definition.btn_quickface = node(P.x + P.w - 250, Workshop.QUICK_Y - 4, 250, 36, 2)
 
-for i = 1, 12 do
+for i = 1, 15 do
 	local x, y = Workshop.suit_pos(i)
 
 	scenegraph_definition[definitions.SUIT_NODE_PREFIX .. i] = node(x, y, Workshop.SUIT_W, Workshop.SUIT_H, 3)
 end
 
 scenegraph_definition.threat_label = node(P.x, Workshop.THREAT_Y, Workshop.ROW_LABEL_W, 44, 2)
-scenegraph_definition.rw_threat = node(Workshop.THREAT_X, Workshop.THREAT_Y, 5 * Workshop.THREAT_PITCH, 44, 2)
-scenegraph_definition.btn_thr_auto = node(Workshop.THREAT_X + 5 * Workshop.THREAT_PITCH + 12, Workshop.THREAT_Y + 4, 76, 36, 2)
-scenegraph_definition.btn_thr_hand = node(Workshop.THREAT_X + 5 * Workshop.THREAT_PITCH + 12 + 76, Workshop.THREAT_Y + 4, 100, 36, 2)
+scenegraph_definition.rw_threat = node(Workshop.THREAT_X, Workshop.THREAT_Y, 6 * Workshop.THREAT_PITCH, 44, 2)
+scenegraph_definition.btn_thr_auto = node(Workshop.THREAT_X + 6 * Workshop.THREAT_PITCH + 12, Workshop.THREAT_Y + 4, 76, 36, 2)
+scenegraph_definition.btn_thr_hand = node(Workshop.THREAT_X + 6 * Workshop.THREAT_PITCH + 12 + 76, Workshop.THREAT_Y + 4, 100, 36, 2)
 scenegraph_definition.stepper_chance = node(P.x, Workshop.CHANCE_Y, P.w, 48, 2)
 
 -- ---- the Mirror (the card face screen): four sections on the left, the stage of the Cauldron on the right
@@ -213,14 +213,14 @@ end
 
 scenegraph_definition.mirror_desc = node(LX, M.desc_y, Workshop.LEFT_W, M.desc_h, 2)
 
-for i = 1, 12 do
+for i = 1, 15 do
 	local x, y = Workshop.plate_pos(i)
 
 	scenegraph_definition[definitions.PLATE_NODE_PREFIX .. i] = node(x, y, M.plate.w, M.plate.h, 3)
 end
 
-scenegraph_definition.rw_threat_big = node(LX, M.threat_y, 5 * M.threat_pitch, M.threat_h, 2)
-scenegraph_definition.mirror_numbers = node(LX + 5 * M.threat_pitch + 12 + 76 + 100 + 24, M.threat_y, Workshop.LEFT_W - (5 * M.threat_pitch + 12 + 76 + 100 + 24), M.threat_h, 2)
+scenegraph_definition.rw_threat_big = node(LX, M.threat_y, 6 * M.threat_pitch, M.threat_h, 2)
+scenegraph_definition.mirror_numbers = node(LX + 6 * M.threat_pitch + 24, M.threat_y, Workshop.LEFT_W - (6 * M.threat_pitch + 24), M.threat_h, 2)
 scenegraph_definition.whisper_field = node(LX, M.whisper_y, M.whisper_w, M.whisper_h, 2)
 scenegraph_definition.btn_whisper_change = node(LX + M.whisper_w + 12, M.whisper_y, 150, 44, 2)
 scenegraph_definition.btn_whisper_suit = node(LX + M.whisper_w + 12 + 150 + 12, M.whisper_y + 4, Workshop.LEFT_W - (M.whisper_w + 12 + 150 + 12), 36, 2)
@@ -395,7 +395,7 @@ local widget_definitions = {
 	mirror_head_4 = WB.section_head("mirror_head_4"),
 	hand_caption = plain_text("hand_caption", "hand_caption", 16, colors.text, P.w, 28, "left"),
 	mirror_desc = plain_text("mirror_desc", "mirror_desc", 20, colors.muted, Workshop.LEFT_W, M.desc_h, "left", "top"),
-	mirror_numbers = plain_text("mirror_numbers", "mirror_numbers", 19, colors.muted, Workshop.LEFT_W - (5 * M.threat_pitch + 12 + 76 + 100 + 24), M.threat_h, "left", "center"),
+	mirror_numbers = plain_text("mirror_numbers", "mirror_numbers", 19, colors.muted, Workshop.LEFT_W - (6 * M.threat_pitch + 12 + 76 + 100 + 24), M.threat_h, "left", "center"),
 
 	bottom_panel = UIWidget.create_definition({
 		{
@@ -468,6 +468,7 @@ definitions.legend_inputs = {
 
 definitions.scenegraph_definition = scenegraph_definition
 definitions.widget_definitions = widget_definitions
+mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/wave_editor_effects").definitions(scenegraph_definition, widget_definitions, node)
 mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/wave_editor_appearance").definitions(scenegraph_definition, widget_definitions, node)
 
 return definitions
