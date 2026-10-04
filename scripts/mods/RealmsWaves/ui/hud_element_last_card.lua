@@ -233,7 +233,7 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 
 		s_halo.offset[1], s_halo.offset[2] = cx - halo / 2, cy - halo / 2
 		s_outer.offset[1], s_outer.offset[2] = cx - side / 2, cy - side / 2
-		paint(s_halo, threat == 6 and 255 or filled and 70 or 22, threat == 6 and Cards.DESPAIR_EDGE or colour)
+		paint(s_halo, threat == 6 and 255 or filled and 70 or 22, threat == 6 and Cards.threat_edge(card.suit) or colour)
 		paint(s_outer, filled and 255 or 64, colour)
 		s_halo.visible, s_outer.visible = j <= 5 or threat == 6, j <= 5 or threat == 6
 	end

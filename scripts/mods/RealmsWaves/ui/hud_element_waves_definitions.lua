@@ -132,6 +132,7 @@ rect(header_passes, "fuse_fill", zh + 1)
 definitions.THREAT_MAX = 6
 definitions.DOTS_MAX = 6 -- the most dots a card shows (catalog/cards.lua MAX_DOTS)
 definitions.GLOW_MATERIAL = "content/ui/materials/frames/frame_glow_01" -- a soft glowing frame, used by stock HUD elements
+definitions.BLOOD_DROPS = 3 -- the drops that run down from a Heresy card
 
 local function card_passes()
 	local passes = {}
@@ -150,6 +151,12 @@ local function card_passes()
 
 	for _, side in ipairs({ "t", "b", "l", "r" }) do
 		rect(passes, "rare_" .. side, z + 6)
+	end
+
+	-- Heresy bleeds: drops run down from its lower edge (a thin line and a bead), see HudElementRealmsWavesPanel._tick_living
+	for i = 1, definitions.BLOOD_DROPS do
+		rect(passes, "blood_" .. i, z + 6.5)
+		circle(passes, "blood_c" .. i, z + 6.6)
 	end
 
 	for i = 1, Spread.EYE_TRIS do

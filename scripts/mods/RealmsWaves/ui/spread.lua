@@ -546,6 +546,15 @@ Spread.icon = function (id, size, shape)
 		tri(shape, 3, 2, 2, 7.5 * s, 7.5 * s, 16.5 * s, 7.5 * s, 16.5 * s, 16.5 * s)
 		tri(shape, 4, 2, 2, 7.5 * s, 7.5 * s, 16.5 * s, 16.5 * s, 7.5 * s, 16.5 * s)
 		circ(shape, 1, 1, 3, 12 * s, 12 * s, 2.6 * s)
+	elseif id == "faith" then
+		-- a rose in a ring: the ring, five petals around a heart in the card's colour
+		circ(shape, 1, 1, 1, 12 * s, 12 * s, 10 * s)
+		circ(shape, 2, 2, 2, 12 * s, 12 * s, 8 * s)
+		tri(shape, 1, 1, 3, 12 * s, 4.6 * s, 15.6 * s, 10.4 * s, 8.4 * s, 10.4 * s)
+		tri(shape, 2, 1, 3, 15.6 * s, 10.4 * s, 14.6 * s, 17.2 * s, 12 * s, 12.6 * s)
+		tri(shape, 3, 1, 3, 14.6 * s, 17.2 * s, 9.4 * s, 17.2 * s, 12 * s, 12.6 * s)
+		tri(shape, 4, 1, 3, 9.4 * s, 17.2 * s, 8.4 * s, 10.4 * s, 12 * s, 12.6 * s)
+		circ(shape, 3, 2, 4, 12 * s, 12.2 * s, 1.8 * s)
 	elseif id == "prayer" or id == "miracle" or id == "grace" then
 		circ(shape, 1, 1, 1, 12 * s, 12 * s, 10 * s)
 		circ(shape, 2, 2, 2, 12 * s, 12 * s, 8 * s)

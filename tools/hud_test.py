@@ -317,7 +317,7 @@ for _, suit_name in ipairs(Cards.SUIT_ORDER) do
   if n == 0 then icons_ok = false end
 end
 check("icons: every suit mark draws something and stays inside its 18 px box", icons_ok, "plague " .. used.plague .. " murmur " .. used.murmur .. " rage " .. used.rage .. " blight " .. used.blight .. " swarm " .. used.swarm .. " fateful " .. used.fateful)
-check("icons: fifteen suits, and the new six use their own slots (volley 7, snare 4, brute 5, dusk 5, warp 5, heresy 6)", #Cards.SUIT_ORDER == 15 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.dusk == 5 and used.warp == 5 and used.heresy == 6, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " dusk " .. used.dusk .. " warp " .. used.warp .. " heresy " .. tostring(used.heresy))
+check("icons: sixteen suits, and the newer ones use their own slots (volley 7, snare 4, brute 5, dusk 5, warp 5, heresy 6, faith 7)", #Cards.SUIT_ORDER == 16 and used.faith == 7 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.dusk == 5 and used.warp == 5 and used.heresy == 6, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " dusk " .. used.dusk .. " warp " .. used.warp .. " heresy " .. tostring(used.heresy))
 check("icons: at the Deck's 26 units every mark also stays inside its box", (function()
   for _, suit_name in ipairs(Cards.SUIT_ORDER) do
     Spread.icon(Cards.SUITS[suit_name].icon, 26, icon)
@@ -859,10 +859,13 @@ do
   current_view = view_of({ hand = special_hand, remaining = 9.5, hand_seq = 40, win = 3 })
   frame(e)
   local h = function(i) return e._widgets_by_name["card_" .. i] end
-  check("heresy: at rest the frame is on, two units thick, in the suit's blood red (a swarm card has none)", h(1).style.rare_t.visible and h(1).style.rare_t.size[2] == 2 and h(1).style.rare_l.size[1] == 2 and h(1).style.rare_t.color[2] == 0xa3 and h(1).style.rare_t.color[3] == 0x20 and not h(3).style.rare_t.visible)
-  check("heresy: the glow smoulders at rest (visible, blood red, low); the other suits glow only when highlighted", h(1).style.glow.visible and h(1).style.glow.color[1] == 110 and h(1).style.glow.color[2] == 0xa3 and not h(3).style.glow.visible)
-  check("heresy: the face is the black red, the bar gilded, the name bone-coloured", h(1).style.bg.color[2] == 0x14 and h(1).style.bg.color[3] == 0x07 and h(1).style.accent.color[2] == 0xe5 and h(1).style.accent.color[3] == 0xb9 and h(1).style.name.text_color[2] == 0xf3)
-  check("heresy: a card an older host calls fester is drawn as Heresy", h(2).style.bg.color[2] == 0x14 and h(2).style.rare_t.visible and h(2).style.glow.visible)
+  local function blood_red(c) return c[2] >= 0x8a and c[3] <= 0x34 and c[4] <= 0x45 end
+  check("heresy: at rest the frame is on, two units thick, in fresh blood red that beats toward the lit red (a swarm card has none)", h(1).style.rare_t.visible and h(1).style.rare_t.size[2] == 2 and h(1).style.rare_l.size[1] == 2 and blood_red(h(1).style.rare_t.color) and not h(3).style.rare_t.visible)
+  check("heresy: the glow beats at rest (visible, blood red, between 55 and 100 percent of its resting strength); the other suits glow only when highlighted", h(1).style.glow.visible and h(1).style.glow.color[1] >= 60 and h(1).style.glow.color[1] <= 110 and blood_red(h(1).style.glow.color) and not h(3).style.glow.visible)
+  check("heresy: the heartbeat moves the glow from frame to frame", (function() local seen = {} for k = 1, 30 do frame(e, 0.033); seen[h(1).style.glow.color[1]] = true end local n = 0 for _ in pairs(seen) do n = n + 1 end return n >= 4 end)())
+  check("heresy: blood runs down from its lower edge (three drops below the card); no other suit bleeds", h(1).style.blood_1.visible and h(1).style.blood_3.visible and h(1).style.blood_c2.visible and h(1).style.blood_1.offset[2] >= h(1).style.bg.offset[2] + h(1).style.bg.size[2] - 2 and not h(3).style.blood_1.visible)
+  check("heresy: the face is near black with blood in it, the bar crimson, the name pale", h(1).style.bg.color[2] == 0x0d and h(1).style.bg.color[3] == 0x02 and h(1).style.accent.color[2] == 0xd4 and h(1).style.accent.color[3] == 0x2a and h(1).style.name.text_color[2] == 0xef)
+  check("heresy: a card an older host calls fester is drawn as Heresy", h(2).style.bg.color[2] == 0x0d and h(2).style.rare_t.visible and h(2).style.glow.visible and h(2).style.blood_1.visible)
   check("heresy: its suit mark is the broken halo (six shapes) and it stays inside the card", (function()
     local tris, circs = 0, 0
     for i = 1, Spread.ICON_TRIS do if h(1).style["icon_t" .. i].visible then tris = tris + 1 end end
@@ -874,21 +877,56 @@ do
   current_view = view_of({ hand = special_hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.05, win = 1, hand_seq = 41 })
   frame(e)
   local bn = e._widgets_by_name.banner
-  check("heresy: drawn, the banner says 'Heresy is drawn' in the lit red and the name is gilded; the card's glow flares", bn.content.kicker == "HUD_CARD_DRAWN_SPECIAL" and bn.style.kicker.text_color[2] == 0xe8 and bn.style.name.text_color[2] == 0xe5 and h(1).style.glow.color[1] == 220, tostring(bn.content.kicker))
+  check("heresy: drawn, the banner says 'Heresy is drawn' in the lit red and the name is crimson; the card's glow flares (beating between 121 and 220)", bn.content.kicker == "HUD_CARD_DRAWN_SPECIAL" and bn.style.kicker.text_color[2] == 0xff and bn.style.name.text_color[2] == 0xd4 and h(1).style.glow.color[1] >= 121 and h(1).style.glow.color[1] <= 220, tostring(bn.content.kicker))
   current_view = view_of({ hand = special_hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.05, win = 3, hand_seq = 42 })
   frame(e)
-  check("heresy: another card drawn keeps the ordinary banner line", bn.content.kicker == "HUD_CARD_DRAWN" and bn.style.kicker.text_color[2] ~= 0xe8)
+  check("heresy: another card drawn keeps the ordinary banner line", bn.content.kicker == "HUD_CARD_DRAWN" and bn.style.kicker.text_color[2] ~= 0xff)
   audit_ok("heresy reveal", e)
+end
+
+-- the murmur: a threat 5 or 6 card writes its whisper letter by letter once it is drawn; lower threats show it whole at once
+do
+  local e = new_element()
+  local line = "Do you hear it? Sch\195\182n."
+  local hand = { card("m5", "The Watcher", "murmur", 5, { "renegade_sniper" }, line), card("m3", "The Pilgrim", "swarm", 3, { "chaos_poxwalker" }, line) }
+  current_view = view_of({ hand = hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.4, win = 1, hand_seq = 140 })
+  frame(e)
+  local bn = e._widgets_by_name.banner
+  local early = bn.content.whisper
+  check("murmur: shortly after a threat 5 card is shown its whisper is only partly written and the quote is still open", #early > 1 and #early < #line + 2 and early:sub(-1) ~= "\"" , early)
+  check("murmur: the cut never falls inside a two-byte letter", (function()
+    for k = 0, 40 do
+      current_view = view_of({ hand = hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = k * 0.05, win = 1, hand_seq = 140 }); frame(e)
+      local w = bn.content.whisper:gsub("^\"", ""):gsub("\"$", "")
+      if w:sub(-1) == "\195" then return false end
+    end
+    return true
+  end)())
+  current_view = view_of({ hand = hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 1.9, win = 1, hand_seq = 140 })
+  frame(e)
+  check("murmur: after the murmur the whisper is whole and closed", bn.content.whisper == "\"" .. line .. "\"", bn.content.whisper)
+  current_view = view_of({ hand = hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.4, win = 2, hand_seq = 141 })
+  frame(e)
+  check("murmur: a threat 3 card shows its whole whisper at once", bn.content.whisper == "\"" .. line .. "\"", bn.content.whisper)
+  -- the sixth diamond shines: Despair breathes, its halo grows and darkens from frame to frame
+  local six = { card("d6", "Despair", "brute", 6, { "chaos_ogryn_executor" }, "It does not stop.") }
+  current_view = view_of({ hand = six, remaining = 9.5, win = 1, hand_seq = 142 })
+  frame(e)
+  local w = e._widgets_by_name.card_1
+  check("despair: all six diamonds are shown, dark, with a halo larger than the diamond", w.style.th_o6.visible and w.style.th_h6.visible and w.style.th_o6.color[2] < 0x40 and w.style.th_h6.size[1] > Spread.THREAT_SIDE + 1.3)
+  check("despair: the halo breathes (its size and colour change over time)", (function() local sizes = {} for k = 1, 40 do frame(e, 0.05); sizes[math.floor(w.style.th_h6.size[1] * 10)] = true end local n = 0 for _ in pairs(sizes) do n = n + 1 end return n >= 4 end)())
+  audit_ok("murmur and despair", e)
 end
 
 do
   local e=new_element()
-  for i,suit in ipairs({"prayer","miracle","grace"}) do
+  for i,suit in ipairs({"prayer","miracle","grace","faith"}) do
     local selected=card("b"..i,"The Light",suit,6,{},"Carry the light.")
     current_view=view_of({hand={selected},remaining=9.5,win=1,hand_seq=80+i})
     frame(e)
     local w=e._widgets_by_name.card_1
-    check("blessing: full Draw face and six edged pips "..suit,w.visible and w.style.th_o6.visible and w.style.th_h6.color[2]==0xc7 and w.style.th_o6.color[2]==Cards.SUITS[suit].accent[1])
+    local acc=Cards.SUITS[suit].accent
+    check("blessing: full Draw face and six pips that glitter in light (Apotheosis: the halo between the accent and warm white, never Despair's lilac) "..suit,w.visible and w.style.th_o6.visible and w.style.th_h6.color[2]>=acc[1]-1 and w.style.th_h6.color[2]~=0xc7 and w.style.th_o6.color[2]>=acc[1]-1)
     current_view=view_of({hand={selected},phase="waiting",remaining=100,hand_seconds=0,drawn=true,drawn_age=0.05,win=1,hand_seq=90+i});frame(e)
     check("blessing: banner uses blessing caption and hides modifiers "..suit,e._widgets_by_name.banner.content.kicker=="HUD_CARD_DRAWN_BENEFICIAL" and not e._widgets_by_name.banner.style.mods.visible)
     audit_ok("blessing Draw "..suit,e)
@@ -968,10 +1006,10 @@ do
   -- Heresy: the frame at rest and the glow, as in the Spread
   current_view = last_view(lc("h", "The Turncoat", "heresy", 4, { "renegade_shocktrooper" }, "He does not answer."), 3, 1)
   last_frame(el)
-  check("last card: a Heresy card keeps its blood-red frame (two units) and its glow that smoulders in the window too, and the window's own line stays neutral", w.style.rare_t.visible and w.style.rare_t.size[2] == 2 and w.style.rare_t.color[2] == 0xa3 and w.style.glow.visible and w.style.glow.color[2] == 0xa3 and w.style.win_t.color[2] == 0x3a and w.style.card_bg.color[2] == 0x14)
+  check("last card: a Heresy card keeps its blood-red frame (two units) and its glow in the window too, and the window's own line stays neutral", w.style.rare_t.visible and w.style.rare_t.size[2] == 2 and w.style.rare_t.color[2] == 0x8a and w.style.glow.visible and w.style.glow.color[2] == 0x8a and w.style.win_t.color[2] == 0x3a and w.style.card_bg.color[2] == 0x0d)
   current_view = last_view(lc("f", "Old Pox", "fester", 2, {}, ""), 4, 1)
   last_frame(el)
-  check("last card: a card an older host calls fester is Heresy", w.style.card_bg.color[2] == 0x14 and w.style.rare_t.visible and w.style.whisper.visible == false and w.style.mods.visible == false)
+  check("last card: a card an older host calls fester is Heresy", w.style.card_bg.color[2] == 0x0d and w.style.rare_t.visible and w.style.whisper.visible == false and w.style.mods.visible == false)
   audit_ok("last card (heresy)", el)
 
   -- a three-line name, the longest whisper and modifiers: everything still fits the node
@@ -984,10 +1022,10 @@ do
   last_frame(el)
   check("last card: long modifier lists remain hidden", not w.style.mods.visible and w.content.mods == "" and w.style.card_bg.offset[2] + w.style.card_bg.size[2] <= LastDefs.HEIGHT)
 
-  for i,suit in ipairs({"heresy","prayer","miracle","grace"}) do
+  for i,suit in ipairs({"heresy","prayer","miracle","grace","faith"}) do
     local card=lc("bless-"..i,"The Light",suit,6,{},"Carry the light.","Purple")
     current_view=last_view(card,60+i,1);last_frame(el)
-    check("last card: full special face and DESPAIR "..suit,w.style.th_o6.visible and w.style.th_h6.color[2]==0xc7 and w.style.sigil_ring.visible and not w.style.mods.visible and not w.style.bg.visible and inside(el))
+    check("last card: full special face and the sixth diamond's edge (DESPAIR lilac on Heresy, APOTHEOSIS warm white on blessings) "..suit,w.style.th_o6.visible and w.style.th_h6.color[2]==(suit=="heresy" and 0xc7 or 0xff) and w.style.sigil_ring.visible and not w.style.mods.visible and not w.style.bg.visible and inside(el))
   end
   settings.hud_last_transparency=75;settings.hud_transparency=0;last_frame(el)
   check("last card: independent transparency changes without new card",w.alpha_multiplier==0.25)

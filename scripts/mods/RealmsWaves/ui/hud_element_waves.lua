@@ -45,6 +45,10 @@ local ICON_C = { "icon_c1", "icon_c2", "icon_c3", "icon_c4" }
 local ICON_TH = { "icon_th1", "icon_th2", "icon_th3", "icon_th4" }
 local ICON_CH = { "icon_ch1", "icon_ch2", "icon_ch3", "icon_ch4" }
 local TH_H = { "th_h1", "th_h2", "th_h3", "th_h4", "th_h5", "th_h6" }
+local BLOOD, BLOOD_C = { "blood_1", "blood_2", "blood_3" }, { "blood_c1", "blood_c2", "blood_c3" }
+local MURMUR_SECONDS = 1.6 -- a threat 5 or 6 card writes its whisper letter by letter in this time after it is shown
+local DESPAIR_DEEP = { 44, 24, 70 } -- the dark end of Despair's breathing halo (the pale end is Cards.DESPAIR_EDGE)
+local WARM_WHITE = { 255, 250, 236 } -- the bright end of Apotheosis' glitter
 local TH_O = { "th_o1", "th_o2", "th_o3", "th_o4", "th_o5", "th_o6" }
 local DOT_H = { "dh_1", "dh_2", "dh_3", "dh_4", "dh_5", "dh_6" }
 local DOT = { "dot_1", "dot_2", "dot_3", "dot_4", "dot_5", "dot_6" }
@@ -189,7 +193,7 @@ HudElementRealmsWavesPanel.init = function (self, parent, draw_layer, start_scal
 			mode = 0, eye_open = 0, suit = nil, threat = 1, dots = 0, dot_d = 9, dot_pitch = 13, name = "", x = 0, y = 0, cw = 0, ch = 0,
 			tri_col = { 1, 1, 1, 1 }, circ_col = { 1, 1, 1, 1 }, rare = false,
 			-- the chosen card loses its colour: 0 = as it is, 1 = completely grey; the palette is rewritten into these
-			desat = 0, tmp = { 0, 0, 0 }, p_bg = { 0, 0, 0 }, p_accent = { 0, 0, 0 }, p_text = { 0, 0, 0 },
+			desat = 0, tmp = { 0, 0, 0 }, p_bg = { 0, 0, 0 }, p_accent = { 0, 0, 0 }, p_text = { 0, 0, 0 }, mix = { 0, 0, 0 }, mix2 = { 0, 0, 0 },
 			dot_rgb = { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 } },
 		}
 	end
@@ -599,7 +603,7 @@ HudElementRealmsWavesPanel._apply_colors = function (self, index)
 		local filled = j <= rec.threat
 		local rgb = Spread.grey(rec.tmp, filled and threat_rgb or Cards.BASE.muted, t)
 
-		local halo_rgb = rec.threat == 6 and Cards.DESPAIR_EDGE or rgb
+		local halo_rgb = rec.threat == 6 and Cards.threat_edge(rec.suit) or rgb
 		paint(style[TH_H[j]], rec.threat == 6 and 220 or (filled and 70 or 22), halo_rgb)
 		paint(style[TH_O[j]], filled and 255 or 64, rgb)
 		local visible = j <= 5 or rec.threat == 6
@@ -813,6 +817,10 @@ HudElementRealmsWavesPanel._setup_banner = function (self, card)
 	widget.content.kicker = string.upper(mod:localize(suit.beneficial and "hud_card_drawn_beneficial" or (suit.special and "hud_card_drawn_special" or "hud_card_drawn")))
 	widget.content.name = card.name
 	widget.content.whisper = "\"" .. tostring(card.whisper or "") .. "\""
+	-- threat 5 and 6: the whisper murmurs, it comes back letter by letter once the card is shown (see _tick_banner)
+	self._banner_text = tostring(card.whisper or "")
+	self._banner_murmur = Cards.murmurs(card.threat)
+	self._banner_letters = nil
 	widget.content.mods = ""
 
 	box(style.kicker, 0, y, width, 18)
@@ -902,6 +910,96 @@ HudElementRealmsWavesPanel._tick_banner = function (self, tl)
 	banner.visible = alpha > 0.01
 	banner.alpha_multiplier = alpha
 	banner.offset[2] = -8 * (1 - rise)
+
+	if self._banner_murmur then
+		local Cards = cards_module()
+		local text = self._banner_text
+		local letters = Cards.whisper_letters(text, Spread.clamp(tl.reveal_t / MURMUR_SECONDS, 0, 1))
+
+		-- the text is rebuilt only when another letter has appeared (a string a frame would be garbage)
+		if letters ~= self._banner_letters then
+			self._banner_letters = letters
+			banner.content.whisper = "\"" .. Cards.utf8_cut(text, letters) .. (letters >= #text and "\"" or "")
+		end
+	end
+end
+
+-- a = a + (b - a) * k for {r, g, b}, written into out
+local function mix_into(out, a, b, k)
+	out[1], out[2], out[3] = a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k, a[3] + (b[3] - a[3]) * k
+
+	return out
+end
+
+-- Every frame, for every card that is shown: what lives on it. A Heresy card's glow and frame beat like a heart and blood runs
+-- down from it; the sixth diamond of a threat 6 card shines (Despair breathes darkly, Apotheosis glitters in light).
+HudElementRealmsWavesPanel._tick_living = function (self)
+	if not self._stage or self._stage == "waiting" then
+		return
+	end
+
+	local Cards = cards_module()
+	local by_name = self._widgets_by_name
+	local clock = self._clock
+
+	for i = 1, self._count do
+		local rec = self._cards[i]
+		local suit = rec.suit
+		local style = by_name[CARD[i]].style
+
+		if suit and suit.blood then
+			local beat = Cards.heartbeat(clock + i * 0.13)
+			local base = rec.mode == 2 and 220 or rec.mode == 1 and 170 or 110
+
+			paint(style.glow, math.floor(base * (0.55 + 0.45 * beat) + 0.5), Spread.grey(rec.tmp, mix_into(rec.mix, suit.frame, suit.lit, 0.6 * beat), rec.desat))
+
+			for j = 1, #RARE do
+				paint(style[RARE[j]], 255, Spread.grey(rec.tmp, mix_into(rec.mix, suit.frame, suit.lit, 0.5 * beat), rec.desat))
+			end
+
+			for k = 1, #BLOOD do
+				local phase = (clock * 0.45 + k * 0.37) % 1
+				local length = 3 + 14 * phase
+				local x = rec.x + rec.cw * (0.22 + 0.28 * (k - 1))
+				local y = rec.y + rec.ch - 1
+				local alpha = math.floor(255 * (1 - phase) + 0.5)
+
+				box(style[BLOOD[k]], x, y, 2, length)
+				box(style[BLOOD_C[k]], x - 1.5, y + length - 2.5, 5, 5)
+				paint(style[BLOOD[k]], alpha, Spread.grey(rec.tmp, suit.blood, rec.desat))
+				paint(style[BLOOD_C[k]], alpha, Spread.grey(rec.tmp, suit.frame, rec.desat))
+				style[BLOOD[k]].visible, style[BLOOD_C[k]].visible = true, true
+			end
+		else
+			for k = 1, #BLOOD do
+				style[BLOOD[k]].visible, style[BLOOD_C[k]].visible = false, false
+			end
+		end
+
+		if rec.threat == 6 and suit then
+			local shine = Cards.six_shine(clock + i * 0.21, suit)
+			local side = Spread.THREAT_SIDE
+			local halo = side + 1.4 + 2.6 * shine
+			local cy = rec.y + rec.ch - Spread.PAD_Y - Spread.ROW_HEIGHT / 2
+			local fill = Cards.threat_color(6, suit)
+
+			for j = 1, #TH_O do
+				local cx = rec.x + Spread.ACCENT_WIDTH + Spread.PAD_X + side / 2 + (j - 1) * Spread.THREAT_PITCH
+				local s_halo, s_outer = style[TH_H[j]], style[TH_O[j]]
+
+				s_halo.size[1], s_halo.size[2], s_halo.pivot[1], s_halo.pivot[2] = halo, halo, halo / 2, halo / 2
+				s_halo.offset[1], s_halo.offset[2] = cx - halo / 2, cy - halo / 2
+
+				if suit.beneficial then
+					paint(s_halo, math.floor(160 + 95 * shine), Spread.grey(rec.tmp, mix_into(rec.mix, suit.accent, Cards.APOTHEOSIS_EDGE, shine), rec.desat))
+					paint(s_outer, 255, Spread.grey(rec.tmp, mix_into(rec.mix2, fill, WARM_WHITE, 0.45 * shine), rec.desat))
+				else
+					paint(s_halo, math.floor(140 + 115 * shine), Spread.grey(rec.tmp, mix_into(rec.mix, DESPAIR_DEEP, Cards.DESPAIR_EDGE, shine), rec.desat))
+					paint(s_outer, 255, Spread.grey(rec.tmp, mix_into(rec.mix2, fill, DESPAIR_DEEP, 0.6 * shine), rec.desat))
+				end
+			end
+		end
+	end
 end
 
 -- The chosen card loses its colour from the moment it is shown until it is completely grey (tl.desat 0..1). Its colours
@@ -1142,6 +1240,7 @@ HudElementRealmsWavesPanel._refresh_tarot = function (self, view, dt)
 		self:_tick_rot(tl)
 	end
 
+	self:_tick_living()
 	self:_refresh_header(view, tl)
 end
 
