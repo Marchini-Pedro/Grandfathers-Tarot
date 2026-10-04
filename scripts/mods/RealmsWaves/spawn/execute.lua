@@ -382,15 +382,12 @@ Execute.start_wave = function (def)
 		rep = { parts = def.parts, picks = picks, every = every, total = rep_for, clock = 0, next = every, done = every > rep_for }
 	end
 
-	local ticket
 	if Effects then
 		local ok, result = Effects.start(def)
 		if not ok then return false, result end
-		ticket = result
 	end
 
 	jobs[#jobs + 1] = {
-		ticket = ticket,
 		name = def.name,
 		test = def.test == true, -- explicit /rw_test: may fall back to a ring around the player where no hidden points exist
 		close = def.close == true, -- /rw_test_close: right in front of the local player, facing them (no hidden points, no ring)
@@ -704,7 +701,6 @@ Execute.update = function (dt, paused)
 		run_repeats(job, dt)
 
 		if job.age > job.timeout or (#job.queue == 0 and (not job.rep or job.rep.done)) then
-			if Effects then Effects.finish(job.ticket, job.age > job.timeout or (job.failed or 0) > 0) end
 			table.remove(jobs, i)
 		end
 	end
@@ -780,9 +776,6 @@ Execute.update = function (dt, paused)
 
 		if ok then
 			job.spawned = job.spawned + 1
-			if Effects then Effects.add_unit(job.ticket, why) end
-		else
-			if job.ticket then job.ticket.failed = true end
 		end
 		if not ok and why then
 			job.failed = (job.failed or 0) + 1

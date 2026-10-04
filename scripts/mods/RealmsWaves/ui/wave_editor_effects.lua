@@ -6,7 +6,7 @@
 -- Healing, Buffs, Items and Game Effects. A chip adds its effect, a second click takes it off. Recharge Med Station is shown
 -- greyed: off for now.
 --
--- The completion sound (screen "sounds"): the list of the game's events (Preview on every row plays it, Select puts it in the open
+-- The card sound (screen "sounds"; played when the card is drawn, the wave spawns when it ends): the list of the game's events (Preview on every row plays it, Select puts it in the open
 -- slot), a Search button, two slots (the second plays after the first) and a volume slider for each (catalog/sounds.lua).
 local mod = get_mod("RealmsWaves")
 local UIWidget = require("scripts/managers/ui/ui_widget")
@@ -138,8 +138,8 @@ EffectsView.definitions = function (nodes, widgets, node)
 		widgets[name] = WB.shelf_chip(name, chip.w, true)
 	end
 
-	-- the buttons under the card (Completion sound, Blackout) and the Deck's Search
-	for _, button in ipairs({ { "rw_sound", 1290, 958, 255, "Completion sound" }, { "rw_blackout", 1560, 958, 255, "Blackout" }, { "rw_deck_search", 325, 800, 300, "Search cards" } }) do
+	-- the buttons under the card (Card sound, Blackout) and the Deck's Search
+	for _, button in ipairs({ { "rw_sound", 1290, 958, 255, "Card sound" }, { "rw_blackout", 1560, 958, 255, "Blackout" }, { "rw_deck_search", 325, 800, 300, "Search cards" } }) do
 		local name, passes = button[1], {}
 
 		nodes[name] = node(button[2], button[3], button[4], 44, 4)
@@ -459,7 +459,7 @@ EffectsView.install = function (View, h)
 
 	View.cb_blackout = h.guarded(function (self) if self._wave and not Schema.beneficial(self._wave.suit) then number(self, Schema.definition("blackout")) end end)
 
-	-- ------------------------------------------------------------------------------------- the completion sound
+	-- ------------------------------------------------------------------------------------- the card sound
 	local function search_results(self, query)
 		self._sound_results = Sounds.search(query or "", self._wave, mod.rw.groups)
 		table.insert(self._sound_results, 1, { event = "", score = 0 })

@@ -423,10 +423,53 @@ local function remember_card(card)
 	mark_changed()
 end
 
+-- A wave goes out. With a sound (2026-10-04) the sound plays first, for everyone, the moment the card is picked, and the wave spawns
+-- when the host's sound has ended (never later than ALERT_LONGEST seconds); without one it spawns at once. Returns what
+-- Execute.start_wave returns (a held wave counts as started; a failure when it is released is warned).
+local ALERT_LONGEST = 20
+local held = {}
+
+local function launch(def, key)
+	local job = Director.effects and Director.effects.alert and Director.effects.alert(def.sound)
+
+	-- the journal holds the alert now: send the state, so the other players hear it at once
+	if def.sound and def.sound ~= "" then
+		mark_changed()
+	end
+
+	if job and not job.done then
+		held[#held + 1] = { def = def, key = key, job = job, age = 0 }
+
+		return true
+	end
+
+	return Execute.start_wave(def)
+end
+
+local function release_held(dt)
+	for i = #held, 1, -1 do
+		local wave = held[i]
+
+		wave.age = wave.age + dt
+
+		if wave.job.done or wave.age >= ALERT_LONGEST then
+			table.remove(held, i)
+
+			local ok, err = Execute.start_wave(wave.def)
+
+			if not ok then
+				mod:warning("RealmsWaves: wave %s not started after its sound: %s", tostring(wave.key), tostring(err))
+			end
+		end
+	end
+end
+
+Director.held_count = function () return #held end
+
 -- The wave of the picked card goes out; its cooldown starts now.
 local function pick_card(state)
 	local card = state.hand.cards[state.hand.win]
-	local ok, err = Execute.start_wave(card.entry.def)
+	local ok, err = launch(card.entry.def, card.key)
 
 	if not ok then
 		mod:warning("RealmsWaves: card %s not started: %s", tostring(card.key), tostring(err))
@@ -563,7 +606,7 @@ local function start_cycle(first)
 end
 
 local function fire(cand)
-	local ok, err = Execute.start_wave(cand.def)
+	local ok, err = launch(cand.def, cand.key)
 
 	if not ok then
 		mod:warning("RealmsWaves: wave %s not started: %s", tostring(cand.key), tostring(err))
@@ -705,7 +748,7 @@ end
 local timed_warning_at = -math.huge
 
 local function fire_timed(wave)
-	local ok, err = Execute.start_wave(wave.def)
+	local ok, err = launch(wave.def, wave.key)
 
 	if not ok and clock - timed_warning_at >= 5 then
 		timed_warning_at = clock
@@ -855,6 +898,11 @@ Director.update = function (dt)
 	if Director.is_host() then
 		if Execute.has_authority() then
 			host_update(dt)
+
+			if not (paused or stopped) then
+				release_held(dt)
+			end
+
 			Execute.update(dt, paused or stopped)
 		end
 	elseif Tuning then
@@ -880,6 +928,7 @@ Director.reset = function ()
 	cool_map, cool_map_at = {}, -math.huge
 	client_cooldowns = {}
 	my_vote, my_vote_ballot = nil, nil
+	held = {}
 	Votes.close()
 	Execute.reset()
 end
@@ -958,6 +1007,7 @@ Director.stop = function ()
 	stopped, paused = true, false
 	last_card = nil
 	timers, timer_check = {}, 0
+	held = {}
 	Execute.cancel()
 	Votes.close()
 

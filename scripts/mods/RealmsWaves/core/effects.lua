@@ -4,7 +4,7 @@ local Schema = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/effec
 local Sounds = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/sounds")
 local Effects = {}
 local clock, cadence, reveal_until, blackout_until = 0, 0, 0, 0
-local lights, buffs, outlines, tickets, audio = {}, {}, {}, {}, {}
+local lights, buffs, outlines, audio = {}, {}, {}, {}
 local sequence, received, warned = 0, nil, {}
 local grants, grant_sequence, grant_received = {}, 0, nil
 local revision, received_revision, received_time = 0, nil, nil
@@ -39,7 +39,7 @@ local function game_time() return require("scripts/utilities/fixed_frame").get_l
 -- the local player's unit, in the level's own sound world (where the listener is), as the game plays the player's own sounds
 -- (player_unit_fx_extension.lua). Without a player unit (a menu) it falls back to the UI world with no source (2D events only).
 -- Volume below 100 sets the game's sfx volume parameter on that source: EXPERIMENTAL (no per-sound volume exists). Volume 0 never plays.
-local CHAIN_GAP, CHAIN_LONGEST = 2.5, 12
+local CHAIN_GAP, CHAIN_LONGEST, CHAIN_MIN = 2.5, 12, 0.3
 local chain, audio_clock = {}, 0
 local function listener_unit()
 	local manager = Managers.player
@@ -77,21 +77,29 @@ local function trigger(event, volume)
 	local wwise = Managers.world:wwise_world(world)
 	return fire(wwise, event, voice_line(event) and WwiseWorld.make_manual_source(wwise, Vector3.zero(), Quaternion.identity()) or nil), wwise
 end
-local function start_entry(list, index)
+-- `job` (an alert, see Effects.alert) is marked done when the last sound of the list has ended
+local function start_entry(list, index, job)
 	local entry = list[index]
-	if not entry then return end
-	if entry.volume <= 0 then return start_entry(list, index + 1) end
+	if not entry then
+		if job then job.done = true end
+		return
+	end
+	if entry.volume <= 0 then return start_entry(list, index + 1, job) end
 	local ok, id, wwise = pcall(trigger, entry.event, entry.volume)
 	if not ok then warn("sound unavailable: " .. tostring(id)); id, wwise = nil, nil end
-	if list[index + 1] then
-		chain[#chain + 1] = { list = list, next = index + 1, id = id, wwise = wwise, started = audio_clock }
+	if list[index + 1] or job then
+		chain[#chain + 1] = { list = list, next = index + 1, id = id, wwise = wwise, started = audio_clock, job = job }
 		if #chain > 8 then table.remove(chain, 1) end
 	end
 end
+-- Plays a card's sound text; returns the job { done } of the whole list (nil when muted or silent)
 local function play(text)
-	if mod:get("card_sounds") == false then return end
+	if mod:get("card_sounds") == false then return nil end
 	local list = Sounds.parse(text)
-	if #list > 0 then start_entry(list, 1) end
+	if #list == 0 then return nil end
+	local job = { done = false }
+	start_entry(list, 1, job)
+	return job
 end
 Effects.preview_sound = play
 -- Every frame, everywhere (the editor's preview plays in the hub too): the second sounds of the chain.
@@ -102,12 +110,13 @@ Effects.tick_audio = function (dt)
 		local age, done = audio_clock - item.started, false
 		if age >= CHAIN_LONGEST then done = true
 		elseif item.id and item.wwise then
+			-- (a sound may not report itself as playing on its first frame: never done before CHAIN_MIN)
 			local ok, playing = pcall(WwiseWorld.is_playing, item.wwise, item.id)
-			done = not ok or not playing
+			done = age >= CHAIN_MIN and (not ok or not playing)
 		else done = age >= CHAIN_GAP end
 		if done then
 			table.remove(chain, i)
-			start_entry(item.list, item.next)
+			start_entry(item.list, item.next, item.job)
 		end
 	end
 end
@@ -252,7 +261,6 @@ local function apply(id, effect, list)
 end
 Effects.start = function (def)
 	if not host() then return false, "card effects require host authority" end
-	if Sounds.has(def.sound) and #tickets >= 64 then return false, "64 unfinished sounding cards are already tracked" end
 	local values = Schema.allowed(Schema.parse(Schema.encode(def.effects)) or {}, def.suit)
 	local list, duration, success = players(), 0, false
 	for _, entry in ipairs(Schema.ORDER) do
@@ -267,13 +275,21 @@ Effects.start = function (def)
 	end
 	if not success and not (def.parts and #def.parts > 0) then return false, "no card effects could be applied" end
 	revision = revision + 1
-	if not Sounds.has(def.sound) then return true end
-	local ticket = { sound = Sounds.encode(Sounds.parse(def.sound)), units = {}, expires = clock + duration, created = clock }
-	tickets[#tickets + 1] = ticket
-	return true, ticket
+	return true
 end
-Effects.add_unit = function (ticket, unit) if ticket and alive(unit) then ticket.units[unit] = true end end
-Effects.finish = function (ticket, failed) if ticket then ticket.done, ticket.failed = true, ticket.failed or failed == true end end
+-- The card's sound as an ALERT (2026-10-04, the user: "the sound should play the moment the card is selected during the draw, like an
+-- alert; once it finishes playing, the wave should spawn"). It replaces the old completion sound (played when the wave's enemies were
+-- all dead). The host plays it at once and writes it in the audio journal, so every player hears it with the next state; the returned
+-- job { done } says when the host's sound has ended (the director holds the wave until then). nil: no sound to wait for (none set, or
+-- the host muted card sounds: the others still hear it).
+Effects.alert = function (text)
+	if not host() or not Sounds.has(text) then return nil end
+	sequence = sequence + 1
+	revision = revision + 1
+	audio[#audio + 1] = { sequence, Sounds.encode(Sounds.parse(text)) }
+	if #audio > 8 then table.remove(audio, 1) end
+	return play(text)
+end
 local function remove_outline(unit, record)
 	if alive(unit) then pcall(record.system.remove_outline, record.system, unit, REVEAL) end
 	if record.extension.settings == record.owned then
@@ -326,21 +342,6 @@ Effects.update = function (dt, paused)
 		end
 	end
 	update_reveal()
-	if not host() then return end
-	for i = #tickets, 1, -1 do
-		local ticket = tickets[i]
-		for unit in pairs(ticket.units) do if not alive(unit) then ticket.units[unit] = nil end end
-		if (ticket.done and not next(ticket.units) and clock >= ticket.expires) or clock - ticket.created > 3600 then
-			table.remove(tickets, i)
-			if not ticket.failed and ticket.done and ticket.sound ~= "" and clock - ticket.created <= 3600 then
-				sequence = sequence + 1
-				revision = revision + 1
-				audio[#audio + 1] = { sequence, ticket.sound }
-				if #audio > 8 then table.remove(audio, 1) end
-				play(ticket.sound)
-			end
-		end
-	end
 end
 Effects.snapshot = function () return { revision = revision, time = clock, reveal = math.max(0, reveal_until - clock), sequence = sequence, audio = audio, grants = grants, grant_sequence = grant_sequence } end
 Effects.receive = function (state)
@@ -393,7 +394,7 @@ Effects.cancel = function ()
 	reveal_until = 0
 	for unit, record in pairs(outlines) do remove_outline(unit, record) end
 	for _, buff in ipairs(buffs) do if alive(buff.unit) and buff.extension:has_running_buff_with_index(buff.index, buff.component) then pcall(buff.extension.remove_externally_controlled_buff, buff.extension, buff.index, buff.component) end end
-	buffs, tickets = {}, {}
+	buffs = {}
 end
 Effects.reset = function () Effects.cancel(); chain = {}; clock, sequence, received, audio = 0, 0, nil, {}; grants, grant_sequence, grant_received = {}, 0, nil; revision, received_revision, received_time = 0, nil, nil end
 return Effects
