@@ -223,6 +223,10 @@ EffectsView.install = function (View, h)
 	local function value_text(def, value)
 		if def.unit == "players" then
 			return value .. (value == 1 and " player" or " players")
+		elseif def.fixed then
+			return mod:localize("fx_fixed_" .. def.id)
+		elseif def.unit == "grenades" then
+			return value .. (value == 1 and " grenade" or " grenades")
 		elseif def.unit == "charges" then
 			return value .. (value == 1 and " charge" or " charges")
 		end
@@ -350,7 +354,8 @@ EffectsView.install = function (View, h)
 			end
 
 			for _, id in ipairs(FX_ROW_HOTSPOTS) do
-				widget.content[id].disabled = not (enabled and widget.visible) or (id:find("^players") ~= nil and not (def and def.targets))
+				-- an effect with a fixed amount (Raise the fallen: one downed, one hogtied) has no amount to step
+				widget.content[id].disabled = not (enabled and widget.visible) or (id:find("^players") ~= nil and not (def and def.targets)) or (id:find("^amount") ~= nil and def ~= nil and def.fixed == true)
 			end
 		end
 
@@ -418,7 +423,7 @@ EffectsView.install = function (View, h)
 	View.cb_fx_step = h.guarded(function (self, row, field, delta)
 		local def, effect = fx_at(self, row)
 
-		if not def or not Schema.beneficial(self._wave.suit) then return end
+		if not def or not Schema.beneficial(self._wave.suit) or (def.fixed and field ~= "players") then return end
 
 		if field == "players" then
 			if not def.targets then return end
@@ -443,7 +448,7 @@ EffectsView.install = function (View, h)
 	View.cb_fx_number = h.guarded(function (self, row, field)
 		local def = fx_at(self, row)
 
-		if def and Schema.beneficial(self._wave.suit) and (field ~= "players" or def.targets) then
+		if def and Schema.beneficial(self._wave.suit) and (field ~= "players" or def.targets) and (field == "players" or not def.fixed) then
 			number(self, def, field == "players")
 		end
 	end)

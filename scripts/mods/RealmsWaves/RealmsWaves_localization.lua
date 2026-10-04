@@ -324,6 +324,7 @@ return {
 	col_amount = { en = "Amount" },
 	col_players = { en = "Players" },
 	fx_shelf_hint = { en = "Click to add an effect, click again to take it off. The card follows." },
+	fx_fixed_revive = { en = "1 downed + 1 hogtied" },
 	fx_off_for_now = { en = "off" },
 	snd_silence = { en = "Silence" },
 	snd_choose = { en = "Choose a sound in the list" },

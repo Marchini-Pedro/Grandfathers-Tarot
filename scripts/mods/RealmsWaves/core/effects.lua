@@ -144,8 +144,13 @@ end
 local ITEMS = {
 	green_stimm = { "content/items/pocketable/syringe_corruption_pocketable", "slot_pocketable_small" },
 	yellow_stimm = { "content/items/pocketable/syringe_ability_boost_pocketable", "slot_pocketable_small" },
+	blue_stimm_item = { "content/items/pocketable/syringe_speed_boost_pocketable", "slot_pocketable_small" },
+	red_stimm_item = { "content/items/pocketable/syringe_power_boost_pocketable", "slot_pocketable_small" },
 	med_crate = { "content/items/pocketable/med_crate_pocketable", "slot_pocketable" },
+	ammo_crate = { "content/items/pocketable/ammo_cache_pocketable", "slot_pocketable" },
 }
+-- the stimm buffs (scripts/settings/buff/syringe_buff_templates.lua, 15 s each natively; the card's seconds replace that)
+local STIMM_BUFFS = { yellow_stimm_buff = "syringe_ability_boost_buff", blue_stimm = "syringe_speed_boost_buff", red_stimm_buff = "syringe_power_boost_buff" }
 local function give(unit, id)
 	local data, loadout = ext(unit, "unit_data_system"), ext(unit, "visual_loadout_system")
 	local inventory = data and data:read_component("inventory")
@@ -172,25 +177,44 @@ local function recharge(list, charges)
 	nearest:sync_charge_amount()
 	return true
 end
--- Raise the fallen: a knocked-down player is helped up the way a Veteran's shout and the servo skull do it (the native assisted
--- state input, written on the host: scripts/extension_systems/ability/utilities/shout_ability.lua). Only knocked-down players,
--- never the netted, pounced or dead; at most `count` of them, in the party's stable order.
+-- Raise the fallen (2026-10-04: one knocked-down player AND one hogtied one). A knocked-down player is helped up the way a Veteran's
+-- shout and the servo skull do it (assisted_state_input.force_assist, scripts/extension_systems/ability/utilities/shout_ability.lua);
+-- a hogtied one is freed the way the rescue interaction does it on the host (assisted_state_input.success and
+-- hogtied_state_input.hogtie = false, scripts/extension_systems/interaction/interactions/rescue_interaction.lua). Never the netted,
+-- pounced or dead, nor a player someone is already helping; `count` of each, in the party's stable order.
 local function revive(list, count)
 	local Status = require("scripts/utilities/attack/player_unit_status")
-	local raised = 0
+	local raised, freed = 0, 0
 	for _, player in ipairs(list) do
-		if raised >= count then break end
 		local data = ext(player.unit, "unit_data_system")
 		local state = data and data:read_component("character_state")
-		if state and Status.is_knocked_down(state) then
-			local input = data:write_component("assisted_state_input")
-			if input and not Status.is_assisted(input) then
+		local input = state and data:write_component("assisted_state_input")
+		if input and not Status.is_assisted(input) then
+			if raised < count and Status.is_knocked_down(state) then
 				input.force_assist = true
 				raised = raised + 1
+			elseif freed < count and Status.is_hogtied(state) then
+				input.success = true
+				data:write_component("hogtied_state_input").hogtie = false
+				freed = freed + 1
 			end
 		end
 	end
-	return raised > 0, "nobody is knocked down"
+	return raised + freed > 0, "nobody is knocked down or hogtied"
+end
+-- Replenish grenades: `charges` grenade charges for every living player, on the host as the grenade pickup does it
+-- (scripts/extension_systems/interaction/interactions/grenade_interaction.lua: restore_ability_charge("grenade_ability")). A player
+-- without a grenade ability, or whose grenades are full, gets nothing.
+local function grenades(list, charges)
+	local given = 0
+	for _, player in ipairs(list) do
+		local ability = ext(player.unit, "ability_system")
+		if ability and ability.restore_ability_charge and (not ability.ability_is_equipped or ability:ability_is_equipped("grenade_ability")) then
+			local ok, _, restored = pcall(ability.restore_ability_charge, ability, "grenade_ability", charges)
+			if ok then given = given + (tonumber(restored) or charges) else warn(tostring(_)) end
+		end
+	end
+	return given > 0, "nobody has a grenade ability to replenish"
 end
 -- Refill ammunition: `percent` of every weapon's reserve, through the native helper the Veteran's coherency talents use on the host
 -- (scripts/utilities/ammo.lua Ammo.add_to_all_slots). A full reserve stays full; weapons without ammunition are skipped.
@@ -209,6 +233,7 @@ local function apply(id, effect, list)
 	if id == "blackout" then return blackout(effect.value) end
 	if id == "revive" then return revive(list, effect.value) end
 	if id == "ammo" then return refill(list, effect.value) end
+	if id == "grenades" then return grenades(list, effect.value) end
 	if id == "reveal" then reveal_until = math.max(reveal_until, clock + effect.value); return true end
 	if id == "med_station" then return recharge(list, effect.value) end
 	if id == "cooldown" then
@@ -241,14 +266,14 @@ local function apply(id, effect, list)
 				count = count + 1
 			elseif ITEMS[id] then
 				if count < effect.value and give(unit, id) then count = count + 1 end
-			elseif id == "blue_stimm" and count < effect.players then
+			elseif STIMM_BUFFS[id] and count < effect.players then
 				local buff = ext(unit, "buff_system")
 				if buff and #buffs < 256 then
-					local _, index, component = buff:add_externally_controlled_buff("syringe_speed_boost_buff", game_time())
+					local _, index, component = buff:add_externally_controlled_buff(STIMM_BUFFS[id], game_time())
 					if index then
 						local instance = buff._buffs_by_index and buff._buffs_by_index[index]
 						buffs[#buffs + 1] = { unit = unit, extension = buff, index = index, component = component, expires = clock + effect.value }
-						if not instance or not instance.add_duration then error("native Blue Stimm duration is unavailable") end
+						if not instance or not instance.add_duration then error("native stimm buff duration is unavailable") end
 						instance:add_duration(effect.value - 15)
 						count = count + 1
 					end

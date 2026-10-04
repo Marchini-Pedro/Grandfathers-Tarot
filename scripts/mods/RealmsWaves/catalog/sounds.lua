@@ -59,7 +59,9 @@ Sounds.search = function (query, wave, Groups)
 	end
 	if wave.effects then
 		if wave.effects.heal or wave.effects.cleanse then terms.heal, terms.health = true, true end
-		if wave.effects.blue_stimm or wave.effects.yellow_stimm or wave.effects.green_stimm then terms.syringe = true end
+		for id in pairs(wave.effects) do if id:find("stimm", 1, true) then terms.syringe = true end end
+		if wave.effects.grenades then terms.grenade = true end
+		if wave.effects.ammo_crate or wave.effects.ammo then terms.ammo = true end
 		if wave.effects.med_crate then terms.heal, terms.med_crate = true, true end
 		if wave.effects.med_station then terms.healthstation = true end
 		if wave.effects.cooldown then terms.play_ability = true end

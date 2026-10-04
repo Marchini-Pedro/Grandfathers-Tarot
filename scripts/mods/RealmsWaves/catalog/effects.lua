@@ -17,12 +17,21 @@ Effects.ORDER = {
 	{ id = "green_stimm", name = "Healing: give Green Stimm", short = "Green Stimm", max = 4, default = 4, unit = "players", category = "Healing" },
 	{ id = "med_crate", name = "Healing: give Med Crates", short = "Med Crates", max = 4, default = 4, unit = "players", category = "Healing" },
 	{ id = "med_station", name = "Healing: recharge nearest Med Station", short = "Med Station", max = 4, default = 1, unit = "charges", category = "Healing", disabled = true },
+	-- (2026-10-04: the three stimm buffs are Buffs, the three stimm items are Items; the id blue_stimm stays the Blue Stimm buff so saved
+	-- cards keep it)
 	{ id = "cooldown", name = "Buffs: restore combat abilities", short = "Combat abilities", max = 100, default = 100, unit = "percent", category = "Buffs" },
 	{ id = "reveal", name = "Buffs: reveal Specialists", short = "Reveal Specialists", max = 300, default = 15, unit = "seconds", category = "Buffs" },
-	{ id = "yellow_stimm", name = "Items: give Yellow Stimm", short = "Yellow Stimm", max = 4, default = 4, unit = "players", category = "Items" },
-	{ id = "blue_stimm", name = "Items: Blue Stimm buff", short = "Blue Stimm buff", max = 300, default = 15, unit = "seconds", category = "Items", targets = true },
-	{ id = "revive", name = "Game Effects: raise the fallen", short = "Raise the fallen", max = 4, default = 4, unit = "players", category = "Game Effects" },
+	{ id = "yellow_stimm_buff", name = "Buffs: Yellow Stimm buff", short = "Yellow Stimm buff", max = 300, default = 15, unit = "seconds", category = "Buffs", targets = true },
+	{ id = "blue_stimm", name = "Buffs: Blue Stimm buff", short = "Blue Stimm buff", max = 300, default = 15, unit = "seconds", category = "Buffs", targets = true },
+	{ id = "red_stimm_buff", name = "Buffs: Red Stimm buff", short = "Red Stimm buff", max = 300, default = 15, unit = "seconds", category = "Buffs", targets = true },
+	{ id = "yellow_stimm", name = "Items: give Yellow Stimm", short = "Yellow Stimm item", max = 4, default = 4, unit = "players", category = "Items" },
+	{ id = "blue_stimm_item", name = "Items: give Blue Stimm", short = "Blue Stimm item", max = 4, default = 4, unit = "players", category = "Items" },
+	{ id = "red_stimm_item", name = "Items: give Red Stimm", short = "Red Stimm item", max = 4, default = 4, unit = "players", category = "Items" },
+	-- Raise the fallen (2026-10-04): one knocked-down player and one hogtied one, no amount to choose
+	{ id = "revive", name = "Game Effects: raise the fallen", short = "Raise the fallen", max = 1, default = 1, unit = "players", category = "Game Effects", fixed = true },
 	{ id = "ammo", name = "Game Effects: refill ammunition", short = "Refill ammunition", max = 100, default = 100, unit = "percent", category = "Game Effects" },
+	{ id = "grenades", name = "Game Effects: replenish grenades", short = "Replenish grenades", max = 6, default = 2, unit = "grenades", category = "Game Effects" },
+	{ id = "ammo_crate", name = "Game Effects: give Ammo Crates", short = "Ammo Crates", max = 4, default = 4, unit = "players", category = "Game Effects" },
 	{ id = "blackout", name = "Blackout: power interruption", short = "Blackout", max = 300, default = 15, unit = "seconds", hostile = true },
 }
 local defs = {}
@@ -71,6 +80,7 @@ for _, category in ipairs(Effects.CATEGORIES) do category_rgb[category.id] = cat
 Effects.category_rgb = function (id) return category_rgb[id] end
 -- The amount in front of an effect's name, as the card shows it: "95%", "15s", "4"
 Effects.lead = function (def, value)
+	if def.fixed then return "1+1" end -- (Raise the fallen: one downed and one hogtied)
 	return def.unit == "percent" and (value .. "%") or def.unit == "seconds" and (value .. "s") or tostring(value)
 end
 -- The card's lines (2026-10-04, the design page): "95% Party health", the amount in the bone colour and the name in its group's colour
