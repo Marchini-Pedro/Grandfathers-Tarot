@@ -293,3 +293,9 @@ Things we know are missing or unverified, each with the next concrete step.
   toggle covered the bottom explanation. Place both switches in the free lower
   panel, below the hint and above Back; add a real scenegraph bounds check and
   inspect the revised PNG. Finite geometry alone did not detect this overlap.
+
+- 2026-10-03 (PR #9): hosted Ubuntu/Python 3.13 artifacts match both local
+  assertion counts and every module score. Keep the tested source revision
+  separate from documentation-only publication follow-ups and native acceptance.
+  A publication scratch f-string delimiter error failed before any writes;
+  correct the literal and rerun artifact comparison before recording success.

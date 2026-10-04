@@ -2,6 +2,7 @@
 
 Development branch: `feature/card-effects-and-ui`, based on the confirmed PR #8
 merge `fe957632ebf666306324b604fd62d028b32a3a22` (2026-10-03).
+[Draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9) is published; local and hosted suites pass.
 Implementation and offline verification are separate from native acceptance.
 No installed mod copy or reference mod was modified.
 

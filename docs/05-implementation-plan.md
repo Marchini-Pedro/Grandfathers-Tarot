@@ -237,6 +237,8 @@ Ten changes the user asked for in one list. Everything below is implemented and 
 - [x] Targeted schema, native-contract, lifecycle, network, HUD and editor regressions.
 - [x] Final Lua 5.5/LuaJIT suites: 2,321 assertions each, all 38 module gates,
   unchanged existing floors and inspected real-widget previews.
-- [ ] Publish the reviewed branch and draft PR #9; inspect hosted checks.
+- [x] Publish [draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9); both jobs on the
+  [first hosted branch run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170104362) pass at `9f9082b`.
+  Downloaded artifacts match local counts, scores and module gates.
 - [ ] Native acceptance of [the new game checklist](12-card-effects-and-ui.md).
   Keep the feature branch open until the user's confirmation.

@@ -6,9 +6,9 @@ random selection and player voting. No Twitch service is required.
 
 > Development status (2026-10-03): `main` includes merged
 > [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8).
-> Card effects and UI improvements are being prepared on
-> `feature/card-effects-and-ui` for PR #9. Offline checks and native game
-> acceptance are tracked separately in the [feature guide](docs/12-card-effects-and-ui.md).
+> [Draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9) contains card effects and compact UI
+> on `feature/card-effects-and-ui`. Both local and hosted runtime checks pass;
+> native acceptance remains pending in the [feature guide](docs/12-card-effects-and-ui.md).
 > Runtime version: `2.0.0`; last tagged release: `v1.13.0`.
 
 ## Features

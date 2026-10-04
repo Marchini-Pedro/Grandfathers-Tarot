@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Publish draft PR #9 and confirm hosted verification
+- Push the four coherent implementation/verification commits and open [draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9). GitHub reports no merge conflicts.
+- Both jobs on the [first hosted branch run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170104362) at `9f9082b` pass; downloaded artifacts match local module scores, all gates and 2,321 assertions each (Lua 5.5 82.37% / LuaJIT 2.1 79.13%).
+- Update current publication status and preserve the native acceptance checklist. Documentation only; no installed mod changes, repository settings or main merge.
+
 ## 2026-10-03 - Verify the complete card-effects branch (PR #9)
 - Both final runners pass 2,321 assertions, 39 Lua compilation inputs and all 38 source-line gates: Lua 5.5 82.37% / LuaJIT 2.1 79.13%. No existing coverage floor was lowered; inventory all four new modules.
 - Add native-effect lifecycle, authority, late-join, snapshot ordering, cancellation, audio, recipe and real-editor regression checks. Keep HUD allocation checks and inspect actual-widget previews, including the corrected appearance overlap.

@@ -391,3 +391,11 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   Markdown sizes, changed guide links and Git whitespace checks pass. No native
   rendering, material/buff/bank, transport or multiplayer acceptance was run.
   Publish a draft PR and retain the [native checklist](12-card-effects-and-ui.md).
+
+- 2026-10-03 (PR #9 publication): push four implementation/verification commits
+  and open [draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9). GitHub reports it conflict-free.
+  The [first hosted branch run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170104362) at `9f9082b`
+  passes both jobs. Downloaded reports match all local module scores and gates:
+  **2,321 assertions each, Lua 5.5 82.37% / LuaJIT 2.1 79.13%**. This follow-up
+  records publication in documentation only. Native acceptance remains pending;
+  no installed mods, repository settings or main merge.

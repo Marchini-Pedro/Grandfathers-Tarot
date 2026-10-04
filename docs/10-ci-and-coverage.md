@@ -58,6 +58,12 @@ These are source-line proxies, not executable-line or branch coverage:
 | `ui/workshop.lua` | 90.24% | 80.49% | 80% |
 | `ui/workshop_blueprints.lua` | 88.40% | 80.80% | 79% |
 
+[Draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9) is open and conflict-free. The
+[first hosted branch run](https://github.com/Marchini-Pedro/Grandfathers-Tarot/actions/runs/37170104362) at `9f9082b`
+passes both Ubuntu/Python 3.13 jobs. Downloaded reports match all local module
+scores, 2,321 assertions each and Lua 5.5 82.37% / LuaJIT 2.1 79.13%.
+Publication records do not establish native acceptance.
+
 The earlier baselines below are retained as dated history.
 
 ## Heresy continuation: historical offline baseline (2026-10-03)
