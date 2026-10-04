@@ -339,8 +339,39 @@ local start_tarot_cycle
 -- Cards that can be dealt now: in the draw (enabled, with enemies, weight above 0, not timed or deleted) and off
 -- cooldown. A card that was drawn stays out of EVERY draw for its full cooldown (no fallback to cooling cards).
 -- Returns the ready entries, the size of the whole pool and the number of cards that are cooling down.
+-- Suits that may be played ONCE per game (2026-10-04: Nightmare, `once` in catalog/cards.lua): when one card of such a suit goes out,
+-- every card of that suit leaves the draw (and the vote, and the fixed timers) until the next mission. Director.reset clears it.
+local spent_once = {}
+
+local function once_suit(def)
+	local suit = Cards.normalize_suit(def and def.suit)
+
+	return Cards.suit(suit).once == true and suit or nil
+end
+
+local function spent(def)
+	local suit = once_suit(def)
+
+	return suit ~= nil and spent_once[suit] == true
+end
+
+Director.spent_once = function (suit) return spent_once[suit] == true end
+
+-- The pool of the draw without the cards of a suit that was already played this game
+local function drawable_pool()
+	local pool, kept = Events.build_pool(get_setting, Groups, Director.extra_waves()), {}
+
+	for i = 1, #pool do
+		if not spent(pool[i].def) then
+			kept[#kept + 1] = pool[i]
+		end
+	end
+
+	return kept
+end
+
 local function eligible_cards()
-	local pool = Events.build_pool(get_setting, Groups, Director.extra_waves())
+	local pool = drawable_pool()
 	local ready, cooling = {}, 0
 
 	for i = 1, #pool do
@@ -430,6 +461,12 @@ local ALERT_LONGEST = 20
 local held = {}
 
 local function launch(def, key)
+	local once = once_suit(def)
+
+	if once then
+		spent_once[once] = true
+	end
+
 	local job = Director.effects and Director.effects.alert and Director.effects.alert(def.sound)
 
 	-- the journal holds the alert now: send the state, so the other players hear it at once
@@ -563,7 +600,7 @@ local function start_cycle(first)
 		return
 	end
 
-	local pool = Events.build_pool(get_setting, Groups, Director.extra_waves())
+	local pool = drawable_pool()
 
 	ballot_seq = ballot_seq + 1
 
@@ -748,6 +785,10 @@ end
 local timed_warning_at = -math.huge
 
 local function fire_timed(wave)
+	if spent(wave.def) then
+		return
+	end
+
 	local ok, err = launch(wave.def, wave.key)
 
 	if not ok and clock - timed_warning_at >= 5 then
@@ -929,6 +970,7 @@ Director.reset = function ()
 	client_cooldowns = {}
 	my_vote, my_vote_ballot = nil, nil
 	held = {}
+	spent_once = {}
 	Votes.close()
 	Execute.reset()
 end

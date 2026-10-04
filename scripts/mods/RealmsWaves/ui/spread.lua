@@ -580,13 +580,15 @@ Spread.icon = function (id, size, shape)
 		tri(shape, 2, 2, 3, 5.2 * s, 2.4 * s, 6.1 * s, 8.9 * s, 2.4 * s, 5.2 * s)
 		tri(shape, 3, 1, 4, 8.6 * s, 7.4 * s, 15.4 * s, 7.4 * s, 12 * s, 20.4 * s)
 		circ(shape, 3, 1, 4, 12 * s, 5.4 * s, 2 * s)
-	elseif id == "dusk" then
-		-- a setting sun: half a disc over a line (the lower half of the disc is covered with the card's colour)
-		circ(shape, 1, 1, 1, 12 * s, 14.5 * s, 8 * s)
-		tri(shape, 1, 2, 2, 3 * s, 14.5 * s, 21 * s, 14.5 * s, 21 * s, 24 * s)
-		tri(shape, 2, 2, 2, 3 * s, 14.5 * s, 21 * s, 24 * s, 3 * s, 24 * s)
-		tri(shape, 3, 1, 3, 2 * s, 17 * s, 22 * s, 17 * s, 22 * s, 18.4 * s)
-		tri(shape, 4, 1, 3, 2 * s, 17 * s, 22 * s, 18.4 * s, 2 * s, 18.4 * s)
+	elseif id == "nightmare" then
+		-- a horned eye: two horns, a ring of an eye with a slit pupil, and a black tear under it
+		tri(shape, 1, 1, 1, 3 * s, 2 * s, 9.6 * s, 7.6 * s, 6.4 * s, 9.8 * s)
+		tri(shape, 2, 1, 1, 21 * s, 2 * s, 17.6 * s, 9.8 * s, 14.4 * s, 7.6 * s)
+		circ(shape, 1, 1, 1, 12 * s, 13.5 * s, 7.6 * s)
+		circ(shape, 2, 2, 2, 12 * s, 13.5 * s, 5.7 * s)
+		tri(shape, 3, 1, 3, 12 * s, 8.2 * s, 13.5 * s, 13.5 * s, 10.5 * s, 13.5 * s)
+		tri(shape, 4, 1, 3, 10.5 * s, 13.5 * s, 13.5 * s, 13.5 * s, 12 * s, 18.8 * s)
+		circ(shape, 3, 1, 3, 12 * s, 22.6 * s, 1.2 * s)
 	elseif id == "warp" then
 		-- an eye in a triangle
 		tri(shape, 1, 1, 1, 12 * s, 2.2 * s, 22 * s, 20.5 * s, 2 * s, 20.5 * s)

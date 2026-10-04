@@ -33,12 +33,13 @@ Cards.BASE = {
 -- gilded accent became crimson), `special = true`, and every place that draws a card gives it what no other suit has: a frame at
 -- rest, a glow that beats like a heart, a line of its own when it is drawn. The four BENEFICIAL suits follow (catalog/effects.lua):
 -- Prayer, Miracle, Grace and Faith (the Order of the Sacred Rose, added 2026-10-04: the only pink in the deck).
-Cards.SUIT_ORDER = { "plague", "murmur", "rage", "blight", "swarm", "fateful", "volley", "snare", "brute", "dusk", "warp", "heresy", "prayer", "miracle", "grace", "faith" }
+-- (2026-10-04: Dusk is gone; NIGHTMARE, the darkest card, comes after Heresy: ... Warp, Heresy, Nightmare)
+Cards.SUIT_ORDER = { "plague", "murmur", "rage", "blight", "swarm", "fateful", "volley", "snare", "brute", "warp", "heresy", "nightmare", "prayer", "miracle", "grace", "faith" }
 Cards.HOSTILE_COUNT = 12 -- the first twelve of SUIT_ORDER are hostile, the rest beneficial
 
 -- Names a suit used to have: cards saved, presets, shared texts and the hands other players sync may still say them (Fester became
 -- Heresy). Catalog/events.lua keeps the same list for the settings.
-Cards.SUIT_ALIAS = { fester = "heresy" }
+Cards.SUIT_ALIAS = { fester = "heresy", dusk = "murmur" } -- (Dusk's cards became Murmur, the other night suit, on 2026-10-04)
 
 Cards.SUITS = {
 	plague = { name = "Plague", card = hex("#1e2413"), hi = hex("#2a3219"), frame = hex("#3a4421"), text = hex("#e6dfc3"), accent = hex("#b7c23a"), whisper = "Something is growing.", icon = "eye" },
@@ -50,11 +51,15 @@ Cards.SUITS = {
 	volley = { name = "Volley", card = hex("#121a1d"), hi = hex("#1b2a30"), frame = hex("#3d5963"), text = hex("#d5dfe0"), accent = hex("#7fb2c2"), whisper = "Something is aiming at you.", icon = "crosshair" },
 	snare = { name = "Snare", card = hex("#0f1b18"), hi = hex("#17302a"), frame = hex("#2f5f55"), text = hex("#d3e1db"), accent = hex("#5fbfa5"), whisper = "You cannot run from this.", icon = "links" },
 	brute = { name = "Brute", card = hex("#241311"), hi = hex("#35201b"), frame = hex("#74352b"), text = hex("#efdcd4"), accent = hex("#cf5c45"), whisper = "It does not stop for walls.", icon = "plate" },
-	dusk = { name = "Dusk", card = hex("#14152a"), hi = hex("#1f2142"), frame = hex("#3e4380"), text = hex("#d9dbef"), accent = hex("#8e97e3"), whisper = "Do not look away.", icon = "dusk" },
-	warp = { name = "Warp", card = hex("#1a1127"), hi = hex("#281a3b"), frame = hex("#5e408f"), text = hex("#e9dff5"), accent = hex("#b184e0"), whisper = "It knows your name.", icon = "warp" },
+	-- WARP lives too (2026-10-04): its glow pulses and crackles and motes of the warp rise from it (`motes`; `lit` is the crackle)
+	warp = { name = "Warp", card = hex("#1a1127"), hi = hex("#281a3b"), frame = hex("#5e408f"), text = hex("#e9dff5"), accent = hex("#b184e0"), lit = hex("#ead6ff"), motes = true, whisper = "It knows your name.", icon = "warp" },
 	-- HERESY: near black with blood in it, a frame the colour of fresh blood, a crimson accent; `lit` is the brighter red of its words on
 	-- a dark ground, `blood` the deep red of its heartbeat glow and of the drops the HUD lets fall from it
 	heresy = { name = "Heresy", special = true, card = hex("#0d0204"), hi = hex("#1f060a"), frame = hex("#8a0f1c"), text = hex("#efd3cc"), accent = hex("#d42a3a"), lit = hex("#ff3344"), blood = hex("#5a0610"), whisper = "He does not answer.", icon = "heresy" },
+	-- NIGHTMARE (2026-10-04, the user: "like Heresy but all black, nightmarish, very dark and gloomy, super dangerous"): black on black,
+	-- an ash accent, a horned eye. `gloom` is the darkness its glow breathes, `lit` the dying light that flickers in its frame, `ink`
+	-- the black that drips from it. `once`: one Nightmare card per game (core/director.lua takes them all out of the draw after one).
+	nightmare = { name = "Nightmare", special = true, once = true, card = hex("#030304"), hi = hex("#0b0a0f"), frame = hex("#2b2735"), text = hex("#d6d1df"), accent = hex("#9b93ad"), lit = hex("#f2eefa"), gloom = hex("#120e1a"), ink = hex("#000000"), whisper = "It was never a dream.", icon = "nightmare" },
 	prayer = { name = "Prayer", beneficial = true, special = true, card = hex("#0b2023"), hi = hex("#17363b"), frame = hex("#4F9CA3"), text = hex("#dcf1ed"), accent = hex("#4F9CA3"), whisper = "The faithful are not forsaken.", icon = "prayer" },
 	miracle = { name = "Miracle", beneficial = true, special = true, card = hex("#231b0b"), hi = hex("#392d13"), frame = hex("#D8B45A"), text = hex("#fff2cf"), accent = hex("#D8B45A"), whisper = "A light in the darkest hour.", icon = "miracle" },
 	grace = { name = "Grace", beneficial = true, special = true, card = hex("#1b2229"), hi = hex("#2c3540"), frame = hex("#E8EEF4"), text = hex("#f8fafc"), accent = hex("#E8EEF4"), whisper = "Rise, and carry the light.", icon = "grace" },
@@ -102,6 +107,21 @@ Cards.heartbeat = function (t)
 	end
 
 	return math.min(1, beat(0.08, 0.06) + 0.7 * beat(0.28, 0.07))
+end
+-- Nightmare's dread at time t: a slow breath of darkness (0..1, one every 3.3 s) and, now and then, a flash like a dying light (0, or
+-- up to 1 for a ninth of a second).
+Cards.dread = function (t)
+	t = tonumber(t) or 0
+	local h = (math.sin(math.floor(t * 9) * 12.9898) * 43758.5453) % 1
+
+	return 0.5 + 0.5 * math.sin(t * 1.9), h > 0.94 and (h - 0.94) / 0.06 or 0
+end
+-- The warp at time t: an uneven pulse (0..1) and a crackle (0 or 1, about one beat in eight at 14 per second).
+Cards.warp_pulse = function (t)
+	t = tonumber(t) or 0
+	local h = (math.sin(math.floor(t * 14) * 78.233) * 12543.873) % 1
+
+	return 0.5 + 0.5 * math.sin(t * 2.7 + math.sin(t * 0.9) * 1.6), h > 0.88 and 1 or 0
 end
 Cards.threat_color = function (level, suit)
 	local face = type(suit) == "table" and suit or Cards.suit(suit)

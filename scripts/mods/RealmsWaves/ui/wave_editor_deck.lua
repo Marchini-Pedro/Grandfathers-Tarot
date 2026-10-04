@@ -836,6 +836,24 @@ DeckView.install = function (View, h)
 					paint(style[IDS.border[i]], 255, edge)
 				end
 			end
+		elseif suit.gloom then
+			-- Nightmare: darkness breathes around it and its frame is a dying light that flickers
+			local breath, flash = Cards.dread(t)
+
+			paint(style.glow, math.floor(200 * (0.6 + 0.4 * breath) + 0.5), Spread.grey(fx.tmp, mix_into(fx.mix, suit.gloom, suit.lit, 0.8 * flash), fx.sat))
+
+			if fx.state ~= "cooling" then
+				local edge = Spread.grey(fx.tmp2, mix_into(fx.mix2, mix_into(fx.mix, suit.gloom, suit.frame, breath), suit.lit, 0.9 * flash), fx.sat)
+
+				for i = 1, #IDS.border do
+					paint(style[IDS.border[i]], 255, edge)
+				end
+			end
+		elseif suit.motes then
+			-- Warp: an uneven pulse with crackles in its glow
+			local pulse, crackle = Cards.warp_pulse(t)
+
+			paint(style.glow, math.floor(150 * (0.45 + 0.55 * pulse) + 0.5), Spread.grey(fx.tmp, mix_into(fx.mix, suit.frame, suit.lit, 0.35 * pulse + 0.65 * crackle), fx.sat))
 		end
 
 		if fx.threat == 6 then

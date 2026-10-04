@@ -970,6 +970,51 @@ HudElementRealmsWavesPanel._tick_living = function (self)
 				paint(style[BLOOD_C[k]], alpha, Spread.grey(rec.tmp, suit.frame, rec.desat))
 				style[BLOOD[k]].visible, style[BLOOD_C[k]].visible = true, true
 			end
+		elseif suit and suit.gloom then
+			-- NIGHTMARE: darkness breathes around the card, its frame is a light that dies and flickers back, black ink drips from it
+			local breath, flash = Cards.dread(clock + i * 0.37)
+			local base = rec.mode == 2 and 245 or rec.mode == 1 and 215 or 175
+			local edge = mix_into(rec.mix, suit.gloom, suit.frame, breath)
+
+			paint(style.glow, math.floor(base * (0.6 + 0.4 * breath) + 0.5), Spread.grey(rec.tmp, mix_into(rec.mix2, suit.gloom, suit.lit, 0.8 * flash), rec.desat))
+			style.glow.visible = true
+
+			for j = 1, #RARE do
+				paint(style[RARE[j]], 255, Spread.grey(rec.tmp, mix_into(rec.mix2, edge, suit.lit, 0.9 * flash), rec.desat))
+			end
+
+			for k = 1, #BLOOD do
+				local phase = (clock * 0.22 + k * 0.29) % 1
+				local length = 5 + 24 * phase
+				local x = rec.x + rec.cw * (0.18 + 0.32 * (k - 1))
+				local y = rec.y + rec.ch - 1
+				local alpha = math.floor(255 * (1 - phase * phase) + 0.5)
+
+				box(style[BLOOD[k]], x, y, 2, length)
+				box(style[BLOOD_C[k]], x - 2, y + length - 3, 6, 6)
+				paint(style[BLOOD[k]], alpha, suit.ink)
+				paint(style[BLOOD_C[k]], alpha, Spread.grey(rec.tmp, suit.gloom, rec.desat))
+				style[BLOOD[k]].visible, style[BLOOD_C[k]].visible = true, true
+			end
+		elseif suit and suit.motes then
+			-- WARP: the glow pulses unevenly and crackles, motes of the warp rise from the card's top edge
+			local pulse, crackle = Cards.warp_pulse(clock + i * 0.23)
+			local base = rec.mode == 2 and 230 or rec.mode == 1 and 190 or 130
+
+			paint(style.glow, math.floor(base * (0.45 + 0.55 * pulse) + 0.5), Spread.grey(rec.tmp, mix_into(rec.mix, suit.frame, suit.lit, 0.35 * pulse + 0.65 * crackle), rec.desat))
+			style.glow.visible = true
+
+			for k = 1, #BLOOD do
+				local phase = (clock * 0.6 + k * 0.33) % 1
+				local d = 3 + 2 * (1 - phase)
+				local x = rec.x + rec.cw * (0.2 + 0.3 * (k - 1)) + 4 * math.sin(clock * 3 + k)
+				local y = rec.y + 1 - 18 * phase
+
+				style[BLOOD[k]].visible = false
+				box(style[BLOOD_C[k]], x - d / 2, y - d / 2, d, d)
+				paint(style[BLOOD_C[k]], math.floor(230 * (1 - phase) + 0.5), Spread.grey(rec.tmp, mix_into(rec.mix2, suit.accent, suit.lit, crackle), rec.desat))
+				style[BLOOD_C[k]].visible = true
+			end
 		else
 			for k = 1, #BLOOD do
 				style[BLOOD[k]].visible, style[BLOOD_C[k]].visible = false, false

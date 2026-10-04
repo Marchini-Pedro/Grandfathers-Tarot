@@ -237,10 +237,10 @@ Events.DEFAULT_REPEAT_FOR = 60 -- seconds the repeats keep coming
 -- the suits of the Tarot (visuals: catalog/cards.lua) and the cooldown looks
 Events.SUITS = {
 	plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true,
-	volley = true, snare = true, brute = true, dusk = true, warp = true, heresy = true, prayer = true, miracle = true, grace = true, faith = true,
+	volley = true, snare = true, brute = true, warp = true, heresy = true, nightmare = true, prayer = true, miracle = true, grace = true, faith = true,
 }
 -- names a suit used to have (Fester became Heresy): saved settings, presets, shared texts and synced hands may still say them
-Events.SUIT_ALIAS = { fester = "heresy" }
+Events.SUIT_ALIAS = { fester = "heresy", dusk = "murmur" }
 
 -- A suit as the Tarot knows it: an old name becomes its new one, an unknown suit is plague.
 Events.normalize_suit = function (suit)

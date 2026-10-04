@@ -268,7 +268,7 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 	box(style.whisper, left, whisper_y, whisper_w, whisper_lines * L.whisper_line + 4)
 	style.whisper.font_size = L.whisper_font
 	style.whisper.offset[3] = Z.card + 20 -- over the card's face (the text layer of the old window was under it)
-	paint(style.whisper, 255, card.suit == "heresy" and suit.accent or Cards.BASE.muted)
+	paint(style.whisper, 255, card.suit == "heresy" and suit.accent or card.suit == "nightmare" and suit.lit or Cards.BASE.muted)
 	style.whisper.visible = whisper ~= ""
 
 	content.mods = ""

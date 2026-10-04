@@ -293,7 +293,7 @@ return {
 	suit_desc_snare = { en = "Control: trappers, netters, anything that holds you down. Sea-green card, linked rings." },
 	suit_desc_brute = { en = "Heavy hitters: ogryns, crushers, bulwarks. Brick-red card, a plated square." },
 	suit_desc_heresy = { en = "HERESY: a card apart, the forbidden and the turned. Black and fresh blood, crimson through and through, a broken halo; its glow beats like a heart and it bleeds on every card face." },
-	suit_desc_dusk = { en = "Ambush and the dark hour. Indigo card, a setting sun." },
+	suit_desc_nightmare = { en = "NIGHTMARE: the dark that hunts. Black on black, a horned eye, a light that dies. ONCE PER GAME: when one Nightmare card is played, every Nightmare card leaves the draw until the next mission." },
 	suit_desc_warp = { en = "The Daemonhost. Purple card, an eye in a triangle. Suggested for any card that holds one." },
 	face_suggested = { en = "(suggested for these enemies)" },
 	face_threat = { en = "Threat" },
