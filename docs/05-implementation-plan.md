@@ -235,7 +235,8 @@ Ten changes the user asked for in one list. Everything below is implemented and 
   owning-peer ability grants and no enemy spawning on beneficial faces.
 - [x] Content-ranked/searchable completion sound library and optional SimpleAudio.
 - [x] Targeted schema, native-contract, lifecycle, network, HUD and editor regressions.
-- [ ] Final Lua 5.5/LuaJIT suites, unchanged existing coverage floors and rendered QA.
+- [x] Final Lua 5.5/LuaJIT suites: 2,321 assertions each, all 38 module gates,
+  unchanged existing floors and inspected real-widget previews.
 - [ ] Publish the reviewed branch and draft PR #9; inspect hosted checks.
 - [ ] Native acceptance of [the new game checklist](12-card-effects-and-ui.md).
   Keep the feature branch open until the user's confirmation.

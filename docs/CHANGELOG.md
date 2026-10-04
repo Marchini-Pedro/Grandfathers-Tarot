@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Verify the complete card-effects branch (PR #9)
+- Both final runners pass 2,321 assertions, 39 Lua compilation inputs and all 38 source-line gates: Lua 5.5 82.37% / LuaJIT 2.1 79.13%. No existing coverage floor was lowered; inventory all four new modules.
+- Add native-effect lifecycle, authority, late-join, snapshot ordering, cancellation, audio, recipe and real-editor regression checks. Keep HUD allocation checks and inspect actual-widget previews, including the corrected appearance overlap.
+- Update README/design/plan/results/learnings, method/feature guides, coverage tables and the superseded PR #8 hand-off. Native game and multiplayer acceptance remain pending; installed mods are unchanged.
+
 ## 2026-10-03 - Compact and theme the card editor and HUD (PR #9)
 - Normalize all shelf cells at the shared sizing rule and draw complete foreground shelf/repeat borders. Share HERESY and beneficial button palettes; fix the stage ring's ARGB/RGB mix and compact the 15-face controls.
 - Last Card becomes a compact full face with sigil, name, flavor and pips, an independent transparency slider and no large outer panel. Draw/Last Card omit modifier labels; level 6 uses DESPAIR's near-black/pale edge treatment.

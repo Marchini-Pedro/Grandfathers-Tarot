@@ -130,6 +130,10 @@ Real-widget PNG previews cover the shelf, beneficial panel/Mirror, DESPAIR,
 sound picker, appearance dropdown and compact Last Card. Preview fonts are
 Windows substitutes and no native materials or sound banks are rendered.
 
+Final offline runners pass **2,321 assertions each**, 39 Lua compilation inputs
+and all 38 module gates, with no existing floor reduced (Lua 5.5 82.37% / LuaJIT 2.1 79.13%).
+See the [complete coverage table](10-ci-and-coverage.md).
+
 Required game checks before merge:
 
 1. All requested enemy cells and repeat borders at 1080p and other UI scales;
