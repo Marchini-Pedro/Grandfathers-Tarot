@@ -14,15 +14,15 @@ local Spread = mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/spread")
 local definitions = {}
 
 definitions.Spread = Spread
-definitions.WIDTH = 200
-definitions.HEIGHT = 320 -- maximum: three name lines, two whisper lines and up to eight modifier lines
-definitions.CARD_X, definitions.CARD_Y = 12, 34
+definitions.WIDTH = 176
+definitions.HEIGHT = 250 -- maximum: three name lines, two whisper lines and up to eight modifier lines
+definitions.CARD_X, definitions.CARD_Y = 0, 24
 definitions.CARD_W = Spread.card_width(1) -- the card is as wide as a card of a one-card Spread (176)
 definitions.FONT = "proxima_nova_bold"
 -- the default font of the card's name (the player can choose another one in the options, see hud_element_last_card.lua)
 definitions.DISPLAY_FONT = "itc_novarese_bold"
 definitions.GLOW_MATERIAL = "content/ui/materials/frames/frame_glow_01" -- a soft glowing frame, used by stock HUD elements
-definitions.THREAT_MAX = 5
+definitions.THREAT_MAX = 6
 definitions.DOTS_MAX = 6 -- the most dots a card shows (catalog/cards.lua MAX_DOTS)
 
 -- layers (the passes of the widget are ordered by their z offset)
@@ -121,6 +121,8 @@ passes[#passes + 1] = {
 }
 
 rect(passes, "card_bg", z + 4)
+circle(passes, "sigil_ring", z + 7)
+circle(passes, "sigil_disc", z + 8)
 rect(passes, "card_accent", z + 5)
 
 for _, side in ipairs({ "t", "b", "l", "r" }) do

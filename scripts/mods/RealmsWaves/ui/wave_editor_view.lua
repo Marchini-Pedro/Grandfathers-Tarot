@@ -19,6 +19,7 @@ local blueprints = mod:io_dofile(BASE .. "/ui/wave_editor_blueprints")
 local DeckView = mod:io_dofile(BASE .. "/ui/wave_editor_deck")
 local FaceView = mod:io_dofile(BASE .. "/ui/wave_editor_face")
 local TuneView = mod:io_dofile(BASE .. "/ui/wave_editor_tune")
+local EffectsView = mod:io_dofile(BASE .. "/ui/wave_editor_effects")
 local ColourView = mod:io_dofile(BASE .. "/ui/wave_editor_appearance")
 local WorkshopView = mod:io_dofile(BASE .. "/ui/wave_editor_workshop")
 local WB = mod:io_dofile(BASE .. "/ui/workshop_blueprints")
@@ -100,6 +101,7 @@ local CARD_SCREEN_TITLE = {
 	mods = "view_title_cauldron",
 	tune = "view_title_cauldron",
 	appearance = "view_title_cauldron",
+	sounds = "view_title_mirror",
 	face = "view_title_mirror",
 }
 
@@ -333,6 +335,7 @@ end
 -- (and BaseView calls it before on_enter). Overriding it left title_text etc. nil.
 RealmsWavesView._create_editor_widgets = function (self)
 	self:_create_colour_callbacks()
+	self:_create_effect_callbacks()
 	for i = 1, LIST_CAPACITY do
 		local name = ROW_NODE_PREFIX .. i
 		local widget = self:_create_dynamic_widget(name, blueprints.row(name))
@@ -375,6 +378,7 @@ RealmsWavesView._create_editor_widgets = function (self)
 		end
 		content.hotspot_edit.pressed_callback, content.hotspot_edit.right_pressed_callback = edit, edit
 		content.hotspot_edit.double_click_callback = edit
+		content.hotspot_share.pressed_callback = callback(self, "cb_tile_share", i)
 
 		for k = 1, Deck.PIPS do
 			local hotspot = content[blueprints.TILE_IDS.hotspot_pip[k]]
@@ -482,7 +486,7 @@ RealmsWavesView._reload = function (self)
 			self._wave = wave
 		end
 
-		if wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 and not (wave.timer > 0) then
+		if wave.enabled and mod.rw.events.has_content(wave) and wave.pct > 0 and not (wave.timer > 0) then
 			total = total + wave.pct
 		end
 	end
@@ -516,7 +520,7 @@ end
 -- Percent of the draw a card gets: its chance over the chances of the cards that can be dealt now (the cards that rest after a pick
 -- are out of the draw, so the others are likelier). A resting card is counted with them: the share it has when it is back.
 RealmsWavesView._share_of = function (self, wave)
-	if wave.enabled and wave.parts and #wave.parts > 0 and wave.pct > 0 and not (wave.timer > 0) then
+	if wave.enabled and mod.rw.events.has_content(wave) and wave.pct > 0 and not (wave.timer > 0) then
 		local total = (self._ready_pct or self._total_pct or 0) + ((self._resting and self._resting[wave.key]) and wave.pct or 0)
 
 		return mod.rw.cards.share(wave.pct, total)
@@ -536,6 +540,8 @@ RealmsWavesView._source = function (self)
 		return mod.rw.groups.TUNE
 	elseif self._screen == "face" then
 		return {} -- (the Mirror has no table)
+	elseif self._screen == "sounds" then
+		return self._sound_results or {}
 	elseif self._screen == "appearance" then
 		return {}
 	elseif self._screen == "presets" then
@@ -818,6 +824,10 @@ RealmsWavesView._apply_screen = function (self, keep_offset)
 		widgets.description_text.content.description_text = mod:localize("view_desc_face", self._wave.name)
 		widgets.bottom_title.content.bottom_title = ""
 		widgets.hint_text.content.hint_text = ""
+	elseif screen == "sounds" then
+		widgets.description_text.content.description_text = "Completion sounds: matching card contents first. Select a sound to preview it; select Silence to clear it."
+		header.col_1, header.col_2, header.col_3, header.col_4, header.col_5 = "", "Sound", "Game event", "", ""
+		widgets.bottom_title.content.bottom_title = ""
 	elseif screen == "appearance" then
 		local part = self._parts[self._part_index]
 		widgets.description_text.content.description_text = mod:localize("view_desc_appearance", part and rw.groups.describe_part(part) or "")
@@ -1147,7 +1157,12 @@ RealmsWavesView._refresh_rows = function (self)
 				content.show_tune = false
 				content.hotspot_mods_on, content.hotspot_tune_on = false, false
 
-				if screen == "tune" then
+				if screen == "sounds" then
+					content.row_name = item.event ~= "" and item.event:match("([^/]+)$") or "Silence"
+					content.info = item.event
+					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods, content.show_rep = false, false, false, true, false, false
+					content.hotspot_action_text = "Select"
+				elseif screen == "tune" then
 					name_color = self:_tune_row(item, content)
 				elseif screen == "presets" then
 					content.row_name = string.format("%d. %s", item.index, item.name)
@@ -1293,6 +1308,7 @@ RealmsWavesView._set_interaction_enabled = function (self)
 		down.content.hotspot.disabled = not rows_enabled or self._offset >= max_offset
 	end
 	self:_refresh_colour()
+	self:_refresh_effects()
 end
 
 -- ------------------------------------------------------------------- callbacks
@@ -1339,6 +1355,7 @@ TuneView.install(RealmsWavesView, {
 	Components = Components,
 })
 
+EffectsView.install(RealmsWavesView, { guarded = guarded, Popup = Popup, definitions = definitions })
 ColourView.install(RealmsWavesView, { guarded = guarded, Popup = Popup })
 
 WorkshopView.install(RealmsWavesView, {
@@ -1365,7 +1382,9 @@ RealmsWavesView.cb_back = guarded(function (self)
 	self._random_mode = false
 	self._random_pick = {}
 
-	if self._screen == "appearance" then
+	if self._screen == "sounds" then
+		self._screen = "face"
+	elseif self._screen == "appearance" then
 		self._screen = "tune"
 	elseif self._screen == "preset_view" then
 		self._screen = "presets"
@@ -1539,6 +1558,7 @@ RealmsWavesView.cb_delete = guarded(function (self)
 end)
 
 RealmsWavesView.cb_row_action = guarded(function (self, row)
+	if self._screen == "sounds" then return self:cb_sound_select(row) end
 	local item = self:_item_at(row)
 
 	if not item then
@@ -1818,6 +1838,7 @@ RealmsWavesView.cb_rename = guarded(function (self)
 end)
 
 RealmsWavesView.cb_edit_text = guarded(function (self)
+	if self._wave and mod.rw.groups.Effects.beneficial(self._wave.suit) then return end
 	local groups = mod.rw.groups
 
 	Popup.open(self, {
@@ -1838,6 +1859,7 @@ RealmsWavesView.cb_edit_text = guarded(function (self)
 end)
 
 RealmsWavesView.cb_add = guarded(function (self)
+	if self._wave and mod.rw.groups.Effects.beneficial(self._wave.suit) then return end
 	self._random_mode = false
 	self._random_pick = {}
 	self._screen = "picker"
@@ -2296,7 +2318,7 @@ RealmsWavesView.cb_wave_import = guarded(function (self)
 	for i = 1, #self._waves do
 		local wave = self._waves[i]
 
-		if wave.is_custom and not (wave.parts and #wave.parts > 0) then
+		if wave.is_custom and not (mod.rw.events.has_content(wave)) then
 			free = wave
 
 			break

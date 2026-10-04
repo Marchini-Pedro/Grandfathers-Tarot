@@ -213,15 +213,15 @@ blueprints.tile_metrics = function (k)
 		cd_plus = box(190, 232, 24, 17),
 		cd_label = box(44, 232, 70, 17),
 		cd_value = box(114, 232, 72, 17),
-		state_left = box(14, 250, 100, 16),
-		state_clock = box(100, 250, 62, 16),
+		state_left = box(14, 250, 134, 16),
+		state_clock = box(86, 250, 60, 16),
 		edit = box(168, 250, 46, 16), -- the pill: lit while the pointer is on it, and exactly its click area
 		hot_top = box(0, 0, TILE_W, 217),
 		-- the click areas of the cooldown row fill the row edge to edge (no dead strip), the middle one is the value (a number box)
 		hot_cd_minus = box(0, 232, 42, 17),
 		hot_cd_value = box(42, 232, 144, 17),
 		hot_cd_plus = box(186, 232, 42, 17),
-		hot_state = box(0, 249, 166, 21),
+		hot_state = box(0, 249, 146, 21),
 		hot_edit = box(168, 250, 46, 16),
 	}
 
@@ -299,7 +299,7 @@ for i = 1, Spread.ICON_CIRCS do
 	blueprints.TILE_IDS.icon_ch[i] = "icon_ch" .. i
 end
 
-for i = 1, 5 do
+for i = 1, 6 do
 	blueprints.TILE_IDS.th_o[i], blueprints.TILE_IDS.th_h[i] = "th_o" .. i, "th_h" .. i
 end
 
@@ -408,11 +408,11 @@ blueprints.tile = function (node_id, k, interactive)
 
 	-- threat: filled diamonds up to the level, the rest the same diamonds dimmed (never an outline: two rotated squares
 	-- make an uneven one with gaps); the faint copy under each is its anti-aliasing
-	for i = 1, 5 do
+	for i = 1, 6 do
 		diamond_pass(passes, blueprints.TILE_IDS.th_h[i], 3.8, 9.4 * T.k)
 	end
 
-	for i = 1, 5 do
+	for i = 1, 6 do
 		diamond_pass(passes, blueprints.TILE_IDS.th_o[i], 4, 8 * T.k)
 	end
 
@@ -451,6 +451,11 @@ blueprints.tile = function (node_id, k, interactive)
 
 	Components.hotspot_pass(passes, "hotspot_top", { T.hot_top[1], T.hot_top[2], 6 }, { T.hot_top[3], T.hot_top[4] })
 	Components.hotspot_pass(passes, "hotspot_state", { T.hot_state[1], T.hot_state[2], 6 }, { T.hot_state[3], T.hot_state[4] })
+	Components.hotspot_pass(passes, "hotspot_share", { 148 * T.k, 250 * T.k, 8 }, { 18 * T.k, 16 * T.k }, "show_share_icon", true)
+	rect_pass(passes, "share_l", 151 * T.k, 255 * T.k, T.k, 8 * T.k, 5)
+	rect_pass(passes, "share_b", 151 * T.k, 262 * T.k, 9 * T.k, T.k, 5)
+	rect_pass(passes, "share_r", 159 * T.k, 258 * T.k, T.k, 5 * T.k, 5)
+	triangle_pass(passes, "share_arrow", 5)
 	Components.hotspot_pass(passes, "hotspot_edit", { T.hot_edit[1], T.hot_edit[2], 6 }, { T.hot_edit[3], T.hot_edit[4] })
 	Components.hotspot_pass(passes, "hotspot_cd_minus", { T.hot_cd_minus[1], T.hot_cd_minus[2], 6 }, { T.hot_cd_minus[3], T.hot_cd_minus[4] })
 	Components.hotspot_pass(passes, "hotspot_cd_value", { T.hot_cd_value[1], T.hot_cd_value[2], 6 }, { T.hot_cd_value[3], T.hot_cd_value[4] })

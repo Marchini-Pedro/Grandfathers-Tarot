@@ -38,15 +38,18 @@ Enemy colour experiments were merged through
 after PRs #5 and #6. The [method guide](enemy-appearance.md) distinguishes
 usable experiments from advanced prerequisites; in-game acceptance is pending.
 
-The open branch `feature/heresy-card-and-ui-pass` (2026-10-03; ten requested changes: exact custom
-health, card-coloured pages, tighter shelf chips, Deck presets, `/rw_test_close`, HERESY, 100 cards,
-the last-card window, cooldowns on the Deck tiles) is documented in the changelog, doc 05 and the new
-rows 114-121 of the verification matrix. It has offline tests only and is not merged.
+[PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8) merged on
+2026-10-03 at `fe957632`. The earlier hand-off remains historical; merge alone
+does not establish acceptance of its pending native checks.
+Current work is `feature/card-effects-and-ui` for PR #9: three beneficial faces,
+native effects, completion audio, appearance controls and compact HUD/editor fixes.
+See [the feature guide](12-card-effects-and-ui.md) and current verification log.
 
 ## References
 
 | Document | Purpose |
 | --- | --- |
+| [Card effects and UI (PR #9)](12-card-effects-and-ui.md) | Behavior, native contracts, compatibility and game acceptance |
 | [Design and rationale](04-design-and-rationale.md) | Requirements, architecture and protocol decisions |
 | [Enemy colour experiments](enemy-appearance.md) | Per-group ARGB/method controls, usable experiments, prerequisites, transport and live acceptance |
 | [Enemy appearance research](research/enemy-appearance/findings.md) | Earlier read-only source/mod/public evidence; [experiment plan](research/enemy-appearance/experiments-and-recommendation.md) and [original brief](research/enemy-appearance/research-prompt.md) |

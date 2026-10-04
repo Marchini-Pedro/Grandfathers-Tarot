@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03 - Compact and theme the card editor and HUD (PR #9)
+- Normalize all shelf cells at the shared sizing rule and draw complete foreground shelf/repeat borders. Share HERESY and beneficial button palettes; fix the stage ring's ARGB/RGB mix and compact the 15-face controls.
+- Last Card becomes a compact full face with sigil, name, flavor and pips, an independent transparency slider and no large outer panel. Draw/Last Card omit modifier labels; level 6 uses DESPAIR's near-black/pale edge treatment.
+- Rename Share Card and add tiny toggleable card sigils. Replace beneficial enemy controls with effects, add ranked sound search, and allow six manual pips plus confirmed Consecrate/Undo for the standard slots. Inspect real-widget previews and retain HUD allocation checks.
+
 ## 2026-10-03 - Add beneficial effects, Blackout and completion audio (PR #9)
 - Prayer, Miracle and Grace reuse the tarot catalog and mask enemy recipes in catalog reads, pooling and execution. Add healing/corruption, items, Med Station recharge, combat ability grants, guidance and timed Blue Stimm, plus hostile Blackout.
 - Native APIs retain their restrictions; bounded ownership restores streamed lighting states, buffs and outlines on expiry/cancel/reset. Host-authenticated revision/time snapshots deduplicate grants, audio and temporary reveal state.

@@ -63,7 +63,7 @@ DeckView.install = function (View, h)
 	local Deck, Spread, T, IDS = h.Deck, h.Spread, h.TILE, h.TILE_IDS
 	local guarded, set_setting = h.guarded, h.set_setting
 	local TILE_PREFIX = h.TILE_PREFIX
-	local TILE_HOTSPOTS = { "hotspot_top", "hotspot_state", "hotspot_edit", "hotspot_cd_minus", "hotspot_cd_value", "hotspot_cd_plus" }
+	local TILE_HOTSPOTS = { "hotspot_top", "hotspot_state", "hotspot_edit", "hotspot_share", "hotspot_cd_minus", "hotspot_cd_value", "hotspot_cd_plus" }
 
 	for i = 1, Deck.PIPS do
 		TILE_HOTSPOTS[#TILE_HOTSPOTS + 1] = IDS.hotspot_pip[i]
@@ -188,7 +188,7 @@ DeckView.install = function (View, h)
 
 	-- A card is in the draw when it is enabled, has enemies, a weight and no fixed timer (the same rule the director uses).
 	local function in_draw(wave)
-		return wave.enabled and wave.parts and #wave.parts > 0 and (wave.pct or 0) > 0 and not ((wave.timer or 0) > 0)
+		return wave.enabled and mod.rw.events.has_content(wave) and (wave.pct or 0) > 0 and not ((wave.timer or 0) > 0)
 	end
 
 	-- --------------------------------------------------------------------------------------------- model
@@ -200,7 +200,7 @@ DeckView.install = function (View, h)
 		for i = 1, #self._waves do
 			local wave = self._waves[i]
 
-			if (wave.parts and #wave.parts > 0) or not wave.is_custom then
+			if (mod.rw.events.has_content(wave)) or not wave.is_custom then
 				deck[#deck + 1] = wave
 			elseif not free then
 				free = wave
@@ -431,6 +431,11 @@ DeckView.install = function (View, h)
 		style.suit_label.visible = true
 		paint(style.suit_label, 255, accent)
 
+		content.show_share_icon = mod:get("card_share_icons") ~= false
+		content.hotspot_share.disabled = not content.show_share_icon
+		for _, id in ipairs({ "share_l", "share_b", "share_r", "share_arrow" }) do style[id].visible = content.show_share_icon; paint(style[id], 180, accent) end
+		local corners = style.share_arrow.triangle_corners
+		corners[1][1], corners[1][2], corners[2][1], corners[2][2], corners[3][1], corners[3][2] = 151 * k, 256 * k, 163 * k, 256 * k, 157 * k, 250 * k
 		content.name = card.name
 		style.name.visible = true
 		paint(style.name, 255, ink)
@@ -452,7 +457,7 @@ DeckView.install = function (View, h)
 			return mod:localize("tile_more", n)
 		end, layout.comp_lines) or { mod:localize("tile_no_enemies") }
 
-		content.comp = table.concat(lines, "\n")
+		content.comp = mod.rw.groups.Effects.beneficial(wave.suit) and mod.rw.groups.Effects.summary(wave.effects, layout.comp_lines, Deck.COMP_CHARS) or table.concat(lines, "\n")
 		style.comp.visible = true
 		style.comp.offset[2], style.comp.size[2] = layout.comp_y * k, layout.comp_h * k
 		paint(style.comp, 255, tone(Cards.BASE.muted))
@@ -491,19 +496,19 @@ DeckView.install = function (View, h)
 		end
 
 		-- threat: filled diamonds up to the level (its colour), the rest the same diamonds dimmed; each on a faint feather
-		local threat_rgb = Cards.THREAT_COLORS[card.threat]
+		local threat_rgb = Cards.threat_color(card.threat, card.suit)
 
-		for i = 1, 5 do
+		for i = 1, 6 do
 			local cx = T.diamonds_x + (i - 1) * Spread.THREAT_PITCH * k
 			local outer, halo = style[IDS.th_o[i]], style[IDS.th_h[i]]
 			local filled = i <= card.threat
 			local rgb = tone(filled and threat_rgb or Cards.BASE.muted)
 
-			outer.visible, halo.visible = true, true
+			outer.visible, halo.visible = i <= 5 or card.threat == 6, i <= 5 or card.threat == 6
 			outer.offset[1], outer.offset[2] = cx - 4 * k, T.row_y - 4 * k
 			halo.offset[1], halo.offset[2] = cx - 4.7 * k, T.row_y - 4.7 * k
 			paint(outer, filled and 255 or 64, rgb)
-			paint(halo, filled and 70 or 22, rgb)
+			paint(halo, card.threat == 6 and 255 or filled and 70 or 22, card.threat == 6 and Cards.DESPAIR_EDGE or rgb)
 		end
 
 		-- one dot per enemy colour, right aligned, each on a feather
@@ -733,6 +738,13 @@ DeckView.install = function (View, h)
 
 		paint(style.name, 255, mix(fx.accent, fx.ink, k))
 	end
+
+	View.cb_tile_share = guarded(function (self, index)
+		local wave = self._deck and self._deck[self._offset + index]
+		if self._screen ~= "list" or not wave or wave.blank or mod:get("card_share_icons") == false then return end
+		self:_open_detail(wave.key)
+		self:cb_wave_share()
+	end)
 
 	-- ------------------------------------------------------------------------------------- the screen
 	-- (Re)builds the whole Deck page: the header texts, the strip, the tiles of this page and the blank tile.

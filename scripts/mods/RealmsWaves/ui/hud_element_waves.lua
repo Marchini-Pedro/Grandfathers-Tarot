@@ -44,8 +44,8 @@ local ICON_T = { "icon_t1", "icon_t2", "icon_t3", "icon_t4" }
 local ICON_C = { "icon_c1", "icon_c2", "icon_c3", "icon_c4" }
 local ICON_TH = { "icon_th1", "icon_th2", "icon_th3", "icon_th4" }
 local ICON_CH = { "icon_ch1", "icon_ch2", "icon_ch3", "icon_ch4" }
-local TH_H = { "th_h1", "th_h2", "th_h3", "th_h4", "th_h5" }
-local TH_O = { "th_o1", "th_o2", "th_o3", "th_o4", "th_o5" }
+local TH_H = { "th_h1", "th_h2", "th_h3", "th_h4", "th_h5", "th_h6" }
+local TH_O = { "th_o1", "th_o2", "th_o3", "th_o4", "th_o5", "th_o6" }
 local DOT_H = { "dh_1", "dh_2", "dh_3", "dh_4", "dh_5", "dh_6" }
 local DOT = { "dot_1", "dot_2", "dot_3", "dot_4", "dot_5", "dot_6" }
 local DRIP = { "drip_1", "drip_2", "drip_3" }
@@ -593,15 +593,17 @@ HudElementRealmsWavesPanel._apply_colors = function (self, index)
 
 	-- threat: filled diamonds in the colour of the level, the rest the same diamonds dimmed (never an outline: a thin
 	-- outline drawn from two rotated squares comes out uneven, with gaps)
-	local threat_rgb = Cards.THREAT_COLORS[rec.threat]
+	local threat_rgb = Cards.threat_color(rec.threat, rec.suit)
 
 	for j = 1, #TH_O do
 		local filled = j <= rec.threat
 		local rgb = Spread.grey(rec.tmp, filled and threat_rgb or Cards.BASE.muted, t)
 
-		paint(style[TH_H[j]], filled and 70 or 22, rgb)
+		local halo_rgb = rec.threat == 6 and Cards.DESPAIR_EDGE or rgb
+		paint(style[TH_H[j]], rec.threat == 6 and 220 or (filled and 70 or 22), halo_rgb)
 		paint(style[TH_O[j]], filled and 255 or 64, rgb)
-		style[TH_H[j]].visible, style[TH_O[j]].visible = true, true
+		local visible = j <= 5 or rec.threat == 6
+		style[TH_H[j]].visible, style[TH_O[j]].visible = visible, visible
 	end
 
 	for j = 1, rec.dots do
@@ -670,7 +672,7 @@ HudElementRealmsWavesPanel._setup_card = function (self, index, card)
 
 	rec.suit = suit
 	rec.mode, rec.eye_open = 0, 0
-	rec.threat = math.max(1, math.min(5, card.threat or 1))
+	rec.threat = math.max(1, math.min(6, card.threat or 1))
 	rec.name = card.name
 	rec.rare = card.rare == true
 	rec.special = suit.special == true
@@ -684,7 +686,7 @@ HudElementRealmsWavesPanel._setup_card = function (self, index, card)
 		return colors and colors.rgb(breed) or Cards.BASE.muted
 	end)
 
-	rec.dot_d, rec.dot_pitch, rec.dots = Spread.dots_fit(rec.cw, #dots)
+	rec.dot_d, rec.dot_pitch, rec.dots = Spread.dots_fit(rec.cw, #dots, rec.threat)
 
 	for j = 1, #DOT do
 		local dot, halo = style[DOT[j]], style[DOT_H[j]]
@@ -808,17 +810,17 @@ HudElementRealmsWavesPanel._setup_banner = function (self, card)
 	local y = self._layout.banner_y
 	local width = Spread.NODE_WIDTH
 
-	widget.content.kicker = string.upper(mod:localize(suit.special and "hud_card_drawn_special" or "hud_card_drawn"))
+	widget.content.kicker = string.upper(mod:localize(suit.beneficial and "hud_card_drawn_beneficial" or (suit.special and "hud_card_drawn_special" or "hud_card_drawn")))
 	widget.content.name = card.name
 	widget.content.whisper = "\"" .. tostring(card.whisper or "") .. "\""
-	widget.content.mods = string.upper(card.modifiers or "")
+	widget.content.mods = ""
 
 	box(style.kicker, 0, y, width, 18)
 	box(style.name, 0, y + 18, width, 40)
 	box(style.whisper, 0, y + 58, width, 22)
 	box(style.mods, 0, y + 82, width, 18)
 
-	paint(style.kicker, 255, suit.special and suit.lit or Cards.BASE.whisper)
+	paint(style.kicker, 255, suit.special and (suit.lit or suit.accent) or Cards.BASE.whisper)
 	paint(style.name, 255, suit.accent)
 	paint(style.whisper, 255, Cards.BASE.whisper)
 	paint(style.mods, 255, Cards.BASE.rust)

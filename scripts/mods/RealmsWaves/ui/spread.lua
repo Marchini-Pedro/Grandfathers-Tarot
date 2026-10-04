@@ -130,8 +130,8 @@ Spread.DOTS_GAP = 12
 
 local DOT_STEPS = { { 9, 13 }, { 8, 11 }, { 7, 9.5 }, { 6, 8.5 } }
 
-Spread.dots_fit = function (cw, count)
-	local room = (cw - Spread.PAD_X) - (Spread.DIAMONDS_END + Spread.DOTS_GAP)
+Spread.dots_fit = function (cw, count, threat)
+	local room = (cw - Spread.PAD_X) - (Spread.DIAMONDS_END + (threat == 6 and Spread.THREAT_PITCH or 0) + Spread.DOTS_GAP)
 
 	count = max(0, min(count, 6))
 
@@ -546,6 +546,22 @@ Spread.icon = function (id, size, shape)
 		tri(shape, 3, 2, 2, 7.5 * s, 7.5 * s, 16.5 * s, 7.5 * s, 16.5 * s, 16.5 * s)
 		tri(shape, 4, 2, 2, 7.5 * s, 7.5 * s, 16.5 * s, 16.5 * s, 7.5 * s, 16.5 * s)
 		circ(shape, 1, 1, 3, 12 * s, 12 * s, 2.6 * s)
+	elseif id == "prayer" or id == "miracle" or id == "grace" then
+		circ(shape, 1, 1, 1, 12 * s, 12 * s, 10 * s)
+		circ(shape, 2, 2, 2, 12 * s, 12 * s, 8 * s)
+		if id == "prayer" then
+			tri(shape, 1, 1, 3, 12 * s, 4 * s, 11 * s, 18 * s, 5 * s, 16 * s)
+			tri(shape, 2, 1, 3, 12 * s, 4 * s, 19 * s, 16 * s, 13 * s, 18 * s)
+		elseif id == "miracle" then
+			tri(shape, 1, 1, 3, 12 * s, 3 * s, 16 * s, 12 * s, 8 * s, 12 * s)
+			tri(shape, 2, 1, 3, 8 * s, 12 * s, 16 * s, 12 * s, 12 * s, 21 * s)
+			tri(shape, 3, 1, 3, 3 * s, 12 * s, 12 * s, 8 * s, 12 * s, 16 * s)
+			tri(shape, 4, 1, 3, 21 * s, 12 * s, 12 * s, 16 * s, 12 * s, 8 * s)
+		else
+			tri(shape, 1, 1, 3, 3 * s, 7 * s, 11 * s, 11 * s, 11 * s, 19 * s)
+			tri(shape, 2, 1, 3, 21 * s, 7 * s, 13 * s, 19 * s, 13 * s, 11 * s)
+			circ(shape, 3, 1, 3, 12 * s, 6 * s, 2 * s)
+		end
 	elseif id == "heresy" then
 		-- a broken halo and an inverted blade: a ring, cut through at the upper left by a gap in the card's colour, and in it a
 		-- blade that points down with a pommel on top

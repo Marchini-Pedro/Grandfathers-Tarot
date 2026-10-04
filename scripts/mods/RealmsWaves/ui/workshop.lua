@@ -43,25 +43,21 @@ Workshop.SUMMARY_H = 34
 -- ------------------------------------------------------------------------------------------------- the shelf
 Workshop.CHIP_H = 30 -- (34 while a chip also carried a D / S tag: without it the chips are tighter)
 Workshop.CHIP_GAP = 6 -- between chips of a row
-Workshop.CHIP_PITCH = 36 -- between rows of chips
+Workshop.CHIP_PITCH = 32 -- between rows of chips
 Workshop.SHELF_PAD = 16
 Workshop.SHELF_HEAD = 56 -- the panel's title row (title, hint, the faction switch, Search all enemies)
 Workshop.GROUP_LABEL_W = 100
-Workshop.GROUP_GAP = 6
+Workshop.GROUP_GAP = 4
 Workshop.CHIP_FONT = 16
 Workshop.GLYPH = 0.64 -- of the font size: how wide a letter is of the bold sans (a "Hound" is 3.05 em), a little careful: a chip that is too wide only leaves a gap
 
 Workshop.SHELF_Y = Workshop.SUMMARY_Y + Workshop.SUMMARY_H + 10
 
-Workshop.text_width = function (text, font_size)
-	return ceil(#tostring(text) * font_size * Workshop.GLYPH)
-end
-
 -- width of a chip: the dot (22 up to the label), the label and 10 of padding
 Workshop.CHIP_DOT, Workshop.CHIP_PAD = 22, 10
 
 Workshop.chip_width = function (label)
-	return Workshop.CHIP_DOT + Workshop.text_width(label, Workshop.CHIP_FONT) + Workshop.CHIP_PAD
+	return 156 -- six equal cells fit the shelf; long labels scale within the same cell
 end
 
 -- Where every chip of the shelf goes. `shelf` = Groups.SHELF, `groups` = the catalog (faction, display names). Chips of a group
@@ -133,15 +129,15 @@ Workshop.STAGE_RINGS = { { 208, 0.09, true }, { 186, 0.13, false }, { 164, 0.18,
 Workshop.STATS_Y = Workshop.PLATE.y + Workshop.PLATE.h - 38
 Workshop.TOOLBAR_Y = Workshop.PLATE.y + Workshop.PLATE.h + 8
 Workshop.QUICK_Y = Workshop.TOOLBAR_Y + 44 + 16
-Workshop.SUIT_W, Workshop.SUIT_H = 80, 58
-Workshop.SUIT_GAP_X, Workshop.SUIT_GAP_Y = 9, 12
+Workshop.SUIT_W, Workshop.SUIT_H = 58, 48
+Workshop.SUIT_GAP_X, Workshop.SUIT_GAP_Y = 8, 12
 Workshop.SUIT_Y0 = Workshop.QUICK_Y + 40 -- (a chosen tile stands 4 higher: it must clear the button in the label row)
 Workshop.THREAT_Y = Workshop.SUIT_Y0 + 2 * Workshop.SUIT_H + Workshop.SUIT_GAP_Y + 18
 Workshop.CHANCE_Y = Workshop.THREAT_Y + 52
 Workshop.ROW_LABEL_W = 84
 
 Workshop.suit_pos = function (index)
-	local col, row = (index - 1) % 6, floor((index - 1) / 6)
+	local col, row = (index - 1) % 8, floor((index - 1) / 8)
 
 	return Workshop.RIGHT_X + col * (Workshop.SUIT_W + Workshop.SUIT_GAP_X), Workshop.SUIT_Y0 + row * (Workshop.SUIT_H + Workshop.SUIT_GAP_Y)
 end
@@ -156,7 +152,7 @@ Workshop.THREAT_X = Workshop.RIGHT_X + Workshop.ROW_LABEL_W
 Workshop.MIRROR = {
 	head = { 134, 460, 566, 664 }, -- the section headers: suit, threat, whisper, cooldown
 	head_h = 28,
-	plate = { w = 274, h = 66, gap_x = 13, gap_y = 10, y0 = 170, cols = 4 }, -- the twelve suits as plates, 4 x 3
+	plate = { w = 216, h = 66, gap_x = 13, gap_y = 10, y0 = 170, cols = 5 }, -- the twelve suits as plates, 4 x 3
 	desc_y = 396, desc_h = 52,
 	threat_y = 494, threat_side = 26, threat_pitch = 54, threat_h = 56,
 	whisper_y = 600, whisper_h = 44, whisper_w = 700,

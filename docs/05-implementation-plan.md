@@ -207,7 +207,7 @@ Ten changes the user asked for in one list. Everything below is implemented and 
 - [x] Complete CI coverage inventory and justified source-proxy floor exceptions on both runtimes; 2,104 assertions each and all 34 module gates pass ([coverage](10-ci-and-coverage.md)).
 - [x] Publish the continuation in draft [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8); both first hosted runtime checks pass at `a163552`, 2,104 assertions each.
 - [ ] GitHub: admin permission for EduardoKenji remains an owner task. The authenticated identity has write/push access and neither admin nor maintain; no settings were changed.
-- [ ] The in-game run of rows 114-121; the user's "100 percent working" merges the branch into `main`.
+- [x] User merged PR #8 at `fe957632` on 2026-10-03. Rows 114–121 remain the native acceptance record; merge does not prove those tests ran.
 
 ## Post-PR #4 test coverage (2026-10-03)
 
@@ -219,3 +219,23 @@ Ten changes the user asked for in one list. Everything below is implemented and 
 - [x] Verify the first hosted PR run at `fd56262`: both runtimes pass 1,837 assertions and all coverage floors; downloaded artifact scores match the local baseline.
 - [x] Verify both jobs on the first `main` run at `03785e3` and synchronize local `main` after the PR #5 merge.
 - [ ] Have the repository owner require `Offline verification (lua55)` and `Offline verification (luajit21)` for merges to `main` after the first hosted run.
+
+## PR #9: card effects and compact UI (2026-10-03)
+
+- [x] Branch from current main after confirming the PR #8 merge.
+- [x] Shared compact shelf cells and complete vector repeat/shelf borders.
+- [x] Compact full Last Card, independent transparency, no Draw/Last modifier labels.
+- [x] Share Card wording and per-card share glyph option.
+- [x] Native timed Blackout with overlap, streaming and state restoration.
+- [x] Depth-tested ordinary outlines, independent outline/tint, protection toggle;
+  disable unsupported material methods with actual prerequisites.
+- [x] Prayer/Miracle/Grace palettes, sigils and effect panel; six manual pips;
+  Consecrate standard slots with confirmation and preset Undo.
+- [x] All nine requested beneficial effects; native restrictions, occupied slots,
+  owning-peer ability grants and no enemy spawning on beneficial faces.
+- [x] Content-ranked/searchable completion sound library and optional SimpleAudio.
+- [x] Targeted schema, native-contract, lifecycle, network, HUD and editor regressions.
+- [ ] Final Lua 5.5/LuaJIT suites, unchanged existing coverage floors and rendered QA.
+- [ ] Publish the reviewed branch and draft PR #9; inspect hosted checks.
+- [ ] Native acceptance of [the new game checklist](12-card-effects-and-ui.md).
+  Keep the feature branch open until the user's confirmation.
