@@ -622,7 +622,7 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 	end
 
 	-- custom mods: the health is a spawn parameter (a multiplier of the normal health)
-	local health = Tuning and Tuning.health_modifier(tune)
+	local health = Tuning and Tuning.health_modifier(tune, breed_name)
 
 	if health then
 		param.optional_health_modifier = health

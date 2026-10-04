@@ -2087,6 +2087,19 @@ do
   local pox = { ext = { health_system = { _health = 100, max_health = function(self) return self._health end, _game_session = "s", _game_object_id = 7 }, unit_data_system = { breed = function() return { name = "chaos_poxwalker" } end } } }
   synced_health = {}
   check("health: an extreme factor never gives a unit less than 1 health, and the real breed of the unit decides the normal health", Tuning.set_exact_health(pox, "other_breed_name", 0.0001) == 1 and pox.ext.health_system._health == 1 and synced_health[1].value == 1)
+  do
+    -- (2026-10-04) never more health than the game can send to the other players (the network's health field); the clients read it
+    local saved_nc = package.loaded["scripts/network_lookup/network_constants"]
+    package.loaded["scripts/network_lookup/network_constants"] = { health_large = { max = 1500 } }
+    check("health cap: the spawn multiplier is held so the health stays within what the network carries (Plague Ogryn 1000 x 3.5 -> x1.5)", Tuning.network_health_max() == 1500 and Tuning.health_modifier({ health = 350 }, "chaos_plague_ogryn") == 1.5 and Tuning.health_modifier({ health = 120 }, "chaos_plague_ogryn") == 1.2 and Tuning.health_modifier({ health = 350 }) == 3.5)
+    local ogre = { ext = { health_system = { _health = 1000, max_health = function(self) return self._health end, _game_session = "s", _game_object_id = 77 }, unit_data_system = { breed = function() return { name = "chaos_plague_ogryn" } end } } }
+    local before_sync, before_echo = #synced_health, #echoes
+    local got = Tuning.set_exact_health(ogre, "chaos_plague_ogryn", 3.5)
+    local warned = false
+    for k = before_echo + 1, #echoes do if echoes[k]:find("capped at 1500", 1, true) then warned = true end end
+    check("health cap: the exact health written for the other players is capped too, and it is said once", got == 1500 and ogre.ext.health_system._health == 1500 and synced_health[#synced_health].value == 1500 and #synced_health == before_sync + 1 and warned)
+    package.loaded["scripts/network_lookup/network_constants"] = saved_nc
+  end
   check("health: exact already -> returns the health, writes nothing", (function() synced_health = {}; return Tuning.set_exact_health(pox, "x", 0.01) == 1 and #synced_health == 0 end)())
 
   do

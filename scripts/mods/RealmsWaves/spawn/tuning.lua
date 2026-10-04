@@ -185,8 +185,31 @@ end
 
 -- ------------------------------------------------------------------------------------------ the host
 -- The health of the unit is not set here: it is a spawn parameter, see Tuning.health_modifier.
-Tuning.health_modifier = function (tune)
-	return tune and percent_of(tune.health) or nil
+Tuning.health_modifier = function (tune, breed_name)
+	local factor = tune and percent_of(tune.health) or nil
+
+	-- (never more than the network can carry: see Tuning.network_health_max)
+	if factor and breed_name then
+		local ok, base = pcall(function () return tonumber(Tuning.normal_health(breed_name)) end)
+		local cap = Tuning.network_health_max()
+
+		if ok and base and base > 0 and cap and base * factor > cap then
+			factor = cap / base
+		end
+	end
+
+	return factor
+end
+
+-- The most health the game can send to the other players (2026-10-04: a Chaos Spawn at 350 percent showed 0 or a wrong number in
+-- the boss bar of the clients, who read the unit's maximum from the game object's "health" field). The game itself caps one hit's
+-- damage at NetworkConstants.health_large.max (damage_taken_calculation.lua), the type of that field; a larger value does not
+-- reach the clients intact.
+Tuning.network_health_max = function ()
+	local ok, constants = pcall(require, "scripts/network_lookup/network_constants")
+	local info = ok and type(constants) == "table" and constants.health_large
+
+	return info and tonumber(info.max) or nil
 end
 
 -- The health the player asked for is NOT what the game builds from the spawn parameter: MinionSpawnManager.spawn_minion adds the
@@ -202,6 +225,10 @@ local HEALTH_EPSILON = 0.01
 
 -- The normal maximum health of a breed on this mission's difficulty (what the game compares a boss against to call it weakened).
 local function normal_health(breed_name)
+	return Tuning.normal_health(breed_name)
+end
+
+Tuning.normal_health = function (breed_name)
 	local difficulty = Managers.state and Managers.state.difficulty
 
 	if not difficulty or not difficulty.get_minion_max_health then
@@ -231,6 +258,12 @@ Tuning.set_exact_health = function (unit, breed_name, factor)
 	end
 
 	local wanted = math.max(1, base * factor)
+	local cap = Tuning.network_health_max()
+
+	if cap and wanted > cap then
+		warn_once(string.format("%s: %d health is more than the game can send to the other players; capped at %d", tostring(name), math.floor(wanted), math.floor(cap)))
+		wanted = cap
+	end
 
 	if math.abs(health:max_health() - wanted) > HEALTH_EPSILON then
 		if not health._game_session or not health._game_object_id then
