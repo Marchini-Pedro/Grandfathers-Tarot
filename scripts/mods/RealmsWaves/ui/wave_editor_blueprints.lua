@@ -447,6 +447,11 @@ blueprints.tile = function (node_id, k, interactive)
 	rect_pass(passes, "edit_bg", T.edit[1], T.edit[2], T.edit[3], T.edit[4], 3)
 	tile_text(passes, "edit_label", T.edit, "proxima_nova_bold", font(12), "center", "center", 5)
 
+	-- Nightmare's black fog over everything on the card (wave_editor_deck.lua _tick_living_tile): a veil and three drifting banks
+	for _, id in ipairs({ "fog_veil", "fog_1", "fog_2", "fog_3" }) do
+		passes[#passes + 1] = { pass_type = "rect", style_id = id, style = { offset = { 0, 0, id == "fog_veil" and 5.5 or 5.6 }, size = { W, 0 }, color = { 0, 0, 0, 0 }, visible = false } }
+	end
+
 	-- the ready ping: a ring that leaves the card and fades, when its cooldown ends
 	rect_pass(passes, "ping_t", 0, 0, W, 2, 7)
 	rect_pass(passes, "ping_b", 0, 0, W, 2, 7)

@@ -46,6 +46,8 @@ local ICON_TH = { "icon_th1", "icon_th2", "icon_th3", "icon_th4" }
 local ICON_CH = { "icon_ch1", "icon_ch2", "icon_ch3", "icon_ch4" }
 local TH_H = { "th_h1", "th_h2", "th_h3", "th_h4", "th_h5", "th_h6" }
 local BLOOD, BLOOD_C = { "blood_1", "blood_2", "blood_3" }, { "blood_c1", "blood_c2", "blood_c3" }
+local FOG = { "fog_1", "fog_2", "fog_3" }
+local BLACK = { 0, 0, 0 }
 local MURMUR_SECONDS = 1.6 -- a threat 5 or 6 card writes its whisper letter by letter in this time after it is shown
 local DESPAIR_DEEP = { 44, 24, 70 } -- the dark end of Despair's breathing halo (the pale end is Cards.DESPAIR_EDGE)
 local WARM_WHITE = { 255, 250, 236 } -- the bright end of Apotheosis' glitter
@@ -1018,6 +1020,31 @@ HudElementRealmsWavesPanel._tick_living = function (self)
 		else
 			for k = 1, #BLOOD do
 				style[BLOOD[k]].visible, style[BLOOD_C[k]].visible = false, false
+			end
+		end
+
+		-- Nightmare's black fog comes and goes over the whole card
+		if suit and suit.fog then
+			rec.fog = rec.fog or Spread.new_fog()
+
+			local veil = Spread.fog(Cards, clock + i * 0.5, rec.ch, rec.fog)
+
+			box(style.fog_veil, rec.x, rec.y, rec.cw, rec.ch)
+			paint(style.fog_veil, veil, BLACK)
+			style.fog_veil.visible = veil > 0
+
+			for k = 1, #FOG do
+				local bank = rec.fog[k]
+
+				box(style[FOG[k]], rec.x, rec.y + bank[1], rec.cw, bank[2])
+				paint(style[FOG[k]], bank[3], BLACK)
+				style[FOG[k]].visible = bank[2] > 0 and bank[3] > 0
+			end
+		else
+			style.fog_veil.visible = false
+
+			for k = 1, #FOG do
+				style[FOG[k]].visible = false
 			end
 		end
 

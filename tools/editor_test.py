@@ -435,16 +435,21 @@ settings.su_boss_ambush = "nightmare"; settings.pct_boss_ambush = nil
 view:_reload(); view:_apply_screen()
 do
   local inp = { get = function() return nil end, is_null_service = function() return false end }
-  local strengths, flashes = {}, 0
-  for k = 0, 120 do
+  local strengths, flashes, fog_most, fog_clear, fog_inside = {}, 0, 0, false, true
+  for k = 0, 180 do
     view:update(0.05, 50 + k * 0.05, inp)
     strengths[tile(5).style.glow.color[1]] = true
     if tile(5).style.border_t.color[2] > 0xb0 then flashes = flashes + 1 end
+    local veil = tile(5).style.fog_veil
+    if veil.visible then fog_most = math.max(fog_most, veil.color[1]) else fog_clear = true end
+    for j = 1, 3 do local b = tile(5).style["fog_" .. j]; if b.visible and (b.offset[2] < -0.01 or b.offset[2] + b.size[2] > 270 + 0.01) then fog_inside = false end end
   end
+  check("nightmare: on the Deck a black fog comes and goes over the whole tile, inside it", fog_most > 100 and fog_clear and fog_inside and tile(5).style.fog_veil.size[2] == 270, fog_most)
   local n = 0 for _ in pairs(strengths) do n = n + 1 end
   check("nightmare: the tile is black and named, its glow a breathing darkness, its frame a light that flickers now and then", tile(5).content.suit_label == "NIGHTMARE" and tile(5).style.glow.visible and n >= 6 and flashes >= 1 and flashes < 60, n .. " strengths, " .. flashes .. " flashes")
   settings.su_boss_ambush = "warp"
   view:_reload(); view:_apply_screen()
+  check("warp: no fog on another suit's tile", not tile(5).style.fog_veil.visible and not tile(5).style.fog_2.visible)
   local seen, crackled = {}, false
   for k = 0, 80 do
     view:update(0.05, 60 + k * 0.07, inp)

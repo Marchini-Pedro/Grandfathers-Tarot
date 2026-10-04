@@ -59,7 +59,7 @@ Cards.SUITS = {
 	-- NIGHTMARE (2026-10-04, the user: "like Heresy but all black, nightmarish, very dark and gloomy, super dangerous"): black on black,
 	-- an ash accent, a horned eye. `gloom` is the darkness its glow breathes, `lit` the dying light that flickers in its frame, `ink`
 	-- the black that drips from it. `once`: one Nightmare card per game (core/director.lua takes them all out of the draw after one).
-	nightmare = { name = "Nightmare", special = true, once = true, card = hex("#030304"), hi = hex("#0b0a0f"), frame = hex("#2b2735"), text = hex("#d6d1df"), accent = hex("#9b93ad"), lit = hex("#f2eefa"), gloom = hex("#120e1a"), ink = hex("#000000"), whisper = "It was never a dream.", icon = "nightmare" },
+	nightmare = { name = "Nightmare", special = true, once = true, card = hex("#030304"), hi = hex("#0b0a0f"), frame = hex("#2b2735"), text = hex("#d6d1df"), accent = hex("#9b93ad"), lit = hex("#f2eefa"), gloom = hex("#120e1a"), ink = hex("#000000"), fog = true, whisper = "It was never a dream.", icon = "nightmare" },
 	prayer = { name = "Prayer", beneficial = true, special = true, card = hex("#0b2023"), hi = hex("#17363b"), frame = hex("#4F9CA3"), text = hex("#dcf1ed"), accent = hex("#4F9CA3"), whisper = "The faithful are not forsaken.", icon = "prayer" },
 	miracle = { name = "Miracle", beneficial = true, special = true, card = hex("#231b0b"), hi = hex("#392d13"), frame = hex("#D8B45A"), text = hex("#fff2cf"), accent = hex("#D8B45A"), whisper = "A light in the darkest hour.", icon = "miracle" },
 	grace = { name = "Grace", beneficial = true, special = true, card = hex("#1b2229"), hi = hex("#2c3540"), frame = hex("#E8EEF4"), text = hex("#f8fafc"), accent = hex("#E8EEF4"), whisper = "Rise, and carry the light.", icon = "grace" },
@@ -115,6 +115,23 @@ Cards.dread = function (t)
 	local h = (math.sin(math.floor(t * 9) * 12.9898) * 43758.5453) % 1
 
 	return 0.5 + 0.5 * math.sin(t * 1.9), h > 0.94 and 0.6 + 0.4 * (h - 0.94) / 0.06 or 0
+end
+-- Nightmare's black fog (2026-10-04, the user: "a black fog that comes and goes, it needs to be very special"), over everything on
+-- its card: at time t the veil over the whole card (0..1: mostly clear, then a slow surge of darkness every 7.4 s) and, for band i
+-- (1..FOG_BANDS), where the middle of that bank of fog is (0..1 down the card; the banks drift down and come back from the top) and
+-- how thick it is (0..1, thickest when the veil is).
+Cards.FOG_BANDS = 3
+Cards.fog = function (t, i)
+	t = tonumber(t) or 0
+
+	local surge = 0.5 + 0.5 * math.sin(t * 0.85)
+	local veil = surge * surge * surge
+
+	if not i then
+		return veil
+	end
+
+	return (t * (0.05 + 0.02 * i) + i * 0.37) % 1.3 - 0.15, math.min(1, veil * 1.4) * (0.65 + 0.35 * math.sin(t * 1.3 + i * 2.1))
 end
 -- The warp at time t: an uneven pulse (0..1) and a crackle (0 or 1, about one beat in eight at 14 per second).
 Cards.warp_pulse = function (t)

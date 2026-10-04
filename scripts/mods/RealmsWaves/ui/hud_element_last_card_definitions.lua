@@ -166,6 +166,13 @@ end
 
 text(passes, "name", z + 20, definitions.DISPLAY_FONT, Spread.NAME_FONT, "left", "top", false, true)
 
+-- Nightmare's black fog over everything on the card (above the whisper, which is raised to z + 20)
+rect(passes, "fog_veil", z + 30)
+
+for i = 1, 3 do
+	rect(passes, "fog_" .. i, z + 31)
+end
+
 definitions.scenegraph_definition = scenegraph_definition
 definitions.widget_definitions = {
 	last = UIWidget.create_definition(passes, "panel"),

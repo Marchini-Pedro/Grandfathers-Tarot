@@ -604,6 +604,29 @@ Spread.icon = function (id, size, shape)
 	end
 end
 
+-- --------------------------------------------------------------------------------------------- Nightmare's fog
+-- The fog over a card `ch` high at time t (catalog/cards.lua Cards.fog): writes { top, height, alpha } of each bank into
+-- out[1..FOG_BANDS] (inside the card: a bank cut at its edges) and returns the alpha of the veil over the whole card.
+Spread.FOG_HEIGHT = 0.45 -- of the card's height, one bank
+Spread.FOG_ALPHA, Spread.VEIL_ALPHA = 215, 165
+
+Spread.fog = function (Cards, t, ch, out)
+	for i = 1, Cards.FOG_BANDS do
+		local centre, thick = Cards.fog(t, i)
+		local half = ch * Spread.FOG_HEIGHT / 2
+		local top, bottom = max(0, centre * ch - half), min(ch, centre * ch + half)
+		local bank = out[i]
+
+		bank[1], bank[2], bank[3] = top, max(0, bottom - top), floor(Spread.FOG_ALPHA * thick + 0.5)
+	end
+
+	return floor(Spread.VEIL_ALPHA * Cards.fog(t) + 0.5)
+end
+
+Spread.new_fog = function ()
+	return { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 } }
+end
+
 -- ----------------------------------------------------------------------------------------------- the feather
 -- The UI draws triangles, circles and rotated squares without anti-aliasing, so their edges stair-step. Under every such
 -- shape goes a faint copy that is FEATHER units larger: the edge then has a soft step between the shape and the

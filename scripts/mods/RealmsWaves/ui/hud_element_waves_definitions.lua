@@ -204,6 +204,13 @@ local function card_passes()
 
 	text(passes, "name", z + 20, definitions.DISPLAY_FONT, Spread.NAME_FONT, "left", "top", false, true)
 
+	-- Nightmare's black fog over everything on the card: a veil and three drifting banks (HudElementRealmsWavesPanel._tick_living)
+	rect(passes, "fog_veil", z + 30)
+
+	for i = 1, 3 do
+		rect(passes, "fog_" .. i, z + 31)
+	end
+
 	return passes
 end
 

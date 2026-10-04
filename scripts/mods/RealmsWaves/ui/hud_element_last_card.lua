@@ -290,7 +290,39 @@ HudElementRealmsWavesLast._setup = function (self, card, font)
 	paint(style.age, 255, Cards.BASE.muted)
 	style.age.visible = true
 
+	-- Nightmare's fog is animated every frame (HudElementRealmsWavesLast._tick_fog)
+	self._fog_box = suit.fog and { x, y, cw, ch } or nil
+	self._fog = self._fog or Spread.new_fog()
+	style.fog_veil.visible, style.fog_1.visible, style.fog_2.visible, style.fog_3.visible = false, false, false, false
+
 	self._seconds = nil
+end
+
+local BLACK = { 0, 0, 0 }
+
+-- Every frame while a Nightmare card is in the window: the black fog comes and goes over it
+HudElementRealmsWavesLast._tick_fog = function (self, t)
+	local b = self._fog_box
+
+	if not b then
+		return
+	end
+
+	local Cards = cards_module()
+	local style = self._widget.style
+	local veil = Spread.fog(Cards, t, b[4], self._fog)
+
+	box(style.fog_veil, b[1], b[2], b[3], b[4])
+	paint(style.fog_veil, veil, BLACK)
+	style.fog_veil.visible = veil > 0
+
+	for i = 1, 3 do
+		local s, bank = style["fog_" .. i], self._fog[i]
+
+		box(s, b[1], b[2] + bank[1], b[3], bank[2])
+		paint(s, bank[3], BLACK)
+		s.visible = bank[2] > 0 and bank[3] > 0
+	end
 end
 
 -- "m:ss ago" in played seconds (rounded down: the card is exactly as old as the seconds that have passed)
@@ -335,10 +367,13 @@ HudElementRealmsWavesLast._refresh = function (self)
 	self._visible = true
 	self._widget.visible = true
 	self:_tick_age(age)
+	self:_tick_fog(self._clock or 0)
 end
 
 HudElementRealmsWavesLast.update = function (self, dt, t, ui_renderer, render_settings, input_service)
 	HudElementRealmsWavesLast.super.update(self, dt, t, ui_renderer, render_settings, input_service)
+
+	self._clock = (self._clock or 0) + (tonumber(dt) or 0)
 
 	local ok, err = pcall(self._refresh, self)
 

@@ -529,6 +529,11 @@ DeckView.install = function (View, h)
 		fx.threat, fx.sat, fx.k, fx.dx, fx.row_y = card.threat, sat, k, T.diamonds_x, T.row_y
 		fx.mix, fx.mix2, fx.tmp, fx.tmp2 = { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }
 
+		-- (the fog of a Nightmare card this tile showed before is cleared; _tick_living_tile draws it again for a Nightmare card)
+		if style.fog_veil then
+			style.fog_veil.visible, style.fog_1.visible, style.fog_2.visible, style.fog_3.visible = false, false, false, false
+		end
+
 		-- one dot per enemy colour, right aligned, each on a feather
 		local dots = card.dots
 		local count = math.min(#dots, 6)
@@ -854,6 +859,28 @@ DeckView.install = function (View, h)
 			local pulse, crackle = Cards.warp_pulse(t)
 
 			paint(style.glow, math.floor(150 * (0.45 + 0.55 * pulse) + 0.5), Spread.grey(fx.tmp, mix_into(fx.mix, suit.frame, suit.lit, 0.35 * pulse + 0.65 * crackle), fx.sat))
+		end
+
+		-- Nightmare's black fog comes and goes over the whole card
+		if suit.fog and style.fog_veil then
+			local H = 270 * fx.k
+
+			fx.fog = fx.fog or Spread.new_fog()
+
+			local veil = Spread.fog(Cards, t, H, fx.fog)
+
+			style.fog_veil.size[2] = H
+			style.fog_veil.color[1] = veil
+			style.fog_veil.visible = veil > 0
+
+			for i = 1, 3 do
+				local s, bank = style["fog_" .. i], fx.fog[i]
+
+				s.offset[2], s.size[2], s.color[1] = bank[1], bank[2], bank[3]
+				s.visible = bank[2] > 0 and bank[3] > 0
+			end
+		elseif style.fog_veil and style.fog_veil.visible then
+			style.fog_veil.visible, style.fog_1.visible, style.fog_2.visible, style.fog_3.visible = false, false, false, false
 		end
 
 		if fx.threat == 6 then

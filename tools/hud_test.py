@@ -880,6 +880,24 @@ do
     for i = 1, Spread.ICON_CIRCS do if h(1).style["icon_c" .. i].visible then circs = circs + 1 end end
     return tris == 4 and circs == 3
   end)())
+  -- Nightmare's black fog (2026-10-04): it comes and goes over the whole card, its banks stay inside the card; no other suit has it
+  local most, least, inside_card, bank_seen = 0, 255, true, false
+  for k = 1, 300 do
+    frame(e, 0.033)
+    local v = h(1).style.fog_veil
+    if v.visible then most = math.max(most, v.color[1]) else least = 0 end
+    if v.visible then least = math.min(least, v.color[1]) end
+    for j = 1, 3 do
+      local b = h(1).style["fog_" .. j]
+      if b.visible then
+        bank_seen = true
+        if b.offset[2] < h(1).style.bg.offset[2] - 0.01 or b.offset[2] + b.size[2] > h(1).style.bg.offset[2] + h(1).style.bg.size[2] + 0.01 or b.color[2] ~= 0 then inside_card = false end
+      end
+    end
+  end
+  check("nightmare: a black fog comes and goes over the card (the veil thickens past 100 of 255 and clears again)", most > 100 and least < 20, most .. " / " .. least)
+  check("nightmare: its banks of fog drift inside the card, black, above everything on it", bank_seen and inside_card and h(1).style.fog_1.offset[3] > h(1).style.name.offset[3])
+  check("nightmare: no other suit is fogged", not h(2).style.fog_veil.visible and not h(3).style.fog_veil.visible and not h(3).style.fog_1.visible)
   audit_ok("nightmare and warp hand", e)
 end
 
@@ -1078,6 +1096,19 @@ do
     local card=lc("faith-w","The Magician","faith",3,{},"Believe, and endure.")
     current_view=last_view(card,70,1);last_frame(el)
     check("last card: only Heresy colours its whisper (Faith's is muted, as on the design page)",w.style.whisper.text_color[2]==0x98)
+  end
+  do
+    local card=lc("fog","The Dark","nightmare",6,{},"It was never a dream.")
+    current_view=last_view(card,90,1);last_frame(el)
+    local most, inside = 0, true
+    for k=1,600 do
+      LastElement.update(el, 1/60, 0, nil, nil, nil)
+      most=math.max(most, w.style.fog_veil.visible and w.style.fog_veil.color[1] or 0)
+      for j=1,3 do local b=w.style["fog_"..j]; if b.visible and (b.offset[2] < w.style.card_bg.offset[2]-0.01 or b.offset[2]+b.size[2] > w.style.card_bg.offset[2]+w.style.card_bg.size[2]+0.01) then inside=false end end
+    end
+    check("last card: a Nightmare card's black fog comes and goes in the window too, inside the card",most>100 and inside,most)
+    current_view=last_view(lc("clear","The Fool","swarm",1,{},"x"),91,1);last_frame(el)
+    check("last card: the fog is gone with the next card",not w.style.fog_veil.visible and not w.style.fog_1.visible)
   end
   settings.hud_last_transparency=75;settings.hud_transparency=0;last_frame(el)
   check("last card: independent transparency changes without new card",w.alpha_multiplier==0.25)

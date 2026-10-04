@@ -2822,6 +2822,18 @@ do
     for i = 0, 899 do local b, f = Cards.dread(i / 9); low, high = math.min(low, b), math.max(high, b); if f > 0 then flashes = flashes + 1 end; if f < 0 or f > 1 then return false end end
     return low >= 0 and high <= 1 and high - low > 0.9 and flashes > 5 and flashes < 120
   end)())
+  check("fog: the veil stays in 0..1, mostly clear (under a fifth half of the time) with surges past 0.9; the banks drift and stay in reach of the card", (function()
+    local clear, peak = 0, 0
+    for i = 0, 999 do
+      local t = i * 0.05
+      local v = Cards.fog(t)
+      if v < 0 or v > 1 then return false end
+      if v < 0.2 then clear = clear + 1 end
+      peak = math.max(peak, v)
+      for b = 1, Cards.FOG_BANDS do local c, thick = Cards.fog(t, b); if c < -0.16 or c > 1.16 or thick < 0 or thick > 1 then return false end end
+    end
+    return clear > 400 and peak > 0.9 and Cards.SUITS.nightmare.fog and not Cards.SUITS.heresy.fog
+  end)())
   check("warp: an uneven pulse in 0..1 and a crackle of 0 or 1 about one beat in eight", (function()
     local crackles = 0
     for i = 0, 1399 do local p, c = Cards.warp_pulse(i / 14); if p < 0 or p > 1 or (c ~= 0 and c ~= 1) then return false end; crackles = crackles + c end
