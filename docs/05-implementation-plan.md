@@ -252,3 +252,20 @@ Ten changes the user asked for in one list. Everything below is implemented and 
   locally; preserve the ten-minute job limit and every coverage/assertion gate.
 - [ ] Native acceptance of [the new game checklist](12-card-effects-and-ui.md).
   Keep the feature branch open until the user's confirmation.
+
+## Cauldron redesign (`feature/cauldron-redesign`, 2026-10-04)
+
+Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
+
+- [x] Heresy crimson palette, heartbeat glow and frame (HUD, Deck, stage) and blood drops (HUD).
+- [x] Faith, the fourth beneficial suit (palette, mark, whisper, description, Consecrate).
+- [x] Threat 6 named Despair or Apotheosis with its own edge, and a shine (HUD, Deck, stage).
+- [x] One cooldown look (rot and renewal) everywhere; the Mirror shows it, nothing to choose.
+- [x] Murmur: threat 5 and 6 whispers come back letter by letter when drawn.
+- [x] Hostile / beneficial suit switch on the quick face and the Mirror (replaces Auto | By hand).
+- [x] Compact row steppers and chips.
+- [x] Beneficial rows and a four-group effect shelf; Guidance renamed Buffs, Prayer renamed Items, Game Effects added.
+- [x] Raise the fallen and Refill ammunition (host, native helpers); Recharge Med Station disabled for now.
+- [x] Completion sound: Preview per row, Search button, two sounds in a row, a volume each (experimental).
+- [x] Tests for all of the above on both runtimes; real-widget previews inspected.
+- [ ] Game acceptance of the [checklist](13-cauldron-redesign.md#in-game-checks-before-merge); merge only after the user confirms.

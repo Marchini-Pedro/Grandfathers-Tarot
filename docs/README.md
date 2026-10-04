@@ -41,15 +41,16 @@ usable experiments from advanced prerequisites; in-game acceptance is pending.
 [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8) merged on
 2026-10-03 at `fe957632`. The earlier hand-off remains historical; merge alone
 does not establish acceptance of its pending native checks.
-Current work is [draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9) on
-`feature/card-effects-and-ui`: three beneficial faces,
-native effects, completion audio, appearance controls and compact HUD/editor fixes.
-See [the feature guide](12-card-effects-and-ui.md) and current verification log.
+PR #9 (three beneficial faces, native effects, completion audio, appearance
+controls) is merged into `main` at `bc4d9ff`. Current work is
+`feature/cauldron-redesign` (2026-10-04): see [its guide](13-cauldron-redesign.md)
+and the current verification log.
 
 ## References
 
 | Document | Purpose |
 | --- | --- |
+| [Cauldron redesign](13-cauldron-redesign.md) | Faith, crimson Heresy, one cooldown look, murmur, threat 6 names and shine, beneficial shelf, Raise the fallen, Refill ammunition, two-sound audio; game checks |
 | [Card effects and UI (PR #9)](12-card-effects-and-ui.md) | Behavior, native contracts, compatibility and game acceptance |
 | [Design and rationale](04-design-and-rationale.md) | Requirements, architecture and protocol decisions |
 | [Enemy colour experiments](enemy-appearance.md) | Per-group ARGB/method controls, usable experiments, prerequisites, transport and live acceptance |

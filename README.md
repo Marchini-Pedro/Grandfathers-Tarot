@@ -4,11 +4,11 @@ A Darktide mod that adds enemy waves and beneficial tarot cards to local and LAN
 missions hosted through Realms Server. Build a deck, draw a tarot hand, or use
 random selection and player voting. No Twitch service is required.
 
-> Development status (2026-10-03): `main` includes merged
-> [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8).
-> [Draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9) contains card effects and compact UI
-> on `feature/card-effects-and-ui`. Both local and hosted runtime checks pass;
-> native acceptance remains pending in the [feature guide](docs/12-card-effects-and-ui.md).
+> Development status (2026-10-04): `main` includes the card effects of
+> [PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9). The branch
+> `feature/cauldron-redesign` adds Faith, a crimson Heresy, one cooldown look, the
+> beneficial shelf and two-sound completion audio ([guide](docs/13-cauldron-redesign.md));
+> offline checks pass, game acceptance is pending.
 > Runtime version: `2.0.0`; last tagged release: `v1.13.0`.
 
 ## Features
@@ -18,20 +18,26 @@ random selection and player voting. No Twitch service is required.
 - **The Deck:** up to 100 cards; create, enable, share and import cards; set a
   card's chance (the pips) and cooldown (the `-` / `+` on its tile) in place; save five
   **Deck presets**; sort cards by threat, rarity, enemy count or face; drag to swap
-  cards on a page. **HERESY**, **Prayer**, **Miracle** and **Grace** have their own frames and sigils.
+  cards on a page. **HERESY** (crimson; its glow beats like a heart and it bleeds in the HUD), **Prayer**, **Miracle**,
+  **Grace** and **Faith** have their own frames and sigils.
 - **The Cauldron:** build enemy groups with a searchable catalog and Dreg/Scab
   shelf, modifiers, custom stats and a live card preview.
 - **Enemy colour experiments:** per-group ARGB sliders and a method dropdown
   under **Custom > Enemy colour experiments**. Try natural/applied stimm,
   explicit loadout tint with an independent outline and protected-colour toggle.
   Surface/shader methods are visibly unavailable; their requirements remain documented.
-- **Beneficial cards:** party healing, corruption cleanse, pocketable items, Med
-  Station charges, ability restoration and timed guidance/Blue Stimm. Hostile
-  cards can add a timed **Blackout**. Consecrate the 12 standard slots with Undo.
-- **Completion sounds:** select content-ranked native sounds or search the library.
+- **Beneficial cards:** a shelf in four groups: **Healing** (party health,
+  corruption cleanse, Green Stimm, Med Crates; Med Station is off for now),
+  **Buffs** (combat abilities, reveal Specialists), **Items** (Yellow Stimm, Blue
+  Stimm buff) and **Game Effects** (raise knocked-down players, refill ammunition).
+  Hostile cards can add a timed **Blackout**. Consecrate the 12 standard slots with Undo.
+- **Completion sounds:** content-ranked native sounds, a Search button, Preview on
+  every row, up to two sounds in a row and a volume each (experimental).
   Playback waits for the wave/effect to finish; SimpleAudio is optional.
-- **The Mirror:** customize suit, six manual strength pips, whisper and cooldown look,
-  with a preview of its appearance in the hand.
+- **The Mirror:** suit (12 hostile or 4 beneficial behind a switch), six manual
+  strength pips (level 6 is Despair, or Apotheosis on a blessing, and shines),
+  whisper and cooldown; every card rots and renews. A threat 5 or 6 card's whisper
+  murmurs letter by letter when it is drawn.
 - **Last card window:** a compact full card face with its name, flavor, sigil and age,
   synchronized for every player. It has its own transparency slider and is movable
   with Custom HUD. Draw/Last Card omit enemy modifier labels.
@@ -98,7 +104,10 @@ SimpleAudio can play completion sounds. No new dependency is required.
   limit and warn once when cards are omitted; if no card fits, the shared pool
   is cleared. Local decks still hold up to 100 cards.
 - Beneficial effects, Blackout, colour protection and completion audio still need
-  [native acceptance](docs/12-card-effects-and-ui.md). Use matching development
+  [native acceptance](docs/12-card-effects-and-ui.md); so do the
+  [Cauldron redesign](docs/13-cauldron-redesign.md) effects. A sound volume below 100
+  is an experiment (the game has no per-sound volume), and a card with two sounds or
+  a volume is silent for older peers. Use matching development
   revisions on peers for guidance and remote ability restoration. Blackout controls
   native light controllers; event names do not guarantee all sound banks are loaded.
 - The recovered workshop, drag interactions and multiplayer changes have

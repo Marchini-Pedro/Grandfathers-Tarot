@@ -326,3 +326,37 @@ Things we know are missing or unverified, each with the next concrete step.
   A combined patch used a results-log sentence as learning-log context and
   failed before writes; verify the target's final lines and apply corrected
   context rather than assuming another document has the same ending.
+
+## 2026-10-04 (feature/cauldron-redesign)
+
+- **No per-sound volume.** The game's Wwise interface has no volume parameter per
+  event or source: the options menu sets global parameters (`options_sfx_slider`,
+  `scripts/settings/options/sound_settings.lua`). The volume slider therefore sets
+  that parameter on a manual source of its own, which may or may not be honoured
+  per source: an experiment to confirm in game. Volume 0 is reliable (it skips).
+- **Native revive and ammo exist on the host.** A Veteran's shout and the servo
+  skull revive by writing `assisted_state_input.force_assist`; the Veteran's
+  coherency talents give other players ammunition with `Ammo.add_to_all_slots` on
+  the server. Both are reused rather than inventing a state change.
+- **`WwiseWorld.is_playing` answers whether an event still plays** (dialogue code
+  uses it), so a second sound can follow the first; SimpleAudio returns no id, so
+  a fixed gap is the fallback.
+- **io_dofile gives every loader its own copy.** A table filled by
+  `EffectsView.definitions` (the shelf layout) was nil in the view's copy of the
+  module; the layout is now computed at load time by every copy. Earlier lessons
+  about `mod.rw_accent` and the button palette are the same problem.
+- **Time-based effects need test times on the curve.** A heartbeat check at two
+  times that both fell in the rest between beats saw the same value; the test now
+  samples one time on a beat and one between.
+- **Effects.update runs only on the host during a mission** (via the executor), so
+  anything the editor previews in the hub needs its own tick (`Effects.tick_audio`
+  from `mod.update`).
+- **Removing a feature drops coverage unless its code goes too.** The first full run
+  failed six module floors because the murmur/vial looks and Auto | By hand were
+  only hidden; their tests had gone with the feature. Deleting the dead code (and
+  the one tile-scale vial check) restored every floor without lowering any.
+  LuaJIT counts structural lines (`end`, table constructors spread over lines)
+  differently: its floors are the tighter ones.
+- The borders already follow the suit in the mod (`Components.set_theme` scales the
+  shared frame colour). The request came from the design page, which had fixed
+  borders; nothing to change in code.

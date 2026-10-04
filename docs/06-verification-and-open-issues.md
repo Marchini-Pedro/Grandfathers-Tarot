@@ -424,3 +424,18 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   38 module gates (Lua 5.5 82.37% / LuaJIT 2.1 79.13%). All Markdown stays under
   100 KiB and the three new guide links resolve. Publish this documentation
   follow-up on the existing PR #9 branch; no main merge or native acceptance.
+
+- 2026-10-04 (feature/cauldron-redesign, offline): Heresy crimson with a heartbeat
+  and blood drops, Faith, threat 6 Despair/Apotheosis and its shine, one cooldown
+  look, the threat 5/6 murmur, the hostile/beneficial switch, compact steppers, the
+  beneficial rows and four-group shelf, Raise the fallen, Refill ammunition, Med
+  Station disabled, and two-sound completion audio with experimental volumes.
+  New and changed checks in logic, effects (runtime and editor), editor and HUD
+  harnesses, including late UTF-8 cuts, allocation-free per-frame painting, the
+  sound chain's native/SimpleAudio/timeout paths and the 16-suit layout. Real-widget
+  previews of the beneficial Cauldron, the Cauldron, the Mirror and the sound screen
+  were inspected. Dead code of the removed choices (the murmur and vial cooldown
+  looks, Automatic for this suit, Auto | By hand) was deleted rather than left
+  untested. Full runners pass **2,382 assertions each** with every module gate and
+  no floor lowered (Lua 5.5 82.34% / LuaJIT 2.1 79.15%). Nothing tested in game;
+  see [the checklist](13-cauldron-redesign.md#in-game-checks-before-merge).

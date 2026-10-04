@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-04 - Cauldron redesign: Faith, crimson Heresy, one cooldown look, beneficial shelf, two sounds (feature/cauldron-redesign)
+- Catalog: Heresy becomes crimson (accent `#D42A3A`, darker card and frame, a blood colour); Faith, the Order of the Sacred Rose, is the fourth beneficial suit; level 6 is named Despair or Apotheosis with its own edge; every card rots and renews; threat 5 and 6 murmur. Effects are grouped Healing, Buffs, Items and Game Effects; Raise the fallen and Refill ammunition are new host effects; Recharge Med Station is disabled for now.
+- Audio: a card holds up to two sounds with a volume each (old one-sound texts unchanged); the second follows the first; volume below 100 is an experiment.
+- HUD: Heresy's glow and frame beat like a heart and blood runs from it; the sixth diamond shines (dark for Despair, light for Apotheosis); the drawn card's whisper murmurs at threat 5 and 6. The Deck and the stage card share the heartbeat and the shine.
+- Editor: the hostile / beneficial suit switch replaces Auto | By hand; compact row steppers and chips; the beneficial Cauldron has effect rows and a four-group shelf; the Mirror shows one look; the sound screen has Preview, Search, two slots and volume sliders.
+- Removed the dead code of the removed choices (murmur/vial looks, Automatic for this suit, Auto | By hand).
+- Full runners pass 2,382 assertions each and every module gate (Lua 5.5 82.34% / LuaJIT 2.1 79.15%); docs 13 (new), 05, 06, 07, README. Not yet tested in game.
+
 ## 2026-10-03 - Analyze black and near-black enemy stimm (PR #9 follow-up)
 - Trace native zero reset and verify nonzero greys, recipes, flags and strength on both Lua runtimes. Actual black rendering and the darkest readable grey remain unverified.
 - Document a matched-control charcoal experiment, reuse of existing methods, tint ownership and the shared outline colour limitation. Update design/plan/results/learnings and current limits; no production option or shader asset is added.
