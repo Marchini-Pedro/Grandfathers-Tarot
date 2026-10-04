@@ -73,8 +73,10 @@ local function no_settings()
 	return nil
 end
 
+-- (2026-10-04) Also the characters chat apps read as formatting (* _ ` and the dot that marks an empty field), so a text pasted
+-- through Discord and the like arrives whole: "~~1~~" had become a struck-through "1" and the import failed its check.
 local function escape(text)
-	return (tostring(text or ""):gsub("[%%|~%c]", function (char)
+	return (tostring(text or ""):gsub("[%%|~%c%*_`%.]", function (char)
 		return string.format("%%%02X", char:byte())
 	end))
 end
@@ -331,9 +333,11 @@ Presets.pool_waves = function (preset, owner, Events, Groups, limit)
 end
 -- ------------------------------------------------------------------- text format
 
+local EMPTY = "."
+
 local function wave_text(wave)
 	local fields = {
-		wave.key,
+		escape(wave.key),
 		escape(wave.name),
 		wave.enabled and "1" or "0",
 		tostring(wave.pct),
@@ -355,6 +359,10 @@ local function wave_text(wave)
 	if (wave.effects or "") ~= "" or (wave.sound or "") ~= "" then
 		fields[#fields + 1], fields[#fields + 2] = escape(wave.effects or ""), escape(wave.sound or "")
 	end
+	-- an empty field is written "." (two "~" side by side are strikethrough marks in chat apps; a real dot is escaped above)
+	for i = 1, #fields do
+		if fields[i] == "" then fields[i] = EMPTY end
+	end
 	return table.concat(fields, "~")
 end
 
@@ -362,6 +370,12 @@ end
 -- so a wave that cannot be built is refused.
 local function parse_wave(text, Groups)
 	local parts = split(text, "~")
+
+	for i = 1, #parts do
+		if parts[i] == EMPTY then parts[i] = "" end
+	end
+
+	parts[1] = unescape(parts[1]) -- (the key: custom%5F6 since 2026-10-04, custom_6 before)
 
 	if #parts ~= 9 and #parts ~= 11 and #parts ~= 12 and #parts ~= 13 and #parts ~= 17 and #parts ~= 18 and #parts ~= 20 then
 		return nil, "a wave in the text is damaged"

@@ -2720,6 +2720,25 @@ do
   check("wave share: a standard wave applied onto another standard wave", Presets.capture_wave(tg, "wave_large", Events, Groups).name == "The Fool")
   local function bad(t) local w, e = Presets.decode_wave(t, Events, Groups); return w == nil and type(e) == "string" and e end
   check("wave share: empty text refused", bad("  ") ~= false)
+  do
+    -- (2026-10-04) a text that goes through a chat app arrives whole: no "~~" (strikethrough), no * _ ` (formatting); a real dot,
+    -- underscore or star in a name or a whisper is escaped; empty fields are "."; texts made before still import
+    store.su_custom_6 = "rage"; store.wh_custom_6 = "I have fire! I have steel. *FIRE_STEEL*"
+    local Sounds = load("catalog/sounds")
+    store.snd_custom_6 = Sounds.EVENTS[100]
+    local chat = Presets.encode_wave(Presets.capture_wave(g, "custom_6", Events, Groups))
+    check("chat-safe export: no ~~, no * _ or ` (a chat app would eat them), empty fields written as a dot", not chat:find("~~", 1, true) and not chat:find("[%*_`]") and chat:find("~.~", 1, true) ~= nil, chat)
+    local back = Presets.decode_wave(chat, Events, Groups)
+    check("chat-safe export: the round trip keeps the whisper with its dot, stars and underscore, the sound and the empty look", back and back.whisper == "I have fire! I have steel. *FIRE_STEEL*" and back.sound == Sounds.EVENTS[100] and back.look == "" and back.suit == "rage", back and back.whisper)
+    local old = "RWW1|custom_6~Old~1~5~120~3~10~60~2 hound~0~0~0~0~rage~5~Old whisper~~1~~"
+    old = Presets.seal(old:sub(1))
+    local old_wave = Presets.decode_wave(old, Events, Groups)
+    check("chat-safe export: a text made before (with ~~) still imports", old_wave and old_wave.name == "Old" and old_wave.whisper == "Old whisper" and old_wave.look == "")
+    local damaged = "RWW1|custom_27~Fire and Steel~1~10~120~3~10~60~10 armored hound[fire]{speed=180}, 6 bomber[enraged], 10 mauler[enraged+fire]~0~0~0~0~rage~5~I have fire! I have steel! FIRESTEEL!1loc_enemy_traitor_enforcer_executor_a__assault_06|b09a"
+    local why = bad(damaged)
+    check("chat-safe export: a text a chat app damaged (its ~~1~~ eaten) is refused with the copy-again message", why and why:find("incomplete or was changed", 1, true) ~= nil, why)
+    store.su_custom_6, store.wh_custom_6, store.snd_custom_6 = nil, nil, nil
+  end
   check("wave share: a whole preset is refused with a pointer to the Presets screen", (bad(Presets.encode({ name = "x", waves = {} })) or ""):find("Presets screen") ~= nil)
   check("wave share: wrong prefix refused", (bad("hello") or ""):find("RWW1") ~= nil)
   check("wave share: altered/cut text refused", (bad(text:sub(1, #text - 5)) or ""):find("incomplete or was changed") ~= nil and (bad(text:sub(1, 20) .. " " .. text:sub(21)) or ""):find("incomplete or was changed") ~= nil)
