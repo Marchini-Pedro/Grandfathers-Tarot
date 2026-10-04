@@ -1235,9 +1235,17 @@ RealmsWavesView._refresh_rows = function (self)
 					name_color = colors and colors.modifier_argb(item.id) or name_color
 					content.row_name = item.name
 					content.info = item.requires_havoc and (item.description .. " " .. mod:localize("note_havoc_only")) or item.description
-					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = true, false, false, false, false
+					-- On Fire: its burn's damage on the right of the row (2026-10-04)
+					local burn = item.id == "fire"
+
+					content.show_check, content.show_stepper, content.show_share, content.show_action, content.show_mods = true, burn, false, false, false
 					content.show_rep = false
 					content.checkbox_selected = applied
+
+					if burn then
+						content.stepper_value = tostring(part and part.tune and part.tune.burn or 100) .. "%"
+						content.info = mod:localize("mod_fire_damage_info")
+					end
 				end
 
 				Components.color_into(widget.style.row_name.text_color, name_color)
@@ -1465,6 +1473,20 @@ RealmsWavesView.cb_row_check = guarded(function (self, row)
 
 end)
 
+-- The On Fire damage of a group (percent, 0 to 300; 100 is not stored)
+RealmsWavesView._set_burn = function (self, part, value)
+	local burn = mod.rw.groups.clamp_tune("burn", value)
+
+	part.tune = part.tune or {}
+	part.tune.burn = burn ~= 100 and burn or nil
+
+	if next(part.tune) == nil then
+		part.tune = nil
+	end
+
+	self:_save()
+end
+
 -- Toggles one modifier on the enemy group being edited (self._part_index).
 RealmsWavesView._toggle_mod = function (self, id)
 	local part = self._parts[self._part_index]
@@ -1603,6 +1625,12 @@ RealmsWavesView._step_row = function (self, row, delta)
 		end
 	elseif self._screen == "tune" then
 		self:_tune_step(item, delta)
+	elseif self._screen == "mods" and item.id == "fire" then
+		local part = self._parts[self._part_index]
+
+		if part then
+			self:_set_burn(part, ((part.tune and part.tune.burn) or 100) + delta * 10)
+		end
 	elseif self._screen == "detail" then
 		-- a group that only repeats may have 0 initial units; otherwise at least 1
 		item.count = math.clamp(item.count + delta, (item.rep or 0) > 0 and 0 or 1, mod.rw.groups.MAX_BREED_COUNT)
@@ -1702,6 +1730,13 @@ RealmsWavesView.cb_row_value = guarded(function (self, row)
 	if self._screen == "settings" then
 		if item.kind == "number" then
 			self:_open_setting_popup(item)
+		end
+	elseif self._screen == "mods" and item.id == "fire" then
+		local part = self._parts[self._part_index]
+
+		if part then
+			Popup.open(self, { label = mod:localize("mod_fire_damage_title"), value = tostring(part.tune and part.tune.burn or 100), numeric = true, integer = true, min = 0, max = 300,
+				set = function (value) self:_set_burn(part, value) end })
 		end
 	elseif self._screen == "tune" then
 		self:_tune_value(item)

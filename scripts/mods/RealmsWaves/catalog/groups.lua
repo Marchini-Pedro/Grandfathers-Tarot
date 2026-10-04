@@ -227,12 +227,25 @@ Groups.TUNE = {
 	{ id = "damage", name = "Damage dealt", min = 10, max = 500, step = 10, aliases = { "damage", "dmg", "damage dealt", "attack damage", "hits" } },
 }
 
+-- Values kept with the custom mods but set elsewhere than the Custom mods screen (2026-10-04): the damage of the On Fire modifier's
+-- burn, set on the Mods screen beside the modifier (0 = no damage). In the recipe: {burn=50}.
+Groups.TUNE_EXTRA = {
+	{ id = "burn", name = "On Fire damage", min = 0, max = 300, step = 10, aliases = { "burn", "fire damage", "on fire damage", "burn damage" } },
+}
+Groups.TUNE_ALL = {}
+
+for _, list in ipairs({ Groups.TUNE, Groups.TUNE_EXTRA }) do
+	for _, def in ipairs(list) do
+		Groups.TUNE_ALL[#Groups.TUNE_ALL + 1] = def
+	end
+end
+
 local tune_by_id = {}
 local tune_alias = {}
 local tune_legacy = {} -- old names whose number was a SPEED while the setting that replaced them is a time
 local tune_ids = {}
 
-for index, def in ipairs(Groups.TUNE) do
+for index, def in ipairs(Groups.TUNE_ALL) do
 	tune_by_id[def.id] = def
 	tune_ids[index] = def.id
 	tune_alias[normalize_word(def.id)] = def.id
@@ -285,7 +298,7 @@ end
 Groups.tune_recipe = function (tune)
 	local fields = {}
 
-	for _, def in ipairs(Groups.TUNE) do
+	for _, def in ipairs(Groups.TUNE_ALL) do
 		local value = tune and tune[def.id]
 
 		if value and value ~= 100 then
@@ -300,7 +313,7 @@ end
 Groups.tune_text = function (tune)
 	local fields = {}
 
-	for _, def in ipairs(Groups.TUNE) do
+	for _, def in ipairs(Groups.TUNE_ALL) do
 		local value = tune and tune[def.id]
 
 		if value and value ~= 100 then

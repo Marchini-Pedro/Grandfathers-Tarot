@@ -26,8 +26,8 @@ local mod = {}
 mod.hook = function(self, obj, method, fn) hooks[#hooks + 1] = { obj = obj, method = method, fn = fn, safe = false } end
 mod.hook_safe = function(self, obj, method, fn) hooks[#hooks + 1] = { obj = obj, method = method, fn = fn, safe = true } end
 local hook_requires = {}
-local require_callbacks = {}
-mod.hook_require = function(self, path, fn) hook_requires[#hook_requires + 1] = path;require_callbacks[#require_callbacks+1]=fn end
+local require_callbacks, require_by_path = {}, {}
+mod.hook_require = function(self, path, fn) hook_requires[#hook_requires + 1] = path;require_callbacks[#require_callbacks+1]=fn;require_by_path[path]=fn end
 local hud_elements = {}
 mod.register_hud_element = function(self, spec) hud_elements[#hud_elements + 1] = spec end
 mod.add_require_path = function() end
@@ -216,8 +216,8 @@ check("unload: captured objective, death and update callbacks are inert", obsole
 local names = {}
 for _, h in ipairs(hooks) do if type(h.obj) == "string" then names[#names + 1] = h.obj .. "." .. h.method end end
 table.sort(names)
-check("entry: the four budget-bypass hooks and the custom-mods hooks (stat recompute on both buff classes, melee attack start, burster explosion, the summoners: no summon while destroyed, no patrol, aggroed summons) are installed", table.concat(names, ",") == "BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BtSummonMinionsAction._patrol_setup,BtSummonMinionsAction._summon_minions,BtSummonMinionsAction.leave,BuffExtensionBase._update_stat_buffs_and_keywords,MinionBuffExtension._reset_stat_buffs,MinionBuffExtension._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion", table.concat(names, ","))
-check("entry: MinionAttack is hooked through hook_require (it may load after the mod)", #hook_requires == 2 and hook_requires[1] == "scripts/utilities/minion_attack" and hook_requires[2] == "scripts/extension_systems/buff/minion_buff_extension", table.concat(hook_requires, ","))
+check("entry: the four budget-bypass hooks and the custom-mods hooks (stat recompute on both buff classes, melee attack start, burster explosion, the summoners: no summon while destroyed, no patrol, aggroed summons; the On Fire burn per player) are installed", table.concat(names, ",") == "BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BtSummonMinionsAction._patrol_setup,BtSummonMinionsAction._summon_minions,BtSummonMinionsAction.leave,BuffExtensionBase._update_stat_buffs_and_keywords,MinionBuffExtension._reset_stat_buffs,MinionBuffExtension._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion,PlayerUnitBuffExtension.add_internally_controlled_buff", table.concat(names, ","))
+check("entry: MinionAttack is hooked through hook_require (it may load after the mod)", #hook_requires == 3 and (function() local seen = {} for _, p in ipairs(hook_requires) do seen[p] = true end return seen["scripts/utilities/minion_attack"] and seen["scripts/extension_systems/buff/minion_buff_extension"] and seen["scripts/settings/buff/buff_templates"] end)(), table.concat(hook_requires, ","))
 do
   -- (2026-10-04: "Attempting to rehook active hook [start_shooting]" at every game start) DMF runs a hook_require callback again
   -- each time the game loads the file; the same table is hooked once, a new table is hooked again
@@ -225,9 +225,9 @@ do
   tuning.dead = false
   local attack, other = {}, {}
   local before = #hooks
-  require_callbacks[1](attack); require_callbacks[1](attack)
+  require_by_path["scripts/utilities/minion_attack"](attack); require_by_path["scripts/utilities/minion_attack"](attack)
   local once = #hooks - before
-  require_callbacks[1](other)
+  require_by_path["scripts/utilities/minion_attack"](other)
   check("entry: a file loaded again does not hook the same table twice (start_shooting once; a new table again)", once == 1 and hooks[#hooks].method == "start_shooting" and #hooks - before == 2, once)
   tuning.dead = was_dead
 end
@@ -280,6 +280,48 @@ do
   mod.rw.bypass.is_tracked = real_tracked
   T.dead = was_dead
 end
+do
+  -- On Fire damage (2026-10-04): a group's burn share scales the burn of the players its enemies set on fire; the game's own otherwise
+  local T = mod.rw.tuning
+  local was_dead = T.dead
+  T.dead = false
+  local enemy, scaled_player, plain_player = { name = "enemy" }, { name = "p1" }, { name = "p2" }
+  local hits, game_burns = {}, 0
+  local templates = {
+    common_minion_on_fire = { interval_func = function(td, tc)
+      T.on_player_buff_added({ _unit = scaled_player }, "hit_by_common_enemy_flame")
+      T.on_player_buff_added({ _unit = scaled_player }, "something_else")
+    end },
+    hit_by_common_enemy_flame = { interval_func = function() game_burns = game_burns + 1 end },
+  }
+  check("on fire: the burn templates are wrapped once", T.wrap_fire_templates(templates) == true and T.wrap_fire_templates(templates) == false)
+  local saved = { HEALTH_ALIVE = HEALTH_ALIVE, preload = {}, difficulty = Managers.state and Managers.state.difficulty }
+  HEALTH_ALIVE = { [scaled_player] = true, [plain_player] = true }
+  package.preload["scripts/utilities/attack/attack"] = function() return { execute = function(unit, profile, k1, power) hits[#hits + 1] = { unit, power } end } end
+  package.preload["scripts/settings/damage/damage_profile_templates"] = function() return { horde_flame_impact = "flame" } end
+  package.preload["scripts/settings/difficulty/minion_difficulty_settings"] = function() return { power_level = { chaos_engulfed_enemy_fire_attack = "table" } } end
+  Managers.state = Managers.state or {}
+  Managers.state.difficulty = { get_table_entry_by_challenge = function() return 400 end }
+  -- an enemy without a share: the game's own burn
+  templates.common_minion_on_fire.interval_func({}, { unit = { name = "other" } })
+  templates.hit_by_common_enemy_flame.interval_func({}, { unit = plain_player })
+  check("on fire: an enemy of a group without a setting leaves the game's burn untouched", game_burns == 1 and #hits == 0 and T.burn_share(scaled_player) == nil)
+  T.apply(enemy, { burn = 50 }, "renegade_flamer")
+  check("on fire: the group's setting is kept for its enemies (50 percent)", T.fire_share(enemy) == 0.5)
+  templates.common_minion_on_fire.interval_func({}, { unit = enemy })
+  templates.hit_by_common_enemy_flame.interval_func({}, { unit = scaled_player, is_server = true })
+  check("on fire: a player that enemy set on fire burns at half the power level", T.burn_share(scaled_player) == 0.5 and #hits == 1 and hits[1][1] == scaled_player and hits[1][2] == 200 and game_burns == 1)
+  T.apply(enemy, { burn = 0 }, "renegade_flamer")
+  templates.common_minion_on_fire.interval_func({}, { unit = enemy })
+  templates.hit_by_common_enemy_flame.interval_func({}, { unit = scaled_player })
+  check("on fire: at 0 the burn does no damage at all", #hits == 1 and game_burns == 1)
+  T.dead = true
+  templates.hit_by_common_enemy_flame.interval_func({}, { unit = scaled_player })
+  check("on fire: a retired mod gives the burn back to the game", game_burns == 2)
+  HEALTH_ALIVE = saved.HEALTH_ALIVE
+  Managers.state.difficulty = saved.difficulty
+  T.dead = was_dead
+end
 check("entry: editor view registered under its name with the right class", #views == 1 and views[1].view_name == "realms_waves_editor" and views[1].view_settings.class == "RealmsWavesView")
 check("entry: /rw_test_close is registered too", type(commands.rw_test_close) == "function")
 check("entry: /rw_drawtest and /rw_fulltest are registered (a staged draw to test the HUD, with or without the sound and the wave)", type(commands.rw_drawtest) == "function" and type(commands.rw_fulltest) == "function")
@@ -310,7 +352,7 @@ for i=1,100 do
   if i % 2 == 0 then Managers.event = nil end
   mod.on_unload(); mod.on_unload()
   Managers.event = manager
-  hooks, views, commands, hook_requires, require_callbacks = {}, {}, {}, {}, {}
+  hooks, views, commands, hook_requires, require_callbacks, require_by_path = {}, {}, {}, {}, {}, {}
 end
 mod = nil
 collectgarbage("collect"); collectgarbage("collect")
@@ -334,7 +376,7 @@ local enabled, server = true, true
 mod.get = function(self,id) return settings[id] end
 mod.set = function(self,id,value) settings[id] = value end
 mod.is_enabled = function() return enabled end
-hooks, views, commands, hook_requires, require_callbacks = {}, {}, {}, {}, {}
+hooks, views, commands, hook_requires, require_callbacks, require_by_path = {}, {}, {}, {}, {}, {}
 Managers.event = event_manager()
 local spawned, dead = {}, {}
 ALIVE = setmetatable({}, {__index=function(_,unit) return not dead[unit] end})

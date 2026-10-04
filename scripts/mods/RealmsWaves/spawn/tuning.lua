@@ -58,6 +58,7 @@ local DAMAGE_STAT = { explosion = true, dot = true }
 
 local tuned_by_extension = {} -- host: buff extension -> record (for the hook below)
 Tuning.dead = false
+local fire_share = setmetatable({}, { __mode = "k" }) -- the On Fire burn: enemy -> its group's share (see "On Fire damage" below)
 
 local tuned = {} -- host: { unit, mult = { [stat] = factor }, last = { [stat] = value written } }
 local scaled = {} -- host: network id -> { unit, pct }
@@ -287,6 +288,11 @@ Tuning.apply = function (unit, tune, breed_name)
 		if not ok then
 			warn_once(string.format("hit mass of %s was not changed: %s", label, tostring(err)))
 		end
+	end
+
+	-- the On Fire modifier's burn (kept for the modifier's interval, see above)
+	if tune.burn then
+		fire_share[unit] = math.max(0, tonumber(tune.burn) or 100) / 100
 	end
 
 	-- run speed
@@ -647,6 +653,97 @@ Tuning.after_summon = function (self, unit, breed, blackboard, scratchpad)
 	pcall(engage, unit)
 end
 
+-- ------------------------------------------------------------------------------------------------------------- On Fire damage
+-- (2026-10-04, the user: "its damage is too high, let me set it beside the modifier") The game's On Fire modifier
+-- (common_minion_on_fire, havoc_buff_templates.lua) puts players within 1 m of the enemy on fire every half second
+-- (hit_by_common_enemy_flame, whose interval hurts them by Attack.execute with a power level). A group's `burn` (percent, set on
+-- the Mods screen) scales that power level for the players its enemies set on fire: the minion's interval marks the players it
+-- burns with its share (the player buff extension's add_internally_controlled_buff, seen while the minion's interval runs), and
+-- the player's burn uses the share it was given last (for 1.5 s). 0 = the burn does no damage. The host decides damage.
+local burn_share = setmetatable({}, { __mode = "k" }) -- player -> { share, time }
+local burning_share = nil -- the share of the enemy whose interval is running now
+local BURN_FRESH = 1.5
+
+local function now()
+	return Managers.time and Managers.time.has_timer and Managers.time:has_timer("gameplay") and Managers.time:time("gameplay") or os.clock()
+end
+
+Tuning.fire_share = function (unit)
+	return fire_share[unit]
+end
+
+-- the share of the burn a player is under now (nil: the game's own damage)
+Tuning.burn_share = function (player_unit)
+	local mark = burn_share[player_unit]
+
+	if mark and now() - mark[2] <= BURN_FRESH then
+		return mark[1]
+	end
+
+	return nil
+end
+
+Tuning.wrap_fire_templates = function (templates)
+	local minion, burn = templates and templates.common_minion_on_fire, templates and templates.hit_by_common_enemy_flame
+
+	if not minion or not burn or minion.__rw_wrapped then
+		return false
+	end
+
+	minion.__rw_wrapped = true
+
+	local minion_interval, burn_interval = minion.interval_func, burn.interval_func
+
+	minion.interval_func = function (template_data, template_context, ...)
+		burning_share = fire_share[template_context and template_context.unit]
+
+		local ok, err = pcall(minion_interval, template_data, template_context, ...)
+
+		burning_share = nil
+
+		if not ok then
+			error(err)
+		end
+	end
+
+	burn.interval_func = function (template_data, template_context, ...)
+		local share = not Tuning.dead and template_context and Tuning.burn_share(template_context.unit)
+
+		if not share then
+			return burn_interval(template_data, template_context, ...)
+		end
+
+		if share <= 0 then
+			return
+		end
+
+		-- the game's own burn (minion_buff_templates.lua hit_by_common_enemy_flame) with the power level scaled
+		local unit = template_context.unit
+
+		if HEALTH_ALIVE[unit] then
+			local Attack = require("scripts/utilities/attack/attack")
+			local DamageProfileTemplates = require("scripts/settings/damage/damage_profile_templates")
+			local MinionDifficultySettings = require("scripts/settings/difficulty/minion_difficulty_settings")
+			local power_level = Managers.state.difficulty:get_table_entry_by_challenge(MinionDifficultySettings.power_level.chaos_engulfed_enemy_fire_attack)
+			local owner = template_context.is_server and template_context.owner_unit or nil
+
+			Attack.execute(unit, DamageProfileTemplates.horde_flame_impact, "power_level", power_level * share, "damage_type", "burning", "attacking_unit", owner)
+		end
+	end
+
+	return true
+end
+
+-- a player buff extension is given the burn while a scaled enemy's interval runs: the player keeps that enemy's share
+Tuning.on_player_buff_added = function (self, template_name)
+	if burning_share and template_name == "hit_by_common_enemy_flame" and self and self._unit then
+		local mark = burn_share[self._unit] or {}
+
+		mark[1], mark[2] = burning_share, now()
+		burn_share[self._unit] = mark
+	end
+end
+
 -- a summoner a wave spawned (execute.lua spawn_one)
 Tuning.watch_summoner = function (unit, breed_name)
 	if unit and Tuning.SUMMONERS[breed_name] then
@@ -705,6 +802,19 @@ Tuning.install = function ()
 
 	mod:hook_safe("BtSummonMinionsAction", "_summon_minions", function (...)
 		Tuning.after_summon(...)
+	end)
+
+	-- On Fire damage: the burn templates are wrapped once; the player buff extension tells which player an enemy set on fire
+	if mod.hook_require then
+		mod:hook_require("scripts/settings/buff/buff_templates", function (templates)
+			if not Tuning.dead then
+				pcall(Tuning.wrap_fire_templates, templates)
+			end
+		end)
+	end
+
+	mod:hook_safe("PlayerUnitBuffExtension", "add_internally_controlled_buff", function (self, template_name)
+		Tuning.on_player_buff_added(self, template_name)
 	end)
 
 	if mod.hook_require then
