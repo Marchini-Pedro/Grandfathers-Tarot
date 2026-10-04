@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-10-04 - Sound list: voice lines in, weapon and impact sounds out (feature/cauldron-redesign)
+- The completion sound list drops weapon, attack and impact sounds and adds 2,312 enemy and 5,458 player voice lines, played through the game's 2D player voice route. Lua suites not run (user's choice); not yet tested in game.
+
 ## 2026-10-04 - Cauldron redesign, third round: sound, outline line of sight, cooldown (feature/cauldron-redesign)
 - Sound: card sounds and their previews play on the local player in the level's sound world (they played at the world's origin, out of hearing).
 - Enemy colour outline: hidden behind walls unless the enemy is in view of the camera or tagged by a player.

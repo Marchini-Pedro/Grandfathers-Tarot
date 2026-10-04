@@ -47,6 +47,17 @@ local function listener_unit()
 	local unit = player and player.player_unit
 	return unit and Unit.alive(unit) and unit or nil
 end
+-- A voice line ("loc_..." from the game's dialogues) is a streamed file, played as the game plays the local player's own lines: the
+-- 2D player voice route on a source (scripts/settings/dialogue/wwise_vo_routing_settings.lua, dialogue_extension.lua play_event)
+local VO_EVENT, VO_SOURCE = "wwise/events/vo/play_sfx_es_player_vo_2d", "es_player_vo_2d"
+local function voice_line(event) return event:sub(1, 4) == "loc_" end
+local function fire(wwise, event, source)
+	if voice_line(event) then
+		return WwiseWorld.trigger_resource_external_event(wwise, VO_EVENT, VO_SOURCE, "wwise/externals/" .. event, 4, source)
+	end
+	if source then return WwiseWorld.trigger_resource_event(wwise, event, source) end
+	return WwiseWorld.trigger_resource_event(wwise, event)
+end
 local function trigger(event, volume)
 	if not Managers.world then return nil end
 	local unit = listener_unit()
@@ -58,12 +69,12 @@ local function trigger(event, volume)
 			local sfx = Application and Application.user_setting and Application.user_setting("sound_settings", "options_sfx_slider") or 100
 			pcall(WwiseWorld.set_source_parameter, wwise, source, "options_sfx_slider", sfx * volume / 100)
 		end
-		return WwiseWorld.trigger_resource_event(wwise, event, source), wwise
+		return fire(wwise, event, source), wwise
 	end
 	local world = Managers.ui and Managers.ui:world()
 	if not world then return nil end
 	local wwise = Managers.world:wwise_world(world)
-	return WwiseWorld.trigger_resource_event(wwise, event), wwise
+	return fire(wwise, event, voice_line(event) and WwiseWorld.make_manual_source(wwise, Vector3.zero(), Quaternion.identity()) or nil), wwise
 end
 local function start_entry(list, index)
 	local entry = list[index]

@@ -123,6 +123,16 @@ Lua suites again not run or updated (the user's choice); every changed file was 
 | Longest card cooldown 30 minutes | The option `tarot_longest` defaults to 30 (it allowed 2 to 30 already) in the settings, `Events`, the Face and the HUD, and `Cards.rot_strength` falls back to 1800 s. A one-time step on load raises a saved value below 30 to 30 (`tarot_longest_30_done`); after that the option is the player's again. |
 | No card sound was heard, neither the preview nor the completion | Nothing failed (no warning in the console log): almost every event of the list is a 3D game sound, and an event triggered without a source plays at the world's origin, out of hearing. Sounds now play on an auto source on the local player's unit in the level's sound world (`WwiseWorld.make_auto_source`, as `player_unit_fx_extension.lua` does); without a player unit (menus) they fall back to the UI world with no source. SimpleAudio is no longer used for this (it triggers the same native event without a source). The experimental volume now sets the sfx parameter on that auto source. |
 
+## Fourth round: the sound list (2026-10-04)
+
+At the user's request the list of completion sounds (`catalog/sounds.lua`) drops the weapon events (814), the non-vocal attack and
+impact sounds of enemies and players (147; any `_vce` vocalisation is kept) and the 60 `vo/play_sfx_es_*` routes (silent without a
+file), and adds voice lines from the game's dialogues (`dialogues/generated`): every enemy line (2,312) and one line per player voice
+and topic of combat talk (5,458; conversations, quirks, lore and responses left out). 9,434 entries in all. A voice line (`loc_...`)
+plays as the game plays the local player's own lines: `trigger_resource_external_event` on the 2D player voice route
+(`play_sfx_es_player_vo_2d`, `es_player_vo_2d`, format 4) on the player's auto source. Old peers do not know the voice lines: a card
+with one is silent for them.
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
