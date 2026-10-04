@@ -383,7 +383,6 @@ WorkshopView.install = function (View, h)
 			local widget = widgets[CHIP .. i]
 			local content = widget.content
 			local breed = groups.shelf_breed(chip.entry, faction)
-			local chip_faction = groups.shelf_faction(chip.entry, faction)
 
 			widget.visible = true
 			content.chip_label = groups.shelf_label(chip.entry)

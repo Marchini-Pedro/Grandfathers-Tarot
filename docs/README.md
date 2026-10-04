@@ -56,7 +56,8 @@ and the current verification log.
 | [Enemy colour experiments](enemy-appearance.md) | Per-group ARGB/method controls, usable experiments, prerequisites, transport and live acceptance |
 | [Enemy appearance research](research/enemy-appearance/findings.md) | Earlier read-only source/mod/public evidence; [experiment plan](research/enemy-appearance/experiments-and-recommendation.md) and [original brief](research/enemy-appearance/research-prompt.md) |
 | [Implementation plan](05-implementation-plan.md) | Checklist, reuse map and unfinished work |
-| [Verification and open issues](06-verification-and-open-issues.md) | Game test matrix, risks and dated results |
+| [Verification and open issues](06-verification-and-open-issues.md) | Game test matrix, risks and open issues |
+| [Results log](06-results-log.md) | The dated results of every change (split from doc 06 on 2026-10-04) |
 | [Learnings and gaps](07-learnings-and-gaps.md) | Discoveries, failed approaches and actionable gaps |
 | [Workshop redesign](08-workshop-redesign.md) | Cauldron/Mirror design and build log |
 | [Heresy continuation review](audits/2026-10-03/heresy-review.md) | Branch-wide adversarial findings, fixes, detecting regressions and remaining native checks |

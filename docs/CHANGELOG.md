@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-04 - Cauldron redesign: tests brought up to date (feature/cauldron-redesign)
+- Logic, effects, editor, HUD and appearance tests follow the redesign rounds (30 minute cooldown, native and voice line audio, card lines and dots, column shelves, Deck search, the hand-card Last Card, 13 line-of-sight checks); fixes found on the way: a tolerant local player lookup, a trimmed Deck search, the health station ranking, the dead faction tint removed.
+- Both runners pass every gate (Lua 5.5 82.42% / LuaJIT 2.1 79.21%). Doc 06's results log moved to docs/06-results-log.md (100 KB rule).
+
 ## 2026-10-04 - Sound list: voice lines in, weapon and impact sounds out (feature/cauldron-redesign)
 - The completion sound list drops weapon, attack and impact sounds and adds 2,312 enemy and 5,458 player voice lines, played through the game's 2D player voice route. Lua suites not run (user's choice); not yet tested in game.
 

@@ -160,11 +160,10 @@ WB.shelf_panel = function (node_id, layout, hint_w)
 	return UIWidget.create_definition(passes, node_id, content, { W, H })
 end
 
--- One chip of the shelf, `w` wide (Workshop.chip_width): a dot in the enemy's colour and the label. A chip of a Dreg or a Scab is
--- tinted with the faction: putrid yellow-green for a Dreg, steel grey over black for a Scab (content.tint = Colors.FACTION_TINT[..],
--- false for the neutral chips). The button's own flag (hotspot_on) says the card already has this enemy. The label box is wider than the
--- chip and left aligned, so a label that turns out wider than estimated spills over the edge instead of breaking in two lines.
--- Content: chip_label, dot_rgb, tint.
+-- One chip of the shelf, `w` wide (Workshop.chip_width: as wide as its label): a dot in the enemy's or the group's colour, the label,
+-- a one unit outline, and with `pip` a diamond at the right end lit while the card holds the effect. The button's own flag (hotspot_on)
+-- says the card already has this enemy or effect. content.tint (a { frame, fill, hi, text, bright } set, false for the plain chips the
+-- shelves use since 2026-10-04) still colours a chip when given. Content: chip_label, dot_rgb, tint.
 WB.shelf_chip = function (node_id, w, pip)
 	local passes = {}
 	local H = Workshop.CHIP_H

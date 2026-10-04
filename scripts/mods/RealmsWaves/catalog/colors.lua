@@ -180,26 +180,12 @@ end
 
 -- ---------------------------------------------------------------------------- faction colours
 -- Whether an enemy is a Dreg (a cultist) or a Scab (a renegade): the Dregs are putrid, yellow-green like rot and bile; the Scabs are
--- armour, steel grey over black. FACTION is the colour of the word on a row (and of the enemy's chip text); FACTION_TINT the
--- colours of a shelf chip of that faction: its frame, its fill (and lighter under the pointer), its text and its lit text.
+-- armour, steel grey over black. FACTION is the colour of the word on a row. (The shelf chips were tinted by faction until 2026-10-04;
+-- the design page's chips are plain, so the tint is gone.)
 Colors.FACTION = {
 	dreg = { 192, 200, 72 },
 	scab = { 150, 156, 164 },
 }
-
-Colors.FACTION_TINT = {
-	dreg = { frame = { 104, 112, 30 }, fill = { 32, 36, 11 }, hi = { 47, 53, 15 }, text = { 206, 214, 112 }, bright = { 238, 244, 156 } },
-	scab = { frame = { 82, 88, 96 }, fill = { 21, 23, 26 }, hi = { 35, 38, 43 }, text = { 170, 176, 184 }, bright = { 218, 223, 230 } },
-}
-
--- The tint of the chips of a faction, or nil when colouring is switched off.
-Colors.faction_tint = function (faction)
-	if not faction or not enabled("colour_enemies") then
-		return nil
-	end
-
-	return Colors.FACTION_TINT[faction]
-end
 
 -- {r, g, b} of a faction ("dreg" | "scab"), or nil when colouring is switched off.
 Colors.faction_rgb = function (faction)

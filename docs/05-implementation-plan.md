@@ -268,4 +268,6 @@ Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
 - [x] Raise the fallen and Refill ammunition (host, native helpers); Recharge Med Station disabled for now.
 - [x] Completion sound: Preview per row, Search button, two sounds in a row, a volume each (experimental).
 - [x] Tests for all of the above on both runtimes; real-widget previews inspected.
+- [x] Second to fourth rounds (design-page shelves and card text, Deck search, Last Card; sound fix, outline line of sight, 30 minute
+  cooldown; voice lines in the sound list) and their tests, 2026-10-04.
 - [ ] Game acceptance of the [checklist](13-cauldron-redesign.md#in-game-checks-before-merge); merge only after the user confirms.

@@ -1084,6 +1084,7 @@ do
   local function rgb(id) local c = Colors.modifier_rgb(id); return c and table.concat(c, ",") end
   check("modifier colours: without the mod, ITS defaults (purple/garden blue-violet, enraged red, orange, rotten green...)", rgb("garden") == "138,43,226" and rgb("enraged") == "255,54,36" and rgb("bolstering") == "208,136,48" and rgb("rotten") == "132,156,99" and rgb("corrupted") == "128,128,0" and rgb("toughened") == "157,169,75" and rgb("fire") == "160,82,45" and rgb("parasite") == "255,160,122" and rgb("purple_stimm") == "255,242,0", rgb("garden"))
   check("modifier colours: Final Toll uses the enraged red", rgb("toll") == "255,54,36")
+  check("markup: a colour wraps the text in the game's tags; no colour leaves it plain (the card lines use both)", Colors.markup("95%", { 1, 2, 3 }) == "{#color(1,2,3)}95%{#reset()}" and Colors.markup("Party health", nil) == "Party health")
   check("modifier colours: every modifier of the catalog has a colour", (function() for _, m in ipairs(Groups.MODIFIERS) do if not Colors.modifier_rgb(m.id) then return false end end return true end)())
   tags_settings = { encroaching_garden = { 255, 1, 2, 3 }, enraged = "old string value", rotten_armor = { 255, 9 } }
   Colors.clear_cache()

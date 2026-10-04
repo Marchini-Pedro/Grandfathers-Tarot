@@ -360,3 +360,21 @@ Things we know are missing or unverified, each with the next concrete step.
 - The borders already follow the suit in the mod (`Components.set_theme` scales the
   shared frame colour). The request came from the design page, which had fixed
   borders; nothing to change in code.
+
+## 2026-10-04 — Card sounds, outline line of sight, tests after skipped rounds
+
+- **A 3D sound event without a source is silent for the player.** `WwiseWorld.trigger_resource_event(wwise, event)` gives no error
+  and plays the event at the world's origin. Card sounds were silent for this reason (no warning in the console log). Play it on an
+  auto source on the local player's unit in the level's sound world, as `player_unit_fx_extension.lua` does.
+- **Voice lines are streamed files**, not events: `trigger_resource_external_event(wwise, route_event, route_source,
+  "wwise/externals/" .. loc_name, 4, source)`; the routes are in `scripts/settings/dialogue/wwise_vo_routing_settings.lua` (the
+  local player's own voice: `play_sfx_es_player_vo_2d` / `es_player_vo_2d`). The `vo/play_sfx_es_*` events alone are silent.
+  The player lines are about 37,800 (34 voices x topics x variants): one per voice and topic of combat talk keeps 5,458.
+- **The outline material layers draw through walls**; only the outline's `visibility_check` (asked every frame) can hide it. A
+  ray on `filter_minion_line_of_sight_check` (static geometry) from the camera, cached per enemy, does it cheaply.
+- **Skipped test rounds pile up.** Three rounds without the suites left about thirty stale expectations and two real defects (a
+  player manager without `local_player_safe` broke both new lookups in the harness, which would also have hidden every outline);
+  update the suites in the same round when possible.
+- **A long string spread over lines counts as uncovered lines** (the sound list as a `[[...]]` block dropped `catalog/sounds.lua`
+  to 20%): keep data strings on one line. The popup reports typing only in its frame update: a test drives `spec.on_change`.
+

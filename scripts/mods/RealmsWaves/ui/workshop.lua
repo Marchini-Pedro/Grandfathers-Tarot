@@ -72,13 +72,8 @@ end
 -- The columns of a shelf: `columns` = { { id, labels = { ... } } ... }, `weights` their shares of the width. Returns
 -- { chips = { { column, index, x, y, w } ... }, bands = { { id, x, y, w } ... }, height }, x and y inside the panel.
 local function column_layout(columns, weights, tail)
-	local chips, bands = {}, {}
-	local total = 0
-
-	for i = 1, #columns do
-		total = total + (weights[i] or 1)
-	end
-
+	local chips, bands, total = {}, {}, 0
+	for i = 1, #columns do total = total + (weights[i] or 1) end
 	local avail = Workshop.LEFT_W - 2 * Workshop.SHELF_PAD - (#columns - 1) * Workshop.COLUMN_GAP
 	local x0, bottom = Workshop.SHELF_PAD, Workshop.SHELF_HEAD + Workshop.COLUMN_LABEL_H
 
@@ -88,11 +83,8 @@ local function column_layout(columns, weights, tail)
 
 		for i, label in ipairs(column.labels) do
 			local w = math.min(width, Workshop.chip_width(label, tail))
-
-			if x > 0 and x + w > width then
-				x, y = 0, y + Workshop.CHIP_PITCH
-			end
-
+			-- a chip that does not fit beside the last one starts a new line of the column
+			if x > 0 and x + w > width then x, y = 0, y + Workshop.CHIP_PITCH end
 			chips[#chips + 1] = { column = c, index = i, x = x0 + x, y = y, w = w }
 			x = x + w + Workshop.CHIP_GAP
 		end
@@ -111,20 +103,12 @@ Workshop.shelf_layout = function (shelf, groups)
 	local columns = {}
 
 	for g, group in ipairs(shelf) do
-		local labels = {}
-
-		for i, entry in ipairs(group.entries) do
-			labels[i] = groups.shelf_label(entry)
-		end
-
-		columns[g] = { id = group.id, labels = labels }
+		columns[g] = { id = group.id, labels = {} }
+		for i, entry in ipairs(group.entries) do columns[g].labels[i] = groups.shelf_label(entry) end
 	end
 
 	local layout = column_layout(columns, Workshop.ENEMY_COLUMNS)
-
-	for _, chip in ipairs(layout.chips) do
-		chip.group, chip.entry = chip.column, shelf[chip.column].entries[chip.index]
-	end
+	for _, chip in ipairs(layout.chips) do chip.group, chip.entry = chip.column, shelf[chip.column].entries[chip.index] end
 
 	return layout
 end
@@ -146,25 +130,12 @@ Workshop.fx_shelf_layout = function (categories, defs)
 
 	for _, category in ipairs(categories) do
 		local labels, list = {}, {}
-
-		for _, def in ipairs(defs) do
-			if def.category == category.id then
-				labels[#labels + 1] = Workshop.fx_chip_label(def)
-				list[#list + 1] = def
-			end
-		end
-
-		if #list > 0 then
-			columns[#columns + 1] = { id = category.id, labels = labels }
-			by_column[#columns] = list
-		end
+		for _, def in ipairs(defs) do if def.category == category.id then labels[#labels + 1], list[#list + 1] = Workshop.fx_chip_label(def), def end end
+		if #list > 0 then columns[#columns + 1], by_column[#columns + 1] = { id = category.id, labels = labels }, list end
 	end
 
 	local layout = column_layout(columns, Workshop.EFFECT_COLUMNS, Workshop.CHIP_PIP)
-
-	for _, chip in ipairs(layout.chips) do
-		chip.def = by_column[chip.column][chip.index]
-	end
+	for _, chip in ipairs(layout.chips) do chip.def = by_column[chip.column][chip.index] end
 
 	return layout
 end

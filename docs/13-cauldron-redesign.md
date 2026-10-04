@@ -107,9 +107,7 @@ editor and HUD harnesses still drew the screens for a visual check, and their on
 | The Last Card window was broken | Rebuilt as the design page's card "in the hand": 240 wide, the suit's accent as a bar at the left, the name (one or two lines, the Spread's font option) with the suit mark at its right, the threat diamonds and enemy dots on one row, the whisper inside the card (Heresy's crimson). No ring or disc around the mark. Its whisper text is raised above the card face (it was drawn under it). Beneficial cards show no dots in the HUD (a synced card carries only enemy kinds). |
 | Quick face 2 x 6, not 2 x 8 | `Workshop.SUIT_COLS = 6`, tiles 80 wide with a 9 unit gap: six fill the 525 unit pane. |
 
-Out-of-date test expectations (not changed this round): the faction tint of shelf chips, the 156 unit chip cell, the
-`Consecrate` callback (`cb_bless_deck`, now `cb_deck_search`), the old Last Card geometry (176 x 250, card at y 24, window
-frame colours) and the old `Effects.summary` text. They need updating before the branch is merged.
+The test expectations these rounds left behind were brought up to date on 2026-10-04 (see [the results log](06-results-log.md)).
 
 ## Third round: steppers, cooldown, outline line of sight, sound (2026-10-04)
 
