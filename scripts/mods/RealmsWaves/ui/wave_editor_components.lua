@@ -1020,7 +1020,12 @@ end
 -- takes the panel, it follows the pointer while the button is held and stays where it is let go (remembered for spec.place_key).
 function POPUP.drag(view, input_service)
 	local edit = view._popup
-	local x, y = view._cursor_point and view:_cursor_point(input_service)
+	local x, y
+
+	-- (not `a and f()`: that keeps only the first value, the y would be lost)
+	if view._cursor_point then
+		x, y = view:_cursor_point(input_service)
+	end
 
 	if not edit or not x then
 		return

@@ -2704,6 +2704,33 @@ do
   view:_reload(); view:_apply_screen()
 end
 
+-- The search box can be dragged by its title and is see-through over the list it filters (2026-10-04: it hid the sound names).
+do
+  local PP = dofile(BASE .. "/ui/wave_editor_components.lua").Popup
+  local cursor, pressed, held = { 0, 0 }, false, false
+  local input = { get = function(_, name) if name == "cursor" then return cursor elseif name == "left_pressed" then return pressed elseif name == "left_hold" then return held end end }
+  local panel = view._widgets_by_name.rw_popup_panel
+  PP.cancel(view); view._popup_spots = nil
+  PP.open(view, { label = "Search", value = "", allow_rows = true, y = 760, place_key = "test_search", set = function() end })
+  check("popup: a box that filters a list is see-through and opens where it is asked (low, over the sliders)", panel.style.fill.color[1] == PP.SEE_THROUGH_ALPHA and view._sg.rw_popup_panel[1] == 560 and view._sg.rw_popup_panel[2] == 760 and view._sg.rw_popup_input[2] == 830)
+  cursor[1], cursor[2], pressed, held = 600, 790, true, true; PP.drag(view, input)
+  cursor[1], cursor[2], pressed = 300, 400, false; PP.drag(view, input)
+  check("popup: pressed on its title strip it follows the pointer, input and buttons with it", view._sg.rw_popup_panel[1] == 260 and view._sg.rw_popup_panel[2] == 370 and view._sg.rw_popup_input[1] == 300 and view._sg.rw_popup_confirm[1] == 830 and view._sg.rw_popup_cancel[2] == 566)
+  cursor[1], cursor[2] = -500, 5000; PP.drag(view, input)
+  check("popup: it never leaves the screen", view._sg.rw_popup_panel[1] == 0 and view._sg.rw_popup_panel[2] == 1080 - 260)
+  cursor[1], cursor[2] = 900, 300; PP.drag(view, input); held = false; PP.drag(view, input)
+  check("popup: let go, it stays and the spot is remembered", view._popup.grab == nil and view._popup_spots.test_search[1] == 860 and view._popup_spots.test_search[2] == 270)
+  cursor[1], cursor[2], pressed, held = 1000, 400, true, true; PP.drag(view, input); pressed, held = false, false
+  check("popup: a press below the title (on the input) does not move it", view._popup.grab == nil and view._sg.rw_popup_panel[1] == 860)
+  PP.cancel(view)
+  PP.open(view, { label = "Search", value = "", allow_rows = true, y = 760, place_key = "test_search", set = function() end })
+  check("popup: opened again, it is where it was left", view._sg.rw_popup_panel[1] == 860 and view._sg.rw_popup_panel[2] == 270)
+  PP.cancel(view)
+  PP.open(view, { label = "Rename", value = "x", set = function() end })
+  check("popup: an ordinary box is solid and centred", panel.style.fill.color[1] == PP.SOLID_ALPHA and view._sg.rw_popup_panel[1] == 560 and view._sg.rw_popup_panel[2] == 400)
+  PP.cancel(view); view._popup_spots = nil
+end
+
 -- Persistent Deck order and the actual hold/release path, including cancellation and stale hotspot releases.
 do
   local saved_settings = table.clone(settings)

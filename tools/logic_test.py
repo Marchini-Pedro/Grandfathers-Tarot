@@ -540,6 +540,71 @@ do
   Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
 end
 
+-- the card's sound is an ALERT (2026-10-04): it plays the moment the card is picked and the wave spawns when it ends; NIGHTMARE is
+-- played once per game ---------------------------------------------------------------------------------------------------------------
+do
+  local keys = Events.keys()
+  local Snd = load("catalog/sounds")
+  local function only(list) for _, k in ipairs(keys) do settings["on_" .. k] = false end for _, e in ipairs(list) do settings["on_" .. e[1]] = true; settings["pct_" .. e[1]] = 5; settings["cd_" .. e[1]] = 0 end end
+  local function start()
+    started_waves = {}; started_defs = {}
+    Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01)
+  end
+  local function skip() Director.skip(); Director.update(0.01) end
+  local alerts, job = {}, nil
+  Director.effects = { snapshot = function() return nil end, receive = function() end, alert = function(text) alerts[#alerts + 1] = text; if Snd.has(text) then job = { done = false }; return job end return nil end }
+  is_server = true
+  settings.tarot_cards = 1; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100; settings.interval_random = false; settings.initial_delay = 0
+  only({ { "wave_medium" } })
+  local event = Snd.EVENTS[100]
+  settings.snd_wave_medium = event
+  start(); skip()
+  check("alert: the picked card's sound plays at once and its wave waits for it", alerts[#alerts] == event and #started_waves == 0 and Director.held_count() == 1 and Director.view().last ~= nil)
+  Director.update(5)
+  check("alert: while the sound plays the wave still waits", #started_waves == 0 and Director.held_count() == 1)
+  job.done = true; Director.update(0.1)
+  check("alert: the wave spawns when the sound has ended", #started_waves == 1 and Director.held_count() == 0)
+  Director.update(31); skip(); Director.update(19) -- (a card rests at least 30 s after it is drawn)
+  check("alert: a sound that never ends holds its wave at most 20 seconds", #started_waves == 1 and Director.held_count() == 1)
+  Director.update(1.5)
+  check("alert: ...then the wave goes anyway", #started_waves == 2 and Director.held_count() == 0)
+  Director.update(31); skip(); Director.pause(true); job.done = true; Director.update(2)
+  check("alert: a paused game keeps the wave held even when the sound is over", #started_waves == 2 and Director.held_count() == 1)
+  Director.pause(false); Director.update(0.1)
+  check("alert: ...and lets it go on resume", #started_waves == 3)
+  Director.update(31); skip()
+  check("alert: stop drops a held wave (it never spawns)", Director.held_count() == 1 and Director.stop() == true and Director.held_count() == 0 and (function() Director.update(30); return #started_waves == 3 end)())
+  settings.snd_wave_medium = nil
+  start(); skip()
+  check("alert: a card without a sound spawns at once", #started_waves == 1 and Director.held_count() == 0)
+
+  -- Nightmare: one card per game; all its cards leave the draw once one went out, until the next mission
+  only({ { "wave_medium" }, { "wave_small" } })
+  settings.su_wave_medium = "nightmare"; settings.su_wave_small = "swarm"
+  settings.on_wave_small = false
+  start(); skip()
+  check("nightmare: a Nightmare card can be drawn and its wave goes out", started_waves[1] ~= nil and Director.spent_once("nightmare") == true)
+  skip(); Director.update(0.01)
+  check("nightmare: with only Nightmare cards in the deck nothing else is dealt after it (the draw is empty)", #started_waves == 1)
+  settings.on_wave_small = true
+  for _ = 1, 6 do Director.update(31); skip() end
+  local only_swarm = true
+  for i = 2, #started_defs do if started_defs[i].suit == "nightmare" then only_swarm = false end end
+  check("nightmare: the other cards keep coming, never a Nightmare again this game", #started_waves >= 4 and only_swarm, #started_waves)
+  start()
+  check("nightmare: the next mission has its Nightmare back", Director.spent_once("nightmare") == false)
+  settings.mode = "random"; settings.on_wave_small = false; start(); Director.update(150)
+  check("nightmare: the random mode fires it once too, then marks it spent", #started_waves == 1 and Director.spent_once("nightmare") == true)
+  Director.update(150)
+  check("nightmare: ...and finds nothing else to send", #started_waves == 1)
+  settings.mode = nil
+  for _, k in ipairs(keys) do settings["on_" .. k] = nil; settings["pct_" .. k] = nil; settings["cd_" .. k] = nil end
+  settings.su_wave_medium, settings.su_wave_small = nil, nil
+  settings.tarot_cards, settings.tarot_seconds, settings.interval_min, settings.interval_max, settings.interval_random, settings.initial_delay = nil, nil, nil, nil, nil, nil
+  Director.effects = nil
+  Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
+end
+
 -- the last fulfilled card: remembered by the host when a wave of the cycle goes out, synced to the clients, shown by the HUD window -------
 do
   local keys = Events.keys()

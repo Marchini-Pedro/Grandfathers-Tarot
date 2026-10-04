@@ -849,6 +849,40 @@ local function growth(fixed_view, step, frames)
   if hook then debug.sethook(hook, mask, count) end
   return (after - before) * 1024 / frames
 end
+-- NIGHTMARE (2026-10-04): darkness breathes around it, its frame is a dying light that flickers, black ink drips; WARP pulses and
+-- crackles and motes rise from it
+do
+  local e = new_element()
+  local hand = {
+    card("n", "The Dark", "nightmare", 6, { "chaos_daemonhost" }, "It was never a dream."),
+    card("w", "The Magician", "warp", 3, { "chaos_daemonhost" }, "It knows your name."),
+    card("p", "The Fool", "swarm", 1, { "chaos_poxwalker" }, "Too many to count."),
+  }
+  current_view = view_of({ hand = hand, remaining = 9.5, hand_seq = 140, win = 3 })
+  frame(e)
+  local h = function(i) return e._widgets_by_name["card_" .. i] end
+  local function dark(c) return c[2] < 0x40 and c[3] < 0x40 and c[4] < 0x50 end
+  check("nightmare: the face is black, the frame on (two units) and dark, the glow is a darkness around it", h(1).style.bg.color[2] < 8 and h(1).style.rare_t.visible and h(1).style.rare_t.size[2] == 2 and h(1).style.glow.visible and (dark(h(1).style.glow.color) or h(1).style.glow.color[2] > 0xe0))
+  check("nightmare: black ink drips from its lower edge (pure black lines), beads in its gloom", h(1).style.blood_1.visible and h(1).style.blood_3.visible and h(1).style.blood_1.color[2] == 0 and h(1).style.blood_1.color[3] == 0 and h(1).style.blood_1.offset[2] >= h(1).style.bg.offset[2] + h(1).style.bg.size[2] - 2)
+  local breath, flashes = {}, 0
+  for k = 1, 200 do
+    frame(e, 0.033)
+    breath[h(1).style.glow.color[1]] = true
+    if h(1).style.rare_t.color[2] > 0xb0 then flashes = flashes + 1 end
+  end
+  local n = 0 for _ in pairs(breath) do n = n + 1 end
+  check("nightmare: the darkness breathes (its glow changes strength) and the dying light flashes now and then, not always", n >= 6 and flashes >= 1 and flashes < 60, n .. " strengths, " .. flashes .. " flashes")
+  check("warp: its glow is on at rest and pulses", h(2).style.glow.visible and (function() local seen = {} for k = 1, 40 do frame(e, 0.05); seen[h(2).style.glow.color[1]] = true end local m = 0 for _ in pairs(seen) do m = m + 1 end return m >= 5 end)())
+  check("warp: motes rise from its top edge (circles above the card, no drip lines); an ordinary suit has neither", h(2).style.blood_c1.visible and not h(2).style.blood_1.visible and h(2).style.blood_c1.offset[2] < h(2).style.bg.offset[2] + 4 and not h(3).style.blood_c1.visible and not h(3).style.glow.visible)
+  check("nightmare: its suit mark is the horned eye (four triangles and three circles)", (function()
+    local tris, circs = 0, 0
+    for i = 1, Spread.ICON_TRIS do if h(1).style["icon_t" .. i].visible then tris = tris + 1 end end
+    for i = 1, Spread.ICON_CIRCS do if h(1).style["icon_c" .. i].visible then circs = circs + 1 end end
+    return tris == 4 and circs == 3
+  end)())
+  audit_ok("nightmare and warp hand", e)
+end
+
 -- HERESY, the card apart: a frame at rest, a smouldering glow, its own line when it is drawn
 do
   local e = new_element()
