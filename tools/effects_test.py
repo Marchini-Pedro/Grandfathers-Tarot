@@ -10,7 +10,7 @@ BASE = (ROOT / "scripts/mods/RealmsWaves").as_posix()
 RUNTIME = r'''
 local BASE = ...
 local function check(name, value) assert(value, name); print("PASS effects: " .. name) end
-local server, enabled, simple = true, true, nil
+local server, enabled, simple, local_player = true, true, nil, nil
 local settings, warnings, played, native_played, party, systems = {}, {}, {}, {}, {}, {}
 local mod = { rw = {} }
 function mod:io_dofile(path) return dofile(BASE .. "/" .. path:match("RealmsWaves/scripts/mods/RealmsWaves/(.*)") .. ".lua") end
@@ -26,8 +26,15 @@ ScriptUnit = { has_extension = function(u,name) return u.extensions and u.extens
 Managers = { state = { game_session = { is_server = function() return server end },
   unit_spawner = { game_object_id = function(_,u) return u.id end },
   extension = { system = function(_,name) return systems[name] end } },
-  player = { players = function() return party end }, ui = { world = function() return "ui" end }, world = { wwise_world = function() return "wwise" end } }
-WwiseWorld = { trigger_resource_event = function(_,event) native_played[#native_played+1] = event end }
+  player = { players = function() return party end, local_player_safe = function() return local_player end }, ui = { world = function() return "ui" end },
+  world = { wwise_world = function(_, world) return "wwise:" .. tostring(world) end, has_world = function(_, name) return name == "level_world" end, world = function(_, name) return name end } }
+-- every sound the native player starts is heard: `played` (and `native_played`, with where it played in `heard_in`)
+local heard_in = {}
+local function hear(wwise, event, source) played[#played+1] = event; native_played[#native_played+1] = event; heard_in[#heard_in+1] = { wwise, source } end
+WwiseWorld = { trigger_resource_event = function(wwise, event, source) hear(wwise, event, source) end,
+  trigger_resource_external_event = function(wwise, route, es, file, format, source) hear(wwise, file, source); heard_in[#heard_in].route, heard_in[#heard_in].es, heard_in[#heard_in].format = route, es, format end,
+  make_auto_source = function(_, unit) return "auto:" .. tostring(unit and unit.name) end,
+  make_manual_source = function() return "manual" end }
 package.preload["scripts/utilities/fixed_frame"] = function() return { get_latest_fixed_time = function() return 3 end } end
 local gifts = {}
 package.preload["scripts/utilities/pocketable"] = function() return {
@@ -54,10 +61,24 @@ local blessing = Sounds.search("",{parts={},effects={blue_stimm={value=15}}},Gro
 check("effect sounds rank first", blessing[1].score>0 and blessing[1].event:find("syringe",1,true))
 local outage=Sounds.search("",{parts={},effects={blackout={value=15}}},Groups)
 check("Blackout sound ranking",outage[1].score>0)
-for id, term in pairs({med_crate="heal",med_station="medicae",cooldown="play_ability",reveal="precision_stance"}) do
+-- (a term can match voice lines too: "smart_tag" talk ranks with the precision stance for Reveal)
+for id, terms in pairs({med_crate={"heal"},med_station={"healthstation"},cooldown={"play_ability"},reveal={"precision_stance","smart_tag"}}) do
   local found=Sounds.search("",{parts={},effects={[id]={value=1}}},Groups)
-  check("sound ranking for "..id,found[1].score>0 and found[1].event:find(term,1,true))
+  local hit=false
+  for _, term in ipairs(terms) do if found[1].event:find(term,1,true) then hit=true end end
+  check("sound ranking for "..id,found[1].score>0 and hit)
 end
+-- the list (2026-10-04): no weapon sounds and no silent VO routes; the voice lines of enemies and players are in it
+local weapon, routes, enemy_lines, player_lines = 0, 0, 0, 0
+for _, event in ipairs(Sounds.EVENTS) do
+  if event:find("^wwise/events/weapon/") then weapon = weapon + 1 end
+  if event:find("^wwise/events/vo/play_sfx_es_") then routes = routes + 1 end
+  if event:find("^loc_enemy_") then enemy_lines = enemy_lines + 1 end
+  if event:find("^loc_veteran_") or event:find("^loc_zealot_") or event:find("^loc_ogryn_") then player_lines = player_lines + 1 end
+end
+check("sound list: no weapon sounds, no silent VO routes, enemy and player voice lines", weapon == 0 and routes == 0 and enemy_lines > 1000 and player_lines > 1000)
+check("sound list: a voice line is a valid sound and survives encode", Sounds.valid("loc_enemy_cultist_berzerker_a__assault_01") and Sounds.encode(Sounds.parse("loc_enemy_cultist_berzerker_a__assault_01@50")) == "loc_enemy_cultist_berzerker_a__assault_01@50")
+check("sound list: attack and impact sounds are gone, vocalisations stay", not Sounds.valid("wwise/events/weapon/play_axe_swing_light") and Sounds.valid("wwise/events/minions/play_cultist_captain__melee_attack_charged_vce"))
 
 for _, def in ipairs(Schema.ORDER) do
   local text=def.id .. "=999999:4"
@@ -148,7 +169,14 @@ check("Med Station recharge is disabled for now: saved charges never run", not s
 check("disabled effects stay parsed and encoded but are not allowed", Schema.parse("med_station=2:4").med_station.value==2 and not Schema.allowed({med_station={value=2,players=4}},"miracle").med_station)
 systems.health_station_system=nil
 check("four beneficial suits including Faith; categories are Healing, Buffs, Items and Game Effects", Schema.beneficial("faith") and Schema.CATEGORIES[2].id=="Buffs" and Schema.CATEGORIES[3].id=="Items" and Schema.CATEGORIES[4].id=="Game Effects" and Schema.definition("cooldown").category=="Buffs" and Schema.definition("blue_stimm").category=="Items" and Schema.definition("revive").category=="Game Effects")
-check("summary strips the category, even one of two words", Schema.summary({revive={value=2,players=4}})=="raise the fallen (2 players)" and Schema.summary({ammo={value=50,players=4}})=="refill ammunition (50 percent)")
+-- the card's lines (2026-10-04, the design page): the amount first, then the short name
+check("summary: amount then name", Schema.summary({revive={value=2,players=4}})=="2 Raise the fallen" and Schema.summary({ammo={value=50,players=4}})=="50% Refill ammunition" and Schema.summary({reveal={value=15,players=4}})=="15s Reveal Specialists")
+local tags = {}
+local marked = Schema.summary({heal={value=95,players=4},reveal={value=15,players=4}}, nil, nil, function (text, rgb) tags[#tags + 1] = text .. "=" .. table.concat(rgb, ","); return "<" .. text .. ">" end, {1,2,3})
+check("summary: colour tags, the amount in the text colour and the name in its group's", marked == "<95%> <Party health>\n<15s> <Reveal Specialists>" and tags[1] == "95%=1,2,3" and tags[2] == "Party health=98,200,106" and tags[4] == "Reveal Specialists=108,180,255", marked)
+check("summary: hostile Blackout is not a line; a name cut to the characters; +N more", Schema.summary({blackout={value=15,players=4}}) == "" and Schema.summary({cleanse={value=100,players=4}}, nil, 14) == "100% Health..." and Schema.summary({heal={value=5,players=4},cleanse={value=5,players=4},reveal={value=5,players=4}}, 2) == "5% Party health\n+2 more")
+local dots = Schema.dots({heal={value=5,players=4},cleanse={value=5,players=4},ammo={value=5,players=4},blackout={value=5,players=4}})
+check("dots: one per group of the card's effects, in group order", #dots == 2 and dots[1][1] == 98 and dots[2][1] == 240 and #Schema.dots(nil) == 0)
 -- Raise the fallen: only knocked-down players, through the native assisted-state input, at most N, never twice
 local states={}
 for _,p in ipairs({p1,p2,p3}) do
@@ -246,9 +274,15 @@ check("stale snapshot cannot revive guidance", client.snapshot().reveal==0)
 client.receive({sequence=0/0});client.receive(false);client.receive({sequence=999,audio={{999,"arbitrary/file"}}})
 check("malformed/unverified client sound ignored", #played==before+1)
 server=true;settings.card_sounds=false;E.preview_sound(event);check("audio option mutes preview",#played==before+1)
-settings.card_sounds=nil;simple=nil;E.preview_sound(event);check("native fallback needs no SimpleAudio",native_played[#native_played]==event)
-simple={play=function() error("missing bank") end};E.preview_sound(event);check("optional audio failure contained",#warnings>0)
-simple={is_enabled=function() return false end,play=function() error("disabled") end};before=#native_played;E.preview_sound(event);check("disabled SimpleAudio uses native backend",#native_played==before+1)
+settings.card_sounds=nil;E.preview_sound(event);check("no local player (a menu): the sound plays in the UI world without a source",native_played[#native_played]==event and heard_in[#heard_in][1]=="wwise:ui" and heard_in[#heard_in][2]==nil)
+-- (2026-10-04: a 3D event triggered without a source played at the world's origin and nobody heard it)
+local_player={player_unit={name="me"}};E.preview_sound(event)
+check("with a local player the sound plays in the level's sound world on an auto source on the player",native_played[#native_played]==event and heard_in[#heard_in][1]=="wwise:level_world" and heard_in[#heard_in][2]=="auto:me")
+local line="loc_enemy_cultist_berzerker_a__assault_01";E.preview_sound(line)
+check("a voice line streams its file through the 2D player voice route on the player's source",native_played[#native_played]=="wwise/externals/"..line and heard_in[#heard_in].route=="wwise/events/vo/play_sfx_es_player_vo_2d" and heard_in[#heard_in].es=="es_player_vo_2d" and heard_in[#heard_in].format==4 and heard_in[#heard_in][2]=="auto:me")
+local_player.player_unit.alive=false;E.preview_sound(event);check("a dead player unit falls back to the UI world",heard_in[#heard_in][1]=="wwise:ui");local_player=nil
+local real_trigger=WwiseWorld.trigger_resource_event;WwiseWorld.trigger_resource_event=function() error("missing bank") end
+E.preview_sound(event);check("optional audio failure contained",#warnings>0);WwiseWorld.trigger_resource_event=real_trigger
 local X=dofile(BASE .. "/spawn/execute.lua")
 Managers.state.minion_spawn={}
 X.init({positions={},bypass={count=function()return 0 end,purge=function()end,reset=function()end},groups=Groups,effects=E})
@@ -280,7 +314,7 @@ check("two sounds and their volumes survive Share Card", Events.get("custom_4",g
 -- playback: the first now, the second when the first stops playing (native ids), never longer than twelve seconds
 Managers.ui={world=function() return "ui" end}
 local playing,ids,sources,params={},0,{},{}
-WwiseWorld.trigger_resource_event=function(_,ev,source) ids=ids+1;playing[ids]=true;native_played[#native_played+1]=ev;return ids end
+WwiseWorld.trigger_resource_event=function(_,ev,source) ids=ids+1;playing[ids]=true;native_played[#native_played+1]=ev;played[#played+1]=ev;return ids end
 WwiseWorld.is_playing=function(_,id) return playing[id]==true end
 WwiseWorld.make_manual_source=function() sources[#sources+1]="s"..#sources;return sources[#sources] end
 WwiseWorld.set_source_parameter=function(_,s,name,v) params[#params+1]={s,name,v} end
@@ -292,16 +326,16 @@ check("the first sound plays at once, the second waits", #native_played==n0+1 an
 E.tick_audio(1);check("while the first still plays the second waits", #native_played==n0+1)
 playing[ids]=false;E.tick_audio(0.1)
 check("the second starts when the first has ended", #native_played==n0+2 and native_played[#native_played]==ev2 and E.chain_size()==0)
-E.preview_sound(ev1.."@50")
-check("a quieter sound plays through its own source with the sfx volume scaled", #sources>=1 and params[#params][2]=="options_sfx_slider" and params[#params][3]==40)
-playing[ids]=false;E.tick_audio(0.1);check("its source is destroyed when it ends", sources.destroyed==1)
+local_player={player_unit={name="me"}};E.preview_sound(ev1.."@50")
+check("a quieter sound sets the sfx volume, scaled, on the player's auto source", params[#params][1]=="auto:me" and params[#params][2]=="options_sfx_slider" and params[#params][3]==40 and #sources==0)
+n0=#params;E.preview_sound(ev1);check("full volume sets no parameter", #params==n0);local_player=nil
 n0=#native_played;E.preview_sound(ev1.."@0;"..ev2)
 check("a muted sound is skipped and the next one plays", #native_played==n0+1 and native_played[#native_played]==ev2)
 n0=#native_played;E.preview_sound(ev1..";"..ev2);E.tick_audio(12.5)
 check("a sound that never reports its end lets the next one start after twelve seconds", #native_played==n0+2)
-simple={play=function(sound) played[#played+1]=sound end};local p0=#played
-E.preview_sound(ev1..";"..ev2);check("SimpleAudio: the second sound follows after a short gap", #played==p0+1)
-E.tick_audio(2.6);check("SimpleAudio: ...and plays", #played==p0+2 and played[#played]==ev2)
+local with_id=WwiseWorld.trigger_resource_event;WwiseWorld.trigger_resource_event=function(_,ev) played[#played+1]=ev end;local p0=#played
+E.preview_sound(ev1..";"..ev2);check("a sound without a playing id: the second follows after a short gap", #played==p0+1)
+E.tick_audio(2.6);check("...and plays", #played==p0+2 and played[#played]==ev2);WwiseWorld.trigger_resource_event=with_id
 for i=1,12 do E.preview_sound(ev1..";"..ev2) end;check("the chain is bounded", E.chain_size()<=8)
 E.reset();check("reset empties the chain", E.chain_size()==0)
 local ok2,t2=start(effect("heal",5),nil,ev1.."@30;"..ev2);E.finish(t2);E.update(0.25)
@@ -316,13 +350,17 @@ do
   local SO=mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/sounds")
   local EV=mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/wave_editor_effects")
   local WK=mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/workshop")
+  -- a row reads "100%  Party health" (the amount in colour tags first): its name and its amount without the tags
+  local function plain_label(w) return (w.content.label:gsub("{#[^}]*}","")) end
+  local function row_name(w) return (plain_label(w):gsub("^%S+%s+","")) end
+  local function row_lead(w) return plain_label(w):match("^(%S+)") end
   local function chip(id) for i,c in ipairs(EV.shelf_layout.chips) do if c.def.id==id then return i,view._widgets_by_name["rw_fxchip_"..i] end end end
   mod.rw.events.set_def(function(id,v) settings[id]=v end,"custom_20","Blessing",mod.rw.groups.parse("2 hounds"),mod.rw.groups)
   settings.su_custom_20="prayer";settings.fx_custom_20="heal=100:4";settings.th_custom_20=6
   view:_open_detail("custom_20")
   local W=view._widgets_by_name
   check("effects UI: the enemy rows, shelf and spawn controls give way to the effect rows and the effect shelf",W.rw_fxrow_1.visible and not W.rw_fxrow_2.visible and W.fx_shelf.visible and W.fx_header.visible and not W.rw_erow_1.visible and not W.shelf_panel.visible and not W.btn_add.visible and W.btn_enemies.content.hotspot_text=="Beneficial Effects")
-  check("effects UI: a row names the effect, its group under it and on its edge, the amount in words; no players for a heal",W.rw_fxrow_1.content.label=="Party health" and W.rw_fxrow_1.content.info=="Healing" and W.rw_fxrow_1.content.edge_rgb[1]==98 and W.rw_fxrow_1.content.amount_value=="100 percent" and not W.rw_fxrow_1.content.show_players and W.rw_fxrow_1.content.no_players=="-")
+  check("effects UI: a row names the effect, its group under it and on its edge, the amount in words; no players for a heal",row_name(W.rw_fxrow_1)=="Party health" and row_lead(W.rw_fxrow_1)=="100%" and W.rw_fxrow_1.content.info=="Healing" and W.rw_fxrow_1.content.edge_rgb[1]==98 and W.rw_fxrow_1.content.amount_value=="100 percent" and not W.rw_fxrow_1.content.show_players and W.rw_fxrow_1.content.no_players=="-")
   check("effects UI: the shelf has four groups: Healing, Buffs, Items and Game Effects",W.fx_shelf.content.band_1=="HEALING" and W.fx_shelf.content.band_2=="BUFFS" and W.fx_shelf.content.band_3=="ITEMS" and W.fx_shelf.content.band_4=="GAME EFFECTS")
   local mi,med=chip("med_station")
   check("effects UI: Recharge Med Station is greyed and says it is off for now",med.visible and med.content.hotspot.disabled==true and med.content.chip_label:find("fx_off_for_now",1,true)~=nil)
@@ -330,7 +368,7 @@ do
   view:cb_add();check("effects UI: direct enemy callback cannot open picker",view._screen=="detail" and not view._popup)
   local ci,cleanse=chip("cleanse")
   check("effects UI: a chip is lit when the card holds its effect",select(2,chip("heal")).content.hotspot_on==true and cleanse.content.hotspot_on==false)
-  view:cb_fx_chip(ci);check("effects UI: a chip adds its effect at its default, as a new row in catalog order",view._wave.effects.cleanse.value==100 and W.rw_fxrow_2.visible and W.rw_fxrow_2.content.label=="Health and corruption" and select(2,chip("cleanse")).content.hotspot_on)
+  view:cb_fx_chip(ci);check("effects UI: a chip adds its effect at its default, as a new row in catalog order",view._wave.effects.cleanse.value==100 and W.rw_fxrow_2.visible and row_name(W.rw_fxrow_2)=="Health and corruption" and select(2,chip("cleanse")).content.hotspot_on)
   view:cb_fx_chip(ci);check("effects UI: a second click takes it off",not view._wave.effects.cleanse and not W.rw_fxrow_2.visible)
   view:cb_fx_step(1,"value",-1);check("effects UI: the amount stepper takes 5 percent off",view._wave.effects.heal.value==95 and W.rw_fxrow_1.content.amount_value=="95 percent")
   view:cb_fx_step(1,"value",1);view:cb_fx_step(1,"value",1);check("effects UI: ...and never goes past the maximum",view._wave.effects.heal.value==100)
@@ -338,12 +376,12 @@ do
   view:cb_fx_number(1,"value");PP.set_text(view,"50");PP.commit(view);check("effects UI: a click on the amount opens the box and saves",view._wave.effects.heal.value==50)
   view:cb_fx_number(1,"players");check("effects UI: a heal has no players box",view._popup==nil)
   local bi=chip("blue_stimm");view:cb_fx_chip(bi)
-  local brow=nil;for i=1,6 do if W["rw_fxrow_"..i].visible and W["rw_fxrow_"..i].content.label=="Blue Stimm buff" then brow=i end end
+  local brow=nil;for i=1,6 do if W["rw_fxrow_"..i].visible and row_name(W["rw_fxrow_"..i])=="Blue Stimm buff" then brow=i end end
   check("effects UI: Blue Stimm has its players stepper (4 players) beside its seconds",brow~=nil and W["rw_fxrow_"..brow].content.show_players and W["rw_fxrow_"..brow].content.players_value=="4 players" and W["rw_fxrow_"..brow].content.amount_value=="15 seconds")
   view:cb_fx_step(brow,"players",-1);check("effects UI: one player fewer",view._wave.effects.blue_stimm.players==3)
   view:cb_fx_number(brow,"players");PP.set_text(view,"2");PP.commit(view);check("effects UI: blue targets configurable in the box",view._wave.effects.blue_stimm.players==2)
   local ri=chip("revive");view:cb_fx_chip(ri)
-  check("effects UI: Raise the fallen (Game Effects) arrives as 4 players",view._wave.effects.revive.value==4 and (function() for i=1,6 do if W["rw_fxrow_"..i].content.label=="Raise the fallen" and W["rw_fxrow_"..i].visible then return W["rw_fxrow_"..i].content.amount_value=="4 players" end end end)())
+  check("effects UI: Raise the fallen (Game Effects) arrives as 4 players",view._wave.effects.revive.value==4 and (function() for i=1,6 do if row_name(W["rw_fxrow_"..i])=="Raise the fallen" and W["rw_fxrow_"..i].visible then return W["rw_fxrow_"..i].content.amount_value=="4 players" end end end)())
   view:cb_fx_remove(1);check("effects UI: Remove on a row takes its effect off",not view._wave.effects.heal and view._wave.effects.blue_stimm)
   check("effects UI: APOTHEOSIS: a beneficial card's sixth diamond is visible and not edged in Despair's lilac",W.rw_stage_card.style.th_o6.visible and W.rw_stage_card.style.th_h6.color[2]~=0xc7)
   check("effects UI: the beneficial shelf ends above the timer and the action bar",WK.SHELF_Y+EV.shelf_layout.height<=view._definitions.scenegraph_definition.stepper_timer.position[2] and #EV.shelf_layout.chips==11)
@@ -379,16 +417,35 @@ do
     end
     c.content.hotspot.is_hover=false;c.content.hotspot.is_pressed=false;c.content.hotspot.disabled=false
   end
-  check("effects UI: shelf cells retain uniform width",W.rw_chip_1.style.hotspot.size[1]==156 and W.rw_chip_2.style.hotspot.size[1]==156)
-  check("effects UI: foreground right edge completes shelf",W.rw_chip_1.style.chip_edge_r.size[1]==2 and W.rw_chip_1.style.chip_edge_r.offset[1]+2==156)
+  -- (2026-10-04, the design page) chips as wide as their labels in four columns, a one unit outline, a lit diamond on the effect chips
+  local hi,heal_chip=chip("heal");local _,cleanse_chip=chip("cleanse")
+  check("effects UI: chips are as wide as their labels (a longer name, a wider chip)",cleanse_chip.style.hotspot.size[1]>heal_chip.style.hotspot.size[1])
+  check("effects UI: a chip has a one unit outline and no second frame",W.rw_chip_1.style.chip_frame.size[1]==W.rw_chip_1.style.hotspot.size[1] and W.rw_chip_1.style.chip_fill.offset[1]==1 and W.rw_chip_1.style.chip_edge_r==nil)
+  check("effects UI: the effect chips have a diamond at the right end, the enemy chips none",heal_chip.style.chip_pip~=nil and heal_chip.style.chip_pip.offset[1]>heal_chip.style.hotspot.size[1]-24 and W.rw_chip_1.style.chip_pip==nil)
+  check("effects UI: the effect shelf is four columns, one per group, each chip inside its column",(function() local bands=EV.shelf_layout.bands;if #bands~=4 then return false end;for _,c in ipairs(EV.shelf_layout.chips) do local b=bands[c.column];if c.x<b.x-0.5 or c.x+c.w>b.x+b.w+0.5 then return false end end;return bands[1].x<bands[2].x and bands[3].x<bands[4].x end)())
 
   local before=settings.wave_def_wave_small
-  view:cb_back();view:cb_bless_deck();PP.set_text(view,"wrong");PP.commit(view)
-  check("effects UI: conversion requires explicit typed confirmation",view._popup~=nil and settings.wave_def_wave_small==before)
-  PP.set_text(view,"CONSECRATE");PP.commit(view)
-  local all,faith=true,0
-  for _,std in ipairs(mod.rw.events.STANDARD) do local w=mod.rw.events.get(std.key,function(id)return settings[id] end,mod.rw.groups);if not EF.beneficial(w.suit) or #w.parts~=0 or not EF.has_content(w) then all=false end;if w.suit=="faith" then faith=faith+1 end end
-  check("effects UI: twelve standard slots converted (three of each of the four faces, Faith included) and Undo saved",all and faith==3 and type(settings[mod.rw.presets.UNDO_ID])=="string")
+  -- the Deck's Search (2026-10-04, in place of Consecrate 12 cards): the cards whose name, suit, enemy or effect hold the text
+  view:cb_back();view._deck_query=nil;view:_build_deck()
+  local total=#view._deck
+  check("deck search: the button is on the Deck in Consecrate's place and says Search cards",W.rw_deck_search.visible and W.rw_deck_search.content.hotspot_text=="btn_deck_search" and view.cb_bless_deck==nil)
+  local function typed(text) PP.set_text(view,text);view._popup.spec.on_change(text) end -- (the popup reports typing in its frame update)
+  view:cb_deck_search();typed("hound")
+  local holds,blank=true,false
+  for _,w in ipairs(view._deck) do if w.blank then blank=true end end
+  check("deck search: typing filters the Deck as it is typed (enemy names count), the blank card is hidden",view._popup~=nil and #view._deck>0 and #view._deck<total and not blank,#view._deck.."/"..total)
+  PP.commit(view)
+  check("deck search: OK keeps the search, the button says it and is lit",view._deck_query=="hound" and W.rw_deck_search.content.hotspot_text=="btn_search_active:hound" and W.rw_deck_search.content.hotspot_on==true)
+  view:cb_deck_search();typed("blackout")
+  local found=false;for _,w in ipairs(view._deck) do if w.key=="custom_20" then found=true end end
+  check("deck search: an effect's name finds the card that holds it (Blackout on the Heresy card)",found)
+  typed("HERESY");found=false;for _,w in ipairs(view._deck) do if w.key=="custom_20" then found=true end end
+  check("deck search: a suit's name finds its cards, whatever the case",found)
+  typed("zzzz nothing");check("deck search: nothing matches -> an empty Deck",#view._deck==0)
+  PP.cancel(view);check("deck search: Escape puts the search back as it was",view._deck_query=="hound" and #view._deck<total)
+  view:cb_deck_search();typed("   ");PP.commit(view)
+  check("deck search: an empty search shows every card again, the blank one too",#view._deck==total and W.rw_deck_search.content.hotspot_text=="btn_deck_search")
+  view._screen="detail";view:cb_deck_search();check("deck search: does nothing off the Deck",view._popup==nil);view._screen="list"
   view:_open_detail("custom_20")
   local stage=W.stage_plate
   local palette=true

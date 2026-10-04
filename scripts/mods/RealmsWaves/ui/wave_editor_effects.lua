@@ -572,7 +572,7 @@ EffectsView.install = function (View, h)
 	-- The Deck's Search (2026-10-04: in place of Consecrate 12 cards): the Deck shows only the cards whose name, suit, enemies or
 	-- effects hold the typed text, as it is typed. Escape puts the search back as it was; an empty search shows every card.
 	View._set_deck_query = function (self, query)
-		self._deck_query = query or ""
+		self._deck_query = (tostring(query or ""):gsub("^%s+", ""):gsub("%s+$", ""))
 		self:_build_deck()
 		self._offset = 0
 		self:_apply_screen(true)
