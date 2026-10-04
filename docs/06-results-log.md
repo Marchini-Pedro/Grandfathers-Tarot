@@ -210,3 +210,14 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Full runners pass every gate: Lua 5.5 2,405 assertions, 82.44%; LuaJIT 2.1 2,404 counted, 79.26% (the completion-ticket checks
   went with the tickets). Nothing tested in game yet.
 
+## 2026-10-04 — Cauldron redesign, sixth round (feature/cauldron-redesign)
+
+- Built: the start_shooting rehook warning (and the same pattern for the minion buff class) fixed; /rw_test and /rw_test_close play
+  the sound first; /rw_drawtest and /rw_fulltest; Nightmare's black fog over its card (HUD, Deck, stage, Last Card); the Nightmare's
+  dread, a full-screen see-through overlay when a Nightmare card is drawn (option); the Draw HUD sliding below boss bars (option).
+- Tests: entry (a file loaded twice hooks once, the commands), appearance (the buff class once), logic (sound-first tests, staged
+  draws: the hand, the pick after 3 s, nothing sent or heard, the cycle restored, refusals, vote mode), HUD (the fog, the dread,
+  the boss push), editor (the tile fog; a repainted tile clears it, a defect the test found).
+- Floors added for the new overlay modules (75 and 82, just under what both runtimes measure); none lowered. Full runners pass every
+  gate: Lua 5.5 2,460 assertions, 82.36%; LuaJIT 2.1 2,459 counted, 79.20%. Nothing tested in game yet.
+

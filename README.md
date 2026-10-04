@@ -19,7 +19,8 @@ random selection and player voting. No Twitch service is required.
   card's chance (the pips) and cooldown (the `-` / `+` on its tile) in place; save five
   **Deck presets**; sort cards by threat, rarity, enemy count or face; drag to swap
   cards on a page. **HERESY** (crimson; its glow beats like a heart and it bleeds in the HUD), **NIGHTMARE** (black,
-  a breathing darkness and a dying light, black ink; once per game), **Warp** (a pulsing glow and rising motes), **Prayer**, **Miracle**,
+  a breathing darkness and a dying light, black ink, a black fog over the card and, when drawn, over the screen (option);
+  once per game), **Warp** (a pulsing glow and rising motes), **Prayer**, **Miracle**,
   **Grace** and **Faith** have their own frames and sigils.
 - **The Cauldron:** build enemy groups with a searchable catalog and Dreg/Scab
   shelf, modifiers, custom stats and a live card preview.
@@ -40,6 +41,9 @@ random selection and player voting. No Twitch service is required.
   strength pips (level 6 is Despair, or Apotheosis on a blessing, and shines),
   whisper and cooldown; every card rots and renews. A threat 5 or 6 card's whisper
   murmurs letter by letter when it is drawn.
+- **Test commands:** `/rw_test` and `/rw_test_close` play the card's sound, then spawn; `/rw_drawtest <card>`
+  stages a three-card draw that picks it after 3 s (HUD only); `/rw_fulltest <card>` does the same with its sound and wave.
+- **Boss bars:** the Draw HUD slides below the game's boss health bars while a boss is up (option).
 - **Last card window:** a compact full card face with its name, flavor, sigil and age,
   synchronized for every player. It has its own transparency slider and is movable
   with Custom HUD. Draw/Last Card omit enemy modifier labels.

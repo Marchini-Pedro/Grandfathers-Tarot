@@ -150,6 +150,18 @@ Old peers: a card with a Nightmare face shows as Plague for them; cards with the
 effect), as before for any unknown id. The glow of Nightmare is a dark colour: whether the game's glow material shows a dark glow
 (it may blend additively) must be checked in game; the flicker of the frame and the ink do not depend on it.
 
+## Sixth round: test commands, the rehook warning, Nightmare's fog and dread, the boss bars (2026-10-04)
+
+| Request | What was built |
+| --- | --- |
+| "[WARNING] (hook_safe): Attempting to rehook active hook [start_shooting]" when a game starts | DMF runs a `hook_require` callback every time the game loads the file again; `spawn/tuning.lua` hooked `MinionAttack.start_shooting` again on the same table. A weak set now keeps the tables already hooked; `spawn/appearance.lua` had the same pattern (the minion buff class) and has the same guard. |
+| /rw_test and /rw_test_close play the sound first | Both go through `launch()`: the card's sound plays, the wave spawns when it ends (at most 20 s). A test never spends a once-per-game suit and is released even while the waves are paused or stopped. |
+| /rw_drawtest card_name | `Director.stage_draw`: three cards (the named one and two others of the draw) are dealt as a real hand and the named one is picked 3 s later: the Spread, the roulette, the banner, the murmur, the Last Card and the Nightmare's dread all play. No sound, no enemies, no cooldown. The cycle goes on where it was (its countdown, or the vote/random state). Refused when not host, not running, paused, or while a staged draw shows. |
+| /rw_fulltest card_name | The same staged draw, then the card's sound and its wave, as in play (a test: no cooldown, no once-per-game). |
+| The Draw HUD below the boss bars while bosses are up | `HudElementRealmsWavesPanel._update_boss_push`: while the game's `HudElementBossHealth` has an active boss and the panel overlaps the bars' band at the top centre (748 wide, down to y 172), the panel is drawn lower, sliding at 500 units a second, and back up when the boss is dead. The node (custom_hud's place) never moves; a panel moved elsewhere is left alone. Option `hud_avoid_boss_bars`. |
+| The Spillway's whole-screen effect, black and grey and see-through, with a Nightmare card's sound; a toggle | The Spillway's effect is a mood (`spillway_nurgle_transition`: a shading environment and a screen particle in Nurgle green, `scripts/settings/camera/mood/mood_settings.lua`); its colours are baked and cannot be changed. `ui/hud_element_dread.lua` is the mod's own full-screen overlay instead: a black veil that breathes and flickers with the dying light (at most about 40 percent dark, so the screen stays readable), a feathered vignette (16 thin frames) and four banks of ash-grey fog drifting across, three layers each. It rises when a Nightmare card is drawn (every player: the draw is synced), holds about 5.5 s and fades by 8 s; a late joiner is not shown an old one. Option `nightmare_dread`. |
+| Nightmare's card: a black fog that periodically darkens all its content, very special | `Cards.fog`: a veil over the whole card (mostly clear, a slow surge every 7.4 s) and three banks of fog drifting down it, black, above everything on the card, in the Draw HUD, on the Deck tile and the stage card, and in the Last Card window (which now ticks every frame for it). |
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -183,3 +195,7 @@ effect), as before for any unknown id. The glow of Nightmare is a dark colour: w
     hogtied player; the three stimm buffs and items, grenades (a class without grenades, full pouches), Ammo Crates; Nightmare in
     the HUD (is the dark glow visible? the flicker, the ink), once per game (a second Nightmare never comes that mission, comes
     back the next); the Warp glow and motes.
+13. Sixth round: no rehook warning at a game start or a mission restart; /rw_test and /rw_test_close wait for the sound;
+    /rw_drawtest and /rw_fulltest (for a Nightmare card too: the dread on every screen); the Draw HUD sliding below a Beast of
+    Nurgle's and two bosses' bars and back, at another HUD size and when moved with custom_hud; the dread at 1080p and 4K (is the
+    game still readable? the vignette's steps?) and its option; the Nightmare card's fog in the HUD, the Deck and the Last Card.

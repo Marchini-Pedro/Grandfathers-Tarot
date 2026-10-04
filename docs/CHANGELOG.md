@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-04 - Test commands, rehook warning, Nightmare's fog and dread, Draw HUD below boss bars (feature/cauldron-redesign)
+- Fixed "Attempting to rehook active hook [start_shooting]" at game start (each loaded table is hooked once).
+- /rw_test and /rw_test_close play the card's sound first; new /rw_drawtest (a staged draw, HUD only) and /rw_fulltest (with sound and wave).
+- Nightmare: a black fog comes and goes over its card everywhere; when drawn, a see-through black fog darkens the whole screen (option "Nightmare's dread on screen").
+- The Draw HUD slides below the boss health bars while a boss is up (option "Move the Draw HUD below boss bars").
+- Tests for all of it; both runners pass every gate (Lua 5.5 82.36% / LuaJIT 2.1 79.20%). Not yet tested in game.
+
 ## 2026-10-04 - Card sound at the draw, new beneficial effects, Nightmare, Warp's effect (feature/cauldron-redesign)
 - The card's sound plays for everyone the moment the card is drawn and its wave spawns when the sound ends (at most 20 s); the completion sound is gone.
 - The search box can be dragged and is see-through over the list it filters.

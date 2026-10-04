@@ -393,3 +393,13 @@ Things we know are missing or unverified, each with the next concrete step.
 - **Every sound is now tracked to its end** (for the alert), so the eight-entry chain can fill with single sounds; eight alerts
   inside 2.5 s would push out a pending second sound. Unlikely in play; noted.
 
+## 2026-10-04 — hook_require runs again; screen moods; boss bars
+
+- **DMF calls a `hook_require` callback again whenever the game loads the file again** (a new game, a restart), with the same table
+  when it is cached: hooking inside it must remember the tables already hooked, or DMF warns "Attempting to rehook active hook".
+- **The game's screen effects are moods** (`mood_settings.lua`: a shading environment, screen particles and looping sounds, added
+  per player by `PlayerUnitMoodExtension`); their colours are baked into the assets. A recoloured one would need new assets, so the
+  Nightmare's dread is a HUD overlay (no gradients in the UI: a stepped vignette of thin frames and fog in stacked layers).
+- **The boss health bars** are `HudElementBossHealth` (two bars at most, `_active_targets_array`), reachable from another element
+  through the HUD (`self._parent:element(name)`); both are in the same HUD-scaled space.
+
