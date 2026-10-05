@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-05 - The Mutant's charge follows its run speed (feature/enemy-shadow)
+- A group's run speed now also scales the Mutant's charge (its direct-velocity phases; the navigating phase already was).
+- Dark skin seen in game: the textures load, but lowering A only fades the effect out; none of the looks gets close to dark.
+- Lua suites not run (the user's choice).
+
+## 2026-10-05 - Dark skin experiments, draw buttons on the Deck (feature/enemy-shadow)
+- Three experimental appearance methods, "Dark skin: burnt / warp / bruised": the game's ailment skin looks held still on the enemy; A picks the moment of the effect shown (to find the darkest). Textures load as packages first.
+- The Deck has four buttons: add / remove the beneficial cards, add / remove the enemy cards from the draw.
+- Lua suites not run (the user's choice); not yet tested in game.
+
+## 2026-10-05 - Golden health, Stop all sound previews; shadow fog removed (feature/enemy-shadow)
+- While the team has an Instant rescue charge, a player with more than one wound left has golden health bars (the game's overshield toughness colour), on every player's HUD (the charge count is sent with the effects state).
+- The card sound screen has a "Stop all sound previews" button (a card's real sound at a draw is not stopped).
+- The shadow fog is removed: tested in game, its performance cost was too high.
+- Lua suites not run (the user's choice); not yet tested in game.
+
 ## 2026-10-05 - The Grandfather's Tarot (feature/cauldron-redesign)
 - The mod is renamed The Grandfather's Tarot (folders, files, DMF id); commands are /gt_...; the Cauldron is the Workshop.
 - Saved decks, presets and options are copied once from the old RealmsWaves settings.

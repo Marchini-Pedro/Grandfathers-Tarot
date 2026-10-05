@@ -110,6 +110,53 @@ pcall(function ()
 	end)
 end)
 
+-- Instant rescue's golden health (2026-10-05, the user: "while the team has a charge of Instant rescue and a player more than one
+-- wound, their health is golden, like golden toughness"): the player panels (own and team) draw their health segments in the
+-- game's overshield toughness colour (UIHudSettings.color_tint_10) while a charge is armed and the panel's player has more than
+-- one wound left. The colour the panel normally uses is swapped only for the draw. Each panel class is hooked (class() copies the
+-- base's methods into a subclass, so a hook on the base does not reach it).
+RW.golden_health = function (panel)
+	local effects = RW.effects
+	local charges = effects and effects.team_rescues and effects.team_rescues() or 0
+
+	if charges <= 0 or panel._dead or panel._knocked_down or panel._hogtied then
+		return false
+	end
+
+	-- wounds left = the segments corruption (permanent damage) has not taken, as the game counts them (Health.calculate_num_segments);
+	-- the health still in them does not matter (2026-10-05: a player low on health with three wounds lost the gold)
+	local wounds = (panel._health_max_fraction or 1) * (panel._health_max_wounds or 1)
+
+	return wounds > 1 + 1e-6
+end
+
+local function golden_draw(func, self, ...)
+	local golden = not RW.dead and select(2, pcall(RW.golden_health, self)) == true
+
+	if not golden then
+		return func(self, ...)
+	end
+
+	local Settings = require("scripts/settings/ui/ui_hud_settings")
+	local normal = Settings.color_tint_main_1
+
+	Settings.color_tint_main_1 = Settings.color_tint_10 or normal
+
+	local ok, err = pcall(func, self, ...)
+
+	Settings.color_tint_main_1 = normal
+
+	if not ok then
+		error(err)
+	end
+end
+
+for _, name in ipairs({ "HudElementPlayerPanelBase", "HudElementPersonalPlayerPanel", "HudElementTeamPlayerPanel" }) do
+	pcall(function ()
+		mod:hook(name, "_draw_health_bar", golden_draw)
+	end)
+end
+
 mod.on_all_mods_loaded = function ()
 	-- once (2026-10-04): the longest card cooldown becomes 30 minutes for players who kept the old default of 10 saved; afterwards
 	-- the option is theirs again

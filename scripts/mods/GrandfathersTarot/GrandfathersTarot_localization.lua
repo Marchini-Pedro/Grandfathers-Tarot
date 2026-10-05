@@ -512,6 +512,12 @@ local L = {
 	popup_hint_number = { en = "Type a number, Enter to confirm, Esc to cancel" },
 	popup_hint_text = { en = "Type the text, Enter to confirm, Esc to cancel" },
 	popup_ok = { en = "OK" },
+	snd_stop_previews = { en = "Stop all sound previews" },
+	btn_draw_ben_on = { en = "Add beneficial cards to the draw" },
+	btn_draw_ben_off = { en = "Remove beneficial cards from the draw" },
+	btn_draw_foe_on = { en = "Add enemy cards to the draw" },
+	btn_draw_foe_off = { en = "Remove enemy cards from the draw" },
+	msg_draw_kind = { en = "%d cards changed." },
 	popup_cancel = { en = "Cancel" },
 }
 

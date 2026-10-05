@@ -8,6 +8,9 @@ Appearance.METHODS = {
 	{ id = "slot_stimm", name = "Explicit body / equipment stimm", info = "Compare the same tint with explicit writes to loadout slots and attachments. Visual-only; this is a coverage experiment.", available = true },
 	{ id = "surface", name = "Per-material surface override (unavailable)", info = "Unavailable: first verify a surface colour parameter, its default and supported enemy materials. No guessed parameter is applied.", available = false },
 	{ id = "private_shader", name = "Private material / shader patch (unavailable)", info = "Unavailable: needs compatible compiled assets, a loader and verified restoration. No native patch is installed by this option.", available = false },
+	{ id = "skin_burnt", name = "Dark skin: burnt (experimental)", info = "The game's burning skin effect held still on the enemy. A picks the moment of the effect that is shown: slide it to find the darkest. Colour channels do nothing.", available = true },
+	{ id = "skin_warp", name = "Dark skin: warp (experimental)", info = "The game's warpfire skin effect held still. A picks the moment shown (find the darkest). Colour channels do nothing.", available = true },
+	{ id = "skin_bruise", name = "Dark skin: bruised (experimental)", info = "The game's brittle purple skin effect (the Hive Scum's toxin) held still. A picks the moment shown. Colour channels do nothing.", available = true },
 	{ id = "outline", name = "Outline", info = "Visual-only coloured outline. Stock tag outlines can take priority. This colours the outline, not the enemy's surface.", available = true },
 }
 

@@ -53,7 +53,70 @@ local function normal_colour(unit)
 	return value and value[1] or 0, value and value[2] or 0, value and value[3] or 0
 end
 
+-- Dark skin (2026-10-05, the user: "let's try the dark skin effect"): the game's ailment skin looks (Ailment.play_ailment_effect_template:
+-- a mask and a colour ramp texture on the materials, the HAVE_BURN permutation, and offset_time_duration = offset, start, duration)
+-- held at one moment of the effect: every frame the start is put `phase` seconds before now, so the shader keeps showing that
+-- moment. A picks the phase (0 = the start of the effect, 255 = its end). Nothing is written while the engine does not have the
+-- textures (an unloaded texture can crash the engine). No colour ramp of the game is black: which look reads
+-- darkest is what this experiment is for.
+local SKINS = { skin_burnt = "burning", skin_warp = "warpfire", skin_bruise = "broker_brittleness" }
+local skinned = {}
+
+-- (2026-10-05, in game: "Package reference ... does not exist") these textures are not packages of their own: the game writes them
+-- when the weapon or enemy that causes the ailment is in the mission, so they are only used when the engine already has them
+-- (Application.can_get_resource). Otherwise the look waits (checked again every quarter second) and says why once.
+local function skin_template(method)
+	local Settings = require("scripts/settings/ailments/ailment_settings")
+	local template = Settings.effect_templates and Settings.effect_templates[SKINS[method]]
+	if not template then return nil end
+	for _, texture in pairs(template.material_textures or {}) do
+		local ok, has = pcall(function () return Application.can_get_resource("texture", texture.resource) end)
+		if not (ok and has) then
+			warn(method .. ": its textures are not loaded in this mission yet (the game loads them with what causes that effect); it waits")
+			return nil
+		end
+	end
+	return template
+end
+
+local function skin_time(record)
+	local template, unit = record.skin, record.unit
+	local now = World.time(Unit.world(unit))
+	local phase = template.duration * record.config.a / 255
+	Unit.set_vector3_for_materials(unit, "offset_time_duration", Vector3(template.offset_time, now - phase, template.duration + 1), true)
+end
+
+local function apply_skin(record)
+	if not record.skin then
+		local template = skin_template(record.config.method)
+		if not template then return end
+		for _, texture in pairs(template.material_textures or {}) do
+			Unit.set_texture_for_materials(record.unit, texture.slot, texture.resource, true)
+		end
+		Unit.set_permutation_for_materials(record.unit, "HAVE_BURN", true, true)
+		record.skin = template
+		skinned[record.unit] = record
+	end
+	skin_time(record)
+end
+
+local function stop_skin(record)
+	skinned[record.unit] = nil
+	local template = record.skin
+	record.skin = nil
+	if template and alive(record.unit) then
+		-- the effect long over: the skin is the enemy's own again
+		Unit.set_vector3_for_materials(record.unit, "offset_time_duration", Vector3(template.offset_time, -100000, 0.01), true)
+	end
+end
+
+Appearance._skinned = function () local n = 0; for _ in pairs(skinned) do n = n + 1 end return n end
+
 local function restore(record, keep_outline)
+	if record.skin and not keep_outline then
+		local ok, err = pcall(stop_skin, record)
+		if not ok then warn("dark skin removal failed: " .. tostring(err)) end
+	end
 	if record.outline and not keep_outline then
 		local outline = record.outline
 		if alive(record.unit) then
@@ -156,6 +219,7 @@ local function apply_record(record)
 		end
 	end
 	if config.method == "outline" or config.method == "none" then return end
+	if SKINS[config.method] then return apply_skin(record) end
 	if config.method == "natural_stimm" then
 		local actions = require("scripts/settings/breed/breed_actions")[record.breed]
 		if not actions or not actions.use_stim then
@@ -281,6 +345,15 @@ end
 Appearance.update = function (dt)
 	if retired then return end
 	clock, cadence, renewal = clock + dt, cadence + dt, renewal + dt
+	-- the dark skins are held still every frame (the moment must not drift)
+	for unit, record in pairs(skinned) do
+		if not alive(unit) then
+			skinned[unit] = nil
+		else
+			local ok, err = pcall(skin_time, record)
+			if not ok then skinned[unit] = nil; warn("dark skin failed: " .. tostring(err)) end
+		end
+	end
 	if cadence < 0.25 then return end
 	cadence = 0
 	local spawner = Managers.state and Managers.state.unit_spawner
@@ -318,7 +391,7 @@ Appearance.reset = function (send_clear)
 		end
 		remove(unit)
 	end
-	records, pending = {}, {}
+	records, pending, skinned = {}, {}, {}
 	clock, cadence, renewal = 0, 0, 0
 	generation = generation + 1
 end

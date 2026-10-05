@@ -203,3 +203,21 @@ Live acceptance must compare untreated and treated groups of the same breed:
 Full-body surface recolouring and private material/shader patching remain
 unimplemented until the prerequisites above are actually verified. The live
 checklist remains open after the GitHub merge; no in-game confirmation is recorded.
+
+## Shadow fog: tried and removed (2026-10-05)
+
+An experimental method linked the Daemonhost's ambient fog particle to the enemy. Seen in game it is a large fog around the
+target with a heavy performance cost, so it was removed (commit 5bfa39e reverts 9bf9d0d). Cheaper ideas still open: keeping an
+ailment look on (a material value, like the On Fire glow) with a dark colour ramp, or the game's own small enemy particles
+(the Nurgle blessing flies).
+
+## Dark skin experiments (2026-10-05)
+
+Methods `skin_burnt`, `skin_warp`, `skin_bruise`: the ailment effect templates `burning`, `warpfire` and `broker_brittleness`
+(ailment_settings.lua: a mask texture in `effect_mask`, a ramp in `effect_gradient`, the `HAVE_BURN` permutation and
+`offset_time_duration`). The look is held at one moment by writing the start time `phase` seconds before now every frame;
+A (0..255) picks the phase over the template's duration. Ending it writes a start long past. The two textures of each template
+are not packages (in game: "Package reference ... does not exist"): the look is only written once
+`Application.can_get_resource("texture", ...)` says the engine has them (they come with what causes the ailment in that mission). Unknown until seen: whether the shader darkens the
+surface or only adds a glow (no game ramp is black), whether the packages load by resource path, the cost of one material write
+per enemy per frame.
