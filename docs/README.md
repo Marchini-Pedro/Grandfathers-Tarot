@@ -1,4 +1,4 @@
-# RealmsWaves: documentation index
+# GrandfathersTarot: documentation index
 
 For features, installation and commands, start with the [project README](../README.md).
 This index covers development references, decisions and verification.
@@ -41,21 +41,23 @@ usable experiments from advanced prerequisites; in-game acceptance is pending.
 [PR #8](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/8) merged on
 2026-10-03 at `fe957632`. The earlier hand-off remains historical; merge alone
 does not establish acceptance of its pending native checks.
-Current work is [draft PR #9](https://github.com/Marchini-Pedro/Grandfathers-Tarot/pull/9) on
-`feature/card-effects-and-ui`: three beneficial faces,
-native effects, completion audio, appearance controls and compact HUD/editor fixes.
-See [the feature guide](12-card-effects-and-ui.md) and current verification log.
+PR #9 (three beneficial faces, native effects, completion audio, appearance
+controls) is merged into `main` at `bc4d9ff`. Current work is
+`feature/cauldron-redesign` (2026-10-04): see [its guide](13-cauldron-redesign.md)
+and the current verification log.
 
 ## References
 
 | Document | Purpose |
 | --- | --- |
+| [Cauldron redesign](13-cauldron-redesign.md) | Faith, crimson Heresy, Nightmare (once per game), Warp's effect, one cooldown look, the column shelves, the beneficial effects, the card sound at the draw, voice lines, Deck search, the Last Card, the outline's line of sight; the in-game checklist |
 | [Card effects and UI (PR #9)](12-card-effects-and-ui.md) | Behavior, native contracts, compatibility and game acceptance |
 | [Design and rationale](04-design-and-rationale.md) | Requirements, architecture and protocol decisions |
 | [Enemy colour experiments](enemy-appearance.md) | Per-group ARGB/method controls, usable experiments, prerequisites, transport and live acceptance |
 | [Enemy appearance research](research/enemy-appearance/findings.md) | Earlier read-only source/mod/public evidence; [experiment plan](research/enemy-appearance/experiments-and-recommendation.md) and [original brief](research/enemy-appearance/research-prompt.md) |
 | [Implementation plan](05-implementation-plan.md) | Checklist, reuse map and unfinished work |
-| [Verification and open issues](06-verification-and-open-issues.md) | Game test matrix, risks and dated results |
+| [Verification and open issues](06-verification-and-open-issues.md) | Game test matrix, risks and open issues |
+| [Results log](06-results-log.md) | The dated results of every change (split from doc 06 on 2026-10-04) |
 | [Learnings and gaps](07-learnings-and-gaps.md) | Discoveries, failed approaches and actionable gaps |
 | [Workshop redesign](08-workshop-redesign.md) | Cauldron/Mirror design and build log |
 | [Heresy continuation review](audits/2026-10-03/heresy-review.md) | Branch-wide adversarial findings, fixes, detecting regressions and remaining native checks |
@@ -65,7 +67,7 @@ See [the feature guide](12-card-effects-and-ui.md) and current verification log.
 | [Executed audit](audits/2026-10-03/report.md) | Baseline, ranked findings, reproductions, inventory, measurements and live acceptance |
 | [Approved remediation](audits/2026-10-03/remediation.md) | Six implementation batches, current results and [runnable validation](audits/2026-10-03/remediation-validation.md) |
 | [Adversarial audit prompt](audits/adversarial-audit-prompt.md) | Reusable audit-only brief: risk-based tests, lifecycle/scaling stress, measurements and evidence requirements; not an executed audit |
-| [Changelog](CHANGELOG.md) | Change history; [1.x archive](changelog/1.x.md) |
+| [Changelog](CHANGELOG.md) | Change history; [2.x archive](changelog/2.x.md), [1.x archive](changelog/1.x.md) |
 | [TwitchVersus findings](01-findings-twitchversus.md) | Historical TwitchVersus and VersusMode audit |
 | [RealmsEvent findings](02-findings-realmsevent.md) | Historical RealmsEvent audit |
 | [Realms and game-source findings](03-findings-realms-and-game-source.md) | Network API, authority, spawn chain, positioning and limits |

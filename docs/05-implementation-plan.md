@@ -34,10 +34,10 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 ## Checklist
 - [x] 1. Docs (`docs\*`) and `CLAUDE.md` written from the research (2026-09-28)
 - [x] 1b. Memory pointer saved (project memory -> `docs\README.md`)
-- [x] 2. Scaffold: `RealmsWaves.mod`, entry, localization, `mod_load_order.txt` line appended (after `Realms`)
+- [x] 2. Scaffold: `GrandfathersTarot.mod`, entry, localization, `mod_load_order.txt` line appended (after `Realms`)
 - [x] 3. `core/protocol.lua`, `core/director.lua` (handshake folded into director: `on_hello`/`on_welcome`), debug commands
 - [x] 4. `spawn/positions.lua`, `spawn/execute.lua`, `spawn/budget_bypass.lua` written
-- [x] 5. `catalog/events.lua`, `catalog/groups.lua`, percent normalisation, options (`RealmsWaves_data.lua`)
+- [x] 5. `catalog/events.lua`, `catalog/groups.lua`, percent normalisation, options (`GrandfathersTarot_data.lua`)
 - [x] 6. `core/votes.lua` + keybind voting
 - [x] 7. `ui/hud_element_waves.lua` (+ definitions) + state sync
 - [x] 8a. Static checks: all files compile; offline logic tests pass (see `06`)
@@ -47,8 +47,8 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [x] Percent formatting on the HUD (`%.1f`, trimmed)
 - [x] Minimum interval 5 s (options range, director no longer pads to vote_duration + 5, vote window capped)
 - [x] Data layer for editable waves: `catalog/events.lua` (`Events.get/set_def/reset/keys/build_pool`), `catalog/groups.lua` (parse with `a|b`, `to_recipe`, `describe_part`, `summary`, `breed_list`, `display_name`)
-- [x] Wave editor view: `ui/wave_editor_{components,definitions,blueprints,view}.lua`, registered in `RealmsWaves.lua`, keybind `open_editor_bind` (default F6), `/rw_editor`
-- [x] `/rw_custom` rewritten on the new data layer; `wave_def_/on_/pct_/cd_` settings; DMF wave sliders removed
+- [x] Wave editor view: `ui/wave_editor_{components,definitions,blueprints,view}.lua`, registered in `GrandfathersTarot.lua`, keybind `open_editor_bind` (default F6), `/gt_editor`
+- [x] `/gt_custom` rewritten on the new data layer; `wave_def_/on_/pct_/cd_` settings; DMF wave sliders removed
 - [x] HUD panel reshaped for `custom_hud` (real-size node, sample in edit mode); `hud_x/hud_y` removed
 - [x] Local git repo + `tools/` test scripts; `CLAUDE.md` docs/commit rules
 - [ ] In-game verification of all of the above (editor opening and every screen, popup input, HUD dragging in custom_hud, 5 s waves)
@@ -70,7 +70,7 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
 - [ ] In-game verification (rows 27-31 in doc 06)
 
 ### Iteration 1.5.x - 1.6.0
-- [x] 1.5.4 Psykhanium `/rw_test` ring fallback + visible failure reasons; picker auto-search; stay/back toggle
+- [x] 1.5.4 Psykhanium `/gt_test` ring fallback + visible failure reasons; picker auto-search; stay/back toggle
 - [x] 1.5.5 twin shield (`optional_init_toughness`), 1.5.6 Rotten Armor modifier, 1.5.7 `FixedFrame` require fix, 1.5.8 description length
 - [x] 1.6.0 presets: 5 named slots (`preset_1..5`, `preset_undo`), text import/export (`catalog/presets.lua`, format `RW1|...|check`), Presets screens in the wave editor, tests (logic + 30 editor checks)
 - [ ] In-game verification (rows 42-48 in doc 06)
@@ -86,7 +86,7 @@ Update the checkboxes as work proceeds. Original approved plan copy: `C:\Users\a
   - [x] 4d. Deck polish after the user's first look (2.0.0): relative chance pips and rarity, clickable pips, right click to edit, the Edit pill, anti-aliasing copies, dimmed filled diamonds, coloured modifiers, tighter tile layout, six new suits incl. the purple Warp for the Daemonhost (offline only)
   - [x] 4c. Card builder screen ("Card face"): suit with suggestion, threat auto/override with "Threat N by the numbers", whisper, look, cooldown, live preview (`ui/wave_editor_face.lua`; offline only)
 - [x] 5. Mod options (the last one, `tarot_default_cooldown`, in 2.0.0 step 5; all others were added with their steps)
-- [x] 6. Per-group health and size multipliers, done as "custom mods" on the user's request (health, size, run speed, time between attacks (first called melee attack speed), gunner fire rate, shots per burst, hit mass, explosion and damage-over-time taken; `spawn/tuning.lua`, `ui/wave_editor_tune.lua`, RPC `rw_scale`). Recovered from `feature/attack-timing` and merged into `main` through PR #1 on 2026-10-03: the rename to Time between attacks, the chained-attack fix and the `/rw_anim` probe; "Animation attack speed" waits for the probe's answer. The brief's one-crusher test in the game has NOT been done: matrix rows 91-96.
+- [x] 6. Per-group health and size multipliers, done as "custom mods" on the user's request (health, size, run speed, time between attacks (first called melee attack speed), gunner fire rate, shots per burst, hit mass, explosion and damage-over-time taken; `spawn/tuning.lua`, `ui/wave_editor_tune.lua`, RPC `rw_scale`). Recovered from `feature/attack-timing` and merged into `main` through PR #1 on 2026-10-03: the rename to Time between attacks, the chained-attack fix and the `/gt_anim` probe; "Animation attack speed" waits for the probe's answer. The brief's one-crusher test in the game has NOT been done: matrix rows 91-96.
 
 ### 2.1.0: the Workshop redesign (historical milestone; spec: `08-workshop-redesign.md`; recovered into `main` through PR #1)
 - [x] 0. Design page, the user's answers, spec and plan (doc 08)
@@ -103,19 +103,19 @@ Deviations from the original plan (all deliberate):
 - `rw_state` is ONE JSON argument, and host -> clients uses `"others"` (Realms docs' own example) so there is no loopback to filter.
 - Votes are accepted during the whole countdown, not only the final window; the last `vote_duration` seconds are the highlighted "voting" phase.
 - Ballot candidates are drawn at cycle start and shown during the countdown, so the HUD shows "next possible waves" from the beginning.
-- DMF has no text-input widget, so custom recipes are set with `/rw_custom <slot> <recipe>`; each slot's chance is a numeric option (0 = disabled).
+- DMF has no text-input widget, so custom recipes are set with `/gt_custom <slot> <recipe>`; each slot's chance is a numeric option (0 = disabled).
 - Wave content and spawn locations are new data/code, not lifted wholesale from the originals (see "Reuse" below for what was actually reused).
 
 ## Files (as built)
 ```
-mods\RealmsWaves\
-  RealmsWaves.mod                        load_after = {"Realms"}
+mods\GrandfathersTarot\
+  GrandfathersTarot.mod                        load_after = {"Realms"}
   CLAUDE.md
   docs\                                  (this folder)
-  scripts\mods\RealmsWaves\   (catalog\presets.lua added in 1.6.0: preset slots + text format)
-    RealmsWaves.lua                      entry: module loading, hooks, HUD registration, keybind fns, /rw_* commands
-    RealmsWaves_data.lua                 options (built from catalog/events)
-    RealmsWaves_localization.lua         strings (+ per-event titles generated from the catalog)
+  scripts\mods\GrandfathersTarot\   (catalog\presets.lua added in 1.6.0: preset slots + text format)
+    GrandfathersTarot.lua                      entry: module loading, hooks, HUD registration, keybind fns, /rw_* commands
+    GrandfathersTarot_data.lua                 options (built from catalog/events)
+    GrandfathersTarot_localization.lua         strings (+ per-event titles generated from the catalog)
     core\protocol.lua                    Realms RPCs: rw_hello, rw_welcome, rw_state, rw_vote, rw_waves, rw_scale (sizes of units, 2.0.0)
     core\director.lua                    timer, draw/ballot, vote handling, state sync, HUD view(), debug helpers
     core\votes.lua                       tally (one vote per peer, ties random)
@@ -133,7 +133,7 @@ mods\RealmsWaves\
     ui\deck.lua                          2.0.0: the arithmetic of the Deck (grid, paging, pips, strip, state, composition lines), pure Lua
     ui\wave_editor_deck.lua              2.0.0: the Deck screen's methods (tiles, strip, hover, toggle, edit, new card)
 ```
-`RealmsWaves` was appended to `mods\mod_load_order.txt` (last line). The originals (TwitchVersus, RealmsEvent) were NOT disabled: the user should disable them while using RealmsWaves.
+`GrandfathersTarot` was appended to `mods\mod_load_order.txt` (last line). The originals (TwitchVersus, RealmsEvent) were NOT disabled: the user should disable them while using GrandfathersTarot.
 
 Test tooling (outside the repo, scratchpad only): Python `lupa` (Lua 5.5, not LuaJIT) installed with `pip --target` into the session scratchpad; `check_lua.py` compiles every file, `logic_test.py` runs the stubbed logic tests; `editor_test.py`, `entry_test.py` and (2.0.0) `hud_test.py` drive the real view, entry script and HUD with stubbed engine classes (all in `tools\`, run all five after every change). They are easy to recreate; Lua 5.5 is stricter than LuaJIT (e.g. assigning to a `for` variable), which is a useful extra check.
 
@@ -161,7 +161,7 @@ Strip out: all of `transport/`, `logic/vote.lua`, Twitch options groups, `tv_*` 
 See `04-design-and-rationale.md`.
 
 ## Debug commands (planned)
-`/rw_test <event>` spawn now; `/rw_status` state + counters (raw vs adjusted `total_allocated_num_enemies`, tracked count, aggroed challenge rating); `/rw_roll <n>` n-roll simulation of the weights; `/rw_vote <n>` cast vote from console.
+`/gt_test <event>` spawn now; `/gt_status` state + counters (raw vs adjusted `total_allocated_num_enemies`, tracked count, aggroed challenge rating); `/gt_roll <n>` n-roll simulation of the weights; `/gt_vote <n>` cast vote from console.
 
 ## Recovery review (2026-10-03)
 - [x] Preserve remote baseline, 25 unpublished commits and eight uncommitted files on `feature/workshop-recovery` (now merged into `main`).
@@ -204,7 +204,7 @@ Ten changes the user asked for in one list. Everything below is implemented and 
 - [x] The Mods and Custom pages (and every card screen) in the colours of the card's face (`Components.set_theme`).
 - [x] Smaller shelf chips now that the D/S tags are gone; the freed room is a sixth enemy row in the Cauldron.
 - [x] The Deck's top button renamed "Deck presets".
-- [x] `/rw_test_close <wave>`: the wave in front of the player.
+- [x] `/gt_test_close <wave>`: the wave in front of the player.
 - [x] Fester replaced by HERESY (special colours, frame, glow, mark, banner line; `fester` stays an alias).
 - [x] 100 cards (88 custom slots), the waves message trims instead of failing.
 - [x] A HUD window for the last fulfilled card (own element, synced, option, Custom HUD sample).
@@ -252,3 +252,32 @@ Ten changes the user asked for in one list. Everything below is implemented and 
   locally; preserve the ten-minute job limit and every coverage/assertion gate.
 - [ ] Native acceptance of [the new game checklist](12-card-effects-and-ui.md).
   Keep the feature branch open until the user's confirmation.
+
+## Cauldron redesign (`feature/cauldron-redesign`, 2026-10-04)
+
+Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
+
+- [x] Heresy crimson palette, heartbeat glow and frame (HUD, Deck, stage) and blood drops (HUD).
+- [x] Faith, the fourth beneficial suit (palette, mark, whisper, description, Consecrate).
+- [x] Threat 6 named Despair or Apotheosis with its own edge, and a shine (HUD, Deck, stage).
+- [x] One cooldown look (rot and renewal) everywhere; the Mirror shows it, nothing to choose.
+- [x] Murmur: threat 5 and 6 whispers come back letter by letter when drawn.
+- [x] Hostile / beneficial suit switch on the quick face and the Mirror (replaces Auto | By hand).
+- [x] Compact row steppers and chips.
+- [x] Beneficial rows and a four-group effect shelf; Guidance renamed Buffs, Prayer renamed Items, Game Effects added.
+- [x] Raise the fallen and Refill ammunition (host, native helpers); Recharge Med Station disabled for now.
+- [x] Completion sound: Preview per row, Search button, two sounds in a row, a volume each (experimental).
+- [x] Tests for all of the above on both runtimes; real-widget previews inspected.
+- [x] Second to fourth rounds (design-page shelves and card text, Deck search, Last Card; sound fix, outline line of sight, 30 minute
+  cooldown; voice lines in the sound list) and their tests, 2026-10-04.
+- [x] Fifth round (2026-10-04): movable see-through search box, the card sound at the draw holding the wave, the stimm buffs and
+  items, Raise the fallen 1+1, grenades, Ammo Crates, Nightmare replacing Dusk (once per game), Warp's effect; tests.
+- [x] Sixth round (2026-10-04): the rehook warning fixed, sound-first /gt_test, /gt_drawtest and /gt_fulltest, Nightmare's fog on
+  the card and its dread on the screen (option), the Draw HUD below boss bars (option); tests.
+- [x] Eighth round (2026-10-04): hogtied rescue with teleport, Instant rescue, Damage dealt, boss-bar opacity and swap, fog slider.
+- [x] Ninth round (2026-10-04): client outlines and grants, the teleport after the rescue, Nightmare darkness 0 to 100 and the grey
+  world, the boss health network cap, chat-safe texts, On Fire damage; tests.
+- [x] Tenth round (2026-10-05): boss health without a limit in bars with "xN", the On Fire look kept on, On Fire damage 35 by
+  default, the Deck's scroll and the last screen remembered; tests.
+- [ ] Enemy shadow (the Daemonhost fog particle on other enemies): found, waiting for the user's decision.
+- [ ] Game acceptance of the [checklist](13-cauldron-redesign.md#in-game-checks-before-merge); merge only after the user confirms.

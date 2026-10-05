@@ -16,7 +16,7 @@ the implementation that followed it.
 
 ## Using the controls
 
-Open `/rw_editor`, select a card, click **Custom** beside an enemy group, then
+Open `/gt_editor`, select a card, click **Custom** beside an enemy group, then
 **Enemy colour experiments**. Choose a method in the dropdown. Drag the four
 0–255 ARGB sliders, or click their numbers for exact entry. The hex swatch shows
 the input colour, not a rendered enemy preview. Changes belong to that group;

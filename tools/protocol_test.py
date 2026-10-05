@@ -4,13 +4,13 @@ import sys
 
 from lua_test_runtime import LuaRuntime
 
-root = Path(__file__).resolve().parents[1] / "scripts/mods/RealmsWaves"
+root = Path(__file__).resolve().parents[1] / "scripts/mods/GrandfathersTarot"
 lua = LuaRuntime(unpack_returned_tuples=True)
 output = lua.execute(r'''
 local ROOT=...
 local warnings,errors,sends,registered,received={},{},{},{},{}
 local mod={ get=function() return true end,
-  io_dofile=function(_,path) return dofile(ROOT.."/"..path:match("RealmsWaves/scripts/mods/RealmsWaves/(.*)")..".lua") end,
+  io_dofile=function(_,path) return dofile(ROOT.."/"..path:match("GrandfathersTarot/scripts/mods/GrandfathersTarot/(.*)")..".lua") end,
   warning=function(_,...) warnings[#warnings+1]={...} end,
   error=function(_,...) errors[#errors+1]={...} end }
 local realms

@@ -16,7 +16,7 @@ lua = LuaRuntime(unpack_returned_tuples=True)
 # Lua side: returns JSON with everything to draw (so the drawing code here knows nothing about the HUD's maths)
 harness = r'''
 local MODROOT = ...
-local BASE = MODROOT .. "/scripts/mods/RealmsWaves"
+local BASE = MODROOT .. "/scripts/mods/GrandfathersTarot"
 function math.clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 local Spread = dofile(BASE .. "/ui/spread.lua")
 local Cards = dofile(BASE .. "/catalog/cards.lua")

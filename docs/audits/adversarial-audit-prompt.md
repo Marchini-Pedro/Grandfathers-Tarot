@@ -1,11 +1,11 @@
-# RealmsWaves: adversarial audit prompt
+# GrandfathersTarot: adversarial audit prompt
 
 Reusable brief, prepared 2026-10-03. Invoke it explicitly when ready to run the
 audit; merely reading or maintaining this document does not start one.
 
 ## Objective and boundaries
 
-Perform a complete, evidence-backed adversarial audit of the current RealmsWaves
+Perform a complete, evidence-backed adversarial audit of the current GrandfathersTarot
 project. Determine whether its features, tests, lifecycle management, performance,
 UI and Realms integration hold up under normal use and hostile edge cases.
 Challenge claims of correctness and efficiency, including claims in existing
@@ -20,7 +20,7 @@ untracked scratch space such as `.git/audit/`; never install them in the game or
 alter real saved profiles. Propose minimal fixes and regression tests for later
 authorization. Do not interpret an audit request as permission to implement them.
 
-Keep changes focused on RealmsWaves. BetterInventory and the original supplied
+Keep changes focused on GrandfathersTarot. BetterInventory and the original supplied
 copy are read-only references. Follow `CLAUDE.md` and preserve unrelated local
 changes, logs, presets and investigation artifacts. Progress with available
 evidence; request only information actually needed to resolve a remaining gap.
@@ -31,11 +31,11 @@ Read `README.md`, `CLAUDE.md`, `docs/README.md`, the design/implementation docum
 verification matrix and recovery review. Treat historical audit conclusions as
 leads to verify, not proof about the current revision.
 
-| Reference | Location relative to the RealmsWaves repository |
+| Reference | Location relative to the GrandfathersTarot repository |
 | --- | --- |
-| Target checkout | `.` (the `Grandfathers-Tarot` repository; internal mod name `RealmsWaves`) |
+| Target checkout | `.` (the `Grandfathers-Tarot` repository; internal mod name `GrandfathersTarot`) |
 | BetterInventory | `../BetterInventory` |
-| Supplied recovery copy | `../RealmsWaves_updated` (preserve unchanged) |
+| Supplied recovery copy | `../GrandfathersTarot_updated` (preserve unchanged) |
 | Game source | `../../Darktide-Source-Code` |
 | Installed mods / Realms / DMF | `../../mods/` (read-only) |
 
@@ -195,7 +195,7 @@ lost or rejected sends, stale generations and callbacks after teardown.
 
 Cover host/client differences, host loopback, absent managers during loading,
 late join, disconnect/rejoin, peer crash, mission restart, mixed mod versions and
-peers without RealmsWaves. Check host-role changes only where Realms supports them;
+peers without GrandfathersTarot. Check host-role changes only where Realms supports them;
 document unsupported transitions and their required failure behavior.
 
 Review RPC sender authorization, argument/schema validation, size/count bounds,
@@ -265,7 +265,7 @@ queues, view adoption after reload and mutation-sensitive tests. Treat these as
 candidates to verify; its passing tests do not establish suitability here.
 
 For each candidate, report **source file/function and commit → problem it solves
-→ required assumptions → RealmsWaves fit → smallest adaptation → costs/limits**.
+→ required assumptions → GrandfathersTarot fit → smallest adaptation → costs/limits**.
 Include useful patterns already implemented and patterns unsuitable for reuse.
 Check provenance/license before proposing copied code. Keep BetterInventory unchanged.
 

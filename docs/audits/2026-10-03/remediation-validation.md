@@ -139,7 +139,7 @@ unpack=unpack or table.unpack
 cjson={null={}}
 Network={peer_id=function() return 'host' end}
 Managers.connection={is_host=function() return true end,is_client=function() return false end}
-mod.get_name=function() return 'RealmsWaves' end
+mod.get_name=function() return 'GrandfathersTarot' end
 mod.is_enabled=function() return true end
 mod.pcall=function(self,fn,...) return pcall(fn,...) end
 local handlers={}; local attempts,delivered={},{}; local delivered_values={}
@@ -156,8 +156,8 @@ local SC={is_available=function() return true end,register_protocol=function() e
  end}
 local MN=dofile(MODROOT_REALMS..'/scripts/mods/Realms/core/mod_network.lua')
 MN.install(SC); realm.network_is_available=MN.is_available; realm.network_register=MN.register; realm.network_send=MN.send; realm.network_on_peer_joined=MN.on_peer_joined; realm.network_on_peer_left=MN.on_peer_left; cjson.encode=function(list) return 'sizejson:'..tostring(list[1][2]) end; local ActualProtocol=load('core/protocol'); ActualProtocol.init({})
-handlers.mod_network_manifest(1,'good',{rpcs={RealmsWaves={'rw_scale'}}})
-handlers.mod_network_manifest(2,'failed',{rpcs={RealmsWaves={'rw_scale'}}})
+handlers.mod_network_manifest(1,'good',{rpcs={GrandfathersTarot={'rw_scale'}}})
+handlers.mod_network_manifest(2,'failed',{rpcs={GrandfathersTarot={'rw_scale'}}})
 local broadcast_ok=MN.send(mod,'rw_scale','others',{{1,130}})
 AUDIT_EMIT('realms_partial_broadcast',{success=broadcast_ok,attempts=attempts,delivered=delivered})
 attempts={};delivered={}
@@ -189,7 +189,7 @@ cases = [
  ('stale_drag_target', 'ui/wave_editor_deck.lua', '-- let go: swap with the tile it is over (the pointer where it was last seen), or go back\n\t\tlocal target = self:_tile_slot_at(x, y)', '-- let go: scratch mutation\n\t\tlocal target = drag.target', 'editor_test.py'),
  ('equal_value_reset', 'spawn/tuning.lua', 'record.recomputed = true', 'record.recomputed = false', 'logic_test.py'),
  ('obsolete_tuning_hook', 'spawn/tuning.lua', 'Tuning.retire = function ()\n\tTuning.dead = true', 'Tuning.retire = function ()\n\tTuning.dead = false', 'logic_test.py'),
- ('omit_unload_reset', 'RealmsWaves.lua', '\t\tRW.execute.reset()', '\t\tdo end -- scratch: omit executor reset', 'entry_test.py'),
+ ('omit_unload_reset', 'GrandfathersTarot.lua', '\t\tRW.execute.reset()', '\t\tdo end -- scratch: omit executor reset', 'entry_test.py'),
 ]
 results=[]
 for name, relative, original, replacement, suite in cases:
@@ -215,10 +215,10 @@ for name, relative, original, replacement, suite in cases:
 import json
 from audit import BASE,OUT,execute
 cases=[
- ('event_cleanup','RealmsWaves.lua','entry_test.py','reload: 100 generations'),
+ ('event_cleanup','GrandfathersTarot.lua','entry_test.py','reload: 100 generations'),
  ('pause_feed','core/director.lua','entry_test.py','pause: real executor'),
  ('stop_ownership','core/director.lua','entry_test.py','stop: cancel jobs'),
- ('disable_cancel','RealmsWaves.lua','entry_test.py','disable: queued work'),
+ ('disable_cancel','GrandfathersTarot.lua','entry_test.py','disable: queued work'),
  ('aggregate_jobs','spawn/execute.lua','entry_test.py','aggregate: repeat-only'),
  ('aggregate_pending','spawn/execute.lua','entry_test.py','aggregate: 32 legal'),
  ('nonfinite_import','catalog/presets.lua','logic_test.py','import: non-finite'),

@@ -1,9 +1,9 @@
 {
   "minimum_percent": 78,
   "modules": {
-    "RealmsWaves.lua": 68,
-    "RealmsWaves_data.lua": 72,
-    "RealmsWaves_localization.lua": 98,
+    "GrandfathersTarot.lua": 68,
+    "GrandfathersTarot_data.lua": 72,
+    "GrandfathersTarot_localization.lua": 98,
     "catalog/cards.lua": 78,
     "catalog/colors.lua": 73,
     "catalog/events.lua": 76,
@@ -20,6 +20,8 @@
     "ui/hud_element_waves.lua": 76,
     "ui/hud_element_waves_definitions.lua": 77,
     "ui/hud_element_last_card.lua": 86,
+    "ui/hud_element_dread.lua": 75,
+    "ui/hud_element_dread_definitions.lua": 82,
     "ui/hud_element_last_card_definitions.lua": 77,
     "ui/spread.lua": 82,
     "ui/wave_editor_blueprints.lua": 77,

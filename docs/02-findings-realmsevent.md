@@ -75,7 +75,7 @@ None. Host-only weighted random (default weight 50, range 0-100). `/revents` or 
 - Trigger flow: `Runtime._on_event_fired` (`runtime.lua:109`): `active_events.start(...,"host")`, `protocol.send_trigger`, `banner.show`, `protocol.send_text`. Clients: `_on_trigger_remote` (L176) guarded by not-host and not-disabled.
 - **Loopback:** Realms `"all"` also dispatches locally to the sender; host drops it with `if Shared.is_state_host() then return end` (L177, L193, L203, L215). Copy this pattern.
 - Execution model (`active_events._runs_locally` L63): `server` = only host runs callbacks (state changes are engine-synced); `all` = both peers run (purely local effects like `Unit.set_local_scale`).
-- **Handshake** (`v2/core/consistency.lua`): client sends `re2_hello` on entering `GameplayStateRun` (`client_hello` L536) and again on `peer_joined` (`bind_network_events` L596). Host `on_hello` (L398): mismatch of proto/mod version calls `disable()` (L237) and replies empty welcome; else computes event-key intersection (`_recompute_shared` L338). Client `on_welcome` (L462). `on_peer_left` recomputes; `on_game_state_exit` (L663) resets. RealmsWaves keeps only the version part.
+- **Handshake** (`v2/core/consistency.lua`): client sends `re2_hello` on entering `GameplayStateRun` (`client_hello` L536) and again on `peer_joined` (`bind_network_events` L596). Host `on_hello` (L398): mismatch of proto/mod version calls `disable()` (L237) and replies empty welcome; else computes event-key intersection (`_recompute_shared` L338). Client `on_welcome` (L462). `on_peer_left` recomputes; `on_game_state_exit` (L663) resets. GrandfathersTarot keeps only the version part.
 - HUD: `banner.lua` reuses the vanilla area popup by triggering `Managers.event:trigger("event_player_set_new_location", player, full_key, short_key)` (L57); consumed by `hud_element_area_notification_popup.lua:38`. Remote banners inject unique loc keys per message (`show_remote` L92); fallback `mod:notify`. **No countdown or state HUD exists.**
 
 ## Interaction with other Realms mods
@@ -83,7 +83,7 @@ None. Host-only weighted random (default weight 50, range 0-100). `/revents` or 
 - `Realms Connect`: discovery/rendezvous only; irrelevant.
 - `DTRealmsGhostHost`: own `is_realms_host()` (`GhostHost.lua:101`, `host_type() == HOST_TYPES.player` and `connection:is_host()`); hooks `GameModeManager.should_spawn_dead` and `can_spawn_player` so the host has no player unit. Consequence: `side.valid_player_units` excludes the host; if the ghost host is the only human, RealmsEvent's `random_player_unit()` returns nil and nothing spawns.
 
-## Weaknesses to fix in RealmsWaves
+## Weaknesses to fix in GrandfathersTarot
 1. Spawn location is not "near a player": random group anywhere on the main path, no proximity filter; occlusion computed against ONE random player (`shared.lua:196,223`); aggro target chosen separately (`:325`).
 2. Setting mismatch: `sleep_duration` 5-600 default 20 in `_data.lua:26-28` but `Pool.SLEEP_MAX` 300 and `SLEEP_DEFAULT` 30 (`event_pool.lua:54-56`) clamp; loc text says 0-300, 0 = none.
 3. Dead code: `Protocol.send_finish`, `Runtime._on_state_remote` (stub), `frenzied_enemies.lua`.

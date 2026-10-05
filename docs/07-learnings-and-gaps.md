@@ -94,15 +94,15 @@ Things we know are missing or unverified, each with the next concrete step.
 
 | Gap | Next step | Since |
 |---|---|---|
-| The 2.1 batch (`feature/heresy-card-and-ui-pass`: exact custom health, card-coloured pages, `/rw_test_close`, HERESY, 100 cards, the last-card window, the Deck cooldown row) has never run in the game | the user plays matrix rows 114-121 in `06`; fixes go on the branch | 2026-10-03 |
+| The 2.1 batch (`feature/heresy-card-and-ui-pass`: exact custom health, card-coloured pages, `/gt_test_close`, HERESY, 100 cards, the last-card window, the Deck cooldown row) has never run in the game | the user plays matrix rows 114-121 in `06`; fixes go on the branch | 2026-10-03 |
 | "Give admin to EduardoKenji" on the GitHub repository could not be done | The repository is owned by a personal account: GitHub gives collaborators there only write access (an Admin role exists only for repositories owned by an organization), and no `gh` CLI or token was available. The owner can add the collaborator in Settings > Collaborators (write), or move the repository to an organization and give the Admin role there | 2026-10-03 |
 | Adversarial audit F01–F07 plus two surviving mutations | Fixed and detected offline in six approved [remediation batches](audits/2026-10-03/remediation.md); native/multiplayer/eight-hour acceptance remains open | 2026-10-03 |
 | Nothing of 2.0.0 (Spread HUD options, Deck look, card builder, custom mods) has been checked in a real two-player game | the user plays; matrix rows 91-96 in `06` | 2026-10-01 |
-| Per-unit **animation speed** of attacks ("Animation attack speed") | CLOSED 2026-10-02 as not possible cleanly: `/rw_anim` found no speed variable on three breeds and the engine's speed functions are for simple animations only (docs/03). Reopen only if someone finds a state-machine variable by another route | 2026-10-01 |
+| Per-unit **animation speed** of attacks ("Animation attack speed") | CLOSED 2026-10-02 as not possible cleanly: `/gt_anim` found no speed variable on three breeds and the engine's speed functions are for simple animations only (docs/03). Reopen only if someone finds a state-machine variable by another route | 2026-10-01 |
 | **Gunner fire rate and shots per burst do nothing** on riflemen and scab gunners (the user, 2026-10-02) | FIXED offline 2026-10-02 (the recompute hook never reached `MinionBuffExtension`; see section 2). Waiting for the in-game run of matrix row 103 (fire 25 / burst 500 under Havoc and without): the log line "started shooting" must read x0.325 / x0.25 and the shots must be multiplied | 2026-10-02 |
-| Time between attacks, the chain fix and `/rw_anim` are untested in game | matrix rows 94 and 97-101 in `06`; the user's "100 percent working" merges `feature/attack-timing` into `main` | 2026-10-01 |
+| Time between attacks, the chain fix and `/gt_anim` are untested in game | matrix rows 94 and 97-101 in `06`; the user's "100 percent working" merges `feature/attack-timing` into `main` | 2026-10-01 |
 | (closed 2026-10-02) Does DMF apply a string-class hook when the class loads after the mod? | Yes: the console log shows "needs to be delayed" at load and "Hooking ..." at mission start | 2026-10-01 |
-| Size of a custom-mod enemy on a client without RealmsWaves is the normal size | by design (see doc 03, "Custom mods per group"); only a mod on every machine can fix it | 2026-10-01 |
+| Size of a custom-mod enemy on a client without GrandfathersTarot is the normal size | by design (see doc 03, "Custom mods per group"); only a mod on every machine can fix it | 2026-10-01 |
 | The Cauldron, its shelf, the 1.4 times card, the quick face and the preview have only been seen in the offline drawing | the user opens a card in game; matrix rows 104-109 in `06` | 2026-10-01 |
 | `CHANGELOG.md` is 86 KB (limit 100) | split into `docs/changelog/` per major version when it passes 100 KB (`check_docs.py` warns from 80) | 2026-10-01 |
 
@@ -124,7 +124,7 @@ Things we know are missing or unverified, each with the next concrete step.
 
 - **2026-10-03, F01 remediation:** cleanup must use the manager that registered the object, because `Managers.event` may already have changed or disappeared. Store that owner and test 100 generations with strong object keys, not a name-only map. Captured callbacks still need the retired-generation guard.
 
-- **2026-10-03, final audit review:** `/rw_status` rounds heap to whole MiB; converting the displayed MB value to KiB cannot reveal sub-MiB retention. Record source/precision and keep precise live collected floors pending without telemetry. SessionControl false returns are availability/encoding failures, not demonstrated packet-loss acknowledgements.
+- **2026-10-03, final audit review:** `/gt_status` rounds heap to whole MiB; converting the displayed MB value to KiB cannot reveal sub-MiB retention. Record source/precision and keep precise live collected floors pending without telemetry. SessionControl false returns are availability/encoding failures, not demonstrated packet-loss acknowledgements.
 - **2026-10-03, weak values do not release strong object keys:** actual EventManager holds each old mod key after unload. 100-generation fixture and unregister-only control demonstrate F01. Retiring callbacks suppresses behavior but does not remove their owner.
 - **2026-10-03, verify DMF contracts rather than old comments:** current loader restores original hooked functions at reload; the runtime comments saying hooks cannot be removed are historical assumptions. DMF does keep delivering update events to disabled mods, so an enabled gate/disable lifecycle is necessary (F02).
 - **2026-10-03, cancellation and teardown have different owners:** stop leaves enemies alive but uses full mission reset, discarding bypass/tuning state (F03). Pause freezes the director while Execute keeps repeating/feeding (F05). Test the real collaborator across the lifecycle boundary.
@@ -143,22 +143,22 @@ Things we know are missing or unverified, each with the next concrete step.
 - **2026-10-01, a hotspot content table has `is_hover`, `is_held`, `on_pressed`, `on_released`** (`ui_passes.lua:1088-1186`); `is_held` is true while the button is down over the widget, which gives a pressed look without a callback.
 
 - **2026-10-01, the melee attack-speed stat only shortens the end of an attack, and cuts chains.** `BtMeleeAttackAction._start_attack_anim` (`S\extension_systems\behavior\nodes\actions\bt_melee_attack_action.lua:259-271` for sweeps, `336-348` for other attacks) replaces the attack's end time with `max(duration / melee_attack_speed, timing + 0.2667)`. It does NOT speed the animation and does NOT move any damage timing. For a sweep attack with several hits (`attack_sweep_damage_timings` is a list of `{start, stop}` pairs) `timing` is the stop of the FIRST hit (`attack_sweep_start_or_table[2]`), not the last (the non-sweep branch uses the last, `attack_timing_or_table[#...]`). So at a high speed the action ended right after the first hit: Plague Ogryn combo (`chaos_plague_ogryn_actions.lua:379-394`: duration 3.56 s, first hit stops at 1.21 s, last at 2.84 s) at 250 percent ends at 1.48 s, before its second hit (1.81 s); the Chaos Spawn combo (`chaos_spawn_actions.lua:785-806`) is cut the same way. The user saw exactly this ("stops his chain attacks after the first attack"). The game never meets it because its own stat values are small (Havoc stimm 1.3-1.4, `havoc_mutator_local_settings.lua:378,389,456`). Fixed on branch `feature/attack-timing` for our units (`Tuning.fix_attack_end`, 2026-10-01); not merged until the user confirms it works in game. The fix only ever lengthens an attack to the end of its last hit plus 0.27 s.
-- **2026-10-01, no per-unit animation speed in the game scripts.** The only animation controls a minion has are events (`anim_event`) and breed-listed variables (`animation_variables`, in practice `anim_move_speed` and `moving_attack_fwd_speed`, which steer locomotion blends); `MinionAnimationExtension` (`S\extension_systems\animation\minion_animation_extension.lua`) offers nothing else, and no script calls a unit-level speed function (`Unit.animation_set_speed`, `set_animation_speed` and similar do not occur anywhere in `S\`). The animation state machines are binary data, so a variable that scales attacks may exist but cannot be read offline. Hence `/rw_anim` (a probe, built 2026-10-01) lists what the engine and each unit offer.
+- **2026-10-01, no per-unit animation speed in the game scripts.** The only animation controls a minion has are events (`anim_event`) and breed-listed variables (`animation_variables`, in practice `anim_move_speed` and `moving_attack_fwd_speed`, which steer locomotion blends); `MinionAnimationExtension` (`S\extension_systems\animation\minion_animation_extension.lua`) offers nothing else, and no script calls a unit-level speed function (`Unit.animation_set_speed`, `set_animation_speed` and similar do not occur anywhere in `S\`). The animation state machines are binary data, so a variable that scales attacks may exist but cannot be read offline. Hence `/gt_anim` (a probe, built 2026-10-01) lists what the engine and each unit offer.
 - **2026-10-01, the buff system recomputes a minion's stats every frame** while any buff touches them (a mission-wide Havoc modifier, Enraged, a player's debuff); each recompute drops stat values we wrote (`buff_extension_base.lua:318-354`, `minion_buff_extension.lua:97-101`). A 4-times-a-second re-check missed the moment an attack started, so melee/fire rate/burst "did nothing". Fixed by a post-hook on `BuffExtensionBase._update_stat_buffs_and_keywords` (CHANGELOG, "after the first in-game test"). The user's own guess (the Havoc global modifier takes priority) was right.
 - **2026-09-29, 1.6.1, click-through.** A button on the destination screen must never share a spot with the button that leads there when the widget is later in draw order: the same click reaches both in one frame.
 - **2026-09-29, 1.5.7, `FixedFrame` is a module, not a global.** Tests that stub a module as a global hide a missing `require`; stubs now go through `package.preload`.
 - **2026-09-29, 1.5.5, twin captains start with the void shield down** (`start_depleted`); the spawner must pass `optional_init_toughness`.
-- **2026-09-29, 1.5.4, the Psykhanium has no main path**; `/rw_test` there needs the ring fallback.
+- **2026-09-29, 1.5.4, the Psykhanium has no main path**; `/gt_test` there needs the ring fallback.
 - **2026-09-29, 1.5.3, DMF keybinds fire while typing** (its input check is a stub that always returns true): the mod hooks `check_keybinds` while a text box is open.
 - **DMF localization**: every string passes through `string.format`; a bare percent sign breaks it. Write "percent" or double it.
 - **Darktide UI passes have no anti-aliasing** (rect, circle, triangle, rotated_rect): shapes get a faint wider copy (a "feather") underneath. A second left click inside the double-click window calls ONLY the `double_click_callback`.
 - **Git on Windows**: PowerShell 5.1 mangles multi-line `-m` text and `Set-Content -Encoding UTF8` adds a BOM, so commit messages are written to a BOM-free file and passed with `-F`; git writing progress to stderr makes PowerShell print `NativeCommandError` even when the push worked (read the `main -> main` line). The first push needs the user to sign in through the Git Credential Manager browser window; later pushes work.
 
 - **2026-10-02, the burster's blast ignores the model's size.** The model's own danger-zone effect scales with the unit, but the explosion is made from fixed templates with a constant charge level (`bt_chaos_poxwalker_explode_action.lua:14,44`; `scalable_radius` only matters with a charge level other than 1; `explosion_radius_modifier` only counts for attack type "explosion", `explosion.lua:484-500`). The size mod now swaps the templates of the action for scaled copies during that one call. The user noticed it by looking, no test could have.
-- **2026-10-02, the answer of `/rw_anim`** (the user ran it on a cultist berzerker, a plague ogryn and a chaos spawn): only `anim_move_speed` and `moving_attack_fwd_speed` exist; 50 `Unit` functions mention animation, speed, time, scale or rate; the speed ones are for simple animations and crossfades. A probe built in a few minutes closed a question that source reading could not.
+- **2026-10-02, the answer of `/gt_anim`** (the user ran it on a cultist berzerker, a plague ogryn and a chaos spawn): only `anim_move_speed` and `moving_attack_fwd_speed` exist; 50 `Unit` functions mention animation, speed, time, scale or rate; the speed ones are for simple animations and crossfades. A probe built in a few minutes closed a question that source reading could not.
 - **2026-10-02, the DMF log shows when a hook is really in place**: "`(hook_safe): [BtMeleeAttackAction._start_attack_anim] needs to be delayed`" at load and "`Hooking '_start_attack_anim' from [BtMeleeAttackAction]`" when the mission starts: string-class hooks work for classes that load later (settles the open question in section 1).
 
-- **2026-10-02, a hook on a parent class does not reach its subclasses**: the game's `class()` copies the parent's methods into the subclass at creation, so our hook on `BuffExtensionBase._update_stat_buffs_and_keywords` never ran for minions (`MinionBuffExtension` has its own copy). It hid for two rounds because (a) melee worked, probably because a unit with no buff is not recomputed, so the written value stayed, and (b) the offline test called the hook by hand, so it proved the hook's logic, not that the game calls it. The user's `/rw_tune` showed it in one run: stat written 0.25, stat read 1.3.
+- **2026-10-02, a hook on a parent class does not reach its subclasses**: the game's `class()` copies the parent's methods into the subclass at creation, so our hook on `BuffExtensionBase._update_stat_buffs_and_keywords` never ran for minions (`MinionBuffExtension` has its own copy). It hid for two rounds because (a) melee worked, probably because a unit with no buff is not recomputed, so the written value stayed, and (b) the offline test called the hook by hand, so it proved the hook's logic, not that the game calls it. The user's `/gt_tune` showed it in one run: stat written 0.25, stat read 1.3.
 - **2026-10-02, a stat we write must be listed in `_modified_stats`**: the game resets only listed stats before each recompute. Unlisted, a buff that arrives later is added on top of our value (factor applied twice or lost). Listed, the recompute always starts from the base value and the factor is applied once.
 - **2026-10-02, the log's numbers named the culprit**: speed 1.3 and 2.25x shots are exactly `havoc_ranged_attack_speed_05` (+0.3, x2.25). The user's own hint (a shooter that stims itself raises its volley) points at the same mechanism, a buff on the minion changing these stats. Not used as a feature (no new buffs), but our factor now stacks on top of any such buff.
 
@@ -191,8 +191,8 @@ Things we know are missing or unverified, each with the next concrete step.
 - **2026-10-01, scaling the damage timings to fake a faster animation** was considered and rejected: without a way to speed the animation itself the hit would land before the wind-up on screen.
 - **2026-10-01, keeping the number of the old setting under the new name** was considered and rejected: a "Time between attacks" of 250 that makes enemies faster reads as a bug. The number was inverted (`100 / value`) and the old names are read through a `legacy` alias list that converts once, so saved cards behave as before.
 - **2026-10-02, stepping the animation time by hand** (`Unit.animation_set_time` each frame, host only) as an "Animation attack speed": rejected, the other players would see the normal-speed animation under a faster hit.
-- **2026-10-02, a direct (stat-free) application of fire rate and burst inside a hook after `start_shooting`**: rejected, and no longer needed (the stat route works once the subclass is hooked). Original reasoning: If the stat the game reads is the one we write, it adds nothing; if it is not, we do not know what else is wrong. The log lines and `/rw_tune` come first.
-- **2026-10-01, a virtual clock for the whole attack** (hooking `BtMeleeAttackAction.run` and feeding it `t0 + (t - t0) * speed`) would make timings, movement and damage consistent at any speed, but without an animation speed control the picture still plays at normal speed; kept as the plan for an "Animation attack speed" IF `/rw_anim` finds a control.
+- **2026-10-02, a direct (stat-free) application of fire rate and burst inside a hook after `start_shooting`**: rejected, and no longer needed (the stat route works once the subclass is hooked). Original reasoning: If the stat the game reads is the one we write, it adds nothing; if it is not, we do not know what else is wrong. The log lines and `/gt_tune` come first.
+- **2026-10-01, a virtual clock for the whole attack** (hooking `BtMeleeAttackAction.run` and feeding it `t0 + (t - t0) * speed`) would make timings, movement and damage consistent at any speed, but without an animation speed control the picture still plays at normal speed; kept as the plan for an "Animation attack speed" IF `/gt_anim` finds a control.
 
 ## 4. Insights (how to work on this mod)
 
@@ -203,7 +203,7 @@ Things we know are missing or unverified, each with the next concrete step.
 - A test that exercises a hook with nil, missing and damaged arguments found a real bug in the probe (indexing a nil `Unit` outside its `pcall`): write the hostile-input cases first.
 - When a feature cannot be proven offline, ship a probe (a debug command that prints facts) in the same change, so the first in-game run answers the open question.
 
-- 2026-10-03: the supplied copy has 25 commits after remote 1460711 and eight dirty files. Its origin is a different repo; preserve the ancestry in the requested Grandfathers-Tarot repo. Sorting and dragging have no added regression tests. check_lua.py and logic_test.py point at an installed mod, and the other harnesses assume the repo directory is named RealmsWaves; these can validate the wrong tree or fail on a fresh clone. Fix test paths before trusting results.
+- 2026-10-03: the supplied copy has 25 commits after remote 1460711 and eight dirty files. Its origin is a different repo; preserve the ancestry in the requested Grandfathers-Tarot repo. Sorting and dragging have no added regression tests. check_lua.py and logic_test.py point at an installed mod, and the other harnesses assume the repo directory is named GrandfathersTarot; these can validate the wrong tree or fail on a fresh clone. Fix test paths before trusting results.
 
 - 2026-10-03: Lua 5.5-only harness syntax (floor division), utf8.len and table.unpack prevented LuaJIT checks although the mod compiled. Warming the identical loop alone was still intermittently noisy due to new LuaJIT side traces; heap checks disable tracing during measurement. Supplied feature/attack-timing has fixes absent from feature/workshop-redesign; recover that branch too before evaluating custom stats.
 
@@ -233,7 +233,7 @@ Things we know are missing or unverified, each with the next concrete step.
 
 - 2026-10-03: continuation baseline adds a fourth failure omitted from the hand-off: LuaJIT source-line coverage of editor definitions is 77.98% against 79. These proxies count declarations and differ across VMs; distinguish changed denominators from lost behavior checks. The installed mod is an older non-Git copy, while the requested branch is remote; use a dedicated worktree. CLI string quoting stripped quotes in a Python `-c` command; use script files or PowerShell JSON parsing. Scratch substitution scripts failed before writing when an expected comment differed; match inspected text. Small-limit trimming initially fitted two cards at 300 bytes; reduce the regression fixture to 50 bytes to exercise a truly unshareable first card.
 
-- 2026-10-03: game `BossExtension.extensions_ready` sets `_is_weakened` only for below-normal health; normal means nil, not an explicit false. The old fixture hid a guard error. Native replicated-field writes must succeed before committing the local health copy. `pcall(function, evaluated_args)` does not protect argument evaluation: wrap facing and spawn together after beginning the bypass. Mutation scratch initially omitted `RealmsWaves.mod`; adding the descriptor permits syntax checks. Child output used Windows encoding; force `PYTHONUTF8=1` before interpreting diagnostics. These scratch failures are not behavior detections.
+- 2026-10-03: game `BossExtension.extensions_ready` sets `_is_weakened` only for below-normal health; normal means nil, not an explicit false. The old fixture hid a guard error. Native replicated-field writes must succeed before committing the local health copy. `pcall(function, evaluated_args)` does not protect argument evaluation: wrap facing and spawn together after beginning the bypass. Mutation scratch initially omitted `GrandfathersTarot.mod`; adding the descriptor permits syntax checks. Child output used Windows encoding; force `PYTHONUTF8=1` before interpreting diagnostics. These scratch failures are not behavior detections.
 
 - 2026-10-03: raw text size is not encoded RPC size; legal names can contain quotes/backslashes. Bound the escaped string and reserve transport-envelope headroom. A failed overlarge first card must not leave old peer waves active; an empty valid preset clears them. Clamp effective hover separately from pointer identity to avoid repeated work at limits. Widget bounds tests previously tolerated a real composition/modifier overlap. A HUD error test initially began hidden and could not detect stale visible content; start with a visible good card before injecting failure. Partial staged patches need LF bytes: Windows text output introduced CRLF, causing apply/whitespace errors; normalize the scratch patch, restage the selected hunks and amend the unpublished spawn commit. No working changes were discarded.
 
@@ -326,3 +326,120 @@ Things we know are missing or unverified, each with the next concrete step.
   A combined patch used a results-log sentence as learning-log context and
   failed before writes; verify the target's final lines and apply corrected
   context rather than assuming another document has the same ending.
+
+## 2026-10-04 (feature/cauldron-redesign)
+
+- **No per-sound volume.** The game's Wwise interface has no volume parameter per
+  event or source: the options menu sets global parameters (`options_sfx_slider`,
+  `scripts/settings/options/sound_settings.lua`). The volume slider therefore sets
+  that parameter on a manual source of its own, which may or may not be honoured
+  per source: an experiment to confirm in game. Volume 0 is reliable (it skips).
+- **Native revive and ammo exist on the host.** A Veteran's shout and the servo
+  skull revive by writing `assisted_state_input.force_assist`; the Veteran's
+  coherency talents give other players ammunition with `Ammo.add_to_all_slots` on
+  the server. Both are reused rather than inventing a state change.
+- **`WwiseWorld.is_playing` answers whether an event still plays** (dialogue code
+  uses it), so a second sound can follow the first; SimpleAudio returns no id, so
+  a fixed gap is the fallback.
+- **io_dofile gives every loader its own copy.** A table filled by
+  `EffectsView.definitions` (the shelf layout) was nil in the view's copy of the
+  module; the layout is now computed at load time by every copy. Earlier lessons
+  about `mod.rw_accent` and the button palette are the same problem.
+- **Time-based effects need test times on the curve.** A heartbeat check at two
+  times that both fell in the rest between beats saw the same value; the test now
+  samples one time on a beat and one between.
+- **Effects.update runs only on the host during a mission** (via the executor), so
+  anything the editor previews in the hub needs its own tick (`Effects.tick_audio`
+  from `mod.update`).
+- **Removing a feature drops coverage unless its code goes too.** The first full run
+  failed six module floors because the murmur/vial looks and Auto | By hand were
+  only hidden; their tests had gone with the feature. Deleting the dead code (and
+  the one tile-scale vial check) restored every floor without lowering any.
+  LuaJIT counts structural lines (`end`, table constructors spread over lines)
+  differently: its floors are the tighter ones.
+- The borders already follow the suit in the mod (`Components.set_theme` scales the
+  shared frame colour). The request came from the design page, which had fixed
+  borders; nothing to change in code.
+
+## 2026-10-04 — Card sounds, outline line of sight, tests after skipped rounds
+
+- **A 3D sound event without a source is silent for the player.** `WwiseWorld.trigger_resource_event(wwise, event)` gives no error
+  and plays the event at the world's origin. Card sounds were silent for this reason (no warning in the console log). Play it on an
+  auto source on the local player's unit in the level's sound world, as `player_unit_fx_extension.lua` does.
+- **Voice lines are streamed files**, not events: `trigger_resource_external_event(wwise, route_event, route_source,
+  "wwise/externals/" .. loc_name, 4, source)`; the routes are in `scripts/settings/dialogue/wwise_vo_routing_settings.lua` (the
+  local player's own voice: `play_sfx_es_player_vo_2d` / `es_player_vo_2d`). The `vo/play_sfx_es_*` events alone are silent.
+  The player lines are about 37,800 (34 voices x topics x variants): one per voice and topic of combat talk keeps 5,458.
+- **The outline material layers draw through walls**; only the outline's `visibility_check` (asked every frame) can hide it. A
+  ray on `filter_minion_line_of_sight_check` (static geometry) from the camera, cached per enemy, does it cheaply.
+- **Skipped test rounds pile up.** Three rounds without the suites left about thirty stale expectations and two real defects (a
+  player manager without `local_player_safe` broke both new lookups in the harness, which would also have hidden every outline);
+  update the suites in the same round when possible.
+- **A long string spread over lines counts as uncovered lines** (the sound list as a `[[...]]` block dropped `catalog/sounds.lua`
+  to 20%): keep data strings on one line. The popup reports typing only in its frame update: a test drives `spec.on_change`.
+
+## 2026-10-04 — Alert sounds, hogtied rescue, Nightmare
+
+- **`local x, y = a and f()` drops y.** An `and`/`or` expression keeps one value of a call; write `if a then x, y = f() end`. The
+  popup drag never had a y because of it, and only a test that drove the drag found it.
+- **Rescuing a hogtied player on the host** is two writes, as `rescue_interaction.lua` does: `assisted_state_input.success = true`
+  and `hogtied_state_input.hogtie = false`. Grenades are refilled on the host for any player with
+  `restore_ability_charge("grenade_ability", n)`, as the grenade pickup does.
+- **Waiting for a sound**: `WwiseWorld.is_playing` may say false on the frame a sound starts, so an alert is never over before
+  0.3 s; a sound without an id (or a player who muted card sounds) cannot be waited for, so the wave is never held longer than
+  20 s, and not at all when the host hears nothing.
+- **A dark glow may not show**: the frame glow material could blend additively, in which case Nightmare's darkness is invisible
+  and only its frame flicker and ink remain; to check in game before tuning.
+- **Every sound is now tracked to its end** (for the alert), so the eight-entry chain can fill with single sounds; eight alerts
+  inside 2.5 s would push out a pending second sound. Unlikely in play; noted.
+
+## 2026-10-04 — hook_require runs again; screen moods; boss bars
+
+- **DMF calls a `hook_require` callback again whenever the game loads the file again** (a new game, a restart), with the same table
+  when it is cached: hooking inside it must remember the tables already hooked, or DMF warns "Attempting to rehook active hook".
+- **The game's screen effects are moods** (`mood_settings.lua`: a shading environment, screen particles and looping sounds, added
+  per player by `PlayerUnitMoodExtension`); their colours are baked into the assets. A recoloured one would need new assets, so the
+  Nightmare's dread is a HUD overlay (no gradients in the UI: a stepped vignette of thin frames and fog in stacked layers).
+- **The boss health bars** are `HudElementBossHealth` (two bars at most, `_active_targets_array`), reachable from another element
+  through the HUD (`self._parent:element(name)`); both are in the same HUD-scaled space.
+
+## 2026-10-04 — Summoners destroyed mid-summon
+
+- **`BtSummonMinionsAction.leave` summons even with `destroy` true.** Any despawn or mission cleanup that catches a Packmaster or a
+  radio operator inside its summon action spawns minions during teardown (crash: no camera; or a flood-fill error). Guard `leave`.
+- **The Packmaster is a mutator unit**: passive summoned hounds, a patrol, the summon above combat in its tree. A wave that spawns
+  it alone has to keep it aggroed; the game's console log (the Lua locals of the crash) showed the node it was in ("summon").
+
+## 2026-10-04 — Assists, damage stat, other elements' nodes
+
+- **An assist starts only from an interaction or `force_assist`** (`character_states/utilities/assist.lua`): the rescue
+  interaction's `success = true` works because its interaction started the assist; on its own it does nothing.
+- **A human player's movement is theirs**: to move a remote player the mod has its own game do it (a grant in the effects
+  journal); the host moves its own player and bots with `PlayerMovement.teleport`.
+- **`attacker_stat_buffs.damage`** is read for every attacker in `damage_calculation.lua`: a minion's outgoing damage is a stat.
+- **Another HUD element's node** can be moved with its public `set_scenegraph_position`; remember its own position first.
+
+## 2026-10-04 — Networked health, moods, chat apps, teleports
+
+- **A networked unit's health is capped** by `NetworkConstants.health_large.max`: clients read the maximum from the game object, so
+  a larger value shows wrong (0 or a wrapped number) on clients. Cap custom health there.
+- **A teleport during the hogtied state does not stick**; teleport after the assist has finished (the player stands).
+- **Moods are re-checked every frame** (`PlayerUnitMoodExtension`): to keep one on (the `last_wound` grey world), the removal has to
+  be held back, not just the mood added.
+- **Chat apps eat Markdown**: `~~x~~` becomes strikethrough in Discord, so a text meant to be pasted must not contain doubled
+  separators, `*`, `_`, `\` or backticks. Empty fields are written as `.`.
+- **Effects drawn per machine need a client update**: anything a client draws itself (outlines) is lost if only the host ticks.
+- **Template interval functions are looked up from the template table every interval**, so wrapping them once in the loaded
+  `buff_templates` table changes the burn of every later On Fire enemy.
+
+## 2026-10-05 — Above the network's health limit, ailment looks
+
+- **The network limit is on the fields, not on the health.** The host's `HealthExtension` keeps `_health` and `_damage` and only
+  copies them to the game object (`add_damage`, `add_heal`, `set_health_instant`); clients compute the share as damage / health.
+  Writing both divided by the same `k` keeps the share exact for any health. The game object is created from the spawn
+  parameter, so that one must stay within the limit.
+- **A boss bar reads `health_extension:current_health_percent()` each frame from its target table**: replacing that one field
+  with a proxy changes what the bar shows without touching the element's code; the name text comes from
+  `target.localized_display_name` every frame.
+- **Ailment looks are a material value** (`offset_time_duration` = offset, start, duration, set by
+  `Ailment.play_ailment_effect_template`); keeping the end ahead of the clock keeps the look on without restarting it.

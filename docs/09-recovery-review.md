@@ -10,7 +10,7 @@ The game checks below remain open. No new release or runtime version bump accomp
 
 Remote baseline: `Marchini-Pedro/Grandfathers-Tarot`, `main` at
 `1460711a046f3d8949e5546335a296fd4216c5f3`.
-The supplied `RealmsWaves_updated` repository is a direct descendant: 25
+The supplied `GrandfathersTarot_updated` repository is a direct descendant: 25
 additional commits through `6b95382`, with no remote-only commits. Those
 commits were preserved on `feature/workshop-recovery` and are now in `main`. The supplied copy's
 origin points to a different repository (`The-grandfather-s-Tarot`);
@@ -46,8 +46,8 @@ Runtime fixes: repeat queues now stay at 1000 per job, prepend with linear work,
 - Run a two-player Realms mission with the same recovered revision on both peers: late join, disconnect/rejoin during sized waves, repeated random groups, Havoc gunner fire/burst, high-speed boss combos, scaled burster blast, and mission restart.
 - Check Deck sort persistence and drag/click behavior at multiple resolutions with real engine input, especially mouse leaving the window, scrolling, popups and cooldown animation. Offline widget previews do not render game fonts, textures or clipping.
 - Real engine CPU/frame time, renderer cost and process RAM remain unmeasured. The recorded editor numbers are stubbed interpreted Lua timings and heap growth only. UI models and the HUD update in place; previews/repaint operations still allocate during explicit interactions/animation.
-- (Updated 2026-10-03 on `feature/heresy-card-and-ui-pass`: the boss-health naming suppression was removed at the user's request; a custom health is now set exactly after the spawn and a boss below its normal health is called "Weakened" by the game on every machine, see `07`.) Size replication requires RealmsWaves on each peer; players without it see normal size. This existing presentation limit remains open and should be checked before adding a new metadata RPC.
-- Animation speed itself has no confirmed per-unit API; the recovered option changes time between attacks, with protection for multi-hit chains, and /rw_anim remains a diagnostic.
+- (Updated 2026-10-03 on `feature/heresy-card-and-ui-pass`: the boss-health naming suppression was removed at the user's request; a custom health is now set exactly after the spawn and a boss below its normal health is called "Weakened" by the game on every machine, see `07`.) Size replication requires GrandfathersTarot on each peer; players without it see normal size. This existing presentation limit remains open and should be checked before adding a new metadata RPC.
+- Animation speed itself has no confirmed per-unit API; the recovered option changes time between attacks, with protection for multi-hit chains, and /gt_anim remains a diagnostic.
 
 The supplied folder and installed mods are preserved. Use this clone for future development; local `main` was synchronized with `origin/main` after the merge. The merge itself does not establish in-game verification.
 

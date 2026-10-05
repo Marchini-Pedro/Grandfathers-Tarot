@@ -1,6 +1,6 @@
 # Enemy appearance research prompt
 
-Investigate feasible ways to recolour or visually tint the entire body of selected enemies in Grandfather's Tarot, a Darktide mod whose internal name is **RealmsWaves**.
+Investigate feasible ways to recolour or visually tint the entire body of selected enemies in Grandfather's Tarot, a Darktide mod whose internal name is **GrandfathersTarot**.
 
 This is a reusable research brief. Preparing or reading this file does not itself execute the investigation.
 
@@ -57,7 +57,7 @@ Read applicable project guidance and existing findings first. Relevant starting 
 
 Existing documentation contains leads involving `stimmed_color`, material setters, visual-loadout overrides and network lookup constraints. Re-check the relevant claims against the available source version; do not repeat a broad audit of systems already documented.
 
-The existing `scripts/mods/RealmsWaves/catalog/colors.lua` concerns UI/name colours. Do not mistake a UI colour setting for evidence that enemy models can be recoloured.
+The existing `scripts/mods/GrandfathersTarot/catalog/colors.lua` concerns UI/name colours. Do not mistake a UI colour setting for evidence that enemy models can be recoloured.
 
 ## 2. Research across multiple sources
 
@@ -309,7 +309,7 @@ Write `docs/research/enemy-appearance/experiments-and-recommendation.md` with:
 - Useful fallback appearances and how they differ from the preferred result.
 - Minimal experiment plans and the validation matrix.
 - Lifecycle, multiplayer and resource-loading requirements.
-- Suggested integration points for the agent changing RealmsWaves.
+- Suggested integration points for the agent changing GrandfathersTarot.
 - A handoff list of existing documentation that should later be updated by the coordinating session.
 
 Keep each Markdown file under the project's 100 KB limit. Use relative links between documents and precise, dated references. Leave existing shared docs untouched during this parallel investigation. Run the documentation size check after writing the reports.

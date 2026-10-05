@@ -19,9 +19,9 @@ These are source-line proxies, not executable-line or branch coverage:
 
 | Module | Lua 5.5 | LuaJIT 2.1 | Floor |
 | --- | ---: | ---: | ---: |
-| `RealmsWaves.lua` | 72.97% | 68.90% | 68% |
-| `RealmsWaves_data.lua` | 90.57% | 73.58% | 72% |
-| `RealmsWaves_localization.lua` | 100.00% | 98.19% | 98% |
+| `GrandfathersTarot.lua` | 72.97% | 68.90% | 68% |
+| `GrandfathersTarot_data.lua` | 90.57% | 73.58% | 72% |
+| `GrandfathersTarot_localization.lua` | 100.00% | 98.19% | 98% |
 | `catalog/appearance.lua` | 87.76% | 85.71% | 84% |
 | `catalog/cards.lua` | 79.64% | 78.74% | 78% |
 | `catalog/colors.lua` | 87.82% | 73.10% | 73% |
@@ -96,9 +96,9 @@ Current measured scores (source-line proxy, not branch coverage):
 
 | Module | Lua 5.5 | LuaJIT 2.1 | Floor |
 | --- | ---: | ---: | ---: |
-| `RealmsWaves.lua` | 72.71% | 68.60% | 68% |
-| `RealmsWaves_data.lua` | 90.38% | 73.08% | 72% |
-| `RealmsWaves_localization.lua` | 100.00% | 98.16% | 98% |
+| `GrandfathersTarot.lua` | 72.71% | 68.60% | 68% |
+| `GrandfathersTarot_data.lua` | 90.38% | 73.08% | 72% |
+| `GrandfathersTarot_localization.lua` | 100.00% | 98.16% | 98% |
 | `catalog/appearance.lua` | 86.67% | 84.44% | 84% |
 | `catalog/cards.lua` | 79.26% | 78.33% | 78% |
 | `catalog/colors.lua` | 87.82% | 73.10% | 73% |
@@ -217,9 +217,9 @@ improves; do not lower a floor merely to make a regression pass.
 
 | Module | Lua 5.5 | LuaJIT 2.1 | Floor |
 | --- | ---: | ---: | ---: |
-| `RealmsWaves.lua` | 72.49% | 68.52% | 68% |
-| `RealmsWaves_data.lua` | 90.32% | 72.90% | 72% |
-| `RealmsWaves_localization.lua` | 100.00% | 98.12% | 98% |
+| `GrandfathersTarot.lua` | 72.49% | 68.52% | 68% |
+| `GrandfathersTarot_data.lua` | 90.32% | 72.90% | 72% |
+| `GrandfathersTarot_localization.lua` | 100.00% | 98.12% | 98% |
 | `catalog/cards.lua` | 79.25% | 78.30% | 78% |
 | `catalog/colors.lua` | 87.82% | 73.10% | 73% |
 | `catalog/events.lua` | 80.38% | 76.56% | 76% |

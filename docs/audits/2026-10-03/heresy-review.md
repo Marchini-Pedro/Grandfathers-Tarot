@@ -56,18 +56,18 @@ standalone checkout.
 
 Source references in the repaired tree:
 
-- [Health correction](../../../scripts/mods/RealmsWaves/spawn/tuning.lua),
+- [Health correction](../../../scripts/mods/GrandfathersTarot/spawn/tuning.lua),
   `set_exact_health:214`, synchronized write:238, boss flag:245.
-- [Spawn protection](../../../scripts/mods/RealmsWaves/spawn/execute.lua),
+- [Spawn protection](../../../scripts/mods/GrandfathersTarot/spawn/execute.lua),
   `spawn_one:598`, protected facing/spawn:625.
-- [Wave transport](../../../scripts/mods/RealmsWaves/core/protocol.lua),
+- [Wave transport](../../../scripts/mods/GrandfathersTarot/core/protocol.lua),
   encoded budget:39, `waves_text_fits:417`, send validation:428;
-  [director](../../../scripts/mods/RealmsWaves/core/director.lua), trimming:160,
+  [director](../../../scripts/mods/GrandfathersTarot/core/director.lua), trimming:160,
   stop cleanup:958, off-snapshot validation:1175.
-- [Tile geometry](../../../scripts/mods/RealmsWaves/ui/deck.lua), `layout:226`;
-  [cooldown painting](../../../scripts/mods/RealmsWaves/ui/wave_editor_deck.lua),
+- [Tile geometry](../../../scripts/mods/GrandfathersTarot/ui/deck.lua), `layout:226`;
+  [cooldown painting](../../../scripts/mods/GrandfathersTarot/ui/wave_editor_deck.lua),
   pointer cache:326, update comparison:859.
-- [Last-card refresh](../../../scripts/mods/RealmsWaves/ui/hud_element_last_card.lua),
+- [Last-card refresh](../../../scripts/mods/GrandfathersTarot/ui/hud_element_last_card.lua),
   modifier height:270, failure cleanup:358.
 
 ## Risk-to-test map and reviewed inventory

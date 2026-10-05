@@ -14,7 +14,7 @@ lua = LuaRuntime(unpack_returned_tuples=True)
 
 harness = r'''
 local MODROOT = ...
-local BASE = MODROOT .. "/scripts/mods/RealmsWaves"
+local BASE = MODROOT .. "/scripts/mods/GrandfathersTarot"
 
 -- ---- engine stubs ---------------------------------------------------------
 function table.clone(t) local c = {} for k, v in pairs(t) do c[k] = type(v) == "table" and table.clone(v) or v end return c end
@@ -96,7 +96,7 @@ mod.set = function(self, id, v) settings[id] = v end
 mod.is_enabled = function() return true end
 mod.error = function(self, fmt, ...) errors_logged[#errors_logged + 1] = string.format(fmt, ...) end
 mod.localize = function(self, id, ...) local a = { ... } for i = 1, #a do a[i] = tostring(a[i]) end return id .. (#a > 0 and (":" .. table.concat(a, ",")) or "") end
-mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
+mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^GrandfathersTarot/", "") .. ".lua") end
 local custom_hud = { is_customizing = false }
 get_mod = function(name) if name == "custom_hud" then return custom_hud end return mod end
 
@@ -317,7 +317,7 @@ for _, suit_name in ipairs(Cards.SUIT_ORDER) do
   if n == 0 then icons_ok = false end
 end
 check("icons: every suit mark draws something and stays inside its 18 px box", icons_ok, "plague " .. used.plague .. " murmur " .. used.murmur .. " rage " .. used.rage .. " blight " .. used.blight .. " swarm " .. used.swarm .. " fateful " .. used.fateful)
-check("icons: fifteen suits, and the new six use their own slots (volley 7, snare 4, brute 5, dusk 5, warp 5, heresy 6)", #Cards.SUIT_ORDER == 15 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.dusk == 5 and used.warp == 5 and used.heresy == 6, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " dusk " .. used.dusk .. " warp " .. used.warp .. " heresy " .. tostring(used.heresy))
+check("icons: sixteen suits, and the newer ones use their own slots (volley 7, snare 4, brute 5, warp 5, heresy 6, nightmare 7, faith 7)", #Cards.SUIT_ORDER == 16 and used.faith == 7 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.nightmare == 7 and used.warp == 5 and used.heresy == 6, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " nightmare " .. tostring(used.nightmare) .. " warp " .. used.warp .. " heresy " .. tostring(used.heresy))
 check("icons: at the Deck's 26 units every mark also stays inside its box", (function()
   for _, suit_name in ipairs(Cards.SUIT_ORDER) do
     Spread.icon(Cards.SUITS[suit_name].icon, 26, icon)
@@ -330,11 +330,11 @@ check("icons: at the Deck's 26 units every mark also stays inside its box", (fun
   end
   return true
 end)())
-check("icons: every shape of the cut-outs is drawn above the shape it cuts (the warp's inside, the sun's lower half)", (function()
+check("icons: every shape of the cut-outs is drawn above the shape it cuts (the warp's inside, the nightmare eye's hollow and its pupil)", (function()
   Spread.icon("warp", 18, icon)
   local ok = icon.tri[2].col == 2 and icon.tri[2].z > icon.tri[1].z and icon.tri[3].z > icon.tri[2].z and icon.circ[1].col == 2 and icon.circ[1].z > icon.tri[3].z
-  Spread.icon("dusk", 18, icon)
-  return ok and icon.tri[1].col == 2 and icon.tri[1].z > icon.circ[1].z and icon.tri[3].z > icon.tri[1].z
+  Spread.icon("nightmare", 18, icon)
+  return ok and icon.circ[2].col == 2 and icon.circ[2].z > icon.circ[1].z and icon.tri[3].z > icon.circ[2].z and icon.tri[4].z > icon.circ[2].z and icon.tri[1].col == 1
 end)())
 Spread.icon("moon", 18, icon)
 check("icons: the moon is a circle with a bite taken out in the card's colour", icon.circ[1].on and icon.circ[1].col == 1 and icon.circ[2].on and icon.circ[2].col == 2)
@@ -543,7 +543,8 @@ local fxw = el._widgets_by_name.fx
 check("rot: the effects are shown, the banner is gone", fxw.visible and not banner.visible and fxw.style.wash.visible)
 check("rot: the winner browns, the others are gone", c(3).color_intensity_multiplier < 1 and c(1).alpha_multiplier == 0)
 check("rot: the card layer keeps its shape (no sag, only the 6 percent of the pop)", near(c(3).style.bg.size[2], 76 * 1.06, 0.01))
-check("rot: the winner's cooldown sets its rot (120 s: strength 0.46, 2.0 s)", near(el._T.k, 0.4627, 0.001) and near(el._T.rot, 1.2 + 1.8 * 0.4627, 0.01), el._T.rot)
+-- (the longest cooldown is 30 minutes by default since 2026-10-04: log(120 / 30) / log(1800 / 30) = 0.3386)
+check("rot: the winner's cooldown sets its rot (120 s of a 30 minute longest: strength 0.34, 1.8 s)", near(el._T.k, 0.3386, 0.001) and near(el._T.rot, 1.2 + 1.8 * 0.3386, 0.01), el._T.rot)
 local circles_or_rects = 0
 for i = 1, 5 do if fxw.style["blot_" .. i .. "_1"].visible and fxw.style["blot_" .. i .. "_4"].visible then circles_or_rects = circles_or_rects + 1 end end
 check("rot: soft blotches (four rings each) have started to grow", circles_or_rects >= 1, circles_or_rects)
@@ -770,6 +771,76 @@ do
   settings.tarot_font = nil
 end
 
+-- out of the way of the boss health bars (2026-10-04): the Draw HUD slides below them while a boss is up, and back
+do
+  local e = new_element()
+  local boss = { _active_targets_array = {} }
+  e._parent = { element = function(_, name) return name == "HudElementBossHealth" and boss or nil end }
+  current_view = view_of({ remaining = 9, hand_seq = 61 }); frame(e)
+  local rs = {}
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("boss bars: without a boss the Draw HUD stays where it is", (e._boss_push or 0) == 0 and draws[1].oy == 0)
+  boss._active_targets_array = { { unit = "beast" } }
+  frame(e, 0.1)
+  check("boss bars: with a boss it starts sliding down (not a jump)", e._boss_push > 0 and e._boss_push < 136, e._boss_push)
+  for _ = 1, 10 do frame(e, 0.1) end
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("boss bars: ...until it is below them (its top at y 172 instead of 36), the node itself where custom_hud put it", e._boss_push == 136 and near(draws[1].oy, 136) and e._ui_scenegraph.panel.world_position[2] == 36, e._boss_push)
+  check("boss bars: after the draw the widgets are back where they were", e._widgets_by_name.card_1.offset[2] == 0)
+  settings.tarot_scale = 150; frame(e)
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("boss bars: at another size the push is still 136 on the screen (divided by the size in the widgets' units)", near(draws[1].oy, 36 * (1 / 1.5 - 1) + 136 / 1.5, 1e-6), draws[1].oy)
+  settings.tarot_scale = nil; frame(e)
+  boss._active_targets_array = {}
+  frame(e, 0.1)
+  check("boss bars: the boss dead, it slides back up", e._boss_push > 0 and e._boss_push < 136)
+  for _ = 1, 10 do frame(e, 0.1) end
+  check("boss bars: ...to where it was", e._boss_push == 0)
+  boss._active_targets_array = { { unit = "beast" } }
+  local saved = e._ui_scenegraph.panel.world_position[1]
+  e._ui_scenegraph.panel.world_position[1] = 1500
+  for _ = 1, 10 do frame(e, 0.1) end
+  check("boss bars: a Draw HUD moved away from the bars (custom_hud) does not move", e._boss_push == 0)
+  e._ui_scenegraph.panel.world_position[1] = saved
+  settings.hud_avoid_boss_bars = false
+  for _ = 1, 10 do frame(e, 0.1) end
+  check("boss bars: the option off: it never moves", e._boss_push == 0)
+  settings.hud_avoid_boss_bars = nil
+  -- see-through while a boss is up (hud_boss_opacity), and the bars below instead (hud_boss_bars_below)
+  local positions = {}
+  boss.scenegraph_position = function(_, id) return { 0, 36, 0 } end
+  boss.set_scenegraph_position = function(_, id, x, y, z) positions[#positions + 1] = { id, x, y, z } end
+  e._parent = { element = function(_, name) return name == "HudElementBossHealth" and boss or nil end }
+  boss._active_targets_array = {}
+  for _ = 1, 20 do frame(e, 0.1) end
+  check("boss fade: without a boss the Draw HUD is fully opaque", e._boss_fade == 1)
+  boss._active_targets_array = { { unit = "beast" } }
+  frame(e, 0.1)
+  check("boss fade: with a boss it fades (not at once) toward the option's 50 percent", e._boss_fade < 1 and e._boss_fade > 0.5, e._boss_fade)
+  for _ = 1, 10 do frame(e, 0.1) end
+  for k in pairs(draws) do draws[k] = nil end
+  Element.draw(e, 0.016, 0, nil, rs, nil)
+  check("boss fade: ...to 50 percent, drawn so", e._boss_fade == 0.5 and near(draws[1].a, 0.5))
+  settings.hud_boss_opacity = 80; for _ = 1, 10 do frame(e, 0.1) end
+  check("boss fade: the option sets how see-through", near(e._boss_fade, 0.8))
+  settings.hud_boss_opacity = nil
+  settings.hud_boss_bars_below = true
+  for _ = 1, 15 do frame(e, 0.1) end
+  local last = positions[#positions]
+  check("bars below: the Draw HUD stays at the top and the boss bars' node is moved below it (36 + 262 - 30 - 36 lower)", e._boss_push == 0 and last and last[1] == "background" and last[2] == 0 and near(last[3], 36 + 232), last and last[3])
+  boss._active_targets_array = {}
+  for _ = 1, 15 do frame(e, 0.1) end
+  last = positions[#positions]
+  check("bars below: when the boss is gone the bars go back to their own place, and are left alone after", near(last[3], 36) and e._bars_home == nil and (function() local n = #positions; frame(e, 0.1); return #positions == n end)())
+  settings.hud_boss_bars_below = nil
+  e._parent = { element = function() error("hud gone") end }
+  frame(e, 0.1)
+  check("boss bars: a failing lookup is contained (no push)", e._boss_push == 0)
+end
+
 -- size and opacity of everything
 do
   local e = new_element()
@@ -848,6 +919,73 @@ local function growth(fixed_view, step, frames)
   if hook then debug.sethook(hook, mask, count) end
   return (after - before) * 1024 / frames
 end
+-- NIGHTMARE (2026-10-04): darkness breathes around it, its frame is a dying light that flickers, black ink drips; WARP pulses and
+-- crackles and motes rise from it
+do
+  local e = new_element()
+  local hand = {
+    card("n", "The Dark", "nightmare", 6, { "chaos_daemonhost" }, "It was never a dream."),
+    card("w", "The Magician", "warp", 3, { "chaos_daemonhost" }, "It knows your name."),
+    card("p", "The Fool", "swarm", 1, { "chaos_poxwalker" }, "Too many to count."),
+  }
+  current_view = view_of({ hand = hand, remaining = 9.5, hand_seq = 140, win = 3 })
+  frame(e)
+  local h = function(i) return e._widgets_by_name["card_" .. i] end
+  local function dark(c) return c[2] < 0x40 and c[3] < 0x40 and c[4] < 0x50 end
+  check("nightmare: the face is black, the frame on (two units) and dark, the glow is a darkness around it", h(1).style.bg.color[2] < 8 and h(1).style.rare_t.visible and h(1).style.rare_t.size[2] == 2 and h(1).style.glow.visible and (dark(h(1).style.glow.color) or h(1).style.glow.color[2] > 0xe0))
+  check("nightmare: black ink drips from its lower edge (pure black lines), beads in its gloom", h(1).style.blood_1.visible and h(1).style.blood_3.visible and h(1).style.blood_1.color[2] == 0 and h(1).style.blood_1.color[3] == 0 and h(1).style.blood_1.offset[2] >= h(1).style.bg.offset[2] + h(1).style.bg.size[2] - 2)
+  local breath, flashes = {}, 0
+  for k = 1, 200 do
+    frame(e, 0.033)
+    breath[h(1).style.glow.color[1]] = true
+    if h(1).style.rare_t.color[2] > 0xb0 then flashes = flashes + 1 end
+  end
+  local n = 0 for _ in pairs(breath) do n = n + 1 end
+  check("nightmare: the darkness breathes (its glow changes strength) and the dying light flashes now and then, not always", n >= 6 and flashes >= 1 and flashes < 60, n .. " strengths, " .. flashes .. " flashes")
+  check("warp: its glow is on at rest and pulses", h(2).style.glow.visible and (function() local seen = {} for k = 1, 40 do frame(e, 0.05); seen[h(2).style.glow.color[1]] = true end local m = 0 for _ in pairs(seen) do m = m + 1 end return m >= 5 end)())
+  check("warp: motes rise from its top edge (circles above the card, no drip lines); an ordinary suit has neither", h(2).style.blood_c1.visible and not h(2).style.blood_1.visible and h(2).style.blood_c1.offset[2] < h(2).style.bg.offset[2] + 4 and not h(3).style.blood_c1.visible and not h(3).style.glow.visible)
+  check("nightmare: its suit mark is the horned eye (four triangles and three circles)", (function()
+    local tris, circs = 0, 0
+    for i = 1, Spread.ICON_TRIS do if h(1).style["icon_t" .. i].visible then tris = tris + 1 end end
+    for i = 1, Spread.ICON_CIRCS do if h(1).style["icon_c" .. i].visible then circs = circs + 1 end end
+    return tris == 4 and circs == 3
+  end)())
+  -- Nightmare's black fog (2026-10-04): it comes and goes over the whole card, its banks stay inside the card; no other suit has it
+  local most, least, inside_card, bank_seen = 0, 255, true, false
+  for k = 1, 300 do
+    frame(e, 0.033)
+    local v = h(1).style.fog_veil
+    if v.visible then most = math.max(most, v.color[1]) else least = 0 end
+    if v.visible then least = math.min(least, v.color[1]) end
+    for j = 1, 3 do
+      local b = h(1).style["fog_" .. j]
+      if b.visible then
+        bank_seen = true
+        if b.offset[2] < h(1).style.bg.offset[2] - 0.01 or b.offset[2] + b.size[2] > h(1).style.bg.offset[2] + h(1).style.bg.size[2] + 0.01 or b.color[2] ~= 0 then inside_card = false end
+      end
+    end
+  end
+  check("nightmare: a black fog comes and goes over the card (the veil thickens past 100 of 255 and clears again)", most > 100 and least < 20, most .. " / " .. least)
+  check("nightmare: its banks of fog drift inside the card, black, above everything on it", bank_seen and inside_card and h(1).style.fog_1.offset[3] > h(1).style.name.offset[3])
+  settings.nightmare_fog_strength = 0
+  for k = 1, 60 do frame(e, 0.1) end
+  local seen_fog = false
+  for k = 1, 120 do frame(e, 0.05); if h(1).style.fog_veil.visible or h(1).style.fog_1.visible then seen_fog = true end end
+  check("nightmare: the option 'Nightmare card darkness' at 0 clears the fog", not seen_fog)
+  local function peak(value)
+    settings.nightmare_fog_strength = value
+    local most = 0
+    for k = 1, 300 do frame(e, 0.033); if h(1).style.fog_veil.visible then most = math.max(most, h(1).style.fog_veil.color[1]) end end
+    return most
+  end
+  local base, black = peak(30), peak(100)
+  check("nightmare darkness: 30 is the usual darkness, 100 almost black (2026-10-04 scale)", base > 120 and base <= Spread.VEIL_ALPHA and black > 220 and black <= Spread.DARK_MAX, base .. " / " .. black)
+  check("nightmare darkness: the scale is straight lines through 0, 30 and 100", Spread.darkness(165, 0) == 0 and Spread.darkness(165, 15) == 82.5 and Spread.darkness(165, 30) == 165 and Spread.darkness(165, 100) == Spread.DARK_MAX and Spread.darkness(165, nil) == 165 and Spread.darkness(165, 500) == Spread.DARK_MAX)
+  settings.nightmare_fog_strength = nil
+  check("nightmare: no other suit is fogged", not h(2).style.fog_veil.visible and not h(3).style.fog_veil.visible and not h(3).style.fog_1.visible)
+  audit_ok("nightmare and warp hand", e)
+end
+
 -- HERESY, the card apart: a frame at rest, a smouldering glow, its own line when it is drawn
 do
   local e = new_element()
@@ -859,10 +997,13 @@ do
   current_view = view_of({ hand = special_hand, remaining = 9.5, hand_seq = 40, win = 3 })
   frame(e)
   local h = function(i) return e._widgets_by_name["card_" .. i] end
-  check("heresy: at rest the frame is on, two units thick, in the suit's blood red (a swarm card has none)", h(1).style.rare_t.visible and h(1).style.rare_t.size[2] == 2 and h(1).style.rare_l.size[1] == 2 and h(1).style.rare_t.color[2] == 0xa3 and h(1).style.rare_t.color[3] == 0x20 and not h(3).style.rare_t.visible)
-  check("heresy: the glow smoulders at rest (visible, blood red, low); the other suits glow only when highlighted", h(1).style.glow.visible and h(1).style.glow.color[1] == 110 and h(1).style.glow.color[2] == 0xa3 and not h(3).style.glow.visible)
-  check("heresy: the face is the black red, the bar gilded, the name bone-coloured", h(1).style.bg.color[2] == 0x14 and h(1).style.bg.color[3] == 0x07 and h(1).style.accent.color[2] == 0xe5 and h(1).style.accent.color[3] == 0xb9 and h(1).style.name.text_color[2] == 0xf3)
-  check("heresy: a card an older host calls fester is drawn as Heresy", h(2).style.bg.color[2] == 0x14 and h(2).style.rare_t.visible and h(2).style.glow.visible)
+  local function blood_red(c) return c[2] >= 0x8a and c[3] <= 0x34 and c[4] <= 0x45 end
+  check("heresy: at rest the frame is on, two units thick, in fresh blood red that beats toward the lit red (a swarm card has none)", h(1).style.rare_t.visible and h(1).style.rare_t.size[2] == 2 and h(1).style.rare_l.size[1] == 2 and blood_red(h(1).style.rare_t.color) and not h(3).style.rare_t.visible)
+  check("heresy: the glow beats at rest (visible, blood red, between 55 and 100 percent of its resting strength); the other suits glow only when highlighted", h(1).style.glow.visible and h(1).style.glow.color[1] >= 60 and h(1).style.glow.color[1] <= 110 and blood_red(h(1).style.glow.color) and not h(3).style.glow.visible)
+  check("heresy: the heartbeat moves the glow from frame to frame", (function() local seen = {} for k = 1, 30 do frame(e, 0.033); seen[h(1).style.glow.color[1]] = true end local n = 0 for _ in pairs(seen) do n = n + 1 end return n >= 4 end)())
+  check("heresy: blood runs down from its lower edge (three drops below the card); no other suit bleeds", h(1).style.blood_1.visible and h(1).style.blood_3.visible and h(1).style.blood_c2.visible and h(1).style.blood_1.offset[2] >= h(1).style.bg.offset[2] + h(1).style.bg.size[2] - 2 and not h(3).style.blood_1.visible)
+  check("heresy: the face is near black with blood in it, the bar crimson, the name pale", h(1).style.bg.color[2] == 0x0d and h(1).style.bg.color[3] == 0x02 and h(1).style.accent.color[2] == 0xd4 and h(1).style.accent.color[3] == 0x2a and h(1).style.name.text_color[2] == 0xef)
+  check("heresy: a card an older host calls fester is drawn as Heresy", h(2).style.bg.color[2] == 0x0d and h(2).style.rare_t.visible and h(2).style.glow.visible and h(2).style.blood_1.visible)
   check("heresy: its suit mark is the broken halo (six shapes) and it stays inside the card", (function()
     local tris, circs = 0, 0
     for i = 1, Spread.ICON_TRIS do if h(1).style["icon_t" .. i].visible then tris = tris + 1 end end
@@ -874,25 +1015,135 @@ do
   current_view = view_of({ hand = special_hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.05, win = 1, hand_seq = 41 })
   frame(e)
   local bn = e._widgets_by_name.banner
-  check("heresy: drawn, the banner says 'Heresy is drawn' in the lit red and the name is gilded; the card's glow flares", bn.content.kicker == "HUD_CARD_DRAWN_SPECIAL" and bn.style.kicker.text_color[2] == 0xe8 and bn.style.name.text_color[2] == 0xe5 and h(1).style.glow.color[1] == 220, tostring(bn.content.kicker))
+  check("heresy: drawn, the banner says 'Heresy is drawn' in the lit red and the name is crimson; the card's glow flares (beating between 121 and 220)", bn.content.kicker == "HUD_CARD_DRAWN_SPECIAL" and bn.style.kicker.text_color[2] == 0xff and bn.style.name.text_color[2] == 0xd4 and h(1).style.glow.color[1] >= 121 and h(1).style.glow.color[1] <= 220, tostring(bn.content.kicker))
   current_view = view_of({ hand = special_hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.05, win = 3, hand_seq = 42 })
   frame(e)
-  check("heresy: another card drawn keeps the ordinary banner line", bn.content.kicker == "HUD_CARD_DRAWN" and bn.style.kicker.text_color[2] ~= 0xe8)
+  check("heresy: another card drawn keeps the ordinary banner line", bn.content.kicker == "HUD_CARD_DRAWN" and bn.style.kicker.text_color[2] ~= 0xff)
   audit_ok("heresy reveal", e)
+end
+
+-- the murmur: a threat 5 or 6 card writes its whisper letter by letter once it is drawn; lower threats show it whole at once
+do
+  local e = new_element()
+  local line = "Do you hear it? Sch\195\182n."
+  local hand = { card("m5", "The Watcher", "murmur", 5, { "renegade_sniper" }, line), card("m3", "The Pilgrim", "swarm", 3, { "chaos_poxwalker" }, line) }
+  current_view = view_of({ hand = hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.4, win = 1, hand_seq = 140 })
+  frame(e)
+  local bn = e._widgets_by_name.banner
+  local early = bn.content.whisper
+  check("murmur: shortly after a threat 5 card is shown its whisper is only partly written and the quote is still open", #early > 1 and #early < #line + 2 and early:sub(-1) ~= "\"" , early)
+  check("murmur: the cut never falls inside a two-byte letter", (function()
+    for k = 0, 40 do
+      current_view = view_of({ hand = hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = k * 0.05, win = 1, hand_seq = 140 }); frame(e)
+      local w = bn.content.whisper:gsub("^\"", ""):gsub("\"$", "")
+      if w:sub(-1) == "\195" then return false end
+    end
+    return true
+  end)())
+  current_view = view_of({ hand = hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 1.9, win = 1, hand_seq = 140 })
+  frame(e)
+  check("murmur: after the murmur the whisper is whole and closed", bn.content.whisper == "\"" .. line .. "\"", bn.content.whisper)
+  current_view = view_of({ hand = hand, phase = "waiting", remaining = 100, hand_seconds = 0, drawn = true, drawn_age = 0.4, win = 2, hand_seq = 141 })
+  frame(e)
+  check("murmur: a threat 3 card shows its whole whisper at once", bn.content.whisper == "\"" .. line .. "\"", bn.content.whisper)
+  -- the sixth diamond shines: Despair breathes, its halo grows and darkens from frame to frame
+  local six = { card("d6", "Despair", "brute", 6, { "chaos_ogryn_executor" }, "It does not stop.") }
+  current_view = view_of({ hand = six, remaining = 9.5, win = 1, hand_seq = 142 })
+  frame(e)
+  local w = e._widgets_by_name.card_1
+  check("despair: all six diamonds are shown, dark, with a halo larger than the diamond", w.style.th_o6.visible and w.style.th_h6.visible and w.style.th_o6.color[2] < 0x40 and w.style.th_h6.size[1] > Spread.THREAT_SIDE + 1.3)
+  check("despair: the halo breathes (its size and colour change over time)", (function() local sizes = {} for k = 1, 40 do frame(e, 0.05); sizes[math.floor(w.style.th_h6.size[1] * 10)] = true end local n = 0 for _ in pairs(sizes) do n = n + 1 end return n >= 4 end)())
+  audit_ok("murmur and despair", e)
 end
 
 do
   local e=new_element()
-  for i,suit in ipairs({"prayer","miracle","grace"}) do
+  for i,suit in ipairs({"prayer","miracle","grace","faith"}) do
     local selected=card("b"..i,"The Light",suit,6,{},"Carry the light.")
     current_view=view_of({hand={selected},remaining=9.5,win=1,hand_seq=80+i})
     frame(e)
     local w=e._widgets_by_name.card_1
-    check("blessing: full Draw face and six edged pips "..suit,w.visible and w.style.th_o6.visible and w.style.th_h6.color[2]==0xc7 and w.style.th_o6.color[2]==Cards.SUITS[suit].accent[1])
+    local acc=Cards.SUITS[suit].accent
+    check("blessing: full Draw face and six pips that glitter in light (Apotheosis: the halo between the accent and warm white, never Despair's lilac) "..suit,w.visible and w.style.th_o6.visible and w.style.th_h6.color[2]>=acc[1]-1 and w.style.th_h6.color[2]~=0xc7 and w.style.th_o6.color[2]>=acc[1]-1)
     current_view=view_of({hand={selected},phase="waiting",remaining=100,hand_seconds=0,drawn=true,drawn_age=0.05,win=1,hand_seq=90+i});frame(e)
     check("blessing: banner uses blessing caption and hides modifiers "..suit,e._widgets_by_name.banner.content.kicker=="HUD_CARD_DRAWN_BENEFICIAL" and not e._widgets_by_name.banner.style.mods.visible)
     audit_ok("blessing Draw "..suit,e)
   end
+end
+
+-- the Nightmare's dread (ui/hud_element_dread.lua, 2026-10-04): a full-screen black fog when a Nightmare card is drawn, a toggle
+do
+  local DreadDefs = dofile(BASE .. "/ui/hud_element_dread_definitions.lua")
+  local Dread = dofile(BASE .. "/ui/hud_element_dread.lua")
+  local el = setmetatable({}, Dread)
+  Dread.init(el, nil, 0, 1)
+  local w = el._widgets_by_name.dread
+  local function tick(dt) Dread.update(el, dt, 0, nil, nil, nil) end
+  local function night_hand() return { card("n", "The Dark", "nightmare", 6, { "chaos_daemonhost" }, "It was never a dream."), card("p", "The Fool", "swarm", 1, { "chaos_poxwalker" }, "x") } end
+  local hidden = true
+  for _, st in pairs(DreadDefs.widget_definitions.dread.style) do if st.visible ~= false then hidden = false end end
+  check("dread: one widget on the root node only (custom_hud offers nothing to move), every pass starts hidden", DreadDefs.widget_definitions.dread.scenegraph_id == "screen" and (function() local n = 0 for id in pairs(DreadDefs.scenegraph_definition) do n = n + 1 end return n end)() == 1 and hidden)
+  settings.nightmare_dread = nil
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 300, drawn = false })
+  tick(0.1)
+  check("dread: nothing while the Nightmare card is only in the hand", not w.visible)
+  current_view = view_of({ hand = night_hand(), win = 2, hand_seq = 301, drawn = true, drawn_age = 0.1 })
+  tick(0.1)
+  check("dread: nothing when another card of the hand is drawn", not w.visible)
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 302, drawn = true, drawn_age = 0.1 })
+  tick(0.1)
+  check("dread: a drawn Nightmare card starts it at once, rising", w.visible and w.style.veil.visible and w.style.veil.color[1] > 0 and w.style.veil.color[1] < 60)
+  for _ = 1, 30 do tick(0.1) end
+  local veil, edge, inner = w.style.veil.color[1], w.style.vig_1_t.color[1], w.style.vig_16_t.color[1]
+  check("dread: at full strength the screen stays see-through (the veil under 60 percent), black, darker at the edges", veil > 50 and veil < 155 and w.style.veil.color[2] == 0 and edge > inner and edge > 150, veil .. " " .. edge .. " " .. inner)
+  check("dread: it covers the whole screen, the vignette frames on its edges, ash-grey fog across it", w.style.veil.size[1] == 1920 and w.style.veil.size[2] == 1080 and w.style.vig_1_t.offset[2] == 0 and w.style.vig_1_r.offset[1] + w.style.vig_1_r.size[1] == 1920 and w.style.fog_1_1.size[1] == 1920 and w.style.fog_1_1.color[2] > 0 and w.style.fog_1_1.color[2] < 60 and w.style.fog_1_3.size[2] < w.style.fog_1_1.size[2])
+  local seen = {}
+  for _ = 1, 20 do tick(0.05); seen[w.style.veil.color[1]] = true end
+  local n = 0 for _ in pairs(seen) do n = n + 1 end
+  check("dread: the veil breathes while it holds", n >= 3)
+  for _ = 1, 60 do tick(0.1) end
+  check("dread: it fades and is gone after about eight seconds", not w.visible and el._age == nil)
+  tick(0.1)
+  check("dread: the same draw does not start it again", not w.visible)
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 303, drawn = true, drawn_age = 9 })
+  tick(0.1)
+  check("dread: a player joining after the card was drawn is not shown it late", not w.visible)
+  settings.nightmare_dread = false
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 304, drawn = true, drawn_age = 0.1 })
+  tick(0.1)
+  check("dread: the option off: never shown", not w.visible)
+  settings.nightmare_dread = nil
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 305, drawn = true, drawn_age = 0.1 })
+  tick(0.1); tick(2)
+  check("dread: the option on again: the next Nightmare draw shows it", w.visible)
+  settings.nightmare_dread = false; tick(0.1)
+  check("dread: turning the option off hides it at once", not w.visible)
+  settings.nightmare_dread = nil
+  -- the screen follows the darkness option too; while it lasts the world is grey (the game's last-wound look)
+  settings.nightmare_fog_strength = 100
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 306, drawn = true, drawn_age = 0.1 })
+  for _ = 1, 30 do tick(0.1) end
+  check("dread: at 100 percent darkness the veil is almost black", w.style.veil.color[1] > 200, w.style.veil.color[1])
+  settings.nightmare_fog_strength = nil
+  for _ = 1, 80 do tick(0.1) end
+  local added, rw_flag = {}, nil
+  local saved_managers, saved_su = Managers, ScriptUnit
+  Managers = Managers or {}
+  ScriptUnit = ScriptUnit or { has_extension = function() return nil end }
+  local saved_player, saved_time = Managers.player, Managers.time
+  local me = { name = "me" }
+  Managers.player = { local_player_safe = function() return { player_unit = me } end }
+  Managers.time = { has_timer = function() return true end, time = function() return 7 end }
+  local saved_has = ScriptUnit.has_extension
+  ScriptUnit.has_extension = function(u, name) if u == me and name == "mood_system" then return { _add_mood = function(_, t, m) added[#added + 1] = { t, m } end } end return saved_has(u, name) end
+  current_view = view_of({ hand = night_hand(), win = 1, hand_seq = 307, drawn = true, drawn_age = 0.1 })
+  tick(0.1)
+  check("dread: a Nightmare draw turns this player's world grey (the last-wound look) and says so to the mood hook", added[1] and added[1][2] == "last_wound" and mod.rw.dread_active == true)
+  for _ = 1, 90 do tick(0.1) end
+  check("dread: when it is over the grey world ends", mod.rw.dread_active == false)
+  ScriptUnit.has_extension, Managers.player, Managers.time = saved_has, saved_player, saved_time
+  Managers, ScriptUnit = saved_managers, saved_su
+  check("dread: the envelope rises, holds and fades", Dread.envelope(0.4) > 0.4 and Dread.envelope(0.4) < 0.6 and Dread.envelope(3) == 1 and Dread.envelope(7) > 0 and Dread.envelope(7) < 0.5 and Dread.envelope(Dread.DURATION) == 0 and Dread.envelope(-1) == 0)
 end
 
 -- the window of the last fulfilled card (ui/hud_element_last_card.lua)
@@ -930,7 +1181,8 @@ do
     end
   end
   check("last card: one movable node (custom_hud lists every non-root node), one widget, every pass starts hidden, only fonts that exist", sg_nodes == 1 and LastDefs.scenegraph_definition.panel ~= nil and LastDefs.widget_definitions.last ~= nil and hidden and fonts_known, sg_nodes)
-  check("last card: the node sits to the right of the Spread and reserves a compact card face", LastDefs.scenegraph_definition.panel.position[1] >= 610 + 700 and LastDefs.scenegraph_definition.panel.size[1] == 176 and LastDefs.scenegraph_definition.panel.size[2] == 250)
+  -- (2026-10-04: the card "in the hand" of the design page, 240 wide)
+  check("last card: the node sits to the right of the Spread and reserves the hand card (240 x 160)", LastDefs.scenegraph_definition.panel.position[1] >= 610 + 700 and LastDefs.scenegraph_definition.panel.size[1] == 240 and LastDefs.scenegraph_definition.panel.size[2] == 160)
 
   settings.hud_last_card, settings.hud_enabled, settings.tarot_font = nil, nil, nil
   local el = new_last()
@@ -943,12 +1195,22 @@ do
   current_view = last_view(tower, 1, 5.9)
   last_frame(el)
   check("last card: the window shows when a card went out: caption, how long ago (rounded down), name, whisper in quotes, modifiers hidden", w.visible and w.content.kicker == "HUD_LAST_CARD" and w.content.age == "hud_last_ago:0:05" and w.content.name == "The Tower" and w.content.whisper == "\"Pop, pop, pop.\"" and w.content.mods == "" and not w.style.mods.visible, tostring(w.content.age))
-  check("last card: the card takes its suit's colours (blight: face #25240c, bar #e3cf4a, name #ebe6bf) and the window's frame is the suit's", w.style.card_bg.color[2] == 0x25 and w.style.card_bg.color[3] == 0x24 and w.style.card_accent.color[2] == 0xe3 and w.style.name.text_color[2] == 0xeb and w.style.win_t.color[2] == 0x3a and w.style.win_l.color[3] == 0x44 and w.style.bg.color[2] == 10)
+  check("last card: the card takes its suit's colours (blight: face #25240c, bar #e3cf4a, name #ebe6bf); no window around it", w.style.card_bg.color[2] == 0x25 and w.style.card_bg.color[3] == 0x24 and w.style.card_accent.color[2] == 0xe3 and w.style.name.text_color[2] == 0xeb and not w.style.win_t.visible and not w.style.win_l.visible and not w.style.bg.visible)
   check("last card: the card has an outline of its own in the suit's frame colour (blight #5c5a1e), the window a neutral line and a panel darker than any card", w.style.rare_t.visible and w.style.rare_t.color[2] == 0x5c and w.style.rare_t.color[3] == 0x5a and w.style.rare_t.size[2] == 1 and w.style.rare_l.size[1] == 1)
-  check("last card: a card is 176 wide, the node 176 wide and as tall as its content, the card inside it", w.style.card_bg.size[1] == 176 and w.style.card_bg.offset[1] == 0 and w.style.card_bg.offset[2] == 24 and w.style.bg.size[1] == 176 and not w.style.bg.visible and not w.style.win_b.visible)
+  check("last card: the card is 240 wide under the caption, the accent bar on its left, as tall as its content", w.style.card_bg.size[1] == 240 and w.style.card_bg.offset[1] == 0 and w.style.card_bg.offset[2] == 22 and w.style.card_accent.size[1] == Spread.ACCENT_WIDTH and w.style.card_accent.size[2] == w.style.card_bg.size[2] and w.style.card_bg.size[2] < 120 and not w.style.win_b.visible)
+  do
+    local L = LastDefs.LAYOUT
+    local bg, nm, wh = w.style.card_bg, w.style.name, w.style.whisper
+    local icon_x = math.huge
+    for i = 1, Spread.ICON_TRIS do local st = w.style["icon_t" .. i]; if st.visible then icon_x = math.min(icon_x, st.offset[1]) end end
+    for i = 1, Spread.ICON_CIRCS do local st = w.style["icon_c" .. i]; if st.visible then icon_x = math.min(icon_x, st.offset[1]) end end
+    check("last card: the name at the top left after the bar, the suit mark at the top right (no ring, no disc)", nm.offset[1] == Spread.ACCENT_WIDTH + L.pad_x and nm.offset[2] == bg.offset[2] + L.pad_y and nm.font_size == L.name_font and icon_x >= nm.offset[1] + nm.size[1] and icon_x < 240 and not w.style.sigil_ring.visible and not w.style.sigil_disc.visible)
+    check("last card: the diamonds under the name, the whisper under them, inside the card and drawn over its face", w.style.th_o1.offset[2] > nm.offset[2] + nm.size[2] - 6 and wh.offset[2] > w.style.th_o1.offset[2] and wh.offset[2] + wh.size[2] <= bg.offset[2] + bg.size[2] and wh.offset[3] > bg.offset[3] and wh.font_size == L.whisper_font)
+    check("last card: an ordinary card's whisper is muted", wh.text_color[2] == 0x98 and wh.text_color[3] == 0x93)
+  end
   local ok_in, why_in = inside(el)
   check("last card: nothing is drawn outside the node", ok_in, why_in)
-  check("last card: threat diamonds are filled up to the threat in its colour (3: light yellow) and the rest dimmed; one dot per enemy colour", w.style.th_o3.color[2] == 227 and w.style.th_o3.color[1] == 255 and w.style.th_o4.visible and w.style.th_o4.color[1] == 64 and (function() local n = 0 for j = 1, 6 do if w.style["dot_" .. j].visible then n = n + 1 end end return n == 2 end)())
+  check("last card: threat diamonds are filled up to the threat in its colour (3: light yellow), the rest outlines; one dot per enemy colour at the right", w.style.th_o3.color[2] == 227 and w.style.th_o3.color[1] == 255 and w.style.th_o4.visible and w.style.th_o4.color[1] == 40 and w.style.th_h4.color[1] == 120 and w.style.dot_2.offset[1] + w.style.dot_2.size[1] <= 240 - LastDefs.LAYOUT.pad_x + 0.01 and (function() local n = 0 for j = 1, 6 do if w.style["dot_" .. j].visible then n = n + 1 end end return n == 2 end)())
   check("last card: the suit mark is drawn (blight: a drop of triangles and circles) and an ordinary card does not glow", (function() local any = false for i = 1, Spread.ICON_TRIS do if w.style["icon_t" .. i].visible then any = true end end for i = 1, Spread.ICON_CIRCS do if w.style["icon_c" .. i].visible then any = true end end return any end)() and not w.style.glow.visible)
   audit_ok("last card", el)
 
@@ -968,26 +1230,45 @@ do
   -- Heresy: the frame at rest and the glow, as in the Spread
   current_view = last_view(lc("h", "The Turncoat", "heresy", 4, { "renegade_shocktrooper" }, "He does not answer."), 3, 1)
   last_frame(el)
-  check("last card: a Heresy card keeps its blood-red frame (two units) and its glow that smoulders in the window too, and the window's own line stays neutral", w.style.rare_t.visible and w.style.rare_t.size[2] == 2 and w.style.rare_t.color[2] == 0xa3 and w.style.glow.visible and w.style.glow.color[2] == 0xa3 and w.style.win_t.color[2] == 0x3a and w.style.card_bg.color[2] == 0x14)
+  check("last card: a Heresy card keeps its blood-red frame (two units) and its glow, and there is no window line", w.style.rare_t.visible and w.style.rare_t.size[2] == 2 and w.style.rare_t.color[2] == 0x8a and w.style.glow.visible and w.style.glow.color[2] == 0x8a and not w.style.win_t.visible and w.style.card_bg.color[2] == 0x0d)
+  check("last card: Heresy's whisper is in its crimson", w.style.whisper.text_color[2] == 0xd4 and w.style.whisper.text_color[3] == 0x2a)
   current_view = last_view(lc("f", "Old Pox", "fester", 2, {}, ""), 4, 1)
   last_frame(el)
-  check("last card: a card an older host calls fester is Heresy", w.style.card_bg.color[2] == 0x14 and w.style.rare_t.visible and w.style.whisper.visible == false and w.style.mods.visible == false)
+  check("last card: a card an older host calls fester is Heresy", w.style.card_bg.color[2] == 0x0d and w.style.rare_t.visible and w.style.whisper.visible == false and w.style.mods.visible == false)
   audit_ok("last card (heresy)", el)
 
   -- a three-line name, the longest whisper and modifiers: everything still fits the node
   current_view = last_view(lc("m", "The Watching Moon", "murmur", 2, { "renegade_sniper", "chaos_poxwalker" }, "Someone is counting you, forever.", "Purple \194\183 Enraged \194\183 Custom"), 5, 12)
   last_frame(el)
   local ok_in2, why_in2 = inside(el)
-  check("last card: a three-line name with a two-line whisper fits inside the card face", ok_in2 and w.style.bg.size[2] <= LastDefs.HEIGHT and w.style.whisper.visible and not w.style.mods.visible and w.style.whisper.offset[2] + w.style.whisper.size[2] <= w.style.card_bg.offset[2] + w.style.card_bg.size[2], why_in2)
+  check("last card: a long name (two lines at most) with a two-line whisper fits inside the card face and the node", ok_in2 and w.style.card_bg.offset[2] + w.style.card_bg.size[2] <= LastDefs.HEIGHT and w.style.name.size[2] <= 2 * LastDefs.LAYOUT.name_line + 4 and w.style.whisper.visible and not w.style.mods.visible and w.style.whisper.offset[2] + w.style.whisper.size[2] <= w.style.card_bg.offset[2] + w.style.card_bg.size[2], why_in2)
 
   current_view = last_view(lc("long-mods", "The Watching Moon", "murmur", 2, {}, "Someone is counting you, forever.", string.rep("Enraged ", 12)), 51, 12)
   last_frame(el)
   check("last card: long modifier lists remain hidden", not w.style.mods.visible and w.content.mods == "" and w.style.card_bg.offset[2] + w.style.card_bg.size[2] <= LastDefs.HEIGHT)
 
-  for i,suit in ipairs({"heresy","prayer","miracle","grace"}) do
+  for i,suit in ipairs({"heresy","prayer","miracle","grace","faith"}) do
     local card=lc("bless-"..i,"The Light",suit,6,{},"Carry the light.","Purple")
     current_view=last_view(card,60+i,1);last_frame(el)
-    check("last card: full special face and DESPAIR "..suit,w.style.th_o6.visible and w.style.th_h6.color[2]==0xc7 and w.style.sigil_ring.visible and not w.style.mods.visible and not w.style.bg.visible and inside(el))
+    check("last card: full special face and the sixth diamond's edge (DESPAIR lilac on Heresy, APOTHEOSIS warm white on blessings), no dots without enemies "..suit,w.style.th_o6.visible and w.style.th_h6.color[2]==(suit=="heresy" and 0xc7 or 0xff) and not w.style.sigil_ring.visible and not w.style.dot_1.visible and not w.style.mods.visible and not w.style.bg.visible and inside(el))
+  end
+  do
+    local card=lc("faith-w","The Magician","faith",3,{},"Believe, and endure.")
+    current_view=last_view(card,70,1);last_frame(el)
+    check("last card: only Heresy colours its whisper (Faith's is muted, as on the design page)",w.style.whisper.text_color[2]==0x98)
+  end
+  do
+    local card=lc("fog","The Dark","nightmare",6,{},"It was never a dream.")
+    current_view=last_view(card,90,1);last_frame(el)
+    local most, inside = 0, true
+    for k=1,600 do
+      LastElement.update(el, 1/60, 0, nil, nil, nil)
+      most=math.max(most, w.style.fog_veil.visible and w.style.fog_veil.color[1] or 0)
+      for j=1,3 do local b=w.style["fog_"..j]; if b.visible and (b.offset[2] < w.style.card_bg.offset[2]-0.01 or b.offset[2]+b.size[2] > w.style.card_bg.offset[2]+w.style.card_bg.size[2]+0.01) then inside=false end end
+    end
+    check("last card: a Nightmare card's black fog comes and goes in the window too, inside the card",most>100 and inside,most)
+    current_view=last_view(lc("clear","The Fool","swarm",1,{},"x"),91,1);last_frame(el)
+    check("last card: the fog is gone with the next card",not w.style.fog_veil.visible and not w.style.fog_1.visible)
   end
   settings.hud_last_transparency=75;settings.hud_transparency=0;last_frame(el)
   check("last card: independent transparency changes without new card",w.alpha_multiplier==0.25)

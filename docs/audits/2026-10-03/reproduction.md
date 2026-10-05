@@ -101,7 +101,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[3]
 OUT = Path(__file__).resolve().parent
-BASE = ROOT / 'scripts/mods/RealmsWaves'
+BASE = ROOT / 'scripts/mods/GrandfathersTarot'
 
 def command(*args, cwd=ROOT):
     p = subprocess.run(args, cwd=cwd, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=120)
@@ -122,11 +122,11 @@ def baseline():
             'source_status': command('git', 'status', '--short', '--branch', cwd=source),
             'source_latest': command('git', 'ls-remote', 'origin', 'HEAD', cwd=source),
             'references': {}}
-    for name, path in [('BetterInventory', ROOT.parent/'BetterInventory'), ('supplied', ROOT.parent/'RealmsWaves_updated')]:
+    for name, path in [('BetterInventory', ROOT.parent/'BetterInventory'), ('supplied', ROOT.parent/'GrandfathersTarot_updated')]:
         data['references'][name] = {'revision': command('git', 'rev-parse', 'HEAD', cwd=path),
                                     'status': command('git', 'status', '--porcelain=v1', cwd=path),
                                     'tracked_hashes': {p: hashlib.sha256((path/p).read_bytes()).hexdigest() for p in command('git','ls-files',cwd=path)['stdout'].splitlines()}}
-    for name in ('Realms', 'SoloPlay', 'dmf', 'RealmsWaves'):
+    for name in ('Realms', 'SoloPlay', 'dmf', 'GrandfathersTarot'):
         path = ROOT.parent.parent/'mods'/name
         data['references']['installed_'+name] = {'path':str(path), 'hashes':hashes(path)}
         if (path/'info.json').exists():
@@ -271,7 +271,7 @@ for i=1,20 do Director.update(0.2) end
 AUDIT_EMIT('pause_repeat',{paused=Director.is_paused(),countdown_before=countdown,countdown_after=Director.view().remaining,spawned=spawned_count,jobs=Execute.status().jobs})
 
 reset()
-local actual_entry=load('RealmsWaves')
+local actual_entry=load('GrandfathersTarot')
 mod.rw.director=Director; Execute.start_wave({name='disabled',parts=Groups.parse('2 hounds')})
 mod.update(0.2)
 AUDIT_EMIT('disabled_update',{is_enabled=mod:is_enabled(),spawned=spawned_count,on_disabled_exists=type(mod.on_disabled)=='function'})
@@ -450,7 +450,7 @@ local function count(t) local n=0 for _ in pairs(t or {}) do n=n+1 end return n 
 local baseline
 for i=1,100 do
  active={}; for _,key in ipairs(helper_names) do active[key]=prototype[key] end
- dofile(BASE..'/RealmsWaves.lua'); active.on_all_mods_loaded()
+ dofile(BASE..'/GrandfathersTarot.lua'); active.on_all_mods_loaded()
  weak[active]=true
  active.on_unload()
  -- DMF on_reload restores the engine hook originals and removes custom views.
@@ -495,7 +495,7 @@ cases = [
  ('stale_drag_target', 'ui/wave_editor_deck.lua', '-- let go: swap with the tile it is over (the pointer where it was last seen), or go back\n\t\tlocal target = self:_tile_slot_at(x, y)', '-- let go: scratch mutation\n\t\tlocal target = drag.target', 'editor_test.py'),
  ('equal_value_reset', 'spawn/tuning.lua', 'record.recomputed = true', 'record.recomputed = false', 'logic_test.py'),
  ('obsolete_tuning_hook', 'spawn/tuning.lua', 'Tuning.retire = function ()\n\tTuning.dead = true', 'Tuning.retire = function ()\n\tTuning.dead = false', 'logic_test.py'),
- ('omit_unload_reset', 'RealmsWaves.lua', '\t\tRW.execute.reset()', '\t\tdo end -- scratch: omit executor reset', 'entry_test.py'),
+ ('omit_unload_reset', 'GrandfathersTarot.lua', '\t\tRW.execute.reset()', '\t\tdo end -- scratch: omit executor reset', 'entry_test.py'),
 ]
 results=[]
 for name, relative, original, replacement, suite in cases:
@@ -533,7 +533,7 @@ unpack=unpack or table.unpack
 cjson={null={}}
 Network={peer_id=function() return 'host' end}
 Managers.connection={is_host=function() return true end,is_client=function() return false end}
-mod.get_name=function() return 'RealmsWaves' end
+mod.get_name=function() return 'GrandfathersTarot' end
 mod.is_enabled=function() return true end
 mod.pcall=function(self,fn,...) return pcall(fn,...) end
 local handlers={}; local attempts,delivered={},{}
@@ -550,8 +550,8 @@ local SC={is_available=function() return true end,register_protocol=function() e
  end}
 local MN=dofile(MODROOT_REALMS..'/scripts/mods/Realms/core/mod_network.lua')
 MN.install(SC); MN.register(mod,'rw_scales',function() end)
-handlers.mod_network_manifest(1,'good',{rpcs={RealmsWaves={'rw_scales'}}})
-handlers.mod_network_manifest(2,'failed',{rpcs={RealmsWaves={'rw_scales'}}})
+handlers.mod_network_manifest(1,'good',{rpcs={GrandfathersTarot={'rw_scales'}}})
+handlers.mod_network_manifest(2,'failed',{rpcs={GrandfathersTarot={'rw_scales'}}})
 local broadcast_ok=MN.send(mod,'rw_scales','others',{{1,130}})
 AUDIT_EMIT('realms_partial_broadcast',{success=broadcast_ok,attempts=attempts,delivered=delivered})
 attempts={};delivered={}
@@ -586,12 +586,12 @@ live.buffs.stats.melee_attack_speed=1;hooks['MinionBuffExtension._update_stat_bu
 local before_stop=live.buffs.stats.melee_attack_speed
 Director.stop();live.buffs.stats.melee_attack_speed=1;hooks['MinionBuffExtension._update_stat_buffs_and_keywords!'](live.buffs)
 AUDIT_EMIT('stop_stat_recompute',{initial=initial,before_stop=before_stop,after_stop=live.buffs.stats.melee_attack_speed,alive=ALIVE[live]})
-reset();local entry=load('RealmsWaves');mod.rw.director=Director
+reset();local entry=load('GrandfathersTarot');mod.rw.director=Director
 local enabled=true;mod.is_enabled=function() return enabled end
-mod.get_name=function() return 'RealmsWaves' end
+mod.get_name=function() return 'GrandfathersTarot' end
 mod.get_internal_data=function() return false end
 mod.disable_all_hooks=function() end;mod.enable_all_hooks=function() end
-local dmf={mods={RealmsWaves=mod},mods_unloading_order={'RealmsWaves'},get=function() return nil end,set=function() end,
+local dmf={mods={GrandfathersTarot=mod},mods_unloading_order={'GrandfathersTarot'},get=function() return nil end,set=function() end,
  safe_call_nr=function(owner,label,fn,...) return fn(...) end,
  set_internal_data=function(owner,key,v) if key=='is_enabled' then enabled=v end end,
  inject_hud_elements=function() end,remove_injected_hud_elements=function() end}

@@ -1,7 +1,7 @@
 import sys, os
 from lua_test_runtime import LuaRuntime
 
-ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "mods", "RealmsWaves")
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "mods", "GrandfathersTarot")
 lua = LuaRuntime(unpack_returned_tuples=True)
 
 harness = r'''
@@ -18,7 +18,7 @@ mod.echo = function(self, fmt, ...) echoes[#echoes+1] = string.format(fmt, ...) 
 mod.warning = function(self, fmt, ...) echoes[#echoes+1] = "WARN " .. string.format(fmt, ...) end
 mod.error = mod.warning
 mod.localize = function(self, id, ...) if select("#", ...) > 0 then return id .. ":" .. table.concat({...}, ",") end return id end
-mod.io_dofile = function(self, path) return dofile(ROOT .. "/../../../" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
+mod.io_dofile = function(self, path) return dofile(ROOT .. "/../../../" .. path:gsub("^GrandfathersTarot/", "") .. ".lua") end
 get_mod = function(name) return mod end
 
 local is_server = true
@@ -540,6 +540,152 @@ do
   Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
 end
 
+-- the card's sound is an ALERT (2026-10-04): it plays the moment the card is picked and the wave spawns when it ends; NIGHTMARE is
+-- played once per game ---------------------------------------------------------------------------------------------------------------
+do
+  local keys = Events.keys()
+  local Snd = load("catalog/sounds")
+  local function only(list) for _, k in ipairs(keys) do settings["on_" .. k] = false end for _, e in ipairs(list) do settings["on_" .. e[1]] = true; settings["pct_" .. e[1]] = 5; settings["cd_" .. e[1]] = 0 end end
+  local function start()
+    started_waves = {}; started_defs = {}
+    Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01)
+  end
+  local function skip() Director.skip(); Director.update(0.01) end
+  local alerts, job = {}, nil
+  Director.effects = { snapshot = function() return nil end, receive = function() end, alert = function(text) alerts[#alerts + 1] = text; if Snd.has(text) then job = { done = false }; return job end return nil end }
+  is_server = true
+  settings.tarot_cards = 1; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100; settings.interval_random = false; settings.initial_delay = 0
+  only({ { "wave_medium" } })
+  local event = Snd.EVENTS[100]
+  settings.snd_wave_medium = event
+  start(); skip()
+  check("alert: the picked card's sound plays at once and its wave waits for it", alerts[#alerts] == event and #started_waves == 0 and Director.held_count() == 1 and Director.view().last ~= nil)
+  Director.update(5)
+  check("alert: while the sound plays the wave still waits", #started_waves == 0 and Director.held_count() == 1)
+  job.done = true; Director.update(0.1)
+  check("alert: the wave spawns when the sound has ended", #started_waves == 1 and Director.held_count() == 0)
+  Director.update(31); skip(); Director.update(19) -- (a card rests at least 30 s after it is drawn)
+  check("alert: a sound that never ends holds its wave at most 20 seconds", #started_waves == 1 and Director.held_count() == 1)
+  Director.update(1.5)
+  check("alert: ...then the wave goes anyway", #started_waves == 2 and Director.held_count() == 0)
+  Director.update(31); skip(); Director.pause(true); job.done = true; Director.update(2)
+  check("alert: a paused game keeps the wave held even when the sound is over", #started_waves == 2 and Director.held_count() == 1)
+  Director.pause(false); Director.update(0.1)
+  check("alert: ...and lets it go on resume", #started_waves == 3)
+  Director.update(31); skip()
+  check("alert: stop drops a held wave (it never spawns)", Director.held_count() == 1 and Director.stop() == true and Director.held_count() == 0 and (function() Director.update(30); return #started_waves == 3 end)())
+  settings.snd_wave_medium = nil
+  start(); skip()
+  check("alert: a card without a sound spawns at once", #started_waves == 1 and Director.held_count() == 0)
+
+  -- Nightmare: one card per game; all its cards leave the draw once one went out, until the next mission
+  only({ { "wave_medium" }, { "wave_small" } })
+  settings.su_wave_medium = "nightmare"; settings.su_wave_small = "swarm"
+  settings.on_wave_small = false
+  start(); skip()
+  check("nightmare: a Nightmare card can be drawn and its wave goes out", started_waves[1] ~= nil and Director.spent_once("nightmare") == true)
+  skip(); Director.update(0.01)
+  check("nightmare: with only Nightmare cards in the deck nothing else is dealt after it (the draw is empty)", #started_waves == 1)
+  settings.on_wave_small = true
+  for _ = 1, 6 do Director.update(31); skip() end
+  local only_swarm = true
+  for i = 2, #started_defs do if started_defs[i].suit == "nightmare" then only_swarm = false end end
+  check("nightmare: the other cards keep coming, never a Nightmare again this game", #started_waves >= 4 and only_swarm, #started_waves)
+  start()
+  check("nightmare: the next mission has its Nightmare back", Director.spent_once("nightmare") == false)
+  settings.mode = "random"; settings.on_wave_small = false; start(); Director.update(150)
+  check("nightmare: the random mode fires it once too, then marks it spent", #started_waves == 1 and Director.spent_once("nightmare") == true)
+  Director.update(150)
+  check("nightmare: ...and finds nothing else to send", #started_waves == 1)
+  settings.mode = nil
+  for _, k in ipairs(keys) do settings["on_" .. k] = nil; settings["pct_" .. k] = nil; settings["cd_" .. k] = nil end
+  settings.su_wave_medium, settings.su_wave_small = nil, nil
+  settings.tarot_cards, settings.tarot_seconds, settings.interval_min, settings.interval_max, settings.interval_random, settings.initial_delay = nil, nil, nil, nil, nil, nil
+  Director.effects = nil
+  Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
+end
+
+-- /gt_test plays the card's sound first; /gt_drawtest and /gt_fulltest stage a draw (2026-10-04) -----------------------------------
+do
+  local keys = Events.keys()
+  local Snd = load("catalog/sounds")
+  local function only(list) for _, k in ipairs(keys) do settings["on_" .. k] = false end for _, e in ipairs(list) do settings["on_" .. e] = true; settings["pct_" .. e] = 5; settings["cd_" .. e] = 0 end end
+  local function start()
+    started_waves = {}; started_defs = {}
+    Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01)
+  end
+  local alerts, job = {}, nil
+  Director.effects = { snapshot = function() return nil end, receive = function() end, alert = function(text) alerts[#alerts + 1] = text; if Snd.has(text) then job = { done = false }; return job end return nil end }
+  is_server = true
+  settings.tarot_cards = 3; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100; settings.interval_random = false; settings.initial_delay = 0
+  only({ "wave_small", "wave_medium", "wave_large", "wave_huge" })
+  local event = Snd.EVENTS[100]
+  settings.snd_wave_medium = event; settings.su_wave_medium = "nightmare"
+  start()
+
+  -- /gt_test: the sound first, then the wave; a test spends no once-per-game suit and is released even when the cycle is stopped
+  local ok, note = Director.fire_now("wave_medium")
+  check("rw_test: the card's sound plays first and its wave waits for it", ok and alerts[#alerts] == event and #started_waves == 0 and Director.held_count() == 1)
+  job.done = true; Director.update(0.1)
+  check("rw_test: the wave spawns when the sound ends; a test does not use up Nightmare", #started_waves == 1 and Director.spent_once("nightmare") == false)
+  local ok2, note2 = Director.fire_now("wave_medium", { close = true })
+  check("rw_test_close: the same, and it says it waits for the sound", ok2 and tostring(note2):find("when its sound ends", 1, true) ~= nil and #started_waves == 1)
+  Director.pause(true); job.done = true; Director.update(0.1)
+  check("rw_test: a test wave goes out even while the waves are paused", #started_waves == 2)
+  Director.pause(false)
+
+  -- /gt_drawtest: three cards, the named one picked 3 s later; nothing sent, nothing heard, no cooldown
+  started_waves = {}; local alerts_before = #alerts
+  Director.update(10)
+  local remaining_before = Director.view().remaining
+  local okd, name = Director.stage_draw("wave_medium", false)
+  local v = Director.view()
+  check("drawtest: a hand of three is dealt with the named card in it", okd and v.hand ~= nil and #v.hand == 3 and v.phase == "hand", tostring(name))
+  local named_in_hand = false
+  for _, c in ipairs(v.hand or {}) do if c.key == "wave_medium" then named_in_hand = true end end
+  check("drawtest: the named card is one of them, and the winner", named_in_hand and v.hand[v.win].key == "wave_medium")
+  check("drawtest: a second staged draw waits for the first", not Director.stage_draw("wave_small", false))
+  Director.update(1.5)
+  check("drawtest: not picked before 3 s", Director.view().drawn ~= true)
+  Director.update(1.6)
+  v = Director.view()
+  check("drawtest: after 3 s it is drawn as in play (the Spread shows it, the Last Card holds it)", v.drawn == true and v.hand[v.win].key == "wave_medium" and v.last ~= nil and v.last.key == "wave_medium")
+  check("drawtest: no sound, no wave, no cooldown, Nightmare not spent", #alerts == alerts_before and #started_waves == 0 and Director.held_count() == 0 and (Director.cooldown_map().wave_medium or 0) == 0 and Director.spent_once("nightmare") == false)
+  check("drawtest: the countdown goes on where it was", math.abs(Director.view().remaining - remaining_before) < 4, Director.view().remaining .. " vs " .. remaining_before)
+
+  -- /gt_fulltest: the same draw, then the sound and the wave
+  Director.update(5)
+  local okf = Director.stage_draw("wave_medium", true)
+  Director.update(3.1)
+  check("fulltest: picked after 3 s, its sound plays at once and the wave waits for it", okf and alerts[#alerts] == event and #started_waves == 0 and Director.held_count() == 1 and Director.view().last.key == "wave_medium")
+  job.done = true; Director.update(0.1)
+  check("fulltest: then the wave spawns; still no cooldown and no Nightmare spent", #started_waves == 1 and (Director.cooldown_map().wave_medium or 0) == 0 and Director.spent_once("nightmare") == false)
+
+  check("stage: an unknown card is refused with the finder's message", not Director.stage_draw("no such card at all", false))
+  Director.pause(true)
+  check("stage: refused while the waves are paused", not Director.stage_draw("wave_medium", false))
+  Director.pause(false)
+  is_server = false
+  check("stage: only the host can stage a draw", not Director.stage_draw("wave_medium", false))
+  is_server = true
+  Director.stop()
+  check("stage: refused while the waves are stopped", not Director.stage_draw("wave_medium", false))
+
+  -- in the vote mode the staged draw shows, then the vote goes on with its own state
+  settings.mode = "vote"; start(); Director.update(1)
+  local ballot = Director.view().ballot_id
+  check("stage (vote mode): the draw shows as a hand", Director.stage_draw("wave_medium", false) and Director.view().mode == "tarot")
+  Director.update(3.1)
+  check("stage (vote mode): after the pick the vote's own state comes back", Director.view().mode == "vote")
+  settings.mode = nil
+
+  for _, k in ipairs(keys) do settings["on_" .. k] = nil; settings["pct_" .. k] = nil; settings["cd_" .. k] = nil end
+  settings.snd_wave_medium, settings.su_wave_medium = nil, nil
+  settings.tarot_cards, settings.tarot_seconds, settings.interval_min, settings.interval_max, settings.interval_random, settings.initial_delay = nil, nil, nil, nil, nil, nil
+  Director.effects = nil
+  Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
+end
+
 -- the last fulfilled card: remembered by the host when a wave of the cycle goes out, synced to the clients, shown by the HUD window -------
 do
   local keys = Events.keys()
@@ -553,7 +699,7 @@ do
     Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01)
     return Director.view()
   end
-  local function skip() Director.skip(); Director.update(0.01) end -- /rw_skip sets the countdown to zero, the pick happens on the next tick
+  local function skip() Director.skip(); Director.update(0.01) end -- /gt_skip sets the countdown to zero, the pick happens on the next tick
   is_server = true
   settings.tarot_cards = 1; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100; settings.interval_random = false; settings.initial_delay = 0
   only({ { "wave_medium", 5, 0 } })
@@ -584,7 +730,7 @@ do
   local seq = Director.view().last_seq
   Director.fire_now("wave_small")
   Director.fire_now("wave_small", { close = true })
-  check("last card: /rw_test and /rw_test_close do not change it", Director.view().last_seq == seq)
+  check("last card: /gt_test and /gt_test_close do not change it", Director.view().last_seq == seq)
 
   -- sync: the host's state carries it, a client shows it
   Director.update(2)
@@ -919,7 +1065,7 @@ do
   local stopped = count_pulse()
   for _ = 1, 30 do Director.update(1) end
   check("timer: ...for good", count_pulse() == stopped)
-  check("timer: /rw_status counts timed waves", Director.timed_wave_count() == 0)
+  check("timer: /gt_status counts timed waves", Director.timed_wave_count() == 0)
   settings.on_custom_1 = true; settings.ev_custom_1 = 20
   for _ = 1, 2 do Director.update(1) end
   check("timer: re-enabled -> running again", Director.timed_wave_count() == 1)
@@ -936,7 +1082,7 @@ do
   settings.interval_min, settings.interval_max = 100, 100
   started_waves = {}; started_defs = {}
 end
--- /rw_stop, /rw_pause, /rw_next, anti-snowballing ------------------------------------------------------------------
+-- /gt_stop, /gt_pause, /gt_next, anti-snowballing ------------------------------------------------------------------
 do
   settings.mode = "random"; settings.interval_min = 100; settings.interval_max = 100; settings.initial_delay = 0; settings.vote_duration = 25
   settings.wave_def_custom_1 = "Pulse\t2 hounds"; settings.on_custom_1 = true; settings.ev_custom_1 = 30
@@ -953,7 +1099,7 @@ do
   Director.update(10)
   local r1 = Director.view().remaining
   check("pause: the countdown runs normally first", r0 - r1 > 9.9 and r0 - r1 < 10.1, r0 - r1)
-  check("pause: /rw_pause returns the new state", Director.pause() == true and Director.is_paused() == true)
+  check("pause: /gt_pause returns the new state", Director.pause() == true and Director.is_paused() == true)
   Director.update(40)
   v = Director.view()
   check("pause: the countdown stands still while paused", math.abs(v.remaining - r1) < 0.01 and v.paused == true, v.remaining)
@@ -980,7 +1126,7 @@ do
   Director.update(30)
   check("next: only the host and only with a running cycle", (function() is_server = false; local ok = Director.next_wave(); is_server = true; return ok == false end)())
   local before_waves = #started_waves
-  check("next: /rw_next draws a new wave and a full new timer, spawning nothing for the dropped one", Director.next_wave() == true and Director.view().ballot_id ~= first_ballot and Director.view().remaining > 99 and #started_waves == before_waves and Director.view().phase == "waiting", Director.view().remaining)
+  check("next: /gt_next draws a new wave and a full new timer, spawning nothing for the dropped one", Director.next_wave() == true and Director.view().ballot_id ~= first_ballot and Director.view().remaining > 99 and #started_waves == before_waves and Director.view().phase == "waiting", Director.view().remaining)
   Director.pause(true)
   Director.next_wave()
   check("next: leaves the pause", Director.is_paused() == false)
@@ -988,13 +1134,13 @@ do
   -- stop
   v = fresh()
   Director.update(10)
-  check("stop: /rw_stop works for the host", Director.stop() == true and Director.is_stopped() == true)
+  check("stop: /gt_stop works for the host", Director.stop() == true and Director.is_stopped() == true)
   check("stop: the panel is gone (phase off) and the host sends an 'off' state to the others", Director.view().phase == "off" and sent[#sent].state.p == "off")
   started_waves = {}
   Director.update(200); Director.update(200)
   check("stop: no wave, no vote, no fixed timer while stopped", #started_waves == 0 and Director.timed_wave_count() == 0)
   check("stop: pause/next/skip are refused with a reason while stopped", select(1, Director.pause()) == nil and Director.next_wave() == false)
-  check("stop: /rw_start starts it again", Director.force_start() == true and Director.is_stopped() == false and Director.view().phase == "waiting")
+  check("stop: /gt_start starts it again", Director.force_start() == true and Director.is_stopped() == false and Director.view().phase == "waiting")
   check("stop: a client cannot stop", (function() is_server = false; local ok = Director.stop(); is_server = true; return ok == false end)())
 
   -- anti-snowballing
@@ -1084,6 +1230,7 @@ do
   local function rgb(id) local c = Colors.modifier_rgb(id); return c and table.concat(c, ",") end
   check("modifier colours: without the mod, ITS defaults (purple/garden blue-violet, enraged red, orange, rotten green...)", rgb("garden") == "138,43,226" and rgb("enraged") == "255,54,36" and rgb("bolstering") == "208,136,48" and rgb("rotten") == "132,156,99" and rgb("corrupted") == "128,128,0" and rgb("toughened") == "157,169,75" and rgb("fire") == "160,82,45" and rgb("parasite") == "255,160,122" and rgb("purple_stimm") == "255,242,0", rgb("garden"))
   check("modifier colours: Final Toll uses the enraged red", rgb("toll") == "255,54,36")
+  check("markup: a colour wraps the text in the game's tags; no colour leaves it plain (the card lines use both)", Colors.markup("95%", { 1, 2, 3 }) == "{#color(1,2,3)}95%{#reset()}" and Colors.markup("Party health", nil) == "Party health")
   check("modifier colours: every modifier of the catalog has a colour", (function() for _, m in ipairs(Groups.MODIFIERS) do if not Colors.modifier_rgb(m.id) then return false end end return true end)())
   tags_settings = { encroaching_garden = { 255, 1, 2, 3 }, enraged = "old string value", rotten_armor = { 255, 9 } }
   Colors.clear_cache()
@@ -1220,7 +1367,7 @@ do
   Director.update(95)
   check("cooldown: after the full cooldown the cards are dealt again", Director.view().hand ~= nil and #Director.view().hand >= 1, Director.view().hand and #Director.view().hand)
   check("cooldown: the host can read how long is left", (function() local ok = Director.cooldown_remaining("wave_small", 1000); return type(ok) == "number" end)())
-  -- /rw_pause freezes the cooldown clock too
+  -- /gt_pause freezes the cooldown clock too
   only({ { "wave_small", 5, 100 } })
   v = start(); Director.update(95); Director.update(6)
   Director.pause(true); Director.update(500)
@@ -1262,12 +1409,12 @@ do
   v = start()
   Director.skip()
   Director.update(0.1)
-  check("tarot: /rw_skip while waiting deals a hand and picks at once", #started_defs == 1 and Director.view().drawn == true and #Director.view().hand == 2)
+  check("tarot: /gt_skip while waiting deals a hand and picks at once", #started_defs == 1 and Director.view().drawn == true and #Director.view().hand == 2)
   Director.update(20)
   local before_next = #started_defs
   Director.next_wave()
   v = Director.view()
-  check("tarot: /rw_next throws the hand away without spawning and starts a full new interval", #started_defs == before_next and v.hand == nil and not v.drawn and v.remaining > 99 and v.phase == "waiting")
+  check("tarot: /gt_next throws the hand away without spawning and starts a full new interval", #started_defs == before_next and v.hand == nil and not v.drawn and v.remaining > 99 and v.phase == "waiting")
   settings.interval_min = 6; settings.interval_max = 6
   v = start()
   check("tarot: an interval shorter than 'seconds before the pick' deals at once (the hand is as long as the interval)", Director.view().phase == "hand" and Director.view().hand_seconds <= 6, Director.view().phase)
@@ -1363,7 +1510,7 @@ do
   settings.interval_min = 100; settings.interval_max = 100
   Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
 end
--- /rw_test by name ------------------------------------------------------------------
+-- /gt_test by name ------------------------------------------------------------------
 do
   local get = function(id) return settings[id] end
   local set = function(id, v) settings[id] = v end
@@ -1388,7 +1535,7 @@ do
   -- renaming: the old default name stops matching, the new one matches
   Events.set_def(set, "custom_2", "Dog Party", Groups.parse("6 hounds"), Groups)
   check("find: after a rename the new name works and the old one does not", found("dog_party") == "custom_2" and found("mutants_everywhere") == nil)
-  -- through the director (what /rw_test calls)
+  -- through the director (what /gt_test calls)
   Director.on_exit_gameplay(); Director.on_enter_gameplay()
   started_waves = {}
   local fok, ferr = Director.fire_now("dog party")
@@ -1491,9 +1638,9 @@ local spread_calls = {}
 local cand_calls, cand_fail = 0, false
 local cand_reason, ring_fail, ring_calls = "no hidden points near players", false, 0
 local last_range = nil
-local CS = { calls = 0, fail = false, reason = nil } -- /rw_test_close stub state (one local: the harness chunk is near Lua's limit of 200)
+local CS = { calls = 0, fail = false, reason = nil } -- /gt_test_close stub state (one local: the harness chunk is near Lua's limit of 200)
 local StubPositions = {
-  -- /rw_test_close: the local player's own spot, no cache, facing them
+  -- /gt_test_close: the local player's own spot, no cache, facing them
   close_candidates = function() CS.calls = CS.calls + 1; if CS.fail then return nil, CS.reason end return { "front" } end,
   local_player_unit = function() return "me" end,
   rotation_towards = function(position, unit) return "faces:" .. tostring(unit) end,
@@ -1570,7 +1717,7 @@ spread_calls = {}
 run_wave({ name = "t", parts = Groups.parse("2 hounds") })
 check("execute: no spread configured -> radius 0", #spread_calls == 2 and spread_calls[1] == 0)
 
--- /rw_test_close: right in front of the local player, facing them
+-- /gt_test_close: right in front of the local player, facing them
 do
   Execute.reset(); Bypass.reset()
   CS.calls, cand_calls, ring_calls, spread_calls = 0, 0, 0, {}
@@ -1704,6 +1851,12 @@ do
   dead[crushers[2]] = true
   Tuning.update(0.3)
   check("tuning: dead units are dropped", Tuning.status().tuned == 1 and Tuning.status().sizes_known == 1, Tuning.status().tuned)
+  do
+    local sniper = crushers[2]
+    sniper.buffs.stats.damage = nil
+    Tuning.apply(sniper, { damage = 250 }, "renegade_sniper")
+    check("tuning: damage dealt 250 writes the unit's damage stat x2.5 (what the game's damage calculation reads for every attacker)", sniper.buffs.stats.damage == 2.5, tostring(sniper.buffs.stats.damage))
+  end
   Tuning.send_all("late_peer")
   check("tuning: a player who joins late gets the size of every living unit that has one", sent_scales[#sent_scales].recipient == "late_peer" and #sent_scales[#sent_scales].list == 1 and sent_scales[#sent_scales].list[1][1] == c.gid)
 
@@ -1890,6 +2043,9 @@ do
   check("weakened: the game's own mark stays: a boss with less than its normal health is weakened, one with more is not", ogryn.ext.boss_system._is_weakened == true and not beast.ext.boss_system._is_weakened)
   check("weakened: nothing hooks the boss health bar any more (the 'Weakened' name is the game's), and the old helpers are gone", hooks["HudElementBossHealth.event_boss_encounter_start"] == nil and Tuning.is_health_tuned == nil)
   check("health: when the game already made the exact number nothing is written to the game object", #synced_health == 0)
+  -- On Fire (2026-10-05): a wave's On Fire enemies burn at 35 percent unless their group sets the damage; the others are not marked
+  run_hp("2 poxwalker[fire], 1 plague ogryn[fire]{burn=80}, 1 beast of nurgle")
+  check("on fire: a wave's On Fire enemies get the default 35 percent, a group's own value wins, others are not marked", Tuning.fire_share(first("chaos_poxwalker")) == 0.35 and Tuning.fire_share(first("chaos_plague_ogryn")) == 0.8 and Tuning.fire_share(first("chaos_beast_of_nurgle")) == nil)
 
   run_hp("1 plague ogryn{health=50}", 0.3)
   ogryn = first("chaos_plague_ogryn")
@@ -1934,6 +2090,108 @@ do
   local pox = { ext = { health_system = { _health = 100, max_health = function(self) return self._health end, _game_session = "s", _game_object_id = 7 }, unit_data_system = { breed = function() return { name = "chaos_poxwalker" } end } } }
   synced_health = {}
   check("health: an extreme factor never gives a unit less than 1 health, and the real breed of the unit decides the normal health", Tuning.set_exact_health(pox, "other_breed_name", 0.0001) == 1 and pox.ext.health_system._health == 1 and synced_health[1].value == 1)
+  do
+    local saved_nc = package.loaded["scripts/network_lookup/network_constants"]
+    ;(function ()
+    -- (2026-10-05) no health limit: a unit with more health than the network carries keeps it; the network gets it divided and the
+    -- boss bars show it in bars of the network's limit with "xN" (the user: 490k with a 130k limit shows x3)
+    package.loaded["scripts/network_lookup/network_constants"] = { health_large = { max = 1500 } }
+    check("network: the spawn multiplier stays within what the network carries, the game object is created with it (Plague Ogryn 1000 x 3.5 -> x1.5)", Tuning.network_health_max() == 1500 and Tuning.health_modifier({ health = 350 }, "chaos_plague_ogryn") == 1.5 and Tuning.health_modifier({ health = 120 }, "chaos_plague_ogryn") == 1.2 and Tuning.health_modifier({ health = 350 }) == 3.5)
+    local ogre = { gid = 77, ext = { health_system = { _health = 1000, _damage = 0, max_health = function(self) return self._health end, _game_session = "s", _game_object_id = 77 }, unit_data_system = { breed = function() return { name = "chaos_plague_ogryn" } end } } }
+    local h = ogre.ext.health_system
+    local before_sync, before_echo = #synced_health, #echoes
+    local got = Tuning.set_exact_health(ogre, "chaos_plague_ogryn", 3.5)
+    check("no health limit: 350 percent is 3500 health on the host, nothing is capped or warned", got == 3500 and h._health == 3500 and #echoes == before_echo)
+    check("no health limit: the network gets it divided by 3 (health 1166.7 and damage 0), so it fits", Tuning.network_scale(h) == 3 and #synced_health == before_sync + 2 and synced_health[before_sync + 1].field == "health" and math.abs(synced_health[before_sync + 1].value - 3500 / 3) < 1e-6 and synced_health[before_sync + 2].field == "damage" and synced_health[before_sync + 2].value == 0)
+    h._damage = 1200; Tuning.after_health_write(h)
+    check("no health limit: after a hit the network gets the damage divided (1200 -> 400): the share left that the others read is exact", synced_health[#synced_health].field == "damage" and synced_health[#synced_health].value == 400)
+    h._damage = 9000; Tuning.after_health_write(h)
+    check("no health limit: the damage sent is never more than the health", math.abs(synced_health[#synced_health].value - 3500 / 3) < 1e-6)
+    local n = #synced_health
+    Tuning.after_health_write(pox.ext.health_system); Tuning.after_health_write({})
+    check("no health limit: a unit within the limit is left to the game", #synced_health == n and Tuning.network_scale(pox.ext.health_system) == 1)
+    local saved_gs_set = GameSession.set_game_object_field
+    GameSession.set_game_object_field = function() error("session closed") end
+    local echo_count = #echoes
+    Tuning.after_health_write(h)
+    GameSession.set_game_object_field = saved_gs_set
+    check("no health limit: a failing network write is contained and said", #echoes == echo_count + 1 and echoes[#echoes]:find("could not be sent", 1, true) ~= nil)
+    -- the real maximum, for the other players' boss bars
+    local list = Tuning.health_layer_list()
+    check("state: the host lists the divided units with their real maximum (game object id 77, 3500)", list and #list == 1 and list[1][1] == 77 and list[1][2] == 3500)
+    check("state: the host reads the real maximum of its own unit", Tuning.true_max_health(ogre, h) == 3500 and Tuning.true_max_health(pox, pox.ext.health_system) == nil)
+    Tuning.receive_health_layers({ { 501, 490000 }, { "x", 3 }, { 502, -1 }, { 503, 0 / 0 }, "junk", { 504 } })
+    local husk = { gid = 501 }
+    check("state: a client keeps the real maximum the host sent for that unit, and drops broken entries", Tuning.true_max_health(husk, {}) == 490000 and Tuning.true_max_health({ gid = 502 }, {}) == nil and Tuning.true_max_health({ gid = 503 }, {}) == nil)
+    Tuning.receive_health_layers(nil)
+    check("state: a state without the list (nothing divided, an older host) forgets it", Tuning.true_max_health(husk, {}) == nil)
+    local many = {}
+    for i = 1, 40 do many[i] = { i, 5000 } end
+    Tuning.receive_health_layers(many)
+    check("state: at most 16 units are read", Tuning.true_max_health({ gid = 16 }, {}) == 5000 and Tuning.true_max_health({ gid = 17 }, {}) == nil)
+    Tuning.receive_health_layers(nil)
+    dead[ogre] = true
+    check("state: a dead unit leaves the list", Tuning.health_layer_list() == nil)
+    dead[ogre] = nil
+    -- the bars: 130k each; full bars first, the last one holds what is left over
+    local function layers(max, current) local behind, fraction = Tuning.health_layers(max, current, 130000); return behind, math.floor(fraction * 1000 + 0.5) / 1000 end
+    local b1, f1 = layers(490000, 490000)
+    local b2, f2 = layers(450000, 450000)
+    local b3, f3 = layers(490000, 425000)
+    local b4, f4 = layers(490000, 360000)
+    local b5, f5 = layers(490000, 100000)
+    local b6, f6 = layers(450000, 30000)
+    check("bars: 490k with a 130k limit shows x3 and a full bar; 450k shows x3 too (its last bar is not full)", b1 == 3 and f1 == 1 and b2 == 3 and f2 == 1)
+    check("bars: 65k lost is half the first bar, still x3; 130k lost is the next bar full, x2", b3 == 3 and f3 == 0.5 and b4 == 2 and f4 == 1)
+    check("bars: the last bar holds what is left over (100k of 100k; 30k of 60k), no x", b5 == 0 and f5 == 1 and b6 == 0 and f6 == 0.5)
+    local b7, f7 = Tuning.health_layers(100000, 50000, 130000)
+    local b8, f8 = Tuning.health_layers(0, 0, 130000)
+    local b9, f9 = Tuning.health_layers(490000, -5, 130000)
+    local b10, f10 = Tuning.health_layers(1000, 500, nil)
+    check("bars: within one bar, no health, below zero, no limit known: one plain bar", b7 == 0 and f7 == 0.5 and b8 == 0 and f8 == 0 and b9 == 0 and f9 == 0 and b10 == 0 and f10 == 0.5)
+    -- the boss bar element: the bar it is on, "xN" beside the name, the game's update still runs
+    do
+      local saved_localize, saved_require = Localize, require
+      Localize = function(key) return "loc:" .. tostring(key) end
+      local new_logic = 0
+      package.loaded["scripts/ui/hud/elements/hud_health_bar_logic"] = { new = function() new_logic = new_logic + 1; return { fresh = true } end }
+      package.loaded["scripts/ui/hud/elements/boss_health/hud_element_boss_health_settings"] = {}
+      local real = { pct = 1, current_health_percent = function(self) return self.pct end, max_health = function() return 3500 / 3 end, value = 5 }
+      real.extra = function(self, v) return self == real and v end
+      local target = { unit = { gid = 900 }, health_extension = real, localized_display_name = " loc:loc_weakened_monster_prefix", health_bar_logic = { old = true },
+        boss_extension = { display_name = function() return "loc_breed_plague_ogryn" end, is_empowered = function() return false end }, breed = { name = "chaos_plague_ogryn" } }
+      local plain = { unit = { gid = 901 }, health_extension = { current_health_percent = function() return 0.4 end }, localized_display_name = " Hound" }
+      local element = { _active_targets_array = { target, plain } }
+      Tuning.receive_health_layers({ { 900, 3500 } })
+      local ran = 0
+      Tuning.boss_bar_update(function(self) ran = ran + 1; return "done" end, element)
+      check("boss bar: a divided boss (3500 in bars of 1500) shows x2 and a full bar; its 'Weakened' name from the divided maximum is put right", target.localized_display_name == " loc:loc_breed_plague_ogryn  x2" and target.health_extension:current_health_percent() == 1 and ran == 1)
+      check("boss bar: the bar's other calls still reach the real extension", target.health_extension:extra(7) == 7 and target.health_extension.value == 5 and target.health_extension:max_health() == 3500 / 3)
+      check("boss bar: a boss within the limit is not touched", plain.localized_display_name == " Hound" and plain.health_extension:current_health_percent() == 0.4)
+      real.pct = 2750 / 3500
+      Tuning.boss_bar_update(function() end, element)
+      check("boss bar: 750 lost is half the first bar, still x2, the bar animation kept", target.localized_display_name:sub(-2) == "x2" and math.abs(target.health_extension:current_health_percent() - 0.5) < 1e-9 and target.health_bar_logic.old)
+      real.pct = 1900 / 3500
+      Tuning.boss_bar_update(function() end, element)
+      check("boss bar: on the next bar it shows x1 and starts a fresh bar animation (no ghost from the bar before)", target.localized_display_name == " loc:loc_breed_plague_ogryn  x1" and target.health_bar_logic.fresh and new_logic == 1 and element._force_update == true)
+      real.pct = 400 / 3500
+      Tuning.boss_bar_update(function() end, element)
+      check("boss bar: on the last bar (500 of it) the x goes away", target.localized_display_name == " loc:loc_breed_plague_ogryn" and math.abs(target.health_extension:current_health_percent() - 0.8) < 1e-9)
+      local broken = { _active_targets_array = { { unit = { gid = 900 }, health_extension = { current_health_percent = function() error("gone") end, max_health = function() return 1 end } } } }
+      local echo_before = #echoes
+      check("boss bar: an error in the bars is contained and said; the game's update still runs", Tuning.boss_bar_update(function() return "game" end, broken) == "game" and #echoes == echo_before + 1)
+      Tuning.dead = true
+      local untouched = { _active_targets_array = { { unit = { gid = 900 }, health_extension = real, localized_display_name = "x" } } }
+      Tuning.boss_bar_update(function() end, untouched)
+      Tuning.dead = false
+      check("boss bar: a retired mod leaves the bars alone", untouched._active_targets_array[1].localized_display_name == "x")
+      Tuning.receive_health_layers(nil)
+      Localize = saved_localize
+      package.loaded["scripts/ui/hud/elements/hud_health_bar_logic"], package.loaded["scripts/ui/hud/elements/boss_health/hud_element_boss_health_settings"] = nil, nil
+    end
+    end)()
+    package.loaded["scripts/network_lookup/network_constants"] = saved_nc
+  end
   check("health: exact already -> returns the health, writes nothing", (function() synced_health = {}; return Tuning.set_exact_health(pox, "x", 0.01) == 1 and #synced_health == 0 end)())
 
   do
@@ -2005,7 +2263,7 @@ do
     check("burster: a mission restart forgets every size", seen.normal == normal_template)
   end
 
-  -- ------------------------------------------------------------------ what a tuned shooter read (/rw_tune and the log)
+  -- ------------------------------------------------------------------ what a tuned shooter read (/gt_tune and the log)
   do
     local infos = {}
     mod.info = function(self, fmt, ...) infos[#infos + 1] = string.format(fmt, ...) end
@@ -2186,12 +2444,13 @@ do
 
   -- the handshake of a player who joins: the director gives a late player the sizes, only when versions agree
   do
-    local welcomed, sent_all = {}, {}
+    local welcomed, sent_all, states, got_hl = {}, {}, {}, "none"
     local P3 = {
-      PROTO = 2, VERSION = "2.0.0", is_available = function() return true end, send_state = function() return true end, send_hello = function() end,
+      PROTO = 2, VERSION = "2.0.0", is_available = function() return true end, send_state = function(state) states[#states + 1] = state; return true end, send_hello = function() end,
       send_welcome = function(peer, ok) welcomed[#welcomed + 1] = { peer, ok } end, send_waves = function() return true end,
     }
-    local fake_tuning = { send_all = function(peer) sent_all[#sent_all + 1] = peer end, receive = function() end, update_client = function() end, status = function() return { tuned = 0, sizes_known = 0, unsent = 0, pending = 0 } end }
+    local fake_tuning = { send_all = function(peer) sent_all[#sent_all + 1] = peer end, receive = function() end, update_client = function() end, status = function() return { tuned = 0, sizes_known = 0, unsent = 0, pending = 0 } end,
+      health_layer_list = function() return { { 77, 3500 } } end, receive_health_layers = function(list) got_hl = list end }
     local D3 = load("core/director")
     D3.init({ events = Events, groups = Groups, protocol = P3, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod, cards = CardsMod, tuning = fake_tuning })
     is_server = true
@@ -2215,6 +2474,18 @@ do
     D3.on_welcome("host_peer", 2, "2.0.0", true)
     D3.on_scale("host_peer", { { id = 1, pct = 120 } })
     check("handshake: ...and takes them after a good welcome", got == 1)
+    -- the real maximum health of the units whose health is more than the network carries rides along in the state (`hl`)
+    D3.on_state("host_peer", { p = "waiting", m = "vote", r = 5, b = 1, c = "", k = {}, e = 0, hl = { { 5, 9000 } } })
+    check("state: a client hands the host's list of real maximum health to the custom mods", type(got_hl) == "table" and got_hl[1][2] == 9000)
+    D3.on_state("host_peer", { p = "waiting", m = "vote", r = 5, b = 1, c = "", k = {}, e = 0 })
+    check("state: a state without the list (an older host) clears it", got_hl == nil)
+    local hl_in_state
+    is_server = true
+    D3.on_exit_gameplay(); D3.on_enter_gameplay(); D3.on_mission_started(); D3.update(0.1); D3.update(1.5)
+    D3.on_exit_gameplay()
+    is_server = false
+    for _, st in ipairs(states) do if type(st) == "table" and st.hl then hl_in_state = st.hl end end
+    check("state: the host's state carries the list", hl_in_state and hl_in_state[1][1] == 77 and hl_in_state[1][2] == 3500, #states)
     local D4 = load("core/director")
     D4.init({ events = Events, groups = Groups, protocol = P3, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod, cards = CardsMod })
     is_server = true
@@ -2225,7 +2496,7 @@ do
     check("mods: a director built without the custom-mods module (an older install) still welcomes and ignores sizes", no_tuning_ok and no_tuning_scale)
   end
 
-  -- the animation probe (/rw_anim): which engine functions and which animation variables exist, never an error
+  -- the animation probe (/gt_anim): which engine functions and which animation variables exist, never an error
   do
     local function probe_unit(breed, vars, dead_unit)
       local u = { breed = breed, vars = vars or {}, is_dead = dead_unit }
@@ -2333,6 +2604,10 @@ do
   parts = Groups.parse("1 crusher{gap=40}, 1 mauler{time between attacks 150}, 1 hound{attack delay=60 gap=70}")
   check("tune: the new names (gap, time between attacks, attack delay) are the number as it is, the last one wins", parts[1].tune.gap == 40 and parts[2].tune.gap == 150 and parts[3].tune.gap == 70)
   check("tune: its readable name is 'Time between attacks'", Groups.tune_text({ gap = 50 }) == "Time between attacks 50%")
+  -- (2026-10-05) the On Fire damage is 35 percent unless set: 35 is not stored, 100 (the game's own damage) is
+  parts = Groups.parse("1 hound[fire]{burn=35}, 1 mauler[fire]{burn=100}, 1 crusher[fire]{fire damage 0}")
+  check("tune: On Fire damage's default is 35: burn=35 is nothing, 100 (the game's) and 0 are kept", parts[1].tune == nil and parts[2].tune.burn == 100 and parts[3].tune.burn == 0 and Groups.tune_default("burn") == 35 and Groups.tune_default("health") == 100 and Groups.tune_default("nope") == 100)
+  check("tune: On Fire damage is written and shown only when it is not 35", Groups.tune_recipe({ burn = 100 }) == "burn=100" and Groups.tune_recipe({ burn = 35 }) == "" and Groups.tune_text({ burn = 100 }) == "On Fire damage 100%" and Groups.tune_text({ burn = 35 }) == "")
   parts = Groups.parse("1 crusher{size=999 health=1 speed=100}")
   check("tune: values are clamped to their range (size 300 at most, health 10 at least) and 100 is the same as nothing", parts[1].tune.size == 300 and parts[1].tune.health == 10 and parts[1].tune.speed == nil)
   parts = Groups.parse("1 crusher{}, 1 hound{speed=100}")
@@ -2347,10 +2622,15 @@ do
   check("tune: works on a random group too", parts[1].one_of and #parts[1].one_of == 2 and parts[1].tune.health == 300 and parts[1].mods[1] == "garden")
   check("tune: the readable text lists the changed ones in catalog order", Groups.tune_text({ mass = 200, health = 150 }) == "Health 150%, Hit mass 200%" and Groups.tune_text(nil) == "" and Groups.tune_text({ size = 100 }) == "")
   check("tune: has_tune, copy_tune, clamp_tune", Groups.has_tune(Groups.parse("1 hound, 1 crusher{mass=200}")) and not Groups.has_tune(Groups.parse("1 hound")) and Groups.copy_tune(nil) == nil and Groups.copy_tune({ size = 120 }).size == 120 and Groups.clamp_tune("burst", 1000) == 500 and Groups.clamp_tune("gap", 26.4) == 26 and Groups.clamp_tune("gap", 1000) == 400 and Groups.clamp_tune("gap", 5) == 25)
-  check("tune: nine custom mods, each with a range around 100 and a step", (function()
-    if #Groups.TUNE ~= 9 then return false end
+  check("tune: ten custom mods (damage dealt since 2026-10-04), each with a range around 100 and a step", (function()
+    if #Groups.TUNE ~= 10 then return false end
     for _, def in ipairs(Groups.TUNE) do if not (def.min < 100 and def.max > 100 and def.step > 0 and def.name ~= "") then return false end end
     return true
+  end)())
+  check("tune: damage dealt is read from a recipe and written back, its aliases too", (function()
+    local p = Groups.parse("2 snipers{damage=200}")
+    local q = Groups.parse("2 snipers{dmg=150}")
+    return p and p[1].tune and p[1].tune.damage == 200 and q and q[1].tune and q[1].tune.damage == 150 and Groups.to_recipe(p):find("damage=200", 1, true) ~= nil
   end)())
   check("tune: a card with custom mods says 'Custom' in its modifier line", CardsMod.modifier_line(Groups.parse("2 crushers[enraged]{size=120}"), Groups) == "Enraged \194\183 Custom" and CardsMod.modifier_line(Groups.parse("2 hounds{speed=150}"), Groups) == "Custom" and CardsMod.modifier_line(Groups.parse("2 hounds"), Groups) == "")
 end
@@ -2549,6 +2829,25 @@ do
   check("wave share: a standard wave applied onto another standard wave", Presets.capture_wave(tg, "wave_large", Events, Groups).name == "The Fool")
   local function bad(t) local w, e = Presets.decode_wave(t, Events, Groups); return w == nil and type(e) == "string" and e end
   check("wave share: empty text refused", bad("  ") ~= false)
+  do
+    -- (2026-10-04) a text that goes through a chat app arrives whole: no "~~" (strikethrough), no * _ ` (formatting); a real dot,
+    -- underscore or star in a name or a whisper is escaped; empty fields are "."; texts made before still import
+    store.su_custom_6 = "rage"; store.wh_custom_6 = "I have fire! I have steel. *FIRE_STEEL*"
+    local Sounds = load("catalog/sounds")
+    store.snd_custom_6 = Sounds.EVENTS[100]
+    local chat = Presets.encode_wave(Presets.capture_wave(g, "custom_6", Events, Groups))
+    check("chat-safe export: no ~~, no * _ or ` (a chat app would eat them), empty fields written as a dot", not chat:find("~~", 1, true) and not chat:find("[%*_`]") and chat:find("~.~", 1, true) ~= nil, chat)
+    local back = Presets.decode_wave(chat, Events, Groups)
+    check("chat-safe export: the round trip keeps the whisper with its dot, stars and underscore, the sound and the empty look", back and back.whisper == "I have fire! I have steel. *FIRE_STEEL*" and back.sound == Sounds.EVENTS[100] and back.look == "" and back.suit == "rage", back and back.whisper)
+    local old = "RWW1|custom_6~Old~1~5~120~3~10~60~2 hound~0~0~0~0~rage~5~Old whisper~~1~~"
+    old = Presets.seal(old:sub(1))
+    local old_wave = Presets.decode_wave(old, Events, Groups)
+    check("chat-safe export: a text made before (with ~~) still imports", old_wave and old_wave.name == "Old" and old_wave.whisper == "Old whisper" and old_wave.look == "")
+    local damaged = "RWW1|custom_27~Fire and Steel~1~10~120~3~10~60~10 armored hound[fire]{speed=180}, 6 bomber[enraged], 10 mauler[enraged+fire]~0~0~0~0~rage~5~I have fire! I have steel! FIRESTEEL!1loc_enemy_traitor_enforcer_executor_a__assault_06|b09a"
+    local why = bad(damaged)
+    check("chat-safe export: a text a chat app damaged (its ~~1~~ eaten) is refused with the copy-again message", why and why:find("incomplete or was changed", 1, true) ~= nil, why)
+    store.su_custom_6, store.wh_custom_6, store.snd_custom_6 = nil, nil, nil
+  end
   check("wave share: a whole preset is refused with a pointer to the Presets screen", (bad(Presets.encode({ name = "x", waves = {} })) or ""):find("Presets screen") ~= nil)
   check("wave share: wrong prefix refused", (bad("hello") or ""):find("RWW1") ~= nil)
   check("wave share: altered/cut text refused", (bad(text:sub(1, #text - 5)) or ""):find("incomplete or was changed") ~= nil and (bad(text:sub(1, 20) .. " " .. text:sub(21)) or ""):find("incomplete or was changed") ~= nil)
@@ -2655,7 +2954,7 @@ do
   local Presets = PresetsMod
   local function rec(r) return Groups.parse(r) end
   -- the palette is the reference page's, exactly
-  check("tarot: fifteen suits in order (the six of the reference, then volley, snare, brute, dusk, warp, and HERESY last), every colour a 3-number rgb", #Cards.SUIT_ORDER == 15 and Cards.SUIT_ORDER[7] == "volley" and Cards.SUIT_ORDER[10] == "dusk" and Cards.SUIT_ORDER[11] == "warp" and Cards.SUIT_ORDER[12] == "heresy" and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
+  check("tarot: sixteen suits in order (the six of the reference, then volley, snare, brute, warp, heresy, NIGHTMARE last of the hostile twelve, then the four beneficial ones ending with Faith), every colour a 3-number rgb", #Cards.SUIT_ORDER == 16 and Cards.HOSTILE_COUNT == 12 and Cards.SUIT_ORDER[16] == "faith" and Cards.SUITS.faith.beneficial and Cards.SUIT_ORDER[7] == "volley" and Cards.SUIT_ORDER[10] == "warp" and Cards.SUIT_ORDER[11] == "heresy" and Cards.SUIT_ORDER[12] == "nightmare" and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
   check("tarot: plague suit values from the palette", table.concat(Cards.SUITS.plague.card, ",") == "30,36,19" and table.concat(Cards.SUITS.plague.accent, ",") == "183,194,58" and table.concat(Cards.SUITS.fateful.frame, ",") == "138,122,74" and table.concat(Cards.SUITS.murmur.frame, ",") == "85,96,58")
   check("tarot: threat colours 1..5", table.concat(Cards.THREAT_COLORS[1], ",") == "167,194,124" and table.concat(Cards.THREAT_COLORS[3], ",") == "227,207,74" and table.concat(Cards.THREAT_COLORS[5], ",") == "207,74,48")
   check("tarot: the suit ids of the catalog and of the card module are the same set", (function() for id in pairs(Events.SUITS) do if not Cards.SUITS[id] then return false end end for id in pairs(Cards.SUITS) do if not Events.SUITS[id] then return false end end return true end)())
@@ -2665,16 +2964,45 @@ do
     for _ in pairs(Events.SUITS) do n = n + 1 end
     return n == #Cards.SUIT_ORDER
   end)())
-  check("suits: the new ones have their own whisper, name and mark", Cards.SUITS.volley.whisper == "Something is aiming at you." and Cards.SUITS.snare.whisper == "You cannot run from this." and Cards.SUITS.brute.whisper == "It does not stop for walls." and Cards.SUITS.heresy.whisper == "He does not answer." and Cards.SUITS.heresy.name == "Heresy" and Cards.SUITS.heresy.icon == "heresy" and Cards.SUITS.fester == nil and Cards.SUITS.dusk.whisper == "Do not look away." and Cards.SUITS.warp.whisper == "It knows your name." and Cards.SUITS.warp.name == "Warp" and Cards.SUITS.warp.icon == "warp" and Cards.SUITS.volley.icon == "crosshair")
+  check("suits: the new ones have their own whisper, name and mark", Cards.SUITS.volley.whisper == "Something is aiming at you." and Cards.SUITS.snare.whisper == "You cannot run from this." and Cards.SUITS.brute.whisper == "It does not stop for walls." and Cards.SUITS.heresy.whisper == "He does not answer." and Cards.SUITS.heresy.name == "Heresy" and Cards.SUITS.heresy.icon == "heresy" and Cards.SUITS.fester == nil and Cards.SUITS.dusk == nil and Cards.SUITS.nightmare.whisper == "It was never a dream." and Cards.SUITS.warp.whisper == "It knows your name." and Cards.SUITS.warp.name == "Warp" and Cards.SUITS.warp.icon == "warp" and Cards.SUITS.volley.icon == "crosshair")
+
+  -- NIGHTMARE replaced Dusk (2026-10-04): black on black, special, once per game; a saved Dusk card becomes Murmur everywhere
+  check("nightmare: black on black (card and ink near black), an ash accent, a pale light, special and once per game, its own mark", Cards.SUITS.nightmare.card[1] < 8 and Cards.SUITS.nightmare.ink[1] == 0 and Cards.SUITS.nightmare.special and Cards.SUITS.nightmare.once and not Cards.SUITS.heresy.once and Cards.SUITS.nightmare.icon == "nightmare" and Cards.SUITS.nightmare.lit[1] > 0xe0 and Cards.SUITS.nightmare.gloom ~= nil)
+  check("nightmare: a saved Dusk card is Murmur (cards, settings and presets)", Cards.normalize_suit("dusk") == "murmur" and Events.normalize_suit("dusk") == "murmur" and Events.SUITS.dusk == nil and Events.SUITS.nightmare == true)
+  check("dread: the breath stays in 0..1 and the dying light flashes rarely (a few beats in a hundred), never below 0", (function()
+    local flashes, low, high = 0, 1, 0
+    for i = 0, 899 do local b, f = Cards.dread(i / 9); low, high = math.min(low, b), math.max(high, b); if f > 0 then flashes = flashes + 1 end; if f < 0 or f > 1 then return false end end
+    return low >= 0 and high <= 1 and high - low > 0.9 and flashes > 5 and flashes < 120
+  end)())
+  check("fog: the veil stays in 0..1, mostly clear (under a fifth half of the time) with surges past 0.9; the banks drift and stay in reach of the card", (function()
+    local clear, peak = 0, 0
+    for i = 0, 999 do
+      local t = i * 0.05
+      local v = Cards.fog(t)
+      if v < 0 or v > 1 then return false end
+      if v < 0.2 then clear = clear + 1 end
+      peak = math.max(peak, v)
+      for b = 1, Cards.FOG_BANDS do local c, thick = Cards.fog(t, b); if c < -0.16 or c > 1.16 or thick < 0 or thick > 1 then return false end end
+    end
+    return clear > 400 and peak > 0.9 and Cards.SUITS.nightmare.fog and not Cards.SUITS.heresy.fog
+  end)())
+  check("warp: an uneven pulse in 0..1 and a crackle of 0 or 1 about one beat in eight", (function()
+    local crackles = 0
+    for i = 0, 1399 do local p, c = Cards.warp_pulse(i / 14); if p < 0 or p > 1 or (c ~= 0 and c ~= 1) then return false end; crackles = crackles + c end
+    return crackles > 80 and crackles < 300 and Cards.SUITS.warp.motes and Cards.SUITS.warp.lit ~= nil
+  end)())
 
   -- HERESY replaced Fester: the one card that is special; the old name stays an alias everywhere it may still be written
   do
     local plain_sets_equal = true
     for from, to in pairs(Cards.SUIT_ALIAS) do if Events.SUIT_ALIAS[from] ~= to then plain_sets_equal = false end end
     for from, to in pairs(Events.SUIT_ALIAS) do if Cards.SUIT_ALIAS[from] ~= to then plain_sets_equal = false end end
-    check("heresy: Heresy and blessings are special; its palette is its own (black red face, blood frame, gilded accent, a lit red for words)", Cards.SUITS.heresy.special == true and (function() local n = 0 for _, def in pairs(Cards.SUITS) do if def.special then n = n + 1 end end return n end)() == 4 and #Cards.SUITS.heresy.lit == 3 and Cards.SUITS.heresy.frame[1] == 0xa3 and Cards.SUITS.heresy.accent[1] == 0xe5)
+    check("heresy: Heresy, Nightmare and the blessings are special; its palette is its own (near-black red face, fresh blood frame, crimson accent, a lit red for words, a deep blood for the heartbeat)", Cards.SUITS.heresy.special == true and (function() local n = 0 for _, def in pairs(Cards.SUITS) do if def.special then n = n + 1 end end return n end)() == 6 and #Cards.SUITS.heresy.lit == 3 and #Cards.SUITS.heresy.blood == 3 and Cards.SUITS.heresy.frame[1] == 0x8a and Cards.SUITS.heresy.accent[1] == 0xd4 and Cards.SUITS.heresy.accent[2] == 0x2a)
+    check("faith: a pink no other suit has (the accent's red is high and its blue above its green)", (function() local a = Cards.SUITS.faith.accent; if not (a[1] > 200 and a[3] > a[2]) then return false end for id, def in pairs(Cards.SUITS) do if id ~= "faith" and def.accent[1] > 200 and def.accent[3] > def.accent[2] + 20 then return false end end return true end)())
+    check("threat six: Despair on a hostile card, Apotheosis on a beneficial one, nothing below six; the edges differ", Cards.threat_name(6, "plague") == "Despair" and Cards.threat_name(6, "faith") == "Apotheosis" and Cards.threat_name(5, "faith") == nil and Cards.threat_edge("heresy") == Cards.DESPAIR_EDGE and Cards.threat_edge("miracle") == Cards.APOTHEOSIS_EDGE)
+    check("threat six: the shine never fades below 0.35 and stays within 0..1; the heartbeat stays within 0..1 and beats", (function() local lo, hi, beat_lo, beat_hi = 1, 0, 1, 0 for i = 0, 400 do local t = i / 37; for _, s in ipairs({ "plague", "grace" }) do local v = Cards.six_shine(t, s); lo, hi = math.min(lo, v), math.max(hi, v) end local b = Cards.heartbeat(t); beat_lo, beat_hi = math.min(beat_lo, b), math.max(beat_hi, b) end return lo >= 0.35 and hi <= 1 and hi > 0.9 and beat_lo >= 0 and beat_lo < 0.05 and beat_hi > 0.9 and beat_hi <= 1 end)())
     check("heresy: Cards.is_special says it for Heresy and for its old name, not for the others or for nothing", Cards.is_special("heresy") and Cards.is_special("fester") and not Cards.is_special("warp") and not Cards.is_special(nil) and not Cards.is_special("nonsense"))
-    check("heresy: the old name is an alias in the card module and in the catalog (the same list), an unknown name is plague", Cards.normalize_suit("fester") == "heresy" and Events.normalize_suit("fester") == "heresy" and Cards.normalize_suit("heresy") == "heresy" and Events.normalize_suit("heresy") == "heresy" and Events.normalize_suit("nonsense") == "plague" and Events.normalize_suit(nil) == "plague" and Cards.suit_index("fester") == 12 and Cards.suit_index("heresy") == 12 and plain_sets_equal)
+    check("heresy: the old name is an alias in the card module and in the catalog (the same list), an unknown name is plague", Cards.normalize_suit("fester") == "heresy" and Events.normalize_suit("fester") == "heresy" and Cards.normalize_suit("heresy") == "heresy" and Events.normalize_suit("heresy") == "heresy" and Events.normalize_suit("nonsense") == "plague" and Events.normalize_suit(nil) == "plague" and Cards.suit_index("fester") == 11 and Cards.suit_index("heresy") == 11 and plain_sets_equal)
     local function getter(id) return settings[id] end
     settings.wave_def_custom_5 = "Mine\t3 hounds"; settings.su_custom_5 = "fester"
     check("heresy: a card saved with suit fester is a Heresy card now", Events.get("custom_5", getter, Groups).suit == "heresy")
@@ -2735,7 +3063,8 @@ do
   check("dots: enemies without a colour are skipped", #Cards.dots(rec("3 hounds"), function() return nil end) == 0)
   -- whisper, look, rarity
   check("whisper: own text, else the suit's line; cleaned and cut at 40", Cards.whisper({ whisper = "It grows.", suit = "swarm" }) == "It grows." and Cards.whisper({ whisper = "", suit = "swarm" }) == "Too many to count." and Cards.whisper({ whisper = "   ", suit = "rage" }) == "Faster. Faster." and #Cards.clean_whisper(string.rep("ab ", 30)) <= 40 and Cards.clean_whisper("a\n\tb") == "a b" and Cards.whisper({ suit = "nope" }) == "Something is growing.")
-  check("look: whisper for every murmur card, rot for the rest, an explicit look wins, junk ignored", Cards.look({ suit = "murmur" }) == "whisper" and Cards.look({ suit = "rage" }) == "rot" and Cards.look({ suit = "blight", look = "vial" }) == "vial" and Cards.look({ suit = "murmur", look = "rot" }) == "rot" and Cards.look({ suit = "blight", look = "nonsense" }) == "rot")
+  check("look: every card rots and renews, whatever its suit or its saved look (the saved look still parses, for old texts)", Cards.look({ suit = "murmur" }) == "rot" and Cards.look({ suit = "rage" }) == "rot" and Cards.look({ suit = "blight", look = "vial" }) == "rot" and Cards.look({ suit = "murmur", look = "whisper" }) == "rot" and Cards.normalize_look("vial") == "vial" and Cards.normalize_look("nonsense") == nil)
+  check("murmur: threat 5 and 6 murmur their whisper when drawn, lower threats do not", Cards.murmurs(5) and Cards.murmurs(6) and not Cards.murmurs(4) and not Cards.murmurs(nil))
   check("chance: the pips are the number itself, 1 to 10 (a fraction rounds, 0 or less is none, above 10 is 10)", (function() for w = 1, 10 do if Cards.level(w) ~= w then return false end end return true end)() and Cards.level(0) == 0 and Cards.level(-3) == 0 and Cards.level(4.4) == 4 and Cards.level(4.5) == 5 and Cards.level(0.2) == 1 and Cards.level(40) == 10 and Cards.level(nil) == 0)
   check("chance: chance 2 shows 2 pips, 3 shows 3, 4 shows 4 and 5 shows 5 (never one fewer, whatever the other cards have)", Cards.level(2, 2, 5) == 2 and Cards.level(3, 2, 5) == 3 and Cards.level(4, 2, 5) == 4 and Cards.level(5, 2, 5) == 5)
   check("chance: rare is a chance of 1 or 2", Cards.is_rare_level(1) and Cards.is_rare_level(2) and not Cards.is_rare_level(3) and not Cards.is_rare_level(0) and not Cards.is_rare_level(nil))
@@ -2767,7 +3096,7 @@ do
   -- the default cards
   local function def(key) return Events.get(key, function() return nil end, Groups) end
   check("defaults: the standard waves are tarot cards under their old keys", def("boss_ambush").name == "The Devil" and def("boss_ambush").suit == "fateful" and def("bomber_frenzy").name == "The Tower" and def("hound_frenzy").name == "The Hunt" and def("hound_frenzy").suit == "rage" and def("grenade_legion").name == "Rain of Rot" and def("sniper_elite").name == "The Watching Moon" and def("sniper_elite").suit == "murmur" and def("elite_squad").name == "The Chariot" and def("wave_small").name == "The Fool" and def("wave_small").suit == "swarm")
-  check("defaults: Rain of Rot is the only vial; the Murmur suit gets the whisper look through the suit rule", def("grenade_legion").look == "vial" and (function() local n = 0; for _, k in ipairs(Events.keys()) do if def(k).look == "vial" then n = n + 1 end end return n end)() == 1 and Cards.look({ suit = def("sniper_elite").suit, look = def("sniper_elite").look }) == "whisper")
+  check("defaults: Rain of Rot still carries its old vial look in its settings, but it rots like every other card", def("grenade_legion").look == "vial" and (function() local n = 0; for _, k in ipairs(Events.keys()) do if def(k).look == "vial" then n = n + 1 end end return n end)() == 1 and Cards.look({ suit = def("grenade_legion").suit, look = def("grenade_legion").look }) == "rot")
   check("defaults: every default card has a valid suit, a cooldown of at least 30 s (multiples of 30) and a weight 1-10", (function() for _, e in ipairs(Events.STANDARD) do if not Events.SUITS[e.suit] or e.cooldown < 30 or e.cooldown % 30 ~= 0 or e.default_pct < 1 or e.default_pct > 10 then return false end end return true end)())
   check("defaults: a custom card is a plague card with a 120 s cooldown and weight 10", def("custom_1").suit == "plague" and def("custom_1").cooldown == 120 and def("custom_1").threat_override == 0 and def("custom_1").whisper == "" and def("custom_1").look == "")
   check("defaults: one default per name (no two default cards share a name)", (function() local seen = {}; for _, e in ipairs(Events.STANDARD) do if seen[e.name] then return false end seen[e.name] = true end return true end)())
@@ -2843,14 +3172,14 @@ do
   package.loaded["scripts/settings/breed/breeds"] = nil
 end
 
--- levels without a main path (Psykhanium): only explicit /rw_test waves use the ring fallback ---------
+-- levels without a main path (Psykhanium): only explicit /gt_test waves use the ring fallback ---------
 do
   local function recent(pattern) for _, e in ipairs(echoes) do if e:find(pattern, 1, true) then return e end end return nil end
   cand_fail, cand_reason = true, "main path not ready"
 
   Execute.reset(); echoes = {}; ring_calls = 0
   run_wave({ name = "ringtest", test = true, parts = Groups.parse("3 hounds") })
-  check("psykhanium: /rw_test wave spawns via the ring fallback when there is no main path", #spawned == 3 and ring_calls >= 1, #spawned)
+  check("psykhanium: /gt_test wave spawns via the ring fallback when there is no main path", #spawned == 3 and ring_calls >= 1, #spawned)
   check("psykhanium: no failure message when the ring worked", recent("not spawning") == nil, tostring(recent("not spawning")))
 
   Execute.reset(); echoes = {}; ring_calls = 0
@@ -2865,7 +3194,7 @@ do
   Execute.reset(); echoes = {}
   run_wave({ name = "ringfail", test = true, parts = Groups.parse("3 hounds") }); for _ = 1, 30 do Execute.update(0.2) end
   local echo = recent("not spawning")
-  check("psykhanium: /rw_test with no walkable ground tells the user in chat", #spawned == 0 and echo ~= nil and echo:find("WARN") == nil and echo:find("no walkable ground") ~= nil, tostring(echo))
+  check("psykhanium: /gt_test with no walkable ground tells the user in chat", #spawned == 0 and echo ~= nil and echo:find("WARN") == nil and echo:find("no walkable ground") ~= nil, tostring(echo))
   ring_fail = false
 
   -- a hidden-point failure on a real level is NOT replaced by the ring (never spawn in view)
@@ -3235,7 +3564,7 @@ end
 
 -- options data: limits and the three multiplier sliders ----------------------------------
 do
-  local data = dofile(ROOT .. "/RealmsWaves_data.lua")
+  local data = dofile(ROOT .. "/GrandfathersTarot_data.lua")
   local function find(id, widgets)
     for _, w in ipairs(widgets) do
       if w.setting_id == id then return w end
@@ -3253,7 +3582,7 @@ do
   end
   check("options: three multiplier sliders, 0-500, default 100", ok)
   check("options: multiplier sliders sit in their own group", find("group_multipliers", all) ~= nil and #find("group_multipliers", all).sub_widgets == 3)
-  local loc = dofile(ROOT .. "/RealmsWaves_localization.lua")
+  local loc = dofile(ROOT .. "/GrandfathersTarot_localization.lua")
   local bare = {}
   for key, entry in pairs(loc) do
     local text = entry.en
@@ -3277,7 +3606,7 @@ do
   local titles = { "initial_delay", "interval_min", "interval_max", "vote_duration", "ballot_size", "novote_fallback", "max_per_wave", "max_alive", "heap_guard_mb", "min_distance", "max_distance", "monster_min_distance", "monster_max_distance", "mult_normal", "mult_boss", "mult_special", "open_editor_bind", "vote_1_bind", "vote_2_bind", "vote_3_bind", "vote_4_bind", "vote_5_bind", "hud_enabled", "hud_show_percent", "colour_enemies", "colour_spidey", "interval_random", "debug", "fallback_random", "fallback_skip", "tarot_cards", "tarot_seconds", "tarot_default_cooldown", "tarot_roulette", "tarot_winner", "tarot_eye_open", "tarot_eye_size", "tarot_rot_short", "tarot_rot_long", "tarot_longest", "group_spread", "mode_tarot", "mode_random", "mode_vote", "tarot_scale", "tarot_opacity", "tarot_timer_below", "tarot_hide_icon", "tarot_ping", "tarot_font", "font_novarese_bold", "font_novarese", "font_friz", "font_proxima", "font_rexlia", "font_machine" }
   local long = {}
   for _, id in ipairs(titles) do
-    local text = loc[id] and loc[id].en
+    local text = loc[id] and loc[id].en and loc[id].en:gsub("{#[^}]*}", "") -- colour tags are not shown
     if not text then long[#long + 1] = id .. "(missing)" elseif #text > 27 then long[#long + 1] = id .. "(" .. #text .. ")" end
   end
   check("localization: every option title fits one line (<= 27 characters)", #long == 0, table.concat(long, ","))
@@ -3326,8 +3655,12 @@ do
     check("default cooldown: rounded to the 30 s grid (45 -> 60)", cd() == 60, cd())
     settings.tarot_default_cooldown = 5
     check("default cooldown: never below 30 s", cd() == 30)
+    settings.tarot_default_cooldown = 3600
+    check("default cooldown: never above the longest cooldown option (30 minutes by default and at most)", cd() == 1800, cd())
+    settings.tarot_longest = 10
     settings.tarot_default_cooldown = 1800
-    check("default cooldown: never above the longest cooldown option (10 minutes by default, 30 at most)", cd() == 600)
+    check("default cooldown: a player's shorter longest cooldown (10 minutes) still caps it", cd() == 600, cd())
+    settings.tarot_longest = nil
     settings.tarot_longest = 30
     check("default cooldown: ...which follows that option", cd() == 1800)
     settings.tarot_longest = 4
@@ -3404,7 +3737,7 @@ do
   Vector3 = saved_vector3
 end
 
--- /rw_test_close: Positions.close_candidates / local_player_unit / rotation_towards with stubbed nav queries and players ----------
+-- /gt_test_close: Positions.close_candidates / local_player_unit / rotation_towards with stubbed nav queries and players ----------
 do
   local atan2 = math.atan2 or math.atan
   local V = {}

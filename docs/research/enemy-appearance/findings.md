@@ -26,7 +26,7 @@ Reference prefixes: **G/** = this repository; **S/** = `Content/Darktide-Source-
 
 | Reference | Inspected snapshot | Limit |
 | --- | --- | --- |
-| Grandfather's Tarot / RealmsWaves | HEAD `4cc68670ee03d1ee02ff11bd19eb8cfca96563af`, commit dated 2026-10-03; runtime reports 2.0.0, protocol 2 | Another session has uncommitted runtime and documentation edits. Relevant runtime hashes were checked twice and matched; see snapshot ledger below. |
+| Grandfather's Tarot / GrandfathersTarot | HEAD `4cc68670ee03d1ee02ff11bd19eb8cfca96563af`, commit dated 2026-10-03; runtime reports 2.0.0, protocol 2 | Another session has uncommitted runtime and documentation edits. Relevant runtime hashes were checked twice and matched; see snapshot ledger below. |
 | Game source | Clean `419fe18d414a618ce0474bd015bab470afb446d6`, 1.13.0, 2026-09-29 | [Pinned source tree](https://github.com/Aussiemon/Darktide-Source-Code/tree/419fe18d414a618ce0474bd015bab470afb446d6). Decompiled scripts do not include authored shader/material/unit/texture/package files. |
 | Installed Microsoft Store package | `Content/appxmanifest.xml:3`: `1.13.6794.0` | Package identity corroborates a 1.13 installation; it does not prove byte-for-byte agreement with the script reference or compatibility with any shader payload. |
 | Installed Realms | `M/Realms/info.json:10`: 1.0.0 | Historical project audit says 1.0.0-rc2; use the installed implementation for the appearance handoff. |
@@ -36,7 +36,7 @@ Reference prefixes: **G/** = this repository; **S/** = `Content/Darktide-Source-
 
 Read before new research: `CLAUDE.md`, project README, docs index, and docs 03-07. The user's research-only scope overrides the standing rule to edit shared docs immediately; proposed updates are handed off in the companion report. No applicable AGENTS.md was found on the project ancestry or inside its tree. The existing audit leads were rechecked only where relevant to appearance.
 
-Historical `docs/03-findings-realms-and-game-source.md:143-150` correctly identifies `stimmed_color`, zero resets and network lookup risks. Its description of an added tint/glow and black limitation remains an inference without the shader. Do not extend it into a claim that all stims write this variable or all enemy body parts support it. The current colour catalog is explicitly UI/name colour (`G/scripts/mods/RealmsWaves/catalog/colors.lua:1-10,172-178`).
+Historical `docs/03-findings-realms-and-game-source.md:143-150` correctly identifies `stimmed_color`, zero resets and network lookup risks. Its description of an added tint/glow and black limitation remains an inference without the shader. Do not extend it into a claim that all stims write this variable or all enemy body parts support it. The current colour catalog is explicitly UI/name colour (`G/scripts/mods/GrandfathersTarot/catalog/colors.lua:1-10,172-178`).
 
 ## Stim-effect trace and the upper-body report
 
@@ -107,7 +107,7 @@ No inspected game call demonstrates a material getter, parameter getter, safe ma
 | transonic_stance_colors main Lua `:39-62,576-675,715-755` | Selected weapon-unit vector/scalar writes, known `blade_energy`/`blade_wiggle` slots, weak caches and event-driven static colours | Weapon emission is a useful pattern. Its speculative variable list and successful `pcall` are not verified enemy shader capabilities. |
 | VersusMode main Lua `:727-734,10108-10235,10483-10616` | Per-unit `outline_color`, explicit equipment/attachment traversal, layer enable and reassertion after outline updates | Real selection and outline colouring mechanisms. Forced layers bypass normal bookkeeping and can survive ordinary remove; no surface-colour proof. |
 | TraumaOutlines main Lua `:30-47,87-147` | Adds/removes existing outline identities on selected enemies, cleans tracked records | A no-stat targeted-outline fallback. Static wave membership should not copy its radius scan every frame. |
-| Realms `workarounds/private_outlines.lua:22-44,73-126,189-242,280-356` | Perspective-scoped player buff outline ownership/refcounts | Relevant host/spectator compatibility; it does not automatically privatize arbitrary RealmsWaves outlines. |
+| Realms `workarounds/private_outlines.lua:22-44,73-126,189-242,280-356` | Perspective-scoped player buff outline ownership/refcounts | Relevant host/spectator compatibility; it does not automatically privatize arbitrary GrandfathersTarot outlines. |
 | danger_zone main Lua `:13-15,48-54,65-129` | Loads a training package; spawns a separate projected ground decal; colours `projector` with `particle_color`/`color_multiplier`; destroys decal units | A coloured ground indicator, not body tint. Wrapping an articulated enemy with it is unproven and risks clipping/spill. |
 | HCM `docs/diy/ASSETS.en.md:60-62,88-110` | Optional SimpleAssets loading of compiled material/particles/unit/animation; explicit native-object ownership | Credible custom-resource route. No automatic dependency rewriting, asset transfer, FBX conversion or general native unload; live rendering remains untested. |
 | Red Weapons at Home main Lua `:71-73,182-199` | Rarity colours and UI display names | UI-only dead end for model recolour. |
@@ -257,12 +257,12 @@ Shared docs were actively changing in the other session. `docs/07-learnings-and-
 
 | Local file (prefixes above) | Inspected SHA-256 |
 | --- | --- |
-| G/ `scripts/mods/RealmsWaves/RealmsWaves.lua` | `f6a7f3f6655e0379a00f4742348a91e6024a8dd17e68a738a43f8863200be8e0` |
-| G/ `scripts/mods/RealmsWaves/spawn/execute.lua` | `d6f57efcd1ace7c28f15387c26d43e4f2753280aa2fb4d6e7d9af56d70597fd5` |
-| G/ `scripts/mods/RealmsWaves/spawn/tuning.lua` | `d8bde72962e18791c33860f9cb32340ed50c931bc0d3d72be2fe239c7d38fb7d` |
-| G/ `scripts/mods/RealmsWaves/core/protocol.lua` | `5fd9d5ec05dcc6d616e6b032517ab093812a792c8613c5a19c0f6e12cae1892b` |
-| G/ `scripts/mods/RealmsWaves/catalog/groups.lua` | `8730081e5e6f4daf81d33ccb0f514b2df6f0222a700a190b6f06b485e84b1379` |
-| G/ `scripts/mods/RealmsWaves/catalog/colors.lua` | `4a33dc6176dacc1767a64c978af5a5f79081468428715a773a3b063d0ffcc24f` |
+| G/ `scripts/mods/GrandfathersTarot/GrandfathersTarot.lua` | `f6a7f3f6655e0379a00f4742348a91e6024a8dd17e68a738a43f8863200be8e0` |
+| G/ `scripts/mods/GrandfathersTarot/spawn/execute.lua` | `d6f57efcd1ace7c28f15387c26d43e4f2753280aa2fb4d6e7d9af56d70597fd5` |
+| G/ `scripts/mods/GrandfathersTarot/spawn/tuning.lua` | `d8bde72962e18791c33860f9cb32340ed50c931bc0d3d72be2fe239c7d38fb7d` |
+| G/ `scripts/mods/GrandfathersTarot/core/protocol.lua` | `5fd9d5ec05dcc6d616e6b032517ab093812a792c8613c5a19c0f6e12cae1892b` |
+| G/ `scripts/mods/GrandfathersTarot/catalog/groups.lua` | `8730081e5e6f4daf81d33ccb0f514b2df6f0222a700a190b6f06b485e84b1379` |
+| G/ `scripts/mods/GrandfathersTarot/catalog/colors.lua` | `4a33dc6176dacc1767a64c978af5a5f79081468428715a773a3b063d0ffcc24f` |
 | S/ `extension_systems/visual_loadout/minion_visual_loadout_extension.lua` | `7f3e33464c55561ad91a0d0441d8a015716b54be5c7d48c16e8ea08bf9c99d41` |
 | S/ `extension_systems/visual_loadout/utilities/visual_loadout_customization.lua` | `17d88a1ac8ea54ffed2d8c3ce1f3082b5603f4edc0d4fec3a03083fb8617dd2b` |
 | S/ `extension_systems/buff/minion_buff_extension.lua` | `2aa74308e72e652e0edb8dfda31cfdcc217212307f44a5bf39f06d3e9fa9c33c` |
