@@ -76,6 +76,11 @@ local BUTTONS = {
 	{ name = "btn_settings", width = 270, cb = "cb_settings" },
 	{ name = "btn_wimport", width = 300, cb = "cb_wave_import", role = "primary" },
 	{ name = "btn_default", width = 320, cb = "cb_defaults", role = "danger" },
+	-- the Deck: every beneficial / enemy card into or out of the draw
+	{ name = "btn_draw_ben_on", width = 410, font = 19, cb = "cb_draw_kind", arg = "ben_on" },
+	{ name = "btn_draw_ben_off", width = 410, font = 19, cb = "cb_draw_kind", arg = "ben_off", role = "danger" },
+	{ name = "btn_draw_foe_on", width = 410, font = 19, cb = "cb_draw_kind", arg = "foe_on" },
+	{ name = "btn_draw_foe_off", width = 410, font = 19, cb = "cb_draw_kind", arg = "foe_off", role = "danger" },
 	-- the Deck: sort the cards (the chosen one is lit; a second click turns the order round)
 	{ name = "btn_sort_threat", width = 96, font = 18, cb = "cb_sort", arg = "threat", role = "chip" },
 	{ name = "btn_sort_rarity", width = 96, font = 18, cb = "cb_sort", arg = "rarity", role = "chip" },
@@ -1036,6 +1041,11 @@ GrandfathersTarotView._apply_screen = function (self, keep_offset)
 		self:_set_scenegraph_position("bottom_title", 125, 758, 2)
 	end
 	widgets.btn_default.visible = screen == "list"
+
+	for _, name in ipairs({ "btn_draw_ben_on", "btn_draw_ben_off", "btn_draw_foe_on", "btn_draw_foe_off" }) do
+		widgets[name].visible = screen == "list"
+		widgets[name].content.hotspot_text = mod:localize(name)
+	end
 	widgets.sort_label.visible = screen == "list"
 	widgets.sort_label.content.sort_label = string.upper(mod:localize("sort_label"))
 
@@ -2540,6 +2550,33 @@ end)
 GrandfathersTarotView.cb_help = function (self)
 	self._help_pinned = not self._help_pinned
 end
+
+-- (2026-10-05) The Deck's four draw buttons: every beneficial card (the four blessing suits) or every enemy card goes into the
+-- draw (on) or out of it (off). Returns how many cards changed.
+GrandfathersTarotView.set_kind_in_draw = function (self, beneficial, on)
+	local rw, changed = mod.rw, 0
+
+	for _, wave in ipairs(self._waves or {}) do
+		local suit = rw.cards.suit(wave.suit)
+		local is_ben = suit ~= nil and suit.beneficial == true
+
+		if is_ben == beneficial and wave.enabled ~= on then
+			set_setting("on_" .. wave.key, on)
+			changed = changed + 1
+		end
+	end
+
+	return changed
+end
+
+GrandfathersTarotView.cb_draw_kind = guarded(function (self, which)
+	local beneficial, on = which:sub(1, 3) == "ben", which:sub(-2) == "on"
+	local changed = self:set_kind_in_draw(beneficial, on)
+
+	self:_reload()
+	self:_apply_screen(true)
+	mod:echo("%s", mod:localize("msg_draw_kind", changed))
+end)
 
 -- Restore defaults (list screen): every wave back to the built-in setup, deleted waves included. Needs a second
 -- click; the replaced setup is kept for "Undo last load" on the Presets screen.

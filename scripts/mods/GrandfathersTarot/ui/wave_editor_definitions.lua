@@ -86,6 +86,11 @@ local scenegraph_definition = {
 	-- list screen: the time between waves (the options menu has the same two settings)
 	stepper_tmin = node(125, 858, 700, 48, 2),
 	stepper_tmax = node(870, 858, 700, 48, 2),
+	-- list screen: every beneficial / enemy card into or out of the draw (2026-10-05)
+	btn_draw_ben_on = node(125, 930, 410, 44, 2),
+	btn_draw_ben_off = node(551, 930, 410, 44, 2),
+	btn_draw_foe_on = node(977, 930, 410, 44, 2),
+	btn_draw_foe_off = node(1403, 930, 410, 44, 2),
 	-- detail screen: export this wave / import over it. Top right of the panel, beside the title line (the
 	-- steppers need every pixel of the three rows below)
 	btn_share = node(1520, 752, 280, 44, 2),

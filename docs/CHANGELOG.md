@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 - Dark skin experiments, draw buttons on the Deck (feature/enemy-shadow)
+- Three experimental appearance methods, "Dark skin: burnt / warp / bruised": the game's ailment skin looks held still on the enemy; A picks the moment of the effect shown (to find the darkest). Textures load as packages first.
+- The Deck has four buttons: add / remove the beneficial cards, add / remove the enemy cards from the draw.
+- Lua suites not run (the user's choice); not yet tested in game.
+
 ## 2026-10-05 - Golden health, Stop all sound previews; shadow fog removed (feature/enemy-shadow)
 - While the team has an Instant rescue charge, a player with more than one wound left has golden health bars (the game's overshield toughness colour), on every player's HUD (the charge count is sent with the effects state).
 - The card sound screen has a "Stop all sound previews" button (a card's real sound at a draw is not stopped).

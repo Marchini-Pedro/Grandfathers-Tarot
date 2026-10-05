@@ -210,3 +210,13 @@ An experimental method linked the Daemonhost's ambient fog particle to the enemy
 target with a heavy performance cost, so it was removed (commit 5bfa39e reverts 9bf9d0d). Cheaper ideas still open: keeping an
 ailment look on (a material value, like the On Fire glow) with a dark colour ramp, or the game's own small enemy particles
 (the Nurgle blessing flies).
+
+## Dark skin experiments (2026-10-05)
+
+Methods `skin_burnt`, `skin_warp`, `skin_bruise`: the ailment effect templates `burning`, `warpfire` and `broker_brittleness`
+(ailment_settings.lua: a mask texture in `effect_mask`, a ramp in `effect_gradient`, the `HAVE_BURN` permutation and
+`offset_time_duration`). The look is held at one moment by writing the start time `phase` seconds before now every frame;
+A (0..255) picks the phase over the template's duration. Ending it writes a start long past. The two textures of each template
+are loaded as packages (`Managers.package:load`) before anything is written. Unknown until seen: whether the shader darkens the
+surface or only adds a glow (no game ramp is black), whether the packages load by resource path, the cost of one material write
+per enemy per frame.
