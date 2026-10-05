@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_ROOT = ROOT / "scripts/mods/RealmsWaves"
+RUNTIME_ROOT = ROOT / "scripts/mods/GrandfathersTarot"
 POLICY = ROOT / "tools/coverage_policy.json"
 
 

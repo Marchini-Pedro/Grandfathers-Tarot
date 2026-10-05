@@ -1,4 +1,4 @@
-# Grandfather's Tarot (RealmsWaves)
+# The Grandfather's Tarot (GrandfathersTarot)
 
 A Darktide mod that adds enemy waves and beneficial tarot cards to local and LAN
 missions hosted through Realms Server. Build a deck, draw a tarot hand, or use
@@ -22,7 +22,7 @@ random selection and player voting. No Twitch service is required.
   a breathing darkness and a dying light, black ink, a black fog over the card and, when drawn, over the screen and a grey
   world for every player (option "Nightmare darkness": 30 the usual, 100 almost black); once per game), **Warp** (a pulsing glow and rising motes), **Prayer**, **Miracle**,
   **Grace** and **Faith** have their own frames and sigils.
-- **The Cauldron:** build enemy groups with a searchable catalog and Dreg/Scab
+- **The Workshop:** build enemy groups with a searchable catalog and Dreg/Scab
   shelf, modifiers, custom stats and a live card preview. The On Fire modifier has its
   burn damage (0 to 300 percent, 35 by default) on the right of its row, and its enemies
   keep burning while they live. The editor key reopens the screen you left; the Deck
@@ -45,8 +45,8 @@ random selection and player voting. No Twitch service is required.
   strength pips (level 6 is Despair, or Apotheosis on a blessing, and shines),
   whisper and cooldown; every card rots and renews. A threat 5 or 6 card's whisper
   murmurs letter by letter when it is drawn.
-- **Test commands:** `/rw_test` and `/rw_test_close` play the card's sound, then spawn; `/rw_drawtest <card>`
-  stages a three-card draw that picks it after 3 s (HUD only); `/rw_fulltest <card>` does the same with its sound and wave.
+- **Test commands:** `/gt_test` and `/gt_test_close` play the card's sound, then spawn; `/gt_drawtest <card>`
+  stages a three-card draw that picks it after 3 s (HUD only); `/gt_fulltest <card>` does the same with its sound and wave.
 - **Boss bars:** while a boss is up the Draw HUD slides below the boss health bars (or keeps the top and moves the
   bars below it) and turns see-through (options). A boss with more health than the network carries shows it in
   bars, with "xN" for the full bars still to go.
@@ -67,10 +67,10 @@ with its required dependencies. Waves need a local or LAN host with server
 authority; a client in an ordinary online mission cannot spawn them.
 
 1. Download this repository and place its contents in
-   `Content/mods/RealmsWaves/`. Rename the extracted repository folder if needed.
-2. Confirm the descriptor is at `Content/mods/RealmsWaves/RealmsWaves.mod`.
-3. Add `RealmsWaves` on its own line in `Content/mods/mod_load_order.txt`,
-   after `Realms` and its dependencies. The internal mod name is **RealmsWaves**.
+   `Content/mods/GrandfathersTarot/`. Rename the extracted repository folder if needed.
+2. Confirm the descriptor is at `Content/mods/GrandfathersTarot/GrandfathersTarot.mod`.
+3. Add `GrandfathersTarot` on its own line in `Content/mods/mod_load_order.txt`,
+   after `Realms` and its dependencies. The internal mod name is **GrandfathersTarot**.
 4. Restart Darktide. Disable TwitchVersus and RealmsEvent when testing this mod
    to avoid overlapping wave systems.
 
@@ -83,32 +83,32 @@ No new dependency is required.
 
 ## Getting started
 
-1. Open **Mod Options > Realms Waves** to choose a mode, timing and spawn limits.
-2. Press **F6** or use `/rw_editor` to open the Deck. Select a card to edit its
+1. Open **Mod Options > The Grandfather's Tarot** to choose a mode, timing and spawn limits.
+2. Press **F6** or use `/gt_editor` to open the Deck. Select a card to edit its
    enemies/effects in the Cauldron or its appearance in the Mirror. Share through
    **Share Card** or the small per-card glyph (toggleable in Mod Options). Shared texts
    survive Discord and other Markdown chats; texts from older versions still import.
-3. Start a Realms mission as host. Use `/rw_status` to inspect the cycle and
-   `/rw_test hound_frenzy` to test a wave. Vote keys default to **F1–F3**;
+3. Start a Realms mission as host. Use `/gt_status` to inspect the cycle and
+   `/gt_test hound_frenzy` to test a wave. Vote keys default to **F1–F3**;
    the keybindings are configurable in Mod Options.
 
 | Command | Effect |
 | --- | --- |
-| `/rw_editor` | Open or close the wave editor |
-| `/rw_status` | Show director state and spawn counters |
-| `/rw_test <wave key or name>` | Spawn a test wave immediately, out of sight (host) |
-| `/rw_test_close <wave key or name>` | Spawn the wave right in front of you, facing you (host) |
-| `/rw_start` / `/rw_stop` | Start or stop the cycle; stopping leaves spawned enemies alive (host) |
-| `/rw_pause [on\|off]` | Freeze/resume wave clocks and queued spawns; living units stay maintained (host) |
-| `/rw_next` | Discard the current wave and draw a new one (host) |
-| `/rw_skip` | Resolve the current wave immediately (host) |
+| `/gt_editor` | Open or close the wave editor |
+| `/gt_status` | Show director state and spawn counters |
+| `/gt_test <wave key or name>` | Spawn a test wave immediately, out of sight (host) |
+| `/gt_test_close <wave key or name>` | Spawn the wave right in front of you, facing you (host) |
+| `/gt_start` / `/gt_stop` | Start or stop the cycle; stopping leaves spawned enemies alive (host) |
+| `/gt_pause [on\|off]` | Freeze/resume wave clocks and queued spawns; living units stay maintained (host) |
+| `/gt_next` | Discard the current wave and draw a new one (host) |
+| `/gt_skip` | Resolve the current wave immediately (host) |
 
 ## Current limits
 
 - [Audit remediation](docs/audits/2026-10-03/remediation.md) fixes reload event
   cleanup and pause/stop/disable ownership offline. Stop cancels pending work
   while surviving units remain counted and tuned. Disable suspends tuning/hooks
-  and cancels jobs; re-enable needs `/rw_start` on the host and resyncs clients.
+  and cancels jobs; re-enable needs `/gt_start` on the host and resyncs clients.
   Pending work is capped at 64 jobs / 8,000 entries; full budgets skip new waves
   and repeat ticks. Imports reject non-finite numeric fields. Size updates retry
   rejected peers with current living-unit values. All fixes await game acceptance.
@@ -128,7 +128,7 @@ No new dependency is required.
   unmeasured. Start with moderate enemy counts and restart for clean testing.
 - Custom **Time between attacks** changes attack timing. Animation playback
   speed has no confirmed per-unit API and is not an implemented control.
-- Enemy size replication requires RealmsWaves on each peer. A custom health is
+- Enemy size replication requires GrandfathersTarot on each peer. A custom health is
   exact (normal health times your percent, whatever Havoc adds); a boss below its
   normal health keeps the game's own **Weakened** name.
 - Enemy colour **A** means tint strength, not mesh transparency. Natural stimm

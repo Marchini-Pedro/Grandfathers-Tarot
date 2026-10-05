@@ -88,7 +88,7 @@ def main():
         fixture = root / "checkout"
         tools = fixture / "tools"
         tools.mkdir(parents=True)
-        modules = fixture / "scripts/mods/RealmsWaves"
+        modules = fixture / "scripts/mods/GrandfathersTarot"
         modules.mkdir(parents=True)
         (modules / "probe.lua").write_text("return 42\n", encoding="utf-8")
         for name in ("run_tests.py", "lua_test_runtime.py"):

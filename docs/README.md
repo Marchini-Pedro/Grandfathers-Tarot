@@ -1,4 +1,4 @@
-# RealmsWaves: documentation index
+# GrandfathersTarot: documentation index
 
 For features, installation and commands, start with the [project README](../README.md).
 This index covers development references, decisions and verification.

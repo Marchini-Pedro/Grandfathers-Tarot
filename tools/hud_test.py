@@ -14,7 +14,7 @@ lua = LuaRuntime(unpack_returned_tuples=True)
 
 harness = r'''
 local MODROOT = ...
-local BASE = MODROOT .. "/scripts/mods/RealmsWaves"
+local BASE = MODROOT .. "/scripts/mods/GrandfathersTarot"
 
 -- ---- engine stubs ---------------------------------------------------------
 function table.clone(t) local c = {} for k, v in pairs(t) do c[k] = type(v) == "table" and table.clone(v) or v end return c end
@@ -96,7 +96,7 @@ mod.set = function(self, id, v) settings[id] = v end
 mod.is_enabled = function() return true end
 mod.error = function(self, fmt, ...) errors_logged[#errors_logged + 1] = string.format(fmt, ...) end
 mod.localize = function(self, id, ...) local a = { ... } for i = 1, #a do a[i] = tostring(a[i]) end return id .. (#a > 0 and (":" .. table.concat(a, ",")) or "") end
-mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
+mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^GrandfathersTarot/", "") .. ".lua") end
 local custom_hud = { is_customizing = false }
 get_mod = function(name) if name == "custom_hud" then return custom_hud end return mod end
 

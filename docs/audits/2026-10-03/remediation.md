@@ -37,7 +37,7 @@ Batch 2 freezes queued repeat/feed/timeout clocks during pause while maintaining
 existing units. Stop cancels pending jobs/cache, preserves living ownership and
 continues tuning/pruning without active jobs. Disable cancels work and performs
 liveness cleanup; DMF suspends hooks and stat maintenance until re-enable. Hosts
-explicitly use `/rw_start`; clients clear stale presentation/inbox and handshake.
+explicitly use `/gt_start`; clients clear stale presentation/inbox and handshake.
 The real entry fixture checks a 200-second pause, exact resume tick, live stat
 recompute, combined alive cap, disable/enable and pending-work unload. All six
 checks pass on both runtimes: entry 35, total 1,672 assertions each. This also

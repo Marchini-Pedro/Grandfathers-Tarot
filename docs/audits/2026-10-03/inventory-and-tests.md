@@ -1,7 +1,7 @@
 # Source inventory and test effectiveness
 
 See [report](report.md) for baseline revisions and findings. All paths in the
-inventory are relative to `scripts/mods/RealmsWaves/`, except the descriptor.
+inventory are relative to `scripts/mods/GrandfathersTarot/`, except the descriptor.
 Every file was included in compilation, responsibility/caller/ownership review
 and the appropriate existing harness. Review is scoped: visual declarations
 were checked through widget construction, geometry and pass assertions, not
@@ -13,9 +13,9 @@ claim that every statement was dynamically executed.
 
 | File | Lines | Responsibility / callers | Ownership, hot paths and review evidence |
 | --- | ---: | --- | --- |
-| `RealmsWaves.lua` | 432 | DMF entry, commands, module wiring | Owns RW generation, event subscriptions, HUD/view registrations; update/unload/disable traced; F01/F02 |
-| `RealmsWaves_data.lua` | 159 | DMF options | Defaults and ranges, togglable state; compare editor ranges and synthetic legal maxima |
-| `RealmsWaves_localization.lua` | 451 | UI/DMF English text | Static strings, formatting/percent conventions; real-text previews; other locales use fallback, native localization pending |
+| `GrandfathersTarot.lua` | 432 | DMF entry, commands, module wiring | Owns RW generation, event subscriptions, HUD/view registrations; update/unload/disable traced; F01/F02 |
+| `GrandfathersTarot_data.lua` | 159 | DMF options | Defaults and ranges, togglable state; compare editor ranges and synthetic legal maxima |
+| `GrandfathersTarot_localization.lua` | 451 | UI/DMF English text | Static strings, formatting/percent conventions; real-text previews; other locales use fallback, native localization pending |
 | `catalog/cards.lua` | 479 | Tarot model, UI and migration | Pure descriptors/suit/threat/chance, capped dots/whispers; migration and snapshot tests |
 | `catalog/colors.lua` | 279 | Enemy/modifier/faction colors | Breed/modifier caches, optional-mod callbacks; reset on view entry; bounded recognized inputs in supported flow |
 | `catalog/events.lua` | 587 | Catalog/settings → wave/pool | 12 standards + 20 customs; stable order, deleted-key filtering, clamped chance, timer exclusion; logic/editor |
@@ -42,7 +42,7 @@ claim that every statement was dynamically executed.
 | `ui/wave_editor_workshop.lua` | 855 | Cauldron/Mirror painting/callbacks | View-owned stage, shelf and row FX; refresh/update routes scoped to current screens; editor/workflow previews |
 | `ui/workshop.lua` | 188 | Layout/geometry helpers | Pure calculations, shared stage/shelf/hand dimensions; editor geometry assertions |
 | `ui/workshop_blueprints.lua` | 617 | Workshop passes | Finite rows/chips/stage/hand, hit-area definitions; engine-default and visible-pass review |
-| root `RealmsWaves.mod` | 15 | DMF descriptor | Load after Realms, static module paths; no new game packages; compilation/path review |
+| root `GrandfathersTarot.mod` | 15 | DMF descriptor | Load after Realms, static module paths; no new game packages; compilation/path review |
 
 Total: **29 Lua files + descriptor**, 30 compilation inputs. Root README,
 CLAUDE, docs index/design/plan/verification/recovery/history were read as claims

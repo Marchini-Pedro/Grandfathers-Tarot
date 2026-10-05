@@ -5,7 +5,7 @@ from pathlib import Path
 from lua_test_runtime import LuaRuntime
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = (ROOT / "scripts/mods/RealmsWaves").as_posix()
+BASE = (ROOT / "scripts/mods/GrandfathersTarot").as_posix()
 
 RUNTIME = r'''
 local BASE = ...
@@ -13,7 +13,7 @@ local function check(name, value) assert(value, name); print("PASS effects: " ..
 local server, enabled, simple, local_player = true, true, nil, nil
 local settings, warnings, played, native_played, party, systems = {}, {}, {}, {}, {}, {}
 local mod = { rw = {} }
-function mod:io_dofile(path) return dofile(BASE .. "/" .. path:match("RealmsWaves/scripts/mods/RealmsWaves/(.*)") .. ".lua") end
+function mod:io_dofile(path) return dofile(BASE .. "/" .. path:match("GrandfathersTarot/scripts/mods/GrandfathersTarot/(.*)") .. ".lua") end
 function mod:get(id) return settings[id] end
 function mod:set(id, v) settings[id] = v end
 function mod:is_enabled() return enabled end
@@ -436,10 +436,10 @@ simple=nil
 EDITOR = r'''
 do
   local EF=mod.rw.groups.Effects
-  local PP=mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/wave_editor_components").Popup
-  local SO=mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/catalog/sounds")
-  local EV=mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/wave_editor_effects")
-  local WK=mod:io_dofile("RealmsWaves/scripts/mods/RealmsWaves/ui/workshop")
+  local PP=mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/wave_editor_components").Popup
+  local SO=mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/catalog/sounds")
+  local EV=mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/wave_editor_effects")
+  local WK=mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/workshop")
   -- a row reads "100%  Party health" (the amount in colour tags first): its name and its amount without the tags
   local function plain_label(w) return (w.content.label:gsub("{#[^}]*}","")) end
   local function row_name(w) return (plain_label(w):gsub("^%S+%s+","")) end

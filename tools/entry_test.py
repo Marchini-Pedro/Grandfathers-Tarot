@@ -1,4 +1,4 @@
-"""Loads the real entry script (RealmsWaves.lua) against stubbed DMF/engine pieces and checks what it
+"""Loads the real entry script (GrandfathersTarot.lua) against stubbed DMF/engine pieces and checks what it
 installs at load: the DMF keybind-suppression hook, the bypass hooks, the unload behaviour.
 Run:  python tools/entry_test.py   (needs `lupa`, see CLAUDE.md)
 """
@@ -11,7 +11,7 @@ lua = LuaRuntime(unpack_returned_tuples=True)
 
 harness = r'''
 local MODROOT = ...
-local BASE = MODROOT .. "/scripts/mods/RealmsWaves"
+local BASE = MODROOT .. "/scripts/mods/GrandfathersTarot"
 
 package.preload["scripts/settings/ui/ui_sound_events"] = function() return { system_menu_enter = "a", system_menu_exit = "b" } end
 package.preload["scripts/settings/wwise_game_sync/wwise_game_sync_settings"] = function() return { state_groups = { options = { ingame_menu = "x" } } } end
@@ -40,7 +40,7 @@ mod.echo = function() end
 mod.warning = function() end
 mod.error = function() end
 mod.localize = function(self, id) return id end
-mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
+mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^GrandfathersTarot/", "") .. ".lua") end
 get_mod = function(name)
   if name == "DMF" then return dmf_mod end
   if name == "Realms" then return nil end
@@ -63,7 +63,7 @@ Managers = { event = event_manager() }
 local results = {}
 local function check(name, cond, detail) results[#results+1] = (cond and "PASS " or "FAIL ") .. name .. (detail and (" -- " .. tostring(detail)) or "") end
 
-dofile(BASE .. "/RealmsWaves.lua")
+dofile(BASE .. "/GrandfathersTarot.lua")
 mod.on_all_mods_loaded()
 local RW = mod.rw
 
@@ -88,21 +88,21 @@ RW.director.on_player_died = function() forwarded = forwarded + 1 end
 mod._on_player_died()
 check("entry: a death is forwarded to the director", forwarded == 1)
 RW.director.on_player_died = real_on_died
-check("entry: rw_stop, rw_pause and rw_next are registered", type(commands.rw_stop) == "function" and type(commands.rw_pause) == "function" and type(commands.rw_next) == "function")
+check("entry: rw_stop, rw_pause and rw_next are registered", type(commands.gt_stop) == "function" and type(commands.gt_pause) == "function" and type(commands.gt_next) == "function")
 local echoed = {}
 mod.echo = function(self, fmt, ...) echoed[#echoed + 1] = string.format(fmt, ...) end
-commands.rw_stop(); commands.rw_pause("on"); commands.rw_next()
-check("entry: the commands answer in chat (a client or a stopped host gets a reason, never an error)", #echoed == 3 and echoed[1]:find("RealmsWaves") ~= nil, table.concat(echoed, " | "))
+commands.gt_stop(); commands.gt_pause("on"); commands.gt_next()
+check("entry: the commands answer in chat (a client or a stopped host gets a reason, never an error)", #echoed == 3 and echoed[1]:find("GrandfathersTarot") ~= nil, table.concat(echoed, " | "))
 
 -- the animation probe: registered, and in a game without any wave unit (or without the engine's Unit table) it only says so
 echoed = {}
-check("entry: /rw_anim and /rw_tune are registered", type(commands.rw_anim) == "function" and type(commands.rw_tune) == "function")
+check("entry: /gt_anim and /gt_tune are registered", type(commands.gt_anim) == "function" and type(commands.gt_tune) == "function")
 echoed = {}
-local tune_ok = pcall(commands.rw_tune)
-check("entry: /rw_tune with nothing tuned answers instead of failing", tune_ok and #echoed == 1 and echoed[1]:find("No living unit", 1, true) ~= nil, table.concat(echoed, " | "))
+local tune_ok = pcall(commands.gt_tune)
+check("entry: /gt_tune with nothing tuned answers instead of failing", tune_ok and #echoed == 1 and echoed[1]:find("No living unit", 1, true) ~= nil, table.concat(echoed, " | "))
 echoed = {}
-local anim_ok, anim_err = pcall(commands.rw_anim)
-check("entry: /rw_anim without the engine table (this harness has none) answers instead of failing", anim_ok and #echoed == 2 and echoed[1]:find("Unit functions about animation", 1, true) ~= nil and echoed[2]:find("cannot be looked at", 1, true) ~= nil, anim_ok and table.concat(echoed, " | ") or anim_err)
+local anim_ok, anim_err = pcall(commands.gt_anim)
+check("entry: /gt_anim without the engine table (this harness has none) answers instead of failing", anim_ok and #echoed == 2 and echoed[1]:find("Unit functions about animation", 1, true) ~= nil and echoed[2]:find("cannot be looked at", 1, true) ~= nil, anim_ok and table.concat(echoed, " | ") or anim_err)
 
 -- Console/keybind adapters: validate user inputs and forward the intended state.
 do
@@ -112,80 +112,80 @@ do
   Managers.ui={view_instance=function() return opened>closed and {} or nil end,
     open_view=function(_,name) if name=="realms_waves_editor" then opened=opened+1 end end,
     close_view=function(_,name) if name=="realms_waves_editor" then closed=closed+1 end end}
-  commands.rw_editor();commands.rw_editor()
+  commands.gt_editor();commands.gt_editor()
   check("editor command: opens then closes the registered view, absent UI is safe", opened==1 and closed==1)
   Managers.ui=saved_ui
   local original_vote=RW.director.local_vote
   local options={}
   RW.director.local_vote=function(option) options[#options+1]=option;return false,"no ballot" end
   for i=1,5 do mod["vote_"..i]() end
-  commands.rw_vote("3");commands.rw_vote("invalid")
+  commands.gt_vote("3");commands.gt_vote("invalid")
   check("vote inputs: all five keys and console number forward the selected option", table.concat(options,",")=="1,2,3,4,5,3,0")
   RW.director.local_vote=original_vote
   local original_pause=RW.director.pause
   local arguments={}
   RW.director.pause=function(value) arguments[#arguments+1]=tostring(value);return value,"client" end
-  commands.rw_pause("on");commands.rw_pause("off");commands.rw_pause();commands.rw_pause("toggle")
+  commands.gt_pause("on");commands.gt_pause("off");commands.gt_pause();commands.gt_pause("toggle")
   check("pause command: on/off forward booleans, omitted/unknown arguments toggle", table.concat(arguments,",")=="true,false,nil,nil")
   RW.director.pause=original_pause
   local original_start=RW.director.force_start
-  RW.director.force_start=function() return true end;echoed={};commands.rw_start()
+  RW.director.force_start=function() return true end;echoed={};commands.gt_start()
   check("start command: successful host start is reported", echoed[1]:find("cycle started",1,true)~=nil)
-  RW.director.force_start=function() return false end;echoed={};commands.rw_start()
+  RW.director.force_start=function() return false end;echoed={};commands.gt_start()
   check("start command: rejected client start explains the authority requirement", echoed[1]:find("host in a mission only",1,true)~=nil)
   RW.director.force_start=original_start
   local original_next=RW.director.next_wave
-  RW.director.next_wave=function() return true end;echoed={};commands.rw_next()
+  RW.director.next_wave=function() return true end;echoed={};commands.gt_next()
   check("next command: successful redraw is reported", echoed[1]:find("new wave drawn",1,true)~=nil)
   RW.director.next_wave=original_next
-  echoed={};commands.rw_test()
+  echoed={};commands.gt_test()
   check("test command: empty input lists usage and existing waves", #echoed==1 and echoed[1]:find("hound_frenzy",1,true)~=nil)
   local original_fire=RW.director.fire_now
   local query
   RW.director.fire_now=function(text) query=text;return true,"queued note" end
-  echoed={};commands.rw_test("Mutants","Everywhere")
+  echoed={};commands.gt_test("Mutants","Everywhere")
   check("test command: joins multiword names and reports successful queueing", query=="Mutants Everywhere" and echoed[1]:find("queued note",1,true)~=nil)
-  RW.director.fire_now=function() return false,"host only" end;echoed={};commands.rw_test("hound_frenzy")
+  RW.director.fire_now=function() return false,"host only" end;echoed={};commands.gt_test("hound_frenzy")
   check("test command: rejected wave reports the director reason", echoed[1]:find("host only",1,true)~=nil)
   RW.director.fire_now=original_fire
   -- the deck holds 100 cards: 88 custom slots (it was 20, so 21 used to be the first invalid one)
   for _,slot in ipairs({"x","0",tostring(RW.events.CUSTOM_SLOTS+1),"1.5"}) do
-    local before=stored.wave_def_custom_3;echoed={};commands.rw_custom(slot,"1 hound")
+    local before=stored.wave_def_custom_3;echoed={};commands.gt_custom(slot,"1 hound")
     check("custom command: invalid slot "..slot.." makes no settings writes", stored.wave_def_custom_3==before and echoed[1]:find("slot must be",1,true)~=nil)
   end
   do
-    local top=tostring(RW.events.CUSTOM_SLOTS);echoed={};commands.rw_custom(top,"2","hounds")
+    local top=tostring(RW.events.CUSTOM_SLOTS);echoed={};commands.gt_custom(top,"2","hounds")
     check("custom command: the last slot ("..top..") is valid and the message of a wrong slot names the range", RW.events.CUSTOM_SLOTS==88 and stored["wave_def_custom_"..top]~=nil and stored["on_custom_"..top]==true)
     stored["wave_def_custom_"..top],stored["on_custom_"..top]=nil,nil
-    echoed={};commands.rw_custom("0","1 hound")
+    echoed={};commands.gt_custom("0","1 hound")
     check("custom command: ...which is 1-88", echoed[1]:find("1-88",1,true)~=nil, echoed[1])
   end
   local old_def,old_on=stored.wave_def_custom_3,stored.on_custom_3
-  commands.rw_custom("3","2","hounds")
+  commands.gt_custom("3","2","hounds")
   local wave=RW.events.get("custom_3",function(id) return stored[id] end,RW.groups)
   check("custom command: valid recipe persists normalized enemies and enables the slot", wave.parts[1].breed=="chaos_hound" and wave.parts[1].count==2 and stored.on_custom_3==true)
-  local saved_def=stored.wave_def_custom_3;echoed={};commands.rw_custom("3","2 unicorns")
+  local saved_def=stored.wave_def_custom_3;echoed={};commands.gt_custom("3","2 unicorns")
   check("custom command: invalid breed leaves the previous recipe intact", stored.wave_def_custom_3==saved_def and #echoed==1)
-  echoed={};commands.rw_custom("3")
+  echoed={};commands.gt_custom("3")
   check("custom command: absent recipe reports the current slot without mutation", stored.wave_def_custom_3==saved_def and echoed[1]:find("custom_3",1,true)~=nil)
   stored.wave_def_custom_3,stored.on_custom_3=old_def,old_on
   local original_simulate=RW.director.simulate
   local iterations
   RW.director.simulate=function(n) iterations=n;return {},{},0 end
   for _,case in ipairs({{"0",1},{"100001",100000},{"invalid",1000}}) do
-    echoed={};commands.rw_roll(case[1])
+    echoed={};commands.gt_roll(case[1])
     check("roll command: "..case[1].." clamps/defaults the workload", iterations==case[2] and echoed[1]:find("no event enabled",1,true)~=nil)
   end
   RW.director.simulate=original_simulate
   local original_probe,original_describe=RW.tuning.probe,RW.tuning.describe
   RW.tuning.probe=function() error("probe failed") end
   RW.tuning.describe=function() error("stats failed") end
-  echoed={};commands.rw_anim();commands.rw_tune()
+  echoed={};commands.gt_anim();commands.gt_tune()
   check("diagnostic commands: native probe errors return chat diagnostics", #echoed==2 and echoed[1]:find("probe failed",1,true)~=nil and echoed[2]:find("stats failed",1,true)~=nil)
   local info_count=0;mod.info=function() info_count=info_count+1 end
   RW.tuning.probe=function() return {"animation"} end
   RW.tuning.describe=function() return {"stats"} end
-  commands.rw_anim();commands.rw_tune()
+  commands.gt_anim();commands.gt_tune()
   check("diagnostic commands: successful lines also reach the console log", info_count==2)
   RW.tuning.probe,RW.tuning.describe=original_probe,original_describe;mod.info=nil
   local original_update=RW.director.update
@@ -402,18 +402,40 @@ do
   Managers.state.difficulty = saved.difficulty
   T.dead = was_dead
 end
-check("entry: editor view registered under its name with the right class", #views == 1 and views[1].view_name == "realms_waves_editor" and views[1].view_settings.class == "RealmsWavesView")
-check("entry: /rw_test_close is registered too", type(commands.rw_test_close) == "function")
-check("entry: /rw_drawtest and /rw_fulltest are registered (a staged draw to test the HUD, with or without the sound and the wave)", type(commands.rw_drawtest) == "function" and type(commands.rw_fulltest) == "function")
+-- the rename (2026-10-05): RealmsWaves became The Grandfather's Tarot; its saved settings are copied once, the commands are /gt_
+do
+  local RW = mod.rw
+  local saved_get, saved_set, saved_app = mod.get, mod.set, Application
+  local store = {}
+  mod.get = function(self, id) return store[id] end
+  mod.set = function(self, id, v) store[id] = v end
+  Application = { user_setting = function(k) if k == "mods_settings" then return { RealmsWaves = { wave_def_custom_1 = "The Fool", mode = "vote", hud_scale = 120 }, Other = { x = 1 } } end end }
+  check("rename: the first load copies every saved setting of RealmsWaves (decks, presets, options), only those", RW.migrate_old_settings() == 3 and store.mode == "vote" and store.wave_def_custom_1 == "The Fool" and store.hud_scale == 120 and store.x == nil and store.gt_settings_migrated == true)
+  store.mode = "tarot"
+  check("rename: it happens once (a setting changed afterwards stays)", RW.migrate_old_settings() == 0 and store.mode == "tarot")
+  store = {}; Application = { user_setting = function() return nil end }
+  check("rename: nothing saved under the old name copies nothing and is marked done", RW.migrate_old_settings() == 0 and store.gt_settings_migrated == true)
+  store = {}; Application = nil
+  check("rename: no settings store at all is not an error", RW.migrate_old_settings() == 0)
+  mod.get, mod.set, Application = saved_get, saved_set, saved_app
+  local old = {}
+  for name in pairs(commands) do if not name:find("^gt_") then old[#old + 1] = name end end
+  check("rename: every command is /gt_ (none left as /rw_)", #old == 0 and commands.gt_editor ~= nil, table.concat(old, ","))
+  local L = dofile(BASE .. "/GrandfathersTarot_localization.lua")
+  check("rename: the menu title is The Grandfather's Tarot in the Nurgle colours, each section header coloured", L.mod_name.en:find("The Grandfather's ", 1, true) and L.mod_name.en:find("Tarot", 1, true) and L.mod_name.en:find("{#color(128,160,52)}", 1, true) and L.group_timing.en:find("^{#color%(") and L.group_timing.en:find("Timing and voting{#reset()}", 1, true) and L.group_spread.en:find("^{#color%(") and L.view_title_cauldron.en == "The Grandfather's Workshop")
+end
+check("entry: editor view registered under its name with the right class", #views == 1 and views[1].view_name == "realms_waves_editor" and views[1].view_settings.class == "GrandfathersTarotView")
+check("entry: /gt_test_close is registered too", type(commands.gt_test_close) == "function")
+check("entry: /gt_drawtest and /gt_fulltest are registered (a staged draw to test the HUD, with or without the sound and the wave)", type(commands.gt_drawtest) == "function" and type(commands.gt_fulltest) == "function")
 do
   local before = #echoed
-  commands.rw_drawtest(); commands.rw_fulltest("  ")
-  local usage = echoed[before + 1] and echoed[before + 2] and echoed[before + 1]:find("usage /rw_drawtest", 1, true) and echoed[before + 2]:find("usage /rw_fulltest", 1, true)
-  commands.rw_drawtest("The", "Fool")
-  check("entry: /rw_drawtest and /rw_fulltest say how to use them without a name, and pass a name on (refused here: no running cycle)", usage ~= nil and #echoed == before + 3 and echoed[#echoed]:find("RealmsWaves:", 1, true) ~= nil, echoed[#echoed])
+  commands.gt_drawtest(); commands.gt_fulltest("  ")
+  local usage = echoed[before + 1] and echoed[before + 2] and echoed[before + 1]:find("usage /gt_drawtest", 1, true) and echoed[before + 2]:find("usage /gt_fulltest", 1, true)
+  commands.gt_drawtest("The", "Fool")
+  check("entry: /gt_drawtest and /gt_fulltest say how to use them without a name, and pass a name on (refused here: no running cycle)", usage ~= nil and #echoed == before + 3 and echoed[#echoed]:find("GrandfathersTarot:", 1, true) ~= nil, echoed[#echoed])
 end
-check("entry: three HUD elements are registered, the Spread, the Nightmare's dread (full screen, not HUD-scaled) and the window of the last card (own node, so custom_hud moves it on its own)", #hud_elements == 3 and hud_elements[1].class_name == "HudElementRealmsWavesPanel" and hud_elements[2].class_name == "HudElementRealmsWavesDread" and hud_elements[2].use_hud_scale == false and hud_elements[3].class_name == "HudElementRealmsWavesLast" and hud_elements[3].filename:find("hud_element_last_card$") ~= nil and hud_elements[3].use_hud_scale == true, #hud_elements)
-check("entry: commands registered (rw_test, rw_editor, rw_status, rw_custom, rw_roll, rw_start, rw_skip, rw_vote)", commands.rw_test and commands.rw_editor and commands.rw_status and commands.rw_custom and commands.rw_roll and commands.rw_start and commands.rw_skip and commands.rw_vote ~= nil)
+check("entry: three HUD elements are registered, the Spread, the Nightmare's dread (full screen, not HUD-scaled) and the window of the last card (own node, so custom_hud moves it on its own)", #hud_elements == 3 and hud_elements[1].class_name == "HudElementGrandfathersTarotPanel" and hud_elements[2].class_name == "HudElementGrandfathersTarotDread" and hud_elements[2].use_hud_scale == false and hud_elements[3].class_name == "HudElementGrandfathersTarotLast" and hud_elements[3].filename:find("hud_element_last_card$") ~= nil and hud_elements[3].use_hud_scale == true, #hud_elements)
+check("entry: commands registered (rw_test, rw_editor, rw_status, rw_custom, rw_roll, rw_start, rw_skip, rw_vote)", commands.gt_test and commands.gt_editor and commands.gt_status and commands.gt_custom and commands.gt_roll and commands.gt_start and commands.gt_skip and commands.gt_vote ~= nil)
 check("entry: keybind functions exist (open_editor, vote_1..vote_5)", type(mod.open_editor) == "function" and type(mod.vote_1) == "function" and type(mod.vote_5) == "function")
 
 -- Retain strong object keys just as game EventManager does. DMF-owned registries
@@ -427,7 +449,7 @@ local manager = event_manager()
 Managers.event = manager
 for i=1,100 do
   mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
-  dofile(BASE .. "/RealmsWaves.lua"); mod.on_all_mods_loaded()
+  dofile(BASE .. "/GrandfathersTarot.lua"); mod.on_all_mods_loaded()
   weak[mod] = true
   if i % 2 == 0 then Managers.event = nil end
   mod.on_unload(); mod.on_unload()
@@ -439,9 +461,9 @@ collectgarbage("collect"); collectgarbage("collect")
 check("reload: 100 generations release strong event keys and obsolete weak mod references", next(weak) == nil and next(manager._events.event_mission_objective_start) == nil and next(manager._events.event_player_died) == nil)
 mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
 Managers.event = nil
-local missing_ok = pcall(function() dofile(BASE .. "/RealmsWaves.lua"); mod.on_all_mods_loaded();mod.on_unload() end)
+local missing_ok = pcall(function() dofile(BASE .. "/GrandfathersTarot.lua"); mod.on_all_mods_loaded();mod.on_unload() end)
 check("reload: missing event manager is safe at initialization and unload", missing_ok)
-dofile(BASE .. "/RealmsWaves.lua");mod.on_all_mods_loaded()
+dofile(BASE .. "/GrandfathersTarot.lua");mod.on_all_mods_loaded()
 Managers.event=event_manager()
 mod.on_game_state_changed("enter","GameplayStateRun")
 check("reload: a manager that appears after initialization registers on gameplay entry", Managers.event._events.event_mission_objective_start[mod]~=nil and Managers.event._events.event_player_died[mod]~=nil)
@@ -474,7 +496,7 @@ Managers.state = {
     spawned[#spawned+1]=unit;return unit
   end},
 }
-dofile(BASE .. "/RealmsWaves.lua");mod.on_all_mods_loaded()
+dofile(BASE .. "/GrandfathersTarot.lua");mod.on_all_mods_loaded()
 RW=mod.rw
 local positions={player_units=function() return {"player"} end,random_player_unit=function() return "player" end,candidates=function() return {"point"} end,pick=function() return "point" end,spread=function(p) return p end}
 RW.execute.init({positions=positions,bypass=RW.bypass,groups=RW.groups,tuning=RW.tuning})
@@ -522,7 +544,7 @@ mod.on_unload()
 check("unload: real pending jobs and director state are torn down", RW.execute.status().jobs==0 and RW.execute.status().queued==0 and RW.director.view().phase=="off" and RW.bypass.count()==0 and RW.tuning.status().sizes_known==0)
 
 -- The audit's 32 legal timer fixture exercises aggregate limits with real owners.
-dofile(BASE .. "/RealmsWaves.lua");mod.on_all_mods_loaded();RW=mod.rw
+dofile(BASE .. "/GrandfathersTarot.lua");mod.on_all_mods_loaded();RW=mod.rw
 RW.execute.init({positions=positions,bypass=RW.bypass,groups=RW.groups,tuning=RW.tuning})
 RW.director.init({events=RW.events,groups=RW.groups,protocol=RW.protocol,execute=RW.execute,votes=RW.votes,positions=positions,presets=RW.presets,cards=RW.cards,tuning=RW.tuning})
 settings.mult_normal=500;settings.mult_special=500

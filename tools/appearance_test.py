@@ -16,7 +16,7 @@ except ModuleNotFoundError as error:
     LuaRuntime = importlib.import_module("lupa." + os.environ["RW_LUA_RUNTIME"]).LuaRuntime
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE = (ROOT / "scripts/mods/RealmsWaves").as_posix()
+BASE = (ROOT / "scripts/mods/GrandfathersTarot").as_posix()
 
 RUNTIME = r'''
 local BASE = ...
@@ -24,7 +24,7 @@ local checks = 0
 local function check(label, value) assert(value, label); checks = checks + 1; print("PASS appearance: " .. label) end
 local server, warnings, writes, sent, rpcs, packets = true, {}, {}, {}, {}, {}
 local mod = { rw = {} }
-function mod:io_dofile(path) return dofile(BASE .. "/" .. path:match("RealmsWaves/scripts/mods/RealmsWaves/(.*)") .. ".lua") end
+function mod:io_dofile(path) return dofile(BASE .. "/" .. path:match("GrandfathersTarot/scripts/mods/GrandfathersTarot/(.*)") .. ".lua") end
 function mod:warning(fmt, ...) warnings[#warnings + 1] = string.format(fmt, ...) end
 mod.error = mod.warning
 function mod:get() return false end
@@ -349,7 +349,7 @@ ENTRY = r'''
 enabled,server=true,true
 settings.mult_normal,settings.mult_special=100,100
 settings.max_alive,settings.max_per_wave=10,10
-dofile(BASE .. "/RealmsWaves.lua"); mod.on_all_mods_loaded(); RW=mod.rw
+dofile(BASE .. "/GrandfathersTarot.lua"); mod.on_all_mods_loaded(); RW=mod.rw
 local native_extension=ScriptUnit.has_extension
 ScriptUnit.has_extension=function(unit,name)
   if name=="visual_loadout_system" then return {slot_items=function() return {} end,slot_unit=function() end} end

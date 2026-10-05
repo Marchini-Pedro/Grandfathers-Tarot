@@ -4,7 +4,7 @@ import sys
 
 from lua_test_runtime import LuaRuntime
 
-root = Path(__file__).resolve().parents[1] / "scripts/mods/RealmsWaves"
+root = Path(__file__).resolve().parents[1] / "scripts/mods/GrandfathersTarot"
 lua = LuaRuntime(unpack_returned_tuples=True)
 output = lua.execute(r'''
 local ROOT = ...

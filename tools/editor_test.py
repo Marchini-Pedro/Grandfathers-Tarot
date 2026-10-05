@@ -14,7 +14,7 @@ lua = LuaRuntime(unpack_returned_tuples=True)
 
 harness = r'''
 local MODROOT, DUMP, UI_DIR, UI_REAL = ...
-local BASE = MODROOT .. "/scripts/mods/RealmsWaves"
+local BASE = MODROOT .. "/scripts/mods/GrandfathersTarot"
 
 -- ---- engine stubs ---------------------------------------------------------
 function table.clone(t) local c = {} for k, v in pairs(t) do c[k] = type(v) == "table" and table.clone(v) or v end return c end
@@ -123,7 +123,7 @@ mod.echo = function(self, fmt, ...) echoes[#echoes+1] = string.format(fmt, ...) 
 mod.error = function(self, fmt, ...) echoes[#echoes+1] = "ERROR " .. string.format(fmt, ...) end
 mod.warning = function(self, fmt, ...) echoes[#echoes+1] = "WARN " .. string.format(fmt, ...) end
 mod.localize = function(self, id, ...) local a = { ... } for i = 1, #a do a[i] = tostring(a[i]) end return id .. (#a > 0 and (":" .. table.concat(a, ",")) or "") end
-mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
+mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^GrandfathersTarot/", "") .. ".lua") end
 get_mod = function(name) return mod end
 Managers = { ui = { closed = nil, close_view = function(self, n) self.closed = n end } }
 
@@ -1040,7 +1040,7 @@ do
 
   -- the help text, the tabs, Back
   W.btn_help.content.hotspot.is_hover = true; view:update(0.01, 0, inp)
-  check("help: the card face screen has its own help text", W.help_text.content.help_text == "help_face" and dofile(MODROOT .. "/scripts/mods/RealmsWaves/RealmsWaves_localization.lua").help_face ~= nil)
+  check("help: the card face screen has its own help text", W.help_text.content.help_text == "help_face" and dofile(MODROOT .. "/scripts/mods/GrandfathersTarot/GrandfathersTarot_localization.lua").help_face ~= nil)
   W.btn_help.content.hotspot.is_hover = false; view:update(0.01, 0, inp)
   click("btn_enemies")
   check("tabs: the Enemies tab goes back to the Cauldron, the Mirror is gone", view._screen == "detail" and W.shelf_panel.visible and not W.rw_plate_1.visible and not W.whisper_field.visible and not W.rw_look_1.visible and not W.stepper_cooldown.visible and not W.mirror_head_1.visible)
@@ -1630,7 +1630,7 @@ do
   check("delete: the second click hides the standard card (it is deleted)", settings["del_wave_small"] == true and tile(1).content.name ~= "My Small" and #view._waves == 99 and view._deleted_count == 1 and view._screen == "list", tostring(tile(1).content.name) .. " " .. #view._waves)
   check("delete: the Deck says how many default cards are deleted", view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_deleted:1")
   local pool_has = false; for _, e in ipairs(mod.rw.events.build_pool(function(id) return settings[id] end, mod.rw.groups)) do if e.key == "wave_small" then pool_has = true end end
-  check("delete: a deleted card is not drawn and not found by /rw_test", not pool_has and select(1, mod.rw.events.find("my_small", function(id) return settings[id] end, mod.rw.groups)) == nil)
+  check("delete: a deleted card is not drawn and not found by /gt_test", not pool_has and select(1, mod.rw.events.find("my_small", function(id) return settings[id] end, mod.rw.groups)) == nil)
   -- Restore defaults
   settings["pct_boss_ambush"] = 99; view:_reload(); view:_apply_screen()
   check("delete: Restore defaults button on the Deck", view._widgets_by_name.btn_default.visible and view._widgets_by_name.btn_default.content.hotspot_text == "btn_default")
@@ -1687,8 +1687,8 @@ do
   W2.btn_help.content.hotspot.is_hover = true; view:update(0.01, 0, input_stub3)
   check("help: the wave screen explains the fixed timer, distances and sharing", W2.help_text.content.help_text == "help_detail")
   W2.btn_help.content.hotspot.is_hover = false; view:update(0.01, 0, input_stub3); click("btn_back")
-  check("names: the Deck's top button is called Deck presets (it holds the whole deck), 'Spreads' is only the HUD's hand", (function() local loc = dofile(MODROOT .. "/scripts/mods/RealmsWaves/RealmsWaves_localization.lua"); local bad = {}; for k, v in pairs(loc) do local en = type(v) == "table" and v.en; if type(en) == "string" and en:find("Spreads", 1, true) then bad[#bad + 1] = k end end; return loc.btn_presets.en == "Deck presets" and #bad == 0, table.concat(bad, ",") end)())
-  check("help: texts exist in the localization for every screen", (function() local ok = true; for _, k in ipairs({ "hint_list", "hint_mods", "hint_presets", "hint_settings", "help_detail", "help_picker", "help_preset_view" }) do if not dofile(MODROOT .. "/scripts/mods/RealmsWaves/RealmsWaves_localization.lua")[k] then ok = false end end return ok end)())
+  check("names: the Deck's top button is called Deck presets (it holds the whole deck), 'Spreads' is only the HUD's hand", (function() local loc = dofile(MODROOT .. "/scripts/mods/GrandfathersTarot/GrandfathersTarot_localization.lua"); local bad = {}; for k, v in pairs(loc) do local en = type(v) == "table" and v.en; if type(en) == "string" and en:find("Spreads", 1, true) then bad[#bad + 1] = k end end; return loc.btn_presets.en == "Deck presets" and #bad == 0, table.concat(bad, ",") end)())
+  check("help: texts exist in the localization for every screen", (function() local ok = true; for _, k in ipairs({ "hint_list", "hint_mods", "hint_presets", "hint_settings", "help_detail", "help_picker", "help_preset_view" }) do if not dofile(MODROOT .. "/scripts/mods/GrandfathersTarot/GrandfathersTarot_localization.lua")[k] then ok = false end end return ok end)())
   settings["pct_wave_small"] = 5
 
   -- settings screen
@@ -3028,7 +3028,7 @@ if UI_DIR and UI_DIR ~= "" then
   -- UI_REAL_TEXT=1: the screens are drawn with the real English strings of the localization file (the tests use the ids), so the
   -- widths of the texts are the ones the player sees
   if UI_REAL and UI_REAL ~= "" then
-    local LOC = dofile(BASE .. "/RealmsWaves_localization.lua")
+    local LOC = dofile(BASE .. "/GrandfathersTarot_localization.lua")
     mod.localize = function(self, id, ...)
       local entry = LOC[id]
       local text = entry and entry.en or id

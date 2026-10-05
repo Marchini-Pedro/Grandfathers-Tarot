@@ -22,7 +22,7 @@ version or successful offline suite does not close these checks.
    save and hash the original settings beforehand and restore it afterward.
    Arrange any install/change as a separately authorized action.
 4. Obtain a baseline with identical render settings and map/difficulty where
-   feasible: game + DMF + Realms/SoloPlay, then RealmsWaves enabled at moderate
+   feasible: game + DMF + Realms/SoloPlay, then GrandfathersTarot enabled at moderate
    load. Add overlapping wave/spawner mods individually, then the normal load
    order. Record mismatched controls (map RNG, players, difficulty, native
    allocation, background applications); do not claim a causal delta from an
@@ -34,9 +34,9 @@ version or successful offline suite does not close these checks.
 | --- | --- |
 | Host only, matching installed manifest | Start each mode; weighted draw, unique tarot hand, cooldown exhaustion, fixed timer exclusion, no-vote fallback, one-vote-per-peer and anti-snowball rules behave as displayed |
 | Matching host + one client, then full squad | Same manifests; vote changes, sender authority, countdown and hand/winner agree; only host spawns; normal units retain engine pacing behavior |
-| Client without RealmsWaves | Session remains usable; client presentation limits are recorded; do not expect size/HUD/vote behavior it cannot implement |
+| Client without GrandfathersTarot | Session remains usable; client presentation limits are recorded; do not expect size/HUD/vote behavior it cannot implement |
 | Mixed mod/version session | Rejected protocol/version handshake is explicit and safe; unsupported peers do not spoil capable peer updates; no shared-template/network lookup changes |
-| Late join during hand/reveal/rot and sized units | Stage/age synchronized without replay; existing live sizes delivered; capture per-peer `/rw_status` and screenshots |
+| Late join during hand/reveal/rot and sized units | Stage/age synchronized without replay; existing live sizes delivered; capture per-peer `/gt_status` and screenshots |
 | Disconnect/rejoin during ballot and repeat work | Left peer's vote/inventory removed; reconnect takes current state; no stale ballot, scale or old-session handle mutation |
 | Missing network/manager during transition | No frame-breaking error; retry is bounded; resumed network delivers current size after a failed send. Observe actual Realms transport return/ordering rather than assuming a dropped packet produces false |
 | Pause with pending initial/repeat work | After approved F05 fix, no new units or repeat/job-clock advancement for at least three repeat periods; live maintenance continues; resume makes progress without overdue burst |
@@ -69,7 +69,7 @@ should establish how actual sender/channel data are routed.
   cannot accept those.
 - With controlled enemies, verify health, movement, hit mass, gap 25/50/100/250,
   gunner fire 25/100 and burst 100/500 with/without Havoc recomputes. Log
-  `/rw_tune` and actual shots; check equal-value resets and compounded buffs.
+  `/gt_tune` and actual shots; check equal-value resets and compounded buffs.
 - Check Chaos Spawn/Plague Ogryn multi-hit chains retain their last hit at
   extreme gap settings. Check normal and sized bursters' blast radii on host
   and client and restore shared templates after an error/reload. Check
@@ -100,7 +100,7 @@ Frame statistics must come from timestamped per-frame capture (for example a
 separately selected/pinned PresentMon capture), with sampling tool/version and
 overhead recorded. Prefer presented/frame-time measures with frame generation
 configuration explicit. A one-second FPS sample cannot establish p99 frame
-time. Reuse `/rw_status` for counters and coarse heap observations: its heap is
+time. Reuse `/gt_status` for counters and coarse heap observations: its heap is
 rounded to whole MiB despite the displayed MB label. If converting it to KiB,
 record resolution 1,024 KiB and source `rw_status`; the conversion adds no
 precision. Use already installed telemetry for finer samples, recording its

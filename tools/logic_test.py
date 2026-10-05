@@ -1,7 +1,7 @@
 import sys, os
 from lua_test_runtime import LuaRuntime
 
-ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "mods", "RealmsWaves")
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "mods", "GrandfathersTarot")
 lua = LuaRuntime(unpack_returned_tuples=True)
 
 harness = r'''
@@ -18,7 +18,7 @@ mod.echo = function(self, fmt, ...) echoes[#echoes+1] = string.format(fmt, ...) 
 mod.warning = function(self, fmt, ...) echoes[#echoes+1] = "WARN " .. string.format(fmt, ...) end
 mod.error = mod.warning
 mod.localize = function(self, id, ...) if select("#", ...) > 0 then return id .. ":" .. table.concat({...}, ",") end return id end
-mod.io_dofile = function(self, path) return dofile(ROOT .. "/../../../" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
+mod.io_dofile = function(self, path) return dofile(ROOT .. "/../../../" .. path:gsub("^GrandfathersTarot/", "") .. ".lua") end
 get_mod = function(name) return mod end
 
 local is_server = true
@@ -605,7 +605,7 @@ do
   Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
 end
 
--- /rw_test plays the card's sound first; /rw_drawtest and /rw_fulltest stage a draw (2026-10-04) -----------------------------------
+-- /gt_test plays the card's sound first; /gt_drawtest and /gt_fulltest stage a draw (2026-10-04) -----------------------------------
 do
   local keys = Events.keys()
   local Snd = load("catalog/sounds")
@@ -623,7 +623,7 @@ do
   settings.snd_wave_medium = event; settings.su_wave_medium = "nightmare"
   start()
 
-  -- /rw_test: the sound first, then the wave; a test spends no once-per-game suit and is released even when the cycle is stopped
+  -- /gt_test: the sound first, then the wave; a test spends no once-per-game suit and is released even when the cycle is stopped
   local ok, note = Director.fire_now("wave_medium")
   check("rw_test: the card's sound plays first and its wave waits for it", ok and alerts[#alerts] == event and #started_waves == 0 and Director.held_count() == 1)
   job.done = true; Director.update(0.1)
@@ -634,7 +634,7 @@ do
   check("rw_test: a test wave goes out even while the waves are paused", #started_waves == 2)
   Director.pause(false)
 
-  -- /rw_drawtest: three cards, the named one picked 3 s later; nothing sent, nothing heard, no cooldown
+  -- /gt_drawtest: three cards, the named one picked 3 s later; nothing sent, nothing heard, no cooldown
   started_waves = {}; local alerts_before = #alerts
   Director.update(10)
   local remaining_before = Director.view().remaining
@@ -653,7 +653,7 @@ do
   check("drawtest: no sound, no wave, no cooldown, Nightmare not spent", #alerts == alerts_before and #started_waves == 0 and Director.held_count() == 0 and (Director.cooldown_map().wave_medium or 0) == 0 and Director.spent_once("nightmare") == false)
   check("drawtest: the countdown goes on where it was", math.abs(Director.view().remaining - remaining_before) < 4, Director.view().remaining .. " vs " .. remaining_before)
 
-  -- /rw_fulltest: the same draw, then the sound and the wave
+  -- /gt_fulltest: the same draw, then the sound and the wave
   Director.update(5)
   local okf = Director.stage_draw("wave_medium", true)
   Director.update(3.1)
@@ -699,7 +699,7 @@ do
     Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.01)
     return Director.view()
   end
-  local function skip() Director.skip(); Director.update(0.01) end -- /rw_skip sets the countdown to zero, the pick happens on the next tick
+  local function skip() Director.skip(); Director.update(0.01) end -- /gt_skip sets the countdown to zero, the pick happens on the next tick
   is_server = true
   settings.tarot_cards = 1; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100; settings.interval_random = false; settings.initial_delay = 0
   only({ { "wave_medium", 5, 0 } })
@@ -730,7 +730,7 @@ do
   local seq = Director.view().last_seq
   Director.fire_now("wave_small")
   Director.fire_now("wave_small", { close = true })
-  check("last card: /rw_test and /rw_test_close do not change it", Director.view().last_seq == seq)
+  check("last card: /gt_test and /gt_test_close do not change it", Director.view().last_seq == seq)
 
   -- sync: the host's state carries it, a client shows it
   Director.update(2)
@@ -1065,7 +1065,7 @@ do
   local stopped = count_pulse()
   for _ = 1, 30 do Director.update(1) end
   check("timer: ...for good", count_pulse() == stopped)
-  check("timer: /rw_status counts timed waves", Director.timed_wave_count() == 0)
+  check("timer: /gt_status counts timed waves", Director.timed_wave_count() == 0)
   settings.on_custom_1 = true; settings.ev_custom_1 = 20
   for _ = 1, 2 do Director.update(1) end
   check("timer: re-enabled -> running again", Director.timed_wave_count() == 1)
@@ -1082,7 +1082,7 @@ do
   settings.interval_min, settings.interval_max = 100, 100
   started_waves = {}; started_defs = {}
 end
--- /rw_stop, /rw_pause, /rw_next, anti-snowballing ------------------------------------------------------------------
+-- /gt_stop, /gt_pause, /gt_next, anti-snowballing ------------------------------------------------------------------
 do
   settings.mode = "random"; settings.interval_min = 100; settings.interval_max = 100; settings.initial_delay = 0; settings.vote_duration = 25
   settings.wave_def_custom_1 = "Pulse\t2 hounds"; settings.on_custom_1 = true; settings.ev_custom_1 = 30
@@ -1099,7 +1099,7 @@ do
   Director.update(10)
   local r1 = Director.view().remaining
   check("pause: the countdown runs normally first", r0 - r1 > 9.9 and r0 - r1 < 10.1, r0 - r1)
-  check("pause: /rw_pause returns the new state", Director.pause() == true and Director.is_paused() == true)
+  check("pause: /gt_pause returns the new state", Director.pause() == true and Director.is_paused() == true)
   Director.update(40)
   v = Director.view()
   check("pause: the countdown stands still while paused", math.abs(v.remaining - r1) < 0.01 and v.paused == true, v.remaining)
@@ -1126,7 +1126,7 @@ do
   Director.update(30)
   check("next: only the host and only with a running cycle", (function() is_server = false; local ok = Director.next_wave(); is_server = true; return ok == false end)())
   local before_waves = #started_waves
-  check("next: /rw_next draws a new wave and a full new timer, spawning nothing for the dropped one", Director.next_wave() == true and Director.view().ballot_id ~= first_ballot and Director.view().remaining > 99 and #started_waves == before_waves and Director.view().phase == "waiting", Director.view().remaining)
+  check("next: /gt_next draws a new wave and a full new timer, spawning nothing for the dropped one", Director.next_wave() == true and Director.view().ballot_id ~= first_ballot and Director.view().remaining > 99 and #started_waves == before_waves and Director.view().phase == "waiting", Director.view().remaining)
   Director.pause(true)
   Director.next_wave()
   check("next: leaves the pause", Director.is_paused() == false)
@@ -1134,13 +1134,13 @@ do
   -- stop
   v = fresh()
   Director.update(10)
-  check("stop: /rw_stop works for the host", Director.stop() == true and Director.is_stopped() == true)
+  check("stop: /gt_stop works for the host", Director.stop() == true and Director.is_stopped() == true)
   check("stop: the panel is gone (phase off) and the host sends an 'off' state to the others", Director.view().phase == "off" and sent[#sent].state.p == "off")
   started_waves = {}
   Director.update(200); Director.update(200)
   check("stop: no wave, no vote, no fixed timer while stopped", #started_waves == 0 and Director.timed_wave_count() == 0)
   check("stop: pause/next/skip are refused with a reason while stopped", select(1, Director.pause()) == nil and Director.next_wave() == false)
-  check("stop: /rw_start starts it again", Director.force_start() == true and Director.is_stopped() == false and Director.view().phase == "waiting")
+  check("stop: /gt_start starts it again", Director.force_start() == true and Director.is_stopped() == false and Director.view().phase == "waiting")
   check("stop: a client cannot stop", (function() is_server = false; local ok = Director.stop(); is_server = true; return ok == false end)())
 
   -- anti-snowballing
@@ -1367,7 +1367,7 @@ do
   Director.update(95)
   check("cooldown: after the full cooldown the cards are dealt again", Director.view().hand ~= nil and #Director.view().hand >= 1, Director.view().hand and #Director.view().hand)
   check("cooldown: the host can read how long is left", (function() local ok = Director.cooldown_remaining("wave_small", 1000); return type(ok) == "number" end)())
-  -- /rw_pause freezes the cooldown clock too
+  -- /gt_pause freezes the cooldown clock too
   only({ { "wave_small", 5, 100 } })
   v = start(); Director.update(95); Director.update(6)
   Director.pause(true); Director.update(500)
@@ -1409,12 +1409,12 @@ do
   v = start()
   Director.skip()
   Director.update(0.1)
-  check("tarot: /rw_skip while waiting deals a hand and picks at once", #started_defs == 1 and Director.view().drawn == true and #Director.view().hand == 2)
+  check("tarot: /gt_skip while waiting deals a hand and picks at once", #started_defs == 1 and Director.view().drawn == true and #Director.view().hand == 2)
   Director.update(20)
   local before_next = #started_defs
   Director.next_wave()
   v = Director.view()
-  check("tarot: /rw_next throws the hand away without spawning and starts a full new interval", #started_defs == before_next and v.hand == nil and not v.drawn and v.remaining > 99 and v.phase == "waiting")
+  check("tarot: /gt_next throws the hand away without spawning and starts a full new interval", #started_defs == before_next and v.hand == nil and not v.drawn and v.remaining > 99 and v.phase == "waiting")
   settings.interval_min = 6; settings.interval_max = 6
   v = start()
   check("tarot: an interval shorter than 'seconds before the pick' deals at once (the hand is as long as the interval)", Director.view().phase == "hand" and Director.view().hand_seconds <= 6, Director.view().phase)
@@ -1510,7 +1510,7 @@ do
   settings.interval_min = 100; settings.interval_max = 100
   Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
 end
--- /rw_test by name ------------------------------------------------------------------
+-- /gt_test by name ------------------------------------------------------------------
 do
   local get = function(id) return settings[id] end
   local set = function(id, v) settings[id] = v end
@@ -1535,7 +1535,7 @@ do
   -- renaming: the old default name stops matching, the new one matches
   Events.set_def(set, "custom_2", "Dog Party", Groups.parse("6 hounds"), Groups)
   check("find: after a rename the new name works and the old one does not", found("dog_party") == "custom_2" and found("mutants_everywhere") == nil)
-  -- through the director (what /rw_test calls)
+  -- through the director (what /gt_test calls)
   Director.on_exit_gameplay(); Director.on_enter_gameplay()
   started_waves = {}
   local fok, ferr = Director.fire_now("dog party")
@@ -1638,9 +1638,9 @@ local spread_calls = {}
 local cand_calls, cand_fail = 0, false
 local cand_reason, ring_fail, ring_calls = "no hidden points near players", false, 0
 local last_range = nil
-local CS = { calls = 0, fail = false, reason = nil } -- /rw_test_close stub state (one local: the harness chunk is near Lua's limit of 200)
+local CS = { calls = 0, fail = false, reason = nil } -- /gt_test_close stub state (one local: the harness chunk is near Lua's limit of 200)
 local StubPositions = {
-  -- /rw_test_close: the local player's own spot, no cache, facing them
+  -- /gt_test_close: the local player's own spot, no cache, facing them
   close_candidates = function() CS.calls = CS.calls + 1; if CS.fail then return nil, CS.reason end return { "front" } end,
   local_player_unit = function() return "me" end,
   rotation_towards = function(position, unit) return "faces:" .. tostring(unit) end,
@@ -1717,7 +1717,7 @@ spread_calls = {}
 run_wave({ name = "t", parts = Groups.parse("2 hounds") })
 check("execute: no spread configured -> radius 0", #spread_calls == 2 and spread_calls[1] == 0)
 
--- /rw_test_close: right in front of the local player, facing them
+-- /gt_test_close: right in front of the local player, facing them
 do
   Execute.reset(); Bypass.reset()
   CS.calls, cand_calls, ring_calls, spread_calls = 0, 0, 0, {}
@@ -2263,7 +2263,7 @@ do
     check("burster: a mission restart forgets every size", seen.normal == normal_template)
   end
 
-  -- ------------------------------------------------------------------ what a tuned shooter read (/rw_tune and the log)
+  -- ------------------------------------------------------------------ what a tuned shooter read (/gt_tune and the log)
   do
     local infos = {}
     mod.info = function(self, fmt, ...) infos[#infos + 1] = string.format(fmt, ...) end
@@ -2496,7 +2496,7 @@ do
     check("mods: a director built without the custom-mods module (an older install) still welcomes and ignores sizes", no_tuning_ok and no_tuning_scale)
   end
 
-  -- the animation probe (/rw_anim): which engine functions and which animation variables exist, never an error
+  -- the animation probe (/gt_anim): which engine functions and which animation variables exist, never an error
   do
     local function probe_unit(breed, vars, dead_unit)
       local u = { breed = breed, vars = vars or {}, is_dead = dead_unit }
@@ -3172,14 +3172,14 @@ do
   package.loaded["scripts/settings/breed/breeds"] = nil
 end
 
--- levels without a main path (Psykhanium): only explicit /rw_test waves use the ring fallback ---------
+-- levels without a main path (Psykhanium): only explicit /gt_test waves use the ring fallback ---------
 do
   local function recent(pattern) for _, e in ipairs(echoes) do if e:find(pattern, 1, true) then return e end end return nil end
   cand_fail, cand_reason = true, "main path not ready"
 
   Execute.reset(); echoes = {}; ring_calls = 0
   run_wave({ name = "ringtest", test = true, parts = Groups.parse("3 hounds") })
-  check("psykhanium: /rw_test wave spawns via the ring fallback when there is no main path", #spawned == 3 and ring_calls >= 1, #spawned)
+  check("psykhanium: /gt_test wave spawns via the ring fallback when there is no main path", #spawned == 3 and ring_calls >= 1, #spawned)
   check("psykhanium: no failure message when the ring worked", recent("not spawning") == nil, tostring(recent("not spawning")))
 
   Execute.reset(); echoes = {}; ring_calls = 0
@@ -3194,7 +3194,7 @@ do
   Execute.reset(); echoes = {}
   run_wave({ name = "ringfail", test = true, parts = Groups.parse("3 hounds") }); for _ = 1, 30 do Execute.update(0.2) end
   local echo = recent("not spawning")
-  check("psykhanium: /rw_test with no walkable ground tells the user in chat", #spawned == 0 and echo ~= nil and echo:find("WARN") == nil and echo:find("no walkable ground") ~= nil, tostring(echo))
+  check("psykhanium: /gt_test with no walkable ground tells the user in chat", #spawned == 0 and echo ~= nil and echo:find("WARN") == nil and echo:find("no walkable ground") ~= nil, tostring(echo))
   ring_fail = false
 
   -- a hidden-point failure on a real level is NOT replaced by the ring (never spawn in view)
@@ -3564,7 +3564,7 @@ end
 
 -- options data: limits and the three multiplier sliders ----------------------------------
 do
-  local data = dofile(ROOT .. "/RealmsWaves_data.lua")
+  local data = dofile(ROOT .. "/GrandfathersTarot_data.lua")
   local function find(id, widgets)
     for _, w in ipairs(widgets) do
       if w.setting_id == id then return w end
@@ -3582,7 +3582,7 @@ do
   end
   check("options: three multiplier sliders, 0-500, default 100", ok)
   check("options: multiplier sliders sit in their own group", find("group_multipliers", all) ~= nil and #find("group_multipliers", all).sub_widgets == 3)
-  local loc = dofile(ROOT .. "/RealmsWaves_localization.lua")
+  local loc = dofile(ROOT .. "/GrandfathersTarot_localization.lua")
   local bare = {}
   for key, entry in pairs(loc) do
     local text = entry.en
@@ -3606,7 +3606,7 @@ do
   local titles = { "initial_delay", "interval_min", "interval_max", "vote_duration", "ballot_size", "novote_fallback", "max_per_wave", "max_alive", "heap_guard_mb", "min_distance", "max_distance", "monster_min_distance", "monster_max_distance", "mult_normal", "mult_boss", "mult_special", "open_editor_bind", "vote_1_bind", "vote_2_bind", "vote_3_bind", "vote_4_bind", "vote_5_bind", "hud_enabled", "hud_show_percent", "colour_enemies", "colour_spidey", "interval_random", "debug", "fallback_random", "fallback_skip", "tarot_cards", "tarot_seconds", "tarot_default_cooldown", "tarot_roulette", "tarot_winner", "tarot_eye_open", "tarot_eye_size", "tarot_rot_short", "tarot_rot_long", "tarot_longest", "group_spread", "mode_tarot", "mode_random", "mode_vote", "tarot_scale", "tarot_opacity", "tarot_timer_below", "tarot_hide_icon", "tarot_ping", "tarot_font", "font_novarese_bold", "font_novarese", "font_friz", "font_proxima", "font_rexlia", "font_machine" }
   local long = {}
   for _, id in ipairs(titles) do
-    local text = loc[id] and loc[id].en
+    local text = loc[id] and loc[id].en and loc[id].en:gsub("{#[^}]*}", "") -- colour tags are not shown
     if not text then long[#long + 1] = id .. "(missing)" elseif #text > 27 then long[#long + 1] = id .. "(" .. #text .. ")" end
   end
   check("localization: every option title fits one line (<= 27 characters)", #long == 0, table.concat(long, ","))
@@ -3737,7 +3737,7 @@ do
   Vector3 = saved_vector3
 end
 
--- /rw_test_close: Positions.close_candidates / local_player_unit / rotation_towards with stubbed nav queries and players ----------
+-- /gt_test_close: Positions.close_candidates / local_player_unit / rotation_towards with stubbed nav queries and players ----------
 do
   local atan2 = math.atan2 or math.atan
   local V = {}

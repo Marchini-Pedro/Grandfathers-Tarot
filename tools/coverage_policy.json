@@ -1,9 +1,9 @@
 {
   "minimum_percent": 78,
   "modules": {
-    "RealmsWaves.lua": 68,
-    "RealmsWaves_data.lua": 72,
-    "RealmsWaves_localization.lua": 98,
+    "GrandfathersTarot.lua": 68,
+    "GrandfathersTarot_data.lua": 72,
+    "GrandfathersTarot_localization.lua": 98,
     "catalog/cards.lua": 78,
     "catalog/colors.lua": 73,
     "catalog/events.lua": 76,

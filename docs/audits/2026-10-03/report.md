@@ -1,4 +1,4 @@
-# RealmsWaves adversarial audit — 2026-10-03
+# GrandfathersTarot adversarial audit — 2026-10-03
 
 Offline audit of `8c81c1bbfb6107788dafa98f56c6194dcaa80421`, dated in
 America/Sao_Paulo. **Seven findings were reproduced at this frozen revision.**
@@ -37,7 +37,7 @@ Do not convert these heap or timing numbers into game frame-time predictions.
 
 `baseline.json` in `.git/audit/2026-10-03/` contains full tracked SHA-256
 manifests, initial dirty states, dependency manifests, load order and hardware.
-Installed RealmsWaves differs in 14 of the 30 compared runtime/descriptor files
+Installed GrandfathersTarot differs in 14 of the 30 compared runtime/descriptor files
 and lacks 16. Its live results cannot accept this checkout. RealmsEvent and
 other wave/spawner mods occur in the saved load order and require controlled
 compatibility sessions.
@@ -69,7 +69,7 @@ below are at the frozen target revision; engine references are at local 1.13.0.
 
 ### F01 — event registrations retain every unloaded generation
 
-**Path:** [entry](../../../scripts/mods/RealmsWaves/RealmsWaves.lua),
+**Path:** [entry](../../../scripts/mods/GrandfathersTarot/GrandfathersTarot.lua),
 registration lines 126/129, unload 179–199. Engine
 `scripts/managers/event/event_manager.lua:10–20,23–43`; `StateGame` creates
 `Managers.event` at `scripts/game_states/state_game.lua:172`.
@@ -115,7 +115,7 @@ Reproduce with `reload_probe.py` in the companion.
 Installed DMF `modules/core/events.lua:42–50` and
 `modules/core/toggling.lua:10–23`.
 
-**Trigger:** queue two hounds in an active host mission, disable RealmsWaves
+**Trigger:** queue two hounds in an active host mission, disable GrandfathersTarot
 through DMF, then update 0.2 seconds. Expected: no additional wave units while
 disabled. Observed: two units spawn while `mod:is_enabled()` is false; there
 is no `on_disabled` handler. Reproduced through the actual installed DMF event
@@ -242,7 +242,7 @@ peer receives one update, failed peer has one attempt / zero deliveries; ten
 later send cadences make no further attempt. Both runtimes agree.
 
 **Root cause:** Realms broadcasts log individual failures and return true.
-RealmsWaves interprets that as delivery success and clears its outbox. Existing
+GrandfathersTarot interprets that as delivery success and clears its outbox. Existing
 tests model a whole-call false return, which is a different contract.
 
 **Guards challenged:** capability manifests, ready-peer checks, pcall,
@@ -335,14 +335,14 @@ BetterInventory patterns were selectively checked at its pinned revision:
 | Candidate | Evidence / benefit | Cost and recommendation |
 | --- | --- | --- |
 | Explicit release by owner | `BetterInventory_runtime_lifecycle.lua:297–349` clears callbacks, pending presentation closures and owned views | Apply the small release discipline to subscriptions (F01); do not import the full inventory lifecycle layer |
-| Generation identity + weak registries | same module, generation token near top and `adopt_inventory` / `adopt_managed_grid` | Useful only where views really survive reload; RealmsWaves already has retired-instance flags. Prove native surviving-view need first |
+| Generation identity + weak registries | same module, generation token near top and `adopt_inventory` / `adopt_managed_grid` | Useful only where views really survive reload; GrandfathersTarot already has retired-instance flags. Prove native surviving-view need first |
 | Repeated-close and abnormal-destroy review | `tests/test_view_lifecycle_memory.py:27–60` traces close/destroy/disable cleanup | That file contains source-string assertions, not a behavioral retention soak. Reuse the scenarios with real ownership/weak-reference assertions |
-| Sorting/native-grid integrations | inventory session and managed-grid code | RealmsWaves owns a fixed card grid and already tests sorting/drag. Copying inventory adapters would add unrelated cost |
+| Sorting/native-grid integrations | inventory session and managed-grid code | GrandfathersTarot owns a fixed card grid and already tests sorting/drag. Copying inventory adapters would add unrelated cost |
 
 No tracked repository-wide LICENSE was located in BetterInventory. Its README
 credits Inventory2D permission with attribution; that is not established blanket
 permission to copy all BetterInventory code. No code/assets were copied into
-RealmsWaves. Prefer independent application of these patterns; verify provenance
+GrandfathersTarot. Prefer independent application of these patterns; verify provenance
 and permission before any literal reuse.
 
 Relevant primary contracts were refreshed, not unrelated historical audits:

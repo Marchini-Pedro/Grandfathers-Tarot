@@ -57,7 +57,7 @@ Audited 2026-09-28, TwitchVersus 1.0.0. Paths relative to `mods\TwitchVersus\scr
 ## Limits and director bypass
 - `Budget.can_afford(count, cap)` (`core/budget.lua:129`): `minion_spawn:total_allocated_num_enemies() + count <= cap`. Defaults: cap 90, `HARD=145`, `MAX_CAP=140` (`:5-9`).
 - **Bypasses:** groups/waves (`group_mix`) pass `budget_cap = IGNORE_ALIVE_CAP` (145) via `Groups.part_args` (`groups.lua:13,705-712`); `on_redemption` skips the up-front budget check for them (`TwitchVersus.lua:1446`). Per-part limit 24 (`execute.lua:38`), recipes max 8 parts / 60 units. Specials use `ignore_allowance = true` (`execute.lua:590-594`). Hordes/minions/monsters call `horde_manager:horde` / `spawn_minion` directly, skipping pacing timers.
-- **It does NOT suppress the director**: no pacing state modified, no hooks on pacing. Units still count toward `num_spawned_minions`/`total_allocated_num_enemies` and, once aggroed, toward pacing's challenge rating. (This is the gap RealmsWaves must close; see doc 03.)
+- **It does NOT suppress the director**: no pacing state modified, no hooks on pacing. Units still count toward `num_spawned_minions`/`total_allocated_num_enemies` and, once aggroed, toward pacing's challenge rating. (This is the gap GrandfathersTarot must close; see doc 03.)
 - Dead/metadata-only: ring-buffer check (`optional_use_queue`, 256 minus 32) is never requested; `max_alive` in `catalog/events.lua` is validated but not enforced. `Budget.director_says` (`:162`) only feeds `/tv_budget`.
 - Per-entry cooldowns `state.cooldown[key]` (`:1411`): 30-900 s built-in, 0-3600 s custom.
 
@@ -71,7 +71,7 @@ Audited 2026-09-28, TwitchVersus 1.0.0. Paths relative to `mods\TwitchVersus\scr
 - Modes per reward: `off` / `instant` / `vote`. Vote: `start_vote` (`TwitchVersus.lua:1104`) calls `Vote.start(candidates, {duration_s, title, on_finished})` (`logic/vote.lua:1243`), Helix `/polls`, scope `channel:manage:polls`.
 - `vote_open` reward (`catalog/events.lua:646`) draws 3 eligible rewards via `draw_ballot` (`TwitchVersus.lua:1286`); auto-poll `start_auto_poll` (`:1327`) every 60-900 s.
 - Chance config: `ev_*_poll` and `ev_*_poll_chance` (1-100). `draw_ballot` is two-stage (per-candidate `math.random(100) <= chance`, then top-up by `take_weighted` `:1257`). `poll_candidate_of` (`:1197`).
-- **In-game vote seam (reusable contract):** `Vote.start` / `update` / `cancel` / `active` / `status`; `on_finished(winner, result)`; winner option's `.candidate` is your `{title, key}` input; `result` has `total`, `cancelled`, `error`. RealmsWaves reimplements this contract with Realms RPCs instead of Helix.
+- **In-game vote seam (reusable contract):** `Vote.start` / `update` / `cancel` / `active` / `status`; `on_finished(winner, result)`; winner option's `.candidate` is your `{title, key}` input; `result` has `total`, `cancelled`, `error`. GrandfathersTarot reimplements this contract with Realms RPCs instead of Helix.
 
 ## Network and HUD
 - No DMF network, no RPC, no `get_mod("Realms")`. Clients just see ordinary replicated enemies. `authority_failure_reason` (`:232`) reports retail (`HOST_TYPES.mission_server`) and Realms-client (`HOST_TYPES.player`) sessions as inert.

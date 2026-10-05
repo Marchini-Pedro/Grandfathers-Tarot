@@ -9,7 +9,7 @@ import sys
 if os.environ.get("PYLIBS"):
     sys.path.insert(0, os.environ["PYLIBS"])
 
-RUNTIME_ROOT = Path(__file__).resolve().parents[1] / "scripts/mods/RealmsWaves"
+RUNTIME_ROOT = Path(__file__).resolve().parents[1] / "scripts/mods/GrandfathersTarot"
 BACKEND = os.environ.get("RW_LUA_RUNTIME", "lua55")
 if BACKEND not in ("lua55", "luajit21"):
     raise ValueError("RW_LUA_RUNTIME must be lua55 or luajit21")

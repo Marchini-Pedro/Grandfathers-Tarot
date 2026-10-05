@@ -257,3 +257,11 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   the director's `hl`, the 35 default in recipes and waves), entry (hooks, the On Fire look, the boss bar hook), editor (the
   stepper default, every remembered screen and its fallback). Full runners pass every gate: Lua 5.5 2,573 assertions, 82.20%;
   LuaJIT 2.1 2,572 counted, 79.13% (both with `--timeout-seconds 280`). Nothing tested in game yet.
+
+## 2026-10-05 — Renamed The Grandfather's Tarot (feature/cauldron-redesign)
+
+- Built: the rename (folders, files, DMF id, /gt_ commands, Workshop), the one-time copy of the RealmsWaves settings, the Nurgle
+  menu colours. The mod folder was copied to mods\GrandfathersTarot (the rename was refused while the folder was in use) and the
+  old one removed; mod_load_order.txt points to the new one.
+- Tests: entry (the copy, once, without old settings, without a settings store; every command /gt_; the menu colours and the
+  Workshop title).

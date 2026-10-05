@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 - The Grandfather's Tarot (feature/cauldron-redesign)
+- The mod is renamed The Grandfather's Tarot (folders, files, DMF id); commands are /gt_...; the Cauldron is the Workshop.
+- Saved decks, presets and options are copied once from the old RealmsWaves settings.
+- The mod menu title and section headers are in the Nurgle palette.
+
 ## 2026-10-05 - Boss health in bars, On Fire that lasts, the editor's memory (feature/cauldron-redesign)
 - No boss health limit: health above what the network carries is sent divided; boss bars show it in bars with "xN".
 - On Fire enemies keep their burning look while alive; On Fire damage is 35 percent by default.
