@@ -559,7 +559,7 @@ DeckView.install = function (View, h)
 		self:_paint_pips(widget, nil)
 
 		-- the cooldown row: what the card rests after its pick, with a minus and a plus on the Deck's own tiles
-		content.cd_buttons = k == 1
+		content.cd_buttons = k == 1 or content.cd_buttons_always == true
 		self:_paint_cooldown(widget, 0)
 
 		-- the state line: what the card does, the clock while it rests, and the Edit pill

@@ -207,7 +207,9 @@ end
 
 scenegraph_definition.threat_label = node(P.x, Workshop.THREAT_Y, Workshop.ROW_LABEL_W, 44, 2)
 scenegraph_definition.rw_threat = node(Workshop.THREAT_X, Workshop.THREAT_Y, 6 * Workshop.THREAT_PITCH, 44, 2)
-scenegraph_definition.stepper_chance = node(P.x, Workshop.CHANCE_Y, P.w, 48, 2)
+-- (2026-10-05) the chance on the left, the card's cooldown on its right
+scenegraph_definition.stepper_chance = node(P.x, Workshop.CHANCE_Y, 290, 48, 2)
+scenegraph_definition.stepper_qcd = node(P.x + 290, Workshop.CHANCE_Y, P.w - 290, 48, 2)
 
 -- ---- the Mirror (the card face screen): four sections on the left, the stage of the Cauldron on the right
 local M = Workshop.MIRROR

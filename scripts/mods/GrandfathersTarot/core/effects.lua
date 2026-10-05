@@ -108,6 +108,11 @@ local function start_entry(list, index, job)
 	if entry.volume <= 0 then return start_entry(list, index + 1, job) end
 	local ok, id, wwise = pcall(trigger, entry.event, entry.volume)
 	if not ok then warn("sound unavailable: " .. tostring(id)); id, wwise = nil, nil end
+	-- (2026-10-05: the syringe sounds stayed silent) Wwise answers 0 when it cannot start an event, usually because the sound is
+	-- only loaded with the item that uses it (the stimm syringes): a preview says so instead of staying silent
+	if job and job.preview and ok and (id == nil or id == 0) and mod.localize and mod.echo then
+		mod:echo("%s", mod:localize("snd_not_loaded", tostring(entry.event):match("[^/]+$") or tostring(entry.event)))
+	end
 	if job and job.preview and id and wwise then
 		previews[#previews + 1] = { wwise, id }
 		if #previews > 32 then table.remove(previews, 1) end

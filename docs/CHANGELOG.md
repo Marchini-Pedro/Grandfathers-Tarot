@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-05 - Cooldown beside the chance, a clickable card preview, Deck search on typing (polishing)
+- The Workshop has the card's cooldown stepper beside its chance; the card on the stage takes clicks on its chance pips and its cooldown minus, plus and value.
+- Typing on the Deck opens its search; a dragged search box (Deck, enemy picker) keeps its place for the game session.
+- A sound preview the game cannot start says so in chat (the stimm syringe sounds are loaded only with their item).
+- The skin effects are renamed Burning effect, Soulblaze debuff effect (Warp), Bruised effect (gray purple).
+- Editor, effects, entry and appearance tests pass; the full runners were not run.
+
 ## 2026-10-05 - The Mutant's charge follows its run speed (feature/enemy-shadow)
 - A group's run speed now also scales the Mutant's charge (its direct-velocity phases; the navigating phase already was).
 - Dark skin seen in game: the textures load, but lowering A only fades the effect out; none of the looks gets close to dark.

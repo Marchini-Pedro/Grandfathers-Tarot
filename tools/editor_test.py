@@ -573,7 +573,18 @@ do
   -- the stage card of the Cauldron shows the value, without the plates, and its click areas are off
   view:_open_detail("wave_small")
   local stage = W.rw_stage_card
-  check("cooldown: the card on the stage shows the cooldown (2:00) but not the plates, and its cooldown click areas are off", stage.content.cd_value == "2:00" and stage.visible and not stage.style.cd_minus_bg.visible and not stage.style.cd_plus_bg.visible and not stage.style.cd_plus_v.visible and stage.content.hotspot_cd_plus.disabled == true and stage.content.hotspot_cd_minus.disabled == true and stage.content.hotspot_cd_value.disabled == true)
+  check("cooldown: the card on the stage shows the cooldown (2:00) with its minus and plus, and they are click areas (2026-10-05)", stage.content.cd_value == "2:00" and stage.visible and stage.style.cd_minus_bg.visible and stage.style.cd_plus_bg.visible and stage.style.cd_plus_v.visible and stage.content.hotspot_cd_plus.disabled == false and stage.content.hotspot_cd_minus.disabled == false and stage.content.hotspot_cd_value.disabled == false)
+  local cd_before = view._wave.cooldown
+  stage.content.hotspot_cd_plus.pressed_callback()
+  check("cooldown: the plus on the stage card adds 30 seconds to the card", settings.cd_wave_small == cd_before + 30 and W.stepper_qcd.content.stepper_value == "2:30", tostring(settings.cd_wave_small))
+  stage.content.hotspot_cd_minus.pressed_callback()
+  check("cooldown: the minus takes them off; the cooldown stepper beside the chance shows it", settings.cd_wave_small == cd_before and W.stepper_qcd.visible and W.stepper_qcd.content.stepper_value == "2:00")
+  W.stepper_qcd.content.hotspot_plus.pressed_callback()
+  check("cooldown: the stepper beside the chance steps it too", settings.cd_wave_small == cd_before + 30)
+  W.stepper_qcd.content.hotspot_minus.pressed_callback()
+  stage.content[view.TILE_IDS and view.TILE_IDS.hotspot_pip[3] or "hotspot_pip3"].pressed_callback()
+  check("chance: a pip of the stage card sets the card's chance (3)", settings.pct_wave_small == mod.rw.cards.weight_for_level(3), tostring(settings.pct_wave_small))
+  settings.pct_wave_small = nil; view:_reload(); view:_apply_screen(true)
   view:cb_back()
   check("cooldown: back on the Deck the plates and the value are there again", view._screen == "list" and tile(1).style.cd_minus_bg.visible and tile(1).content.cd_value == "2:00")
 
@@ -1197,6 +1208,29 @@ check("re-entering the picker starts with an empty search", view._filter == "" a
 click("btn_back")
 check("back from the picker returns to the detail screen", view._screen == "detail")
 
+-- (2026-10-05) typing on the Deck opens the Deck's search; where a search box is dragged is kept for the game session
+do
+  local strokes = {}
+  Keyboard = { keystrokes = function() return strokes end }
+  local function frame() view:update(0.01, 0, input_stub) end
+  local key_before = view._key
+  view:cb_back()
+  check("deck search: back on the Deck, nothing open", view._screen == "list" and view._popup == nil)
+  strokes = { "f", "o" }
+  frame()
+  check("deck search: typing on the Deck opens its search box", view._popup ~= nil and view._popup.spec.place_key == "deck_search")
+  strokes = {}
+  frame()
+  check("deck search: the typed letters land in the box and filter the Deck", view._widgets_by_name.rw_popup_input.content.input_text == "fo" and view._deck_query == "fo", tostring(view._deck_query))
+  view._popup_spots.deck_search = { 300, 400 }
+  SP.Popup.cancel(view)
+  check("deck search: a dragged spot is kept in the editor's memory (it outlives the view)", mod.rw.editor_memory.popup_spots.deck_search[1] == 300 and view._deck_query == "")
+  view:on_exit(); view:on_enter()
+  check("deck search: ...and the reopened editor uses it", view._popup_spots.deck_search[2] == 400)
+  view._popup_spots.deck_search = nil
+  view:_open_detail(key_before)
+end
+
 -- typing on the picker screen opens the search box by itself ------------------------------------------------
 do
   local strokes = {}
@@ -1801,7 +1835,7 @@ do
   view._widgets_by_name.rw_popup_input.content.input_text = "3"; view:update(0.01, 0, inp); PPt.Popup.commit(view)
   check("timer: a typed value below 5 becomes 5", settings.ev_wave_small == 5)
   settings.ev_wave_small = 90; view:_reload(); view:_apply_screen(true)
-  check("timer: with a timer the chance row says the wave is not drawn", W.stepper_chance.content.extra == "extra_timer_wave")
+  check("timer: with a timer the chance row says it is a timer card, the cooldown beside it is dimmed", W.stepper_chance.content.extra == "extra_timer_short" and W.stepper_qcd.content.stepper_value_dim == true)
   click("btn_back")
   check("timer: a card on a fixed timer leaves the draw (12 of the 13 cards with enemies stay), has no strip segment, its tile is still there", D.deck_count.content.deck_count == "deck_count:12" and #view._strip_segments == 12 and tile(1).visible and view._waves[1].timer == 90, D.deck_count.content.deck_count)
   open_card(1); click("btn_reset"); click("btn_back")
@@ -2518,8 +2552,8 @@ do
   local pos = view._definitions.scenegraph_definition.rw_stage_card
   check("stage: the card is centred on its plate and sits inside it (22 below the top)", math.abs(pos.position[1] + pos.size[1] / 2 - (WK.PLATE.x + WK.PLATE.w / 2)) < 0.5 and pos.position[2] == WK.PLATE.y + 22 and pos.position[2] + pos.size[2] <= WK.PLATE.y + WK.PLATE.h - 30)
   local locked = true
-  for _, id in ipairs(view.TILE_HOTSPOTS) do if id ~= "hotspot_share" and stage.content[id].disabled ~= true then locked = false end end
-  check("stage: nobody can click the card (only the share hotspot is active)", locked)
+  for _, id in ipairs(view.TILE_HOTSPOTS) do if id ~= "hotspot_share" and not id:find("^hotspot_pip") and not id:find("^hotspot_cd_") and stage.content[id].disabled ~= true then locked = false end end
+  check("stage: the card's toggle and edit areas are off (its share, pips and cooldown are the click areas)", locked)
   check("stage: the plate takes the suit's colours (blight: card #25240c, frame #5c5a1e, glow in pus yellow)", W.stage_plate.content.stage.card[1] == 0x25 and W.stage_plate.content.stage.frame[1] == 0x5c and W.stage_plate.content.stage.accent[1] == 0xe3)
   check("stage: the line under the card: threat, enemies and the share of the draw", W.stage_stats.content.stage_stats:find("^stage_stats:3,9,") ~= nil, W.stage_stats.content.stage_stats)
   check("stage: the title, the caption and the labels are set", W.stage_caption.content.stage_caption == "STAGE_CAPTION" and W.quick_label.content.quick_label == "QUICK_LABEL" and W.threat_label.content.threat_label == "LBL_THREAT" and W.spawn_label.content.spawn_label == "SPAWN_LABEL")
@@ -2629,7 +2663,7 @@ do
   -- the chance and the toolbar
   local pct = settings.pct_custom_1
   click("stepper_chance", "hotspot_minus")
-  check("chance: the stepper under the card changes the chance by one and the line under the card says the share", settings.pct_custom_1 == pct - 1 and W.stepper_chance.content.stepper_value == tostring(pct - 1) and W.stepper_chance.content.extra:find("^extra_share:") ~= nil)
+  check("chance: the stepper under the card changes the chance by one and the line under the card says the share", settings.pct_custom_1 == pct - 1 and W.stepper_chance.content.stepper_value == tostring(pct - 1) and W.stepper_chance.content.extra:find("^extra_share_short:") ~= nil)
   click("stepper_chance", "hotspot_plus")
   click("stepper_chance", "hotspot_plus")
   check("chance: 10 is the most: plus at 10 stays at 10 (the setting and the number shown)", settings.pct_custom_1 == 10 and W.stepper_chance.content.stepper_value == "10", tostring(settings.pct_custom_1))
@@ -2660,7 +2694,7 @@ do
     local st = view._widgets_by_name.rw_stage_card
     local hn, hw = st.style.hotspot_name, st.style.hotspot_whisper
     check("stage: the name and the line in quotes are click areas inside the card, the name above the line, one to three lines of name high", hn.size[1] > 100 and hn.size[2] >= 24 * 1.4 - 1e-6 and hn.size[2] <= 3 * 24 * 1.4 + 1e-6 and hw.size[2] > 20 and hn.offset[2] + hn.size[2] <= hw.offset[2] and hw.offset[2] + hw.size[2] <= st.content.metrics.h)
-    check("stage: the stage enables sharing without Deck edits", (function() for _, id in ipairs(view.TILE_HOTSPOTS) do if id ~= "hotspot_share" and st.content[id].disabled ~= true then return false end end return true end)())
+    check("stage: the stage enables sharing, its pips and its cooldown, not the Deck's toggle and edit", (function() for _, id in ipairs(view.TILE_HOTSPOTS) do if id ~= "hotspot_share" and not id:find("^hotspot_pip") and not id:find("^hotspot_cd_") and st.content[id].disabled ~= true then return false end end return true end)())
     st.content.hotspot_name.is_hover = true
     local ul = pass_by_style(st, "name_ul")
     check("stage: under the pointer the name is underlined in the suit's accent, the line is not", ul.visibility_function(st.content, st.style.name_ul) == true and pass_by_style(st, "whisper_ul").visibility_function(st.content, st.style.whisper_ul) == false and st.style.name_ul.color[2] == st.style.suit_label.text_color[2])

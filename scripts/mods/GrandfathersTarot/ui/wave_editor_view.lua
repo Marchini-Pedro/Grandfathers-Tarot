@@ -37,8 +37,8 @@ local ROW_NODE_PREFIX = definitions.ROW_NODE_PREFIX
 local ROW_HOTSPOTS = { "hotspot_check", "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_action", "hotspot_mods", "hotspot_tune", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same" }
 local LIST_STEPPERS = { "stepper_tmin", "stepper_tmax" } -- list screen: time between waves
 -- (the cooldown moved to the card face screen, the chance sits under the card)
-local DETAIL_STEPPERS = { "stepper_chance", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer" }
-local STEPPER_WIDGETS = { "stepper_chance", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "stepper_tmin", "stepper_tmax" }
+local DETAIL_STEPPERS = { "stepper_chance", "stepper_qcd", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer" }
+local STEPPER_WIDGETS = { "stepper_chance", "stepper_qcd", "stepper_cooldown", "stepper_spread", "stepper_every", "stepper_for", "stepper_dmin", "stepper_dmax", "stepper_timer", "stepper_tmin", "stepper_tmax" }
 local STEPPER_HOTSPOTS = { "hotspot_minus", "hotspot_value", "hotspot_plus" }
 -- role: "primary" (the action a screen is for), "danger" (resets and removals), nothing = standard; pip = a toggle (a diamond
 -- that is lit while it is on). See Components.button.
@@ -212,6 +212,9 @@ GrandfathersTarotView.on_enter = function (self)
 	self._screen = "list"
 	self._offset = memory().deck_offset or 0
 	self._key = nil
+	-- where each search box was last dragged to, kept for the game session (2026-10-05)
+	memory().popup_spots = memory().popup_spots or {}
+	self._popup_spots = memory().popup_spots
 	self._confirm = nil
 	self._faction = mod:get("shelf_faction") == "dreg" and "dreg" or "scab"
 	self._help_pinned = false
@@ -362,7 +365,7 @@ GrandfathersTarotView.update = function (self, dt, t, input_service)
 		end
 	end
 
-	if self._screen == "picker" and not self._popup then
+	if (self._screen == "picker" or self._screen == "list") and not self._popup then
 		self:_auto_search()
 	end
 
@@ -531,7 +534,13 @@ GrandfathersTarotView._create_editor_widgets = function (self)
 		widget.content.hotspot.pressed_callback = callback(self, entry.cb, entry.arg)
 	end
 
-	local chance = self:_create_dynamic_widget("stepper_chance", blueprints.workshop_stepper("stepper_chance", Workshop.RIGHT_W, Workshop.ROW_LABEL_W, 15, Components.colors.muted))
+	local chance = self:_create_dynamic_widget("stepper_chance", blueprints.workshop_stepper("stepper_chance", 290, Workshop.ROW_LABEL_W, 15, Components.colors.muted))
+	-- the card's cooldown beside its chance (the Mirror's callbacks: 30 s steps, the value opens a number box)
+	local qcd = self:_create_dynamic_widget("stepper_qcd", blueprints.workshop_stepper("stepper_qcd", Workshop.RIGHT_W - 290, 98, 15, Components.colors.muted))
+
+	qcd.content.hotspot_minus.pressed_callback = callback(self, "cb_cooldown_step", -1)
+	qcd.content.hotspot_plus.pressed_callback = callback(self, "cb_cooldown_step", 1)
+	qcd.content.hotspot_value.pressed_callback = callback(self, "cb_cooldown_input")
 
 	chance.content.hotspot_minus.pressed_callback = callback(self, "cb_chance_step", -1)
 	chance.content.hotspot_plus.pressed_callback = callback(self, "cb_chance_step", 1)
@@ -1168,7 +1177,14 @@ GrandfathersTarotView._apply_screen = function (self, keep_offset)
 
 		chance.label = string.upper(mod:localize("lbl_chance"))
 		chance.stepper_value = tostring(math.floor(wave.pct))
-		chance.extra = wave.timer > 0 and mod:localize("extra_timer_wave") or share and mod:localize("extra_share", string.format("%.1f", share)) or mod:localize("extra_not_drawn")
+		chance.extra = wave.timer > 0 and mod:localize("extra_timer_short") or share and mod:localize("extra_share_short", string.format("%.1f", share)) or mod:localize("extra_not_drawn_short")
+
+		local qcd = widgets.stepper_qcd.content
+
+		qcd.label = string.upper(mod:localize("lbl_cooldown_short"))
+		qcd.stepper_value = Deck.clock_text(wave.cooldown)
+		qcd.stepper_value_dim = wave.timer > 0
+		qcd.extra = ""
 
 		local spread = widgets.stepper_spread.content
 
@@ -2068,6 +2084,7 @@ GrandfathersTarotView._open_search = function (self, initial)
 		value = initial or original,
 		max_length = 40,
 		y = 700,
+		place_key = "picker_search",
 		allow_rows = true, -- the enemy rows (and scrolling) stay clickable while the box is open
 		on_change = function (text)
 			self._filter = text
@@ -2116,7 +2133,7 @@ local function typed_text()
 end
 
 GrandfathersTarotView._auto_search = function (self)
-	if self._screen ~= "picker" or self._popup then
+	if (self._screen ~= "picker" and self._screen ~= "list") or self._popup then
 		return
 	end
 
@@ -2126,7 +2143,16 @@ GrandfathersTarotView._auto_search = function (self)
 		return
 	end
 
-	self:_open_search("")
+	-- (2026-10-05) on the Deck, typing opens the Deck's search the same way
+	if self._screen == "list" then
+		self:cb_deck_search()
+
+		if self._popup then
+			Popup.set_text(self, "")
+		end
+	else
+		self:_open_search("")
+	end
 
 	-- The input widget reads this frame's keystrokes when it is drawn, right after this update. If
 	-- it did not (it is text-empty next frame), fill the characters in ourselves, once.

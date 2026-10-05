@@ -597,7 +597,7 @@ EffectsView.install = function (View, h)
 
 		local before = self._deck_query or ""
 
-		h.Popup.open(self, { label = mod:localize("deck_search_title"), value = before, max_length = 40, allow_rows = true, hint = mod:localize("deck_search_hint"),
+		h.Popup.open(self, { label = mod:localize("deck_search_title"), value = before, max_length = 40, allow_rows = true, hint = mod:localize("deck_search_hint"), place_key = "deck_search",
 			on_change = function (query) self:_set_deck_query(query) end,
 			on_cancel = function () self:_set_deck_query(before) end,
 			set = function (query) self:_set_deck_query(query) end })

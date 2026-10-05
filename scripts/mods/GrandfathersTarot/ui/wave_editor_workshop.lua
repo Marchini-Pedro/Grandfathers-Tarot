@@ -95,6 +95,16 @@ WorkshopView.install = function (View, h)
 		stage.content.hotspot_whisper.pressed_callback = callback(self, "cb_whisper_change")
 		stage.content.hotspot_share.pressed_callback = callback(self, "cb_wave_share")
 
+		-- (2026-10-05) the card's chance and cooldown are set on the card itself, as on the Deck: a pip sets the chance, the minus and
+		-- the plus of the cooldown row step it, its value opens the number box
+		for k = 1, h.Deck.PIPS do
+			stage.content[h.TILE_IDS.hotspot_pip[k]].pressed_callback = callback(self, "cb_stage_pip", k)
+		end
+
+		stage.content.hotspot_cd_minus.pressed_callback = callback(self, "cb_cooldown_step", -1)
+		stage.content.hotspot_cd_plus.pressed_callback = callback(self, "cb_cooldown_step", 1)
+		stage.content.hotspot_cd_value.pressed_callback = callback(self, "cb_cooldown_input")
+
 		stage.visible = false
 		self:_create_mirror_widgets(WB)
 	end
@@ -176,8 +186,28 @@ WorkshopView.install = function (View, h)
 			stage.content.hotspot_share.disabled = not (enabled and stage.visible and mod:get("card_share_icons") ~= false)
 			stage.content.hotspot_name.disabled = not (enabled and stage.visible)
 			stage.content.hotspot_whisper.disabled = not (enabled and stage.visible)
+
+			local on = enabled and stage.visible
+			local timer = self._wave and (tonumber(self._wave.timer) or 0) > 0
+
+			for k = 1, h.Deck.PIPS do
+				stage.content[h.TILE_IDS.hotspot_pip[k]].disabled = not on
+			end
+
+			for _, id in ipairs({ "hotspot_cd_minus", "hotspot_cd_plus", "hotspot_cd_value" }) do
+				stage.content[id].disabled = not on or timer
+			end
 		end
 	end
+
+	-- a pip of the card on the stage: the card's chance becomes that number
+	View.cb_stage_pip = guarded(function (self, level)
+		if self._key and self._wave then
+			set_setting("pct_" .. self._key, mod.rw.cards.weight_for_level(level))
+			self:_reload()
+			self:_apply_screen(true)
+		end
+	end)
 
 	-- ------------------------------------------------------------------------------------------ hostile or beneficial suits
 	-- Which suits the quick face and the Mirror show: the twelve hostile ones or the four beneficial ones (2026-10-04, the switch that
@@ -452,6 +482,7 @@ WorkshopView.install = function (View, h)
 			end
 		end
 
+		stage.content.cd_buttons_always = true -- the cooldown's minus and plus are shown: the card on the stage takes them (2026-10-05)
 		self:_paint_tile(stage, wave)
 
 		local plate = widgets.stage_plate.content.stage
