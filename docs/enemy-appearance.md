@@ -203,3 +203,10 @@ Live acceptance must compare untreated and treated groups of the same breed:
 Full-body surface recolouring and private material/shader patching remain
 unimplemented until the prerequisites above are actually verified. The live
 checklist remains open after the GitHub merge; no in-game confirmation is recorded.
+
+## Shadow fog: tried and removed (2026-10-05)
+
+An experimental method linked the Daemonhost's ambient fog particle to the enemy. Seen in game it is a large fog around the
+target with a heavy performance cost, so it was removed (commit 5bfa39e reverts 9bf9d0d). Cheaper ideas still open: keeping an
+ailment look on (a material value, like the On Fire glow) with a dark colour ramp, or the game's own small enemy particles
+(the Nurgle blessing flies).

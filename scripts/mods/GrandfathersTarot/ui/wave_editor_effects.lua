@@ -153,10 +153,11 @@ EffectsView.definitions = function (nodes, widgets, node)
 		{ "rw_snd_slot2", SND.slot2_x, SND.slots_y, SND.slot_w, "tab" },
 		{ "rw_snd_remove2", SND.remove_x, SND.slots_y, SND.remove_w, "danger" },
 		{ "rw_snd_search", SND.search_x, SND.slots_y, SND.search_w, "primary" },
+		{ "rw_snd_stop", SND.stop_x, SND.stop_y, SND.stop_w, "danger" },
 	}) do
 		local name, passes = button[1], {}
 
-		nodes[name] = node(button[2], button[3], button[4], SND.slots_h, 4)
+		nodes[name] = node(button[2], button[3] or SND.slots_y, button[4], SND.slots_h, 4)
 		C.button(passes, "hotspot", { 0, 0, 0 }, { button[4], SND.slots_h }, { label = "", font_size = 19, role = button[5] })
 		widgets[name] = UIWidget.create_definition(passes, name)
 	end
@@ -213,6 +214,7 @@ EffectsView.install = function (View, h)
 		widgets.rw_snd_slot2.content.hotspot.pressed_callback = callback(self, "cb_sound_slot", 2)
 		widgets.rw_snd_remove2.content.hotspot.pressed_callback = callback(self, "cb_sound_remove2")
 		widgets.rw_snd_search.content.hotspot.pressed_callback = callback(self, "cb_sound_search")
+		widgets.rw_snd_stop.content.hotspot.pressed_callback = callback(self, "cb_sound_stop_previews")
 
 		for i = 1, Sounds.MAX_SOUNDS do
 			widgets["rw_snd_vol" .. i].content.hotspot.pressed_callback = callback(self, "cb_sound_drag", i)
@@ -264,7 +266,7 @@ EffectsView.install = function (View, h)
 		local list = on and self:_sound_list() or {}
 		local slot = self._snd_slot or 1
 
-		for _, name in ipairs({ "rw_snd_slot1", "rw_snd_slot2", "rw_snd_remove2", "rw_snd_search" }) do
+		for _, name in ipairs({ "rw_snd_slot1", "rw_snd_slot2", "rw_snd_remove2", "rw_snd_search", "rw_snd_stop" }) do
 			widgets[name].visible = on
 		end
 
@@ -275,8 +277,9 @@ EffectsView.install = function (View, h)
 		widgets.rw_snd_slot2.content.hotspot_on = slot == 2
 		widgets.rw_snd_remove2.content.hotspot_text = mod:localize("snd_remove_second")
 		widgets.rw_snd_search.content.hotspot_text = mod:localize("snd_search")
+		widgets.rw_snd_stop.content.hotspot_text = mod:localize("snd_stop_previews")
 
-		for _, name in ipairs({ "rw_snd_slot1", "rw_snd_slot2", "rw_snd_remove2", "rw_snd_search" }) do
+		for _, name in ipairs({ "rw_snd_slot1", "rw_snd_slot2", "rw_snd_remove2", "rw_snd_search", "rw_snd_stop" }) do
 			widgets[name].content.hotspot.disabled = not (enabled and widgets[name].visible)
 		end
 
@@ -483,6 +486,11 @@ EffectsView.install = function (View, h)
 		self._screen, self._offset, self._snd_slot, self._snd_list_key = "sounds", 0, 1, nil
 		self:_apply_screen()
 		open_search(self)
+	end)
+
+	-- Stop all sound previews (2026-10-05): every preview still playing stops at once
+	View.cb_sound_stop_previews = h.guarded(function (self)
+		if mod.rw.effects and mod.rw.effects.stop_previews then mod.rw.effects.stop_previews() end
 	end)
 
 	View.cb_sound_search = h.guarded(function (self)

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-05 - Golden health, Stop all sound previews; shadow fog removed (feature/enemy-shadow)
+- While the team has an Instant rescue charge, a player with more than one wound left has golden health bars (the game's overshield toughness colour), on every player's HUD (the charge count is sent with the effects state).
+- The card sound screen has a "Stop all sound previews" button (a card's real sound at a draw is not stopped).
+- The shadow fog is removed: tested in game, its performance cost was too high.
+- Lua suites not run (the user's choice); not yet tested in game.
+
 ## 2026-10-05 - The Grandfather's Tarot (feature/cauldron-redesign)
 - The mod is renamed The Grandfather's Tarot (folders, files, DMF id); commands are /gt_...; the Cauldron is the Workshop.
 - Saved decks, presets and options are copied once from the old RealmsWaves settings.

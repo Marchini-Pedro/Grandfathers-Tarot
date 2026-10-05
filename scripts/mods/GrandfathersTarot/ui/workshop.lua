@@ -142,7 +142,7 @@ end
 
 -- The completion sound screen, in the bottom panel (y 750 to 1030): the two slots, Remove the second and Search in one line, the
 -- volume sliders under it, right of Back (125, 800).
-Workshop.SOUND = { slots_y = 754, slots_h = 40, slot1_x = 125, slot2_x = 745, slot_w = 600, remove_x = 1365, remove_w = 200, search_x = 1585, search_w = 215, slider_x = 325, slider_y = { 802, 860 }, slider_h = 52, label_w = 160, track_x = 170, track_w = 760 }
+Workshop.SOUND = { slots_y = 754, slots_h = 40, slot1_x = 125, slot2_x = 745, slot_w = 600, remove_x = 1365, remove_w = 200, search_x = 1585, search_w = 215, stop_x = 1365, stop_y = 802, stop_w = 435, slider_x = 325, slider_y = { 802, 860 }, slider_h = 52, label_w = 160, track_x = 170, track_w = 760 }
 
 -- ------------------------------------------------------------------------------------------------- spawn settings, actions
 Workshop.SPAWN_COLS = { 105, 491, 877 }

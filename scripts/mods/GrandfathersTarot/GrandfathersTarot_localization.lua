@@ -512,6 +512,7 @@ local L = {
 	popup_hint_number = { en = "Type a number, Enter to confirm, Esc to cancel" },
 	popup_hint_text = { en = "Type the text, Enter to confirm, Esc to cancel" },
 	popup_ok = { en = "OK" },
+	snd_stop_previews = { en = "Stop all sound previews" },
 	popup_cancel = { en = "Cancel" },
 }
 

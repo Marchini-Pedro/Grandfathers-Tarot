@@ -8,6 +8,7 @@ local lights, buffs, outlines, audio = {}, {}, {}, {}
 local sequence, received, warned = 0, nil, {}
 local grants, grant_sequence, grant_received = {}, 0, nil
 local rescues_left = 0 -- Instant rescue: how many of the next players to go down are helped up at once (host)
+local received_rescues = 0 -- a client: the host's rescues_left (the golden health bars)
 -- Raise the fallen: rescued players waiting to be brought back once they stand (host); BRING_WAIT seconds at most
 local pending_bring, BRING_WAIT = {}, 15
 local revision, received_revision, received_time = 0, nil, nil
@@ -60,6 +61,7 @@ local function game_time() return require("scripts/utilities/fixed_frame").get_l
 -- Volume below 100 sets the game's sfx volume parameter on that source: EXPERIMENTAL (no per-sound volume exists). Volume 0 never plays.
 local CHAIN_GAP, CHAIN_LONGEST, CHAIN_MIN = 2.5, 12, 0.3
 local chain, audio_clock = {}, 0
+local previews = {} -- the editor's previews still playing: { wwise world, playing id } (Stop all sound previews)
 local function listener_unit()
 	local manager = Managers.player
 	local find = manager and (manager.local_player_safe or manager.local_player)
@@ -106,21 +108,38 @@ local function start_entry(list, index, job)
 	if entry.volume <= 0 then return start_entry(list, index + 1, job) end
 	local ok, id, wwise = pcall(trigger, entry.event, entry.volume)
 	if not ok then warn("sound unavailable: " .. tostring(id)); id, wwise = nil, nil end
+	if job and job.preview and id and wwise then
+		previews[#previews + 1] = { wwise, id }
+		if #previews > 32 then table.remove(previews, 1) end
+	end
 	if list[index + 1] or job then
 		chain[#chain + 1] = { list = list, next = index + 1, id = id, wwise = wwise, started = audio_clock, job = job }
 		if #chain > 8 then table.remove(chain, 1) end
 	end
 end
 -- Plays a card's sound text; returns the job { done } of the whole list (nil when muted or silent)
-local function play(text)
+local function play(text, preview)
 	if mod:get("card_sounds") == false then return nil end
 	local list = Sounds.parse(text)
 	if #list == 0 then return nil end
-	local job = { done = false }
+	local job = { done = false, preview = preview == true }
 	start_entry(list, 1, job)
 	return job
 end
-Effects.preview_sound = play
+Effects.preview_sound = function (text) return play(text, true) end
+-- (2026-10-05, the user: a "stop all sound previews" button) stops every preview still playing, and the second sounds they wait
+-- to start; a card's real sound at a draw is not a preview and keeps playing. Returns how many were stopped.
+Effects.stop_previews = function ()
+	local stopped = 0
+	for _, item in ipairs(previews) do
+		if pcall(WwiseWorld.stop_event, item[1], item[2]) then stopped = stopped + 1 end
+	end
+	previews = {}
+	for i = #chain, 1, -1 do
+		if chain[i].job and chain[i].job.preview then chain[i].job.done = true; table.remove(chain, i) end
+	end
+	return stopped
+end
 -- Every frame, everywhere (the editor's preview plays in the hub too): the second sounds of the chain.
 Effects.tick_audio = function (dt)
 	audio_clock = audio_clock + math.max(0, tonumber(dt) or 0)
@@ -282,6 +301,8 @@ local function instant_rescue(list)
 	end
 end
 Effects.rescues_left = function () return rescues_left end
+-- Instant rescue charges armed for the team, on any machine (the host's own count, or the one it sent)
+Effects.team_rescues = function () if host() then return rescues_left end return received_rescues end
 -- Replenish grenades: `charges` grenade charges for every living player, on the host as the grenade pickup does it
 -- (scripts/extension_systems/interaction/interactions/grenade_interaction.lua: restore_ability_charge("grenade_ability")). A player
 -- without a grenade ability, or whose grenades are full, gets nothing.
@@ -457,7 +478,7 @@ Effects.update = function (dt, paused)
 		if not ok then warn("raise the fallen: " .. tostring(err)) end
 	end
 end
-Effects.snapshot = function () return { revision = revision, time = clock, reveal = math.max(0, reveal_until - clock), sequence = sequence, audio = audio, grants = grants, grant_sequence = grant_sequence } end
+Effects.snapshot = function () return { revision = revision, time = clock, reveal = math.max(0, reveal_until - clock), sequence = sequence, audio = audio, grants = grants, grant_sequence = grant_sequence, rescue = rescues_left } end
 Effects.receive = function (state)
 	if host() or type(state) ~= "table" then return end
 	local seq = Schema.number(state.sequence, 2147483647)
@@ -505,6 +526,7 @@ Effects.receive = function (state)
 		grant_received = math.max(grant_received or grant_seq, grant_seq)
 	end
 	reveal_until = clock + (Schema.number(state.reveal, 300) or 0)
+	received_rescues = Schema.number(state.rescue, 4) or 0
 	if received and seq > received and type(state.audio) == "table" then
 		for i = 1, math.min(8, #state.audio) do
 			local entry = state.audio[i]
@@ -520,7 +542,7 @@ Effects.cancel = function ()
 	for unit, record in pairs(outlines) do remove_outline(unit, record) end
 	for _, buff in ipairs(buffs) do if alive(buff.unit) and buff.extension:has_running_buff_with_index(buff.index, buff.component) then pcall(buff.extension.remove_externally_controlled_buff, buff.extension, buff.index, buff.component) end end
 	buffs = {}
-	rescues_left = 0
+	rescues_left, received_rescues = 0, 0
 	pending_bring = {}
 end
 Effects.reset = function () Effects.cancel(); chain = {}; clock, sequence, received, audio = 0, 0, nil, {}; grants, grant_sequence, grant_received = {}, 0, nil; revision, received_revision, received_time = 0, nil, nil end
