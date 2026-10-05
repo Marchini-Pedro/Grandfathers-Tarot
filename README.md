@@ -19,11 +19,12 @@ random selection and player voting. No Twitch service is required.
   card's chance (the pips) and cooldown (the `-` / `+` on its tile) in place; save five
   **Deck presets**; sort cards by threat, rarity, enemy count or face; drag to swap
   cards on a page. **HERESY** (crimson; its glow beats like a heart and it bleeds in the HUD), **NIGHTMARE** (black,
-  a breathing darkness and a dying light, black ink, a black fog over the card and, when drawn, over the screen (option);
-  once per game), **Warp** (a pulsing glow and rising motes), **Prayer**, **Miracle**,
+  a breathing darkness and a dying light, black ink, a black fog over the card and, when drawn, over the screen and a grey
+  world for every player (option "Nightmare darkness": 30 the usual, 100 almost black); once per game), **Warp** (a pulsing glow and rising motes), **Prayer**, **Miracle**,
   **Grace** and **Faith** have their own frames and sigils.
 - **The Cauldron:** build enemy groups with a searchable catalog and Dreg/Scab
-  shelf, modifiers, custom stats and a live card preview.
+  shelf, modifiers, custom stats and a live card preview. The On Fire modifier has its
+  burn damage (0 to 300 percent) on the right of its row.
 - **Enemy colour experiments:** per-group ARGB sliders and a method dropdown
   under **Custom > Enemy colour experiments**. Try natural/applied stimm,
   explicit loadout tint with an independent outline and protected-colour toggle.
@@ -82,7 +83,8 @@ No new dependency is required.
 1. Open **Mod Options > Realms Waves** to choose a mode, timing and spawn limits.
 2. Press **F6** or use `/rw_editor` to open the Deck. Select a card to edit its
    enemies/effects in the Cauldron or its appearance in the Mirror. Share through
-   **Share Card** or the small per-card glyph (toggleable in Mod Options).
+   **Share Card** or the small per-card glyph (toggleable in Mod Options). Shared texts
+   survive Discord and other Markdown chats; texts from older versions still import.
 3. Start a Realms mission as host. Use `/rw_status` to inspect the cycle and
    `/rw_test hound_frenzy` to test a wave. Vote keys default to **F1–F3**;
    the keybindings are configurable in Mod Options.

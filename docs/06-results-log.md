@@ -237,3 +237,14 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Tests for each (effects, logic, editor, HUD). Full runners pass every gate: Lua 5.5 2,489 assertions, 82.32%; LuaJIT 2.1 2,488
   counted, 79.19%. Nothing tested in game yet.
 
+## 2026-10-04 — Clients, darkness, teleport, boss health, imports, On Fire (feature/cauldron-redesign)
+
+- Built: effects update on clients (Specialist outlines), grants applied to the client's own player with a log line, Raise the
+  fallen teleporting once the player stands, Nightmare darkness 0 to 100 (30 = the old look) with a grey world while it lasts,
+  boss health capped at what the network carries, chat-safe card texts, On Fire damage on the Mods screen. Found: the Daemonhost
+  fog particle as a possible enemy shadow (not built).
+- Tests: effects (deferred teleport, client grant), entry (the burn wrap, its hooks, a failing enemy interval, a summoner that
+  cannot be made to fight), editor (the On Fire stepper), HUD (darkness scale, the grey world), logic (the health cap, chat-safe
+  texts, the damaged text refused). Full runners pass every gate: Lua 5.5 2,518 assertions, 82.28%; LuaJIT 2.1 2,517 counted, 79.17%.
+  Lua 5.5 needs `--timeout-seconds 280`: its instrumented logic_test now takes about 140 s and the default 120 s times out. Nothing
+  tested in game yet.

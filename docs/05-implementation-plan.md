@@ -275,4 +275,7 @@ Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
 - [x] Sixth round (2026-10-04): the rehook warning fixed, sound-first /rw_test, /rw_drawtest and /rw_fulltest, Nightmare's fog on
   the card and its dread on the screen (option), the Draw HUD below boss bars (option); tests.
 - [x] Eighth round (2026-10-04): hogtied rescue with teleport, Instant rescue, Damage dealt, boss-bar opacity and swap, fog slider.
+- [x] Ninth round (2026-10-04): client outlines and grants, the teleport after the rescue, Nightmare darkness 0 to 100 and the grey
+  world, the boss health network cap, chat-safe texts, On Fire damage; tests.
+- [ ] Enemy shadow (the Daemonhost fog particle on other enemies): found, waiting for the user's decision.
 - [ ] Game acceptance of the [checklist](13-cauldron-redesign.md#in-game-checks-before-merge); merge only after the user confirms.

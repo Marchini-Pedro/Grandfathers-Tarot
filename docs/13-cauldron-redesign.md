@@ -186,6 +186,21 @@ effect), as before for any unknown id. The glow of Nightmare is a dark colour: w
 
 Old peers: a card with `damage=` in a recipe, or the effects `instant_rescue`, is rejected by them as unknown.
 
+## Ninth round: clients, darkness, the hogtied teleport, boss health, imports, On Fire (2026-10-04)
+
+| Request | What was built or found |
+| --- | --- |
+| The combat ability refill and the Specialists' outline worked only for the host | The outline: a client never ran the effects update, and the update is what draws a reveal's outlines on each machine; clients now run it (`RealmsWaves.lua` `mod.update`, `Effects.update(dt, false)`). The refill: on the host a remote player's ability extension is a husk (its restore throws), so the client restores its own ability from the host's grant in the effects journal. The grant is now applied to the client's own player, found through the player manager (`local_player_safe(1)`; the party list a client builds may miss it), and each grant applied writes `RealmsWaves card effects: combat ability restored by N percent` to the console log. No defect was found in the grant path itself: if a client still gets nothing, that log line (present or missing) shows which side fails. |
+| Darkness slider: 100 = almost completely dark, 30 = today's look | Option **Nightmare darkness** (`nightmare_fog_strength`, default 30). `Spread.darkness(base, percent)`: none at 0, the old look at 30, alpha 245 (almost black) at 100, straight lines between. It drives the card fog (HUD, Deck, Last Card) and the dread over the screen (veil, vignette, fog). A saved 100 (the old full strength) becomes 30 once (`nightmare_dark_v2_done`). |
+| While the darkness lasts, every player sees the "one wound left" look | When a Nightmare card is drawn, each machine adds the game's `last_wound` mood to its own player (the grey, colourless world); a hook on `PlayerUnitMoodExtension._remove_mood` keeps it on while `dread_active` is set, because the game re-checks the mood every frame. Only the look: nobody's health changes. It ends with the dread. |
+| A way to darken an enemy (shadow or similar) | Found, not built: the Daemonhost's ambient fog is a particle effect (`content/fx/particles/enemies/daemonhost/daemonhost_ambient_fog`, `chaos_daemonhost_settings` `fog_effect`) that could be created on another enemy and linked to it (`World.create_particles` and a link), as an experimental "shadow fog" modifier. Untested: whether the resource is loaded outside a Daemonhost mission, how it looks on a small enemy, its cost with many enemies. The user decides whether to try it. |
+| The hogtied rescue works but the player is not teleported | The teleport was done in the same frame as the rescue, while the player was still hogtied (the forced assist takes time), and it did not stick. The host now keeps the rescued player in a list for up to 15 s and teleports them to the nearest standing player once they are neither hogtied nor knocked down (a remote human through the teleport grant, as before). |
+| The Wrath card's boss health shows 0 or another number for clients | Clients read a unit's maximum health from the networked game object, whose health field is capped by the network (`NetworkConstants.health_large.max`); a custom health above that overflows on clients. A custom health is now capped at that maximum (`Tuning.network_health_max`), with one warning in the log when it is. |
+| The import of `RWW1\|custom_27~Fire and Steel~...` fails | The text was damaged by the chat app: `~~1~~` between field separators is Markdown strikethrough, so the empty fields and a `~` were eaten. Exports now write an empty field as `.` and escape `*`, `_`, `\` and backticks, and the card key is escaped too; older texts still import. The damaged text cannot be recovered: it has to be exported again with this version. |
+| On Fire: too subtle, only the host burns; then "clients burn now, but it hurts too much, let me set it beside the modifier" | The On Fire row of the Mods screen has a stepper on the right (0 to 300 percent, a click on the number opens a box), stored with the group's custom values (`{burn=50}`; 100 is not stored). The game's burn templates are wrapped once: the burning enemy marks the players it sets on fire with its group's share, and their burn runs the game's own damage with the power level scaled (0 = no damage). The host decides damage, so clients burn by the same share. |
+
+Old peers: a text exported now (`.` fields, escapes) and a recipe with `burn=` are not read by them.
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -228,3 +243,7 @@ Old peers: a card with `damage=` in a recipe, or the effects `instant_rescue`, i
 15. Eighth round: Raise the fallen with a hogtied host, bot and remote human (each brought to the nearest standing player), none
     hogtied; Instant rescue with one and two players going down; Damage dealt on a sniper; the fog slider; the Draw HUD's opacity
     and the bars below it with one and two bosses, and with the boss bars moved by custom_hud.
+16. Ninth round: a client gets the combat ability refill (its console log says "combat ability restored") and sees the Specialists'
+    outlines; Nightmare darkness at 0, 30 and 100 and the grey world for every player, ending with the dread; Raise the fallen
+    teleports a hogtied host, bot and remote human once they stand; a Wrath boss's health on a client; a card exported, pasted in
+    Discord and imported; On Fire damage at 0, 50 and 300 on host and clients.

@@ -419,3 +419,15 @@ Things we know are missing or unverified, each with the next concrete step.
 - **`attacker_stat_buffs.damage`** is read for every attacker in `damage_calculation.lua`: a minion's outgoing damage is a stat.
 - **Another HUD element's node** can be moved with its public `set_scenegraph_position`; remember its own position first.
 
+## 2026-10-04 — Networked health, moods, chat apps, teleports
+
+- **A networked unit's health is capped** by `NetworkConstants.health_large.max`: clients read the maximum from the game object, so
+  a larger value shows wrong (0 or a wrapped number) on clients. Cap custom health there.
+- **A teleport during the hogtied state does not stick**; teleport after the assist has finished (the player stands).
+- **Moods are re-checked every frame** (`PlayerUnitMoodExtension`): to keep one on (the `last_wound` grey world), the removal has to
+  be held back, not just the mood added.
+- **Chat apps eat Markdown**: `~~x~~` becomes strikethrough in Discord, so a text meant to be pasted must not contain doubled
+  separators, `*`, `_`, `\` or backticks. Empty fields are written as `.`.
+- **Effects drawn per machine need a client update**: anything a client draws itself (outlines) is lost if only the host ticks.
+- **Template interval functions are looked up from the template table every interval**, so wrapping them once in the loaded
+  `buff_templates` table changes the burn of every later On Fire enemy.

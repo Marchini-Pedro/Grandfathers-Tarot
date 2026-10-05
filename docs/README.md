@@ -67,7 +67,7 @@ and the current verification log.
 | [Executed audit](audits/2026-10-03/report.md) | Baseline, ranked findings, reproductions, inventory, measurements and live acceptance |
 | [Approved remediation](audits/2026-10-03/remediation.md) | Six implementation batches, current results and [runnable validation](audits/2026-10-03/remediation-validation.md) |
 | [Adversarial audit prompt](audits/adversarial-audit-prompt.md) | Reusable audit-only brief: risk-based tests, lifecycle/scaling stress, measurements and evidence requirements; not an executed audit |
-| [Changelog](CHANGELOG.md) | Change history; [1.x archive](changelog/1.x.md) |
+| [Changelog](CHANGELOG.md) | Change history; [2.x archive](changelog/2.x.md), [1.x archive](changelog/1.x.md) |
 | [TwitchVersus findings](01-findings-twitchversus.md) | Historical TwitchVersus and VersusMode audit |
 | [RealmsEvent findings](02-findings-realmsevent.md) | Historical RealmsEvent audit |
 | [Realms and game-source findings](03-findings-realms-and-game-source.md) | Network API, authority, spawn chain, positioning and limits |
