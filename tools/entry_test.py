@@ -273,6 +273,13 @@ do
   local early = aggroed[mine]
   T.update(0.6)
   check("summoners: a wave's Packmaster is watched (a gunner is not) and made to fight again once a second", T.summoner_count() >= 1 and not early and aggroed[mine] == true)
+  local broken = { name = "broken" }
+  HEALTH_ALIVE[broken] = true
+  T.watch_summoner(broken, "chaos_ogryn_houndmaster")
+  ScriptUnit.has_extension = function(u, name) if u == broken then error("extension gone") end if name == "perception_system" then return perception(u) end return nil end
+  T.update(1.1)
+  check("summoners: one that cannot be made to fight is contained (warned), the others still are", T.summoner_count() >= 1)
+  HEALTH_ALIVE[broken] = nil
   HEALTH_ALIVE[mine] = nil; T.update(1.1)
   check("summoners: a dead summoner is no longer watched", T.summoner_count() == 0)
   Unit.alive = unit_alive
@@ -315,6 +322,15 @@ do
   templates.common_minion_on_fire.interval_func({}, { unit = enemy })
   templates.hit_by_common_enemy_flame.interval_func({}, { unit = scaled_player })
   check("on fire: at 0 the burn does no damage at all", #hits == 1 and game_burns == 1)
+  -- the hooks as registered: the templates file loaded (again) is wrapped once; the player buff hook marks the player
+  local fresh = { common_minion_on_fire = { interval_func = function() error("boom") end }, hit_by_common_enemy_flame = { interval_func = function() end } }
+  require_by_path["scripts/settings/buff/buff_templates"](fresh)
+  check("on fire: the registered hook wraps the templates when the game loads them", fresh.common_minion_on_fire.__rw_wrapped == true)
+  check("on fire: an enemy interval that fails still clears its share (the error goes on to the game)", not pcall(fresh.common_minion_on_fire.interval_func, {}, { unit = enemy }) and (function() T.on_player_buff_added({ _unit = plain_player }, "hit_by_common_enemy_flame"); return T.burn_share(plain_player) == nil end)())
+  local buff_hook
+  for _, h in ipairs(hooks) do if h.obj == "PlayerUnitBuffExtension" then buff_hook = h.fn end end
+  buff_hook({ _unit = plain_player }, "hit_by_common_enemy_flame")
+  check("on fire: the player buff hook only marks while a scaled enemy burns", T.burn_share(plain_player) == nil)
   T.dead = true
   templates.hit_by_common_enemy_flame.interval_func({}, { unit = scaled_player })
   check("on fire: a retired mod gives the burn back to the game", game_burns == 2)
