@@ -294,56 +294,6 @@ A.retire(); A.apply(treated,purple,treated.breed); A.update(1)
 check("retired runtime is inert", A.status().selected==0)
 P.retire(); received={}; rpcs.rw_appearance("host",packet)
 check("captured retired protocol handler is inert", #received==0)
--- Shadow fog (2026-10-05): the Daemonhost's fog linked to the enemy, created only once its particle package is loaded
-do
-  local S = dofile(BASE .. "/spawn/appearance.lua")
-  S.init({ schema = Schema })
-  local saved = { world = Managers.world, package = Managers.package, World = World, M = Matrix4x4, pos = Unit.world_position }
-  local loaded, load_calls, release_calls, created, linked, stopped, callback = false, 0, 0, {}, {}, {}, nil
-  Managers.package = { has_loaded = function(_, name) return loaded end,
-    load = function(_, name, ref, cb) load_calls = load_calls + 1; callback = cb; return "pkg" end,
-    release = function(_, id) release_calls = release_calls + 1 end }
-  Managers.world = { world = function(_, name) return name == "level_world" and "level" or nil end }
-  Matrix4x4 = { identity = function() return "I" end }
-  Unit.world_position = function(u, node) return { 1, 2, 3 } end
-  World = { create_particles = function(w, name, pos) created[#created + 1] = { w, name, pos }; return #created end,
-    link_particles = function(w, id, unit, node, pose, policy) linked[#linked + 1] = { id, unit, node, pose, policy } end,
-    stop_spawning_particles = function(w, id) stopped[#stopped + 1] = id end }
-  local function enemy() return { alive = true, extensions = {}, breed = "chaos_poxwalker" } end
-  local shade = { method = "shadow", a = 255, r = 0, g = 0, b = 0 }
-  check("shadow: a listed, available method with its own recipe", Schema.method("shadow").available and Schema.recipe(shade) == "<shadow:FF000000>")
-  local e1 = enemy()
-  S.apply(e1, shade, "chaos_poxwalker")
-  check("shadow: nothing is created while its particle package is not loaded; the load is asked once", #created == 0 and load_calls == 1)
-  S.update(0.25)
-  check("shadow: ...still nothing, and no second load", #created == 0 and load_calls == 1)
-  callback()
-  S.update(0.25)
-  check("shadow: once loaded the Daemonhost fog is created at the enemy and linked to its root (it follows it)", #created == 1 and created[1][2] == "content/fx/particles/enemies/daemonhost/daemonhost_ambient_fog" and linked[1][2] == e1 and linked[1][3] == 1 and linked[1][5] == "stop")
-  S.update(0.25)
-  check("shadow: one fog per enemy", #created == 1)
-  e1.alive = false; S.update(0.25)
-  check("shadow: a dead enemy's fog stops (it fades)", #stopped == 1 and stopped[1] == 1)
-  local e2 = enemy()
-  S.apply(e2, { method = "shadow", a = 0, r = 0, g = 0, b = 0 }, "chaos_poxwalker"); S.update(0.25)
-  check("shadow: A at 0 makes no fog", #created == 1)
-  S.apply(e2, shade, "chaos_poxwalker"); S.update(0.25)
-  S.apply(e2, { method = "outline", a = 255, r = 255, g = 0, b = 0 }, "chaos_poxwalker")
-  check("shadow: changing the enemy's look to another method stops its fog", #created == 2 and #stopped == 2)
-  S.reset()
-  for i = 1, 45 do S.apply(enemy(), shade, "chaos_poxwalker") end
-  check("shadow: at most 40 fogs at once, said once", #created == 42 and (function() for _, w in ipairs(warnings) do if w:find("shadow fog limit", 1, true) then return true end end end)())
-  S.reset()
-  check("shadow: a reset stops every fog", #stopped == 42)
-  World.create_particles = function() error("no such resource") end
-  local before = #warnings
-  S.apply(enemy(), shade, "chaos_poxwalker")
-  check("shadow: a fog that cannot be made is contained and said", #warnings > before)
-  S.retire()
-  check("shadow: retiring releases the particle package", release_calls == 1)
-  Managers.world, Managers.package, World, Matrix4x4, Unit.world_position = saved.world, saved.package, saved.World, saved.M, saved.pos
-end
-
 return checks
 '''
 

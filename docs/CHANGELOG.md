@@ -1,8 +1,5 @@
 # Changelog
 
-## 2026-10-05 - Shadow fog (feature/enemy-shadow)
-- New experimental enemy appearance method "Shadow fog": the Daemonhost's dark fog follows the enemy until it dies (every player, loaded safely first, 40 at once).
-
 ## 2026-10-05 - The Grandfather's Tarot (feature/cauldron-redesign)
 - The mod is renamed The Grandfather's Tarot (folders, files, DMF id); commands are /gt_...; the Cauldron is the Workshop.
 - Saved decks, presets and options are copied once from the old RealmsWaves settings.

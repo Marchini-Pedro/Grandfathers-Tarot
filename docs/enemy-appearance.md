@@ -203,22 +203,3 @@ Live acceptance must compare untreated and treated groups of the same breed:
 Full-body surface recolouring and private material/shader patching remain
 unimplemented until the prerequisites above are actually verified. The live
 checklist remains open after the GitHub merge; no in-game confirmation is recorded.
-
-## Shadow fog (experimental, `feature/enemy-shadow`, 2026-10-05)
-
-The user asked whether an enemy can be darkened "with a shadow or anything". A black tint or outline is impossible (both are
-additive light, see above); a dark particle around the enemy is possible.
-
-- **Method `shadow`** ("Shadow fog (experimental)") in the group's appearance (Custom > Enemy colour experiments): the
-  Daemonhost's ambient fog, `content/fx/particles/enemies/daemonhost/daemonhost_ambient_fog` (chaos_daemonhost_settings
-  `ambience.fog_effect`; the game creates it at a fixed point above the Daemonhost), created on every machine and linked to the
-  enemy's root node (`World.link_particles`, orphan policy "stop") so it follows it. Recipe `<shadow:FF000000>`; A at 0 is off,
-  the colour channels do nothing (the particle has no known colour variable).
-- **Loading:** the particle is loaded as its own package (`Managers.package:load`, as other mods load particles) and nothing is
-  created before the package manager says it is loaded: a particle whose resource is not loaded can crash the engine.
-- **Limits:** 40 fogs at once (each is a full particle system); a dead enemy's fog stops spawning and fades; a reset stops all;
-  retiring releases the package. It is one method among the appearance methods, so it cannot be combined with a tint (an outline
-  flag still can).
-- **Sync:** through the appearance protocol like the other methods; an older peer does not know the method and shows nothing.
-- **Unknown until seen in game:** the fog's size on a small enemy (the Daemonhost's covers an area), how dark it reads, its cost
-  with many enemies, whether the package loads in every mission.

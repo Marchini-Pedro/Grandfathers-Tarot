@@ -53,55 +53,7 @@ local function normal_colour(unit)
 	return value and value[1] or 0, value and value[2] or 0, value and value[3] or 0
 end
 
--- Shadow fog (2026-10-05, the user: "darken an enemy, with a shadow or anything"): the Daemonhost's ambient fog particle
--- (chaos_daemonhost_settings ambience.fog_effect), created on every machine and linked to the enemy's root so it follows it.
--- The particle is loaded as its own package first: creating a particle whose resource is not loaded can crash the engine, so
--- nothing is created until the package manager says it is loaded. At most MAX_SHADOWS at once (each is a full particle system).
-local SHADOW_PARTICLE = "content/fx/particles/enemies/daemonhost/daemonhost_ambient_fog"
-local MAX_SHADOWS = 40
-local shadow_package, shadow_ready = nil, false
-
-local function shadow_loaded()
-	if shadow_ready then return true end
-	local packages = Managers.package
-	if not packages then return false end
-	if packages:has_loaded(SHADOW_PARTICLE) then shadow_ready = true; return true end
-	if not shadow_package then
-		shadow_package = packages:load(SHADOW_PARTICLE, "GrandfathersTarot_shadow", function () shadow_ready = true end) or true
-	end
-	return false
-end
-
-local function shadow_count()
-	local n = 0
-	for _, record in pairs(records) do if record.shadow then n = n + 1 end end
-	return n
-end
-
-local function stop_shadow(record)
-	local shadow = record.shadow
-	record.shadow = nil
-	if shadow then World.stop_spawning_particles(shadow.world, shadow.id) end
-end
-
-local function apply_shadow(record)
-	if record.shadow or record.config.a <= 0 or not shadow_loaded() then return end
-	if shadow_count() >= MAX_SHADOWS then warn("shadow fog limit reached (40 at once)"); return end
-	local world = Managers.world and Managers.world:world("level_world")
-	if not world then return end
-	local unit = record.unit
-	local id = World.create_particles(world, SHADOW_PARTICLE, Unit.world_position(unit, 1))
-	World.link_particles(world, id, unit, 1, Matrix4x4.identity(), "stop")
-	record.shadow = { world = world, id = id }
-end
-
-Appearance._shadow_ready = function () return shadow_ready end
-
 local function restore(record, keep_outline)
-	if record.shadow and not keep_outline then
-		local ok, err = pcall(stop_shadow, record)
-		if not ok then warn("shadow fog removal failed: " .. tostring(err)) end
-	end
 	if record.outline and not keep_outline then
 		local outline = record.outline
 		if alive(record.unit) then
@@ -187,7 +139,6 @@ end
 
 Appearance._in_sight = in_sight
 
-
 local function apply_record(record)
 	local unit, config = record.unit, record.config
 	local r, g, b = Schema.rgb(config)
@@ -205,7 +156,6 @@ local function apply_record(record)
 		end
 	end
 	if config.method == "outline" or config.method == "none" then return end
-	if config.method == "shadow" then return apply_shadow(record) end
 	if config.method == "natural_stimm" then
 		local actions = require("scripts/settings/breed/breed_actions")[record.breed]
 		if not actions or not actions.use_stim then
@@ -372,12 +322,7 @@ Appearance.reset = function (send_clear)
 	clock, cadence, renewal = 0, 0, 0
 	generation = generation + 1
 end
-Appearance.retire = function ()
-	Appearance.reset(true)
-	retired = true
-	if shadow_package and Managers.package and type(shadow_package) ~= "boolean" then pcall(Managers.package.release, Managers.package, shadow_package) end
-	shadow_package, shadow_ready = nil, false
-end
+Appearance.retire = function () Appearance.reset(true); retired = true end
 Appearance.status = function () return { selected = count(records), pending = count(pending) } end
 
 return Appearance
