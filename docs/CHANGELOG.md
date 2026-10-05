@@ -15,6 +15,9 @@
 - The card sound screen has a "Stop all sound previews" button (a card's real sound at a draw is not stopped).
 - The shadow fog is removed: tested in game, its performance cost was too high.
 - Lua suites not run (the user's choice); not yet tested in game.
+## 2026-10-05 - Twin voice lines and the stimm use sound (feature/twin-voice-lines)
+- Completion sounds: the twins' mission and darkness voice lines (122) and `play_syringe_stab_self` (the stimm use sound) plus `play_syringe_heal_husk_charge_cancel`; 9,558 sounds in all.
+- Not tested: the Lua runners were skipped at the user's request; not yet heard in game.
 
 ## 2026-10-05 - The Grandfather's Tarot (feature/cauldron-redesign)
 - The mod is renamed The Grandfather's Tarot (folders, files, DMF id); commands are /gt_...; the Cauldron is the Workshop.
