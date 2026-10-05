@@ -216,8 +216,8 @@ check("unload: captured objective, death and update callbacks are inert", obsole
 local names = {}
 for _, h in ipairs(hooks) do if type(h.obj) == "string" then names[#names + 1] = h.obj .. "." .. h.method end end
 table.sort(names)
-check("entry: the four budget-bypass hooks and the custom-mods hooks (stat recompute on both buff classes, melee attack start, burster explosion, the summoners: no summon while destroyed, no patrol, aggroed summons; the On Fire burn per player) are installed", table.concat(names, ",") == "BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BtSummonMinionsAction._patrol_setup,BtSummonMinionsAction._summon_minions,BtSummonMinionsAction.leave,BuffExtensionBase._update_stat_buffs_and_keywords,MinionBuffExtension._reset_stat_buffs,MinionBuffExtension._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion,PlayerUnitBuffExtension.add_internally_controlled_buff,PlayerUnitMoodExtension._remove_mood", table.concat(names, ","))
-check("entry: MinionAttack is hooked through hook_require (it may load after the mod)", #hook_requires == 3 and (function() local seen = {} for _, p in ipairs(hook_requires) do seen[p] = true end return seen["scripts/utilities/minion_attack"] and seen["scripts/extension_systems/buff/minion_buff_extension"] and seen["scripts/settings/buff/buff_templates"] end)(), table.concat(hook_requires, ","))
+check("entry: the four budget-bypass hooks and the custom-mods hooks (stat recompute on both buff classes, melee attack start, burster explosion, the summoners: no summon while destroyed, no patrol, aggroed summons; the On Fire burn per player and its look, the divided health of strong enemies) are installed", table.concat(names, ",") == "BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BtSummonMinionsAction._patrol_setup,BtSummonMinionsAction._summon_minions,BtSummonMinionsAction.leave,BuffExtensionBase._update_stat_buffs_and_keywords,HealthExtension.add_damage,HealthExtension.add_heal,HealthExtension.set_health_instant,MinionBuffExtension._reset_stat_buffs,MinionBuffExtension._start_fx,MinionBuffExtension._stop_fx,MinionBuffExtension._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion,PlayerUnitBuffExtension.add_internally_controlled_buff,PlayerUnitMoodExtension._remove_mood", table.concat(names, ","))
+check("entry: MinionAttack is hooked through hook_require (it may load after the mod)", #hook_requires == 4 and (function() local seen = {} for _, p in ipairs(hook_requires) do seen[p] = true end return seen["scripts/utilities/minion_attack"] and seen["scripts/extension_systems/buff/minion_buff_extension"] and seen["scripts/settings/buff/buff_templates"] and seen["scripts/ui/hud/elements/boss_health/hud_element_boss_health"] end)(), table.concat(hook_requires, ","))
 do
   -- (2026-10-04: "Attempting to rehook active hook [start_shooting]" at every game start) DMF runs a hook_require callback again
   -- each time the game loads the file; the same table is hooked once, a new table is hooked again
@@ -313,12 +313,15 @@ do
   templates.common_minion_on_fire.interval_func({}, { unit = { name = "other" } })
   templates.hit_by_common_enemy_flame.interval_func({}, { unit = plain_player })
   check("on fire: an enemy of a group without a setting leaves the game's burn untouched", game_burns == 1 and #hits == 0 and T.burn_share(scaled_player) == nil)
-  T.apply(enemy, { burn = 50 }, "renegade_flamer")
+  T.mark_fire(enemy, { burn = 50 })
   check("on fire: the group's setting is kept for its enemies (50 percent)", T.fire_share(enemy) == 0.5)
+  local plain_enemy = { name = "plain" }
+  T.mark_fire(plain_enemy, nil); T.mark_fire(nil, nil)
+  check("on fire: a wave's enemy whose group sets nothing burns at the default, 35 percent", T.fire_share(plain_enemy) == 0.35 and T.BURN_DEFAULT == 35)
   templates.common_minion_on_fire.interval_func({}, { unit = enemy })
   templates.hit_by_common_enemy_flame.interval_func({}, { unit = scaled_player, is_server = true })
   check("on fire: a player that enemy set on fire burns at half the power level", T.burn_share(scaled_player) == 0.5 and #hits == 1 and hits[1][1] == scaled_player and hits[1][2] == 200 and game_burns == 1)
-  T.apply(enemy, { burn = 0 }, "renegade_flamer")
+  T.mark_fire(enemy, { burn = 0 })
   templates.common_minion_on_fire.interval_func({}, { unit = enemy })
   templates.hit_by_common_enemy_flame.interval_func({}, { unit = scaled_player })
   check("on fire: at 0 the burn does no damage at all", #hits == 1 and game_burns == 1)
@@ -334,6 +337,67 @@ do
   T.dead = true
   templates.hit_by_common_enemy_flame.interval_func({}, { unit = scaled_player })
   check("on fire: a retired mod gives the burn back to the game", game_burns == 2)
+  T.dead = false
+  -- the On Fire look kept on while the enemy lives (2026-10-05: it lasted 1 s after the spawn)
+  local saved_unit_table = Unit
+  Unit = Unit or {}
+  local saved_world, saved_unit_world, saved_set_v3, saved_v3 = World, Unit.world, Unit.set_vector3_for_materials, Vector3
+  local clock, written = 10, {}
+  World = { time = function() return clock end }
+  Unit.world = function() return "world" end
+  Unit.set_vector3_for_materials = function(unit, key, value, children) written[#written + 1] = { unit = unit, key = key, v = value, children = children } end
+  Vector3 = function(x, y, z) return { x = x, y = y, z = z } end
+  package.loaded["scripts/settings/ailments/ailment_settings"] = { effect_templates = { burning = { offset_time = 1.2, duration = 2 } } }
+  local start_fx, stop_fx, health_hooks, boss_hooks = nil, nil, {}, {}
+  for _, h in ipairs(hooks) do
+    if h.obj == "MinionBuffExtension" and h.method == "_start_fx" then start_fx = h.fn end
+    if h.obj == "MinionBuffExtension" and h.method == "_stop_fx" then stop_fx = h.fn end
+    if h.obj == "HealthExtension" then health_hooks[#health_hooks + 1] = h.fn end
+  end
+  local burning, other_buff = { name = "burning enemy" }, { name = "enraged enemy" }
+  HEALTH_ALIVE[burning], HEALTH_ALIVE[other_buff] = true, true
+  start_fx({ _unit = burning }, 1, { name = "common_minion_on_fire" })
+  start_fx({ _unit = burning }, 2, { name = "common_minion_on_fire" })
+  start_fx({ _unit = other_buff }, 1, { name = "havoc_enraged" })
+  start_fx({}, 1, { name = "common_minion_on_fire" }); start_fx({ _unit = other_buff }, 1, nil)
+  check("on fire look: an On Fire enemy is kept burning (once), no other buff", T.glow_count() == 1)
+  clock = 10.3; T.update_glow(0.3)
+  check("on fire look: nothing is written before half a second", #written == 0)
+  clock = 13; T.update_glow(0.3)
+  check("on fire look: its burning look runs on: the same start, the end 3 s ahead of now, on the whole unit", #written == 1 and written[1].unit == burning and written[1].key == "offset_time_duration" and written[1].v.x == 1.2 and written[1].v.y == 10 and written[1].v.z == 6 and written[1].children == true)
+  stop_fx({ _unit = burning }, 1, { name = "common_minion_on_fire" })
+  clock = 14; T.update_glow(0.6)
+  check("on fire look: when the buff ends it is left to fade", T.glow_count() == 0 and #written == 1)
+  start_fx({ _unit = burning }, 1, { name = "common_minion_on_fire" })
+  HEALTH_ALIVE[burning] = nil; T.update_glow(0.6)
+  check("on fire look: a dead enemy is let go (its look fades as the game's own)", T.glow_count() == 0 and #written == 1)
+  HEALTH_ALIVE[burning] = true
+  World = nil
+  start_fx({ _unit = burning }, 1, { name = "common_minion_on_fire" })
+  World = { time = function() error("no world") end }
+  local echo_before = #echoed
+  T.update_glow(0.6)
+  check("on fire look: a unit whose look cannot be written is let go, said once", T.glow_count() == 0)
+  World = { time = function() return clock end }
+  T.dead = true
+  start_fx({ _unit = burning }, 1, { name = "common_minion_on_fire" })
+  check("on fire look: a retired mod keeps nothing burning", T.glow_count() == 0)
+  T.dead = false
+  start_fx({ _unit = burning }, 1, { name = "common_minion_on_fire" })
+  T.reset()
+  check("on fire look: a reset lets every enemy go", T.glow_count() == 0)
+  -- the divided health and the boss bars, as registered
+  for _, fn in ipairs(health_hooks) do fn({ _health = 10 }) end
+  check("divided health: the three health writes of the game are followed (a unit within the limit is left alone)", #health_hooks == 3)
+  local bars = { update = function() end }
+  require_by_path["scripts/ui/hud/elements/boss_health/hud_element_boss_health"](bars)
+  require_by_path["scripts/ui/hud/elements/boss_health/hud_element_boss_health"](bars)
+  for _, h in ipairs(hooks) do if h.obj == bars and h.method == "update" then boss_hooks[#boss_hooks + 1] = h.fn end end
+  local went_through = boss_hooks[1] and boss_hooks[1](function(self, dt) return dt end, { _active_targets_array = {} }, 0.5)
+  check("boss bar: its update is hooked once per loaded class, and the game's update still runs", #boss_hooks == 1 and went_through == 0.5)
+  World, Unit.world, Unit.set_vector3_for_materials, Vector3 = saved_world, saved_unit_world, saved_set_v3, saved_v3
+  Unit = saved_unit_table
+  package.loaded["scripts/settings/ailments/ailment_settings"] = nil
   HEALTH_ALIVE = saved.HEALTH_ALIVE
   Managers.state.difficulty = saved.difficulty
   T.dead = was_dead

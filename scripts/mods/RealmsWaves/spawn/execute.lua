@@ -648,6 +648,13 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 
 	if mod_ids and unit then
 		Execute.apply_modifiers(unit, mod_ids, breed_name)
+
+		-- On Fire: the burn of this group (Tuning.BURN_DEFAULT percent unless the group sets it)
+		for i = 1, #mod_ids do
+			if mod_ids[i] == "fire" and Tuning and Tuning.mark_fire then
+				Tuning.mark_fire(unit, tune)
+			end
+		end
 	end
 
 	-- after the modifiers, so a custom attack speed or hit mass is relative to what Enraged and the like already did

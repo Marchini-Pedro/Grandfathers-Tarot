@@ -1308,15 +1308,17 @@ do
   -- On Fire: its burn's damage beside it (2026-10-04)
   local fire_row
   for i = 1, 10 do if view:_item_at(i) and view:_item_at(i).id == "fire" then fire_row = i end end
-  check("mods screen: the On Fire row has its damage on the right (100 percent), the others no stepper", fire_row ~= nil and row(fire_row).content.show_stepper and row(fire_row).content.stepper_value == "100%" and row(fire_row).content.info:find("mod_fire_damage_info", 1, true) ~= nil and not row(1).content.show_stepper)
+  check("mods screen: the On Fire row has its damage on the right (35 percent by default), the others no stepper", fire_row ~= nil and row(fire_row).content.show_stepper and row(fire_row).content.stepper_value == "35%" and row(fire_row).content.info:find("mod_fire_damage_info", 1, true) ~= nil and not row(1).content.show_stepper)
   click_row(fire_row, "hotspot_minus"); click_row(fire_row, "hotspot_minus")
-  check("mods screen: the minus takes 10 percent off, kept with the group's custom values and in the recipe", view._parts[1].tune and view._parts[1].tune.burn == 80 and row(fire_row).content.stepper_value == "80%" and settings["wave_def_wave_small"]:find("burn=80", 1, true) ~= nil, settings["wave_def_wave_small"])
+  check("mods screen: the minus takes 10 percent off, kept with the group's custom values and in the recipe", view._parts[1].tune and view._parts[1].tune.burn == 15 and row(fire_row).content.stepper_value == "15%" and settings["wave_def_wave_small"]:find("burn=15", 1, true) ~= nil, settings["wave_def_wave_small"])
   click_row(fire_row, "hotspot_value"); local PPF = dofile(BASE .. "/ui/wave_editor_components.lua").Popup; PPF.set_text(view, "0"); PPF.commit(view)
   check("mods screen: the number box sets it (0 = no damage)", view._parts[1].tune.burn == 0 and row(fire_row).content.stepper_value == "0%")
   for _ = 1, 40 do click_row(fire_row, "hotspot_plus") end
   check("mods screen: never above 300 percent", view._parts[1].tune.burn == 300)
   view:_set_burn(view._parts[1], 100)
-  check("mods screen: back to 100 nothing is stored (the recipe has no burn)", view._parts[1].tune == nil and settings["wave_def_wave_small"]:find("burn", 1, true) == nil)
+  check("mods screen: 100 (the game's damage) is stored, it is not the default", view._parts[1].tune.burn == 100 and settings["wave_def_wave_small"]:find("burn=100", 1, true) ~= nil)
+  view:_set_burn(view._parts[1], 35)
+  check("mods screen: back to 35 nothing is stored (the recipe has no burn)", view._parts[1].tune == nil and settings["wave_def_wave_small"]:find("burn", 1, true) == nil)
 end
 click_row(1, "hotspot_check")
 check("tick Garden -> saved in recipe, checkbox on", row(1).content.checkbox_selected and settings["wave_def_wave_small"]:find("%[garden%]") ~= nil, settings["wave_def_wave_small"])

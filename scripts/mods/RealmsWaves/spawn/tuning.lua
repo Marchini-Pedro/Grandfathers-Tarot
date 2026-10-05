@@ -188,7 +188,8 @@ end
 Tuning.health_modifier = function (tune, breed_name)
 	local factor = tune and percent_of(tune.health) or nil
 
-	-- (never more than the network can carry: see Tuning.network_health_max)
+	-- (the spawn parameter never more than the network can carry, see Tuning.network_health_max: the game object is created with
+	-- it; set_exact_health raises the health to the wanted value right after, and only a scaled copy goes on the network)
 	if factor and breed_name then
 		local ok, base = pcall(function () return tonumber(Tuning.normal_health(breed_name)) end)
 		local cap = Tuning.network_health_max()
@@ -260,18 +261,12 @@ Tuning.set_exact_health = function (unit, breed_name, factor)
 	local wanted = math.max(1, base * factor)
 	local cap = Tuning.network_health_max()
 
-	if cap and wanted > cap then
-		warn_once(string.format("%s: %d health is more than the game can send to the other players; capped at %d", tostring(name), math.floor(wanted), math.floor(cap)))
-		wanted = cap
-	end
-
-	if math.abs(health:max_health() - wanted) > HEALTH_EPSILON then
+	if math.abs(health:max_health() - wanted) > HEALTH_EPSILON or (cap and wanted > cap) then
 		if not health._game_session or not health._game_object_id then
 			error("the unit has no game object yet")
 		end
 
-		GameSession.set_game_object_field(health._game_session, health._game_object_id, "health", wanted)
-		health._health = wanted
+		Tuning.fit_network(unit, health, wanted)
 	end
 
 	-- the game made the boss's "weakened" mark from the health it had BEFORE this fix: read it again with the same rule
@@ -282,6 +277,316 @@ Tuning.set_exact_health = function (unit, breed_name, factor)
 	end
 
 	return wanted
+end
+
+-- ------------------------------------------------------------------------------------------ health above the network's limit
+-- (2026-10-05, the user: "remove the health limit; put x2, x3 beside the bar, a boss with several bars") The game object's
+-- "health" and "damage" fields cannot carry more than NetworkConstants.health_large.max. A unit with more health keeps its real
+-- health on the host (the extension's `_health` and `_damage`: every hit, heal and death works on them) while the network gets
+-- the same numbers divided by `k` (the smallest whole number that makes them fit): the share of health left that the other
+-- players read is exact. Their boss bar learns the real maximum from the host's state (Director snapshot `hl`) and shows the
+-- health in bars of the network's limit with "xN" for the full bars still behind the one shown (Tuning.layer_boss_targets).
+local NET_MARGIN = 0.98
+local net_scale = setmetatable({}, { __mode = "k" }) -- host: health extension -> { unit, k, max }
+local true_max_by_id = {} -- a client: game object id -> real maximum health (from the host)
+
+local function write_net_damage(health)
+	local entry = net_scale[health]
+	local k = entry and entry.k or 1
+	local damage = math.max(0, math.min(tonumber(health._damage) or 0, health._health))
+
+	GameSession.set_game_object_field(health._game_session, health._game_object_id, "damage", damage / k)
+end
+
+-- Host: gives the unit `max` health: the network first, divided as much as it needs (a write the game refuses leaves the unit as
+-- it was), then the extension. Returns `k`.
+Tuning.fit_network = function (unit, health, max)
+	max = tonumber(max) or tonumber(health._health) or 1
+
+	local cap = Tuning.network_health_max()
+	local k = 1
+
+	if cap and cap > 0 and max > cap * NET_MARGIN then
+		k = math.ceil(max / (cap * NET_MARGIN))
+	end
+
+	GameSession.set_game_object_field(health._game_session, health._game_object_id, "health", max / k)
+
+	if k > 1 or net_scale[health] then
+		local damage = math.max(0, math.min(tonumber(health._damage) or 0, max))
+
+		GameSession.set_game_object_field(health._game_session, health._game_object_id, "damage", damage / k)
+	end
+
+	health._health = max
+	net_scale[health] = k > 1 and { unit = unit, k = k, max = max } or nil
+
+	return k
+end
+
+-- Host, after the game wrote a hit, a heal or an instant health (HealthExtension): the network gets the divided damage instead
+Tuning.after_health_write = function (health)
+	if not Tuning.dead and net_scale[health] then
+		local ok, err = pcall(write_net_damage, health)
+
+		if not ok then
+			warn_once("the health of a strong enemy could not be sent: " .. tostring(err))
+		end
+	end
+end
+
+Tuning.network_scale = function (health)
+	local entry = net_scale[health]
+
+	return entry and entry.k or 1
+end
+
+-- Host, for the state sent to the other players: { { game object id, real maximum }, ... } of the living divided units (16 at most)
+Tuning.health_layer_list = function ()
+	local spawner = Managers.state and Managers.state.unit_spawner
+	local list = {}
+
+	if not spawner then
+		return nil
+	end
+
+	for health, entry in pairs(net_scale) do
+		if not alive(entry.unit) then
+			net_scale[health] = nil
+		elseif #list < 16 then
+			local ok, id = pcall(spawner.game_object_id, spawner, entry.unit)
+
+			if ok and id then
+				list[#list + 1] = { id, math.floor(entry.max + 0.5) }
+			end
+		end
+	end
+
+	return #list > 0 and list or nil
+end
+
+-- A client: the list the host sent (replaces the last one; nothing = no divided unit)
+Tuning.receive_health_layers = function (list)
+	local map = {}
+
+	if type(list) == "table" then
+		for i = 1, math.min(#list, 16) do
+			local item = list[i]
+			local id = type(item) == "table" and tonumber(item[1])
+			local max = type(item) == "table" and tonumber(item[2])
+
+			if id and max and max == max and max > 0 and max < 1e12 then
+				map[math.floor(id)] = max
+			end
+		end
+	end
+
+	true_max_by_id = map
+end
+
+-- The real maximum health of a divided unit (host: its own record; a client: what the host sent), nil for any other unit
+Tuning.true_max_health = function (unit, health)
+	local entry = health and net_scale[health]
+
+	if entry then
+		return entry.max
+	end
+
+	local spawner = Managers.state and Managers.state.unit_spawner
+	local ok, id = false, nil
+
+	if spawner and next(true_max_by_id) ~= nil then
+		ok, id = pcall(spawner.game_object_id, spawner, unit)
+	end
+
+	return ok and id and true_max_by_id[id] or nil
+end
+
+-- Health in bars of `size`: how many full bars are still behind the one shown, and how full the one shown is (0..1). The first
+-- bars are full ones; the last bar holds what is left over (450k in bars of 130k: x3, and the last of them not full).
+Tuning.health_layers = function (max, current, size)
+	max, current, size = tonumber(max), math.max(0, tonumber(current) or 0), tonumber(size)
+
+	if not max or max <= 0 then
+		return 0, 0
+	end
+
+	if not size or size <= 0 or max <= size then
+		return 0, math.max(0, math.min(1, current / max))
+	end
+
+	local bars = math.ceil(max / size)
+	local lost = math.max(0, max - current)
+	local index = math.min(bars - 1, math.floor(lost / size))
+
+	if index < bars - 1 then
+		return bars - 1 - index, math.max(0, math.min(1, 1 - (lost - index * size) / size))
+	end
+
+	return 0, math.max(0, math.min(1, current / (max - (bars - 1) * size)))
+end
+
+-- The boss bars (HudElementBossHealth.update, every machine): a divided unit's bar shows the bar it is on and "xN" beside its name
+local function layered_proxy(target, real)
+	return setmetatable({
+		current_health_percent = function ()
+			return target._rw_fraction or real:current_health_percent()
+		end,
+	}, {
+		__index = function (_, key)
+			local value = real[key]
+
+			if type(value) == "function" then
+				return function (_, ...)
+					return value(real, ...)
+				end
+			end
+
+			return value
+		end,
+	})
+end
+
+local function fresh_bar_logic(element, target)
+	local ok, Logic = pcall(require, "scripts/ui/hud/elements/hud_health_bar_logic")
+	local ok_settings, Settings = pcall(require, "scripts/ui/hud/elements/boss_health/hud_element_boss_health_settings")
+
+	if ok and ok_settings and Logic and Logic.new then
+		target.health_bar_logic = Logic:new(Settings)
+	end
+
+	element._force_update = true
+end
+
+Tuning.layer_boss_targets = function (element)
+	local size = Tuning.network_health_max()
+
+	for _, target in ipairs(element._active_targets_array or {}) do
+		local real = target._rw_health or target.health_extension
+		local max = real and size and Tuning.true_max_health(target.unit, real)
+
+		if max and max > size then
+			if not target._rw_health then
+				target._rw_health = real
+				target._rw_name = target.localized_display_name
+				target.health_extension = layered_proxy(target, real)
+
+				-- a client compared the divided maximum with the normal health and called the boss "Weakened": read it again
+				local boss, breed = target.boss_extension, target.breed
+
+				if real:max_health() < max and boss and breed and not breed.ignore_weakened_boss_name then
+					pcall(function ()
+						if not (boss.is_empowered and boss:is_empowered()) and max >= Tuning.normal_health(breed.name) then
+							target._rw_name = " " .. Localize(boss:display_name())
+						end
+					end)
+				end
+			end
+
+			local behind, fraction = Tuning.health_layers(max, real:current_health_percent() * max, size)
+
+			target._rw_fraction = fraction
+
+			if target._rw_behind ~= behind then
+				if target._rw_behind then
+					fresh_bar_logic(element, target)
+				end
+
+				target._rw_behind = behind
+				target.localized_display_name = behind > 0 and string.format("%s  x%d", target._rw_name or "", behind) or target._rw_name
+			end
+		end
+	end
+end
+
+Tuning.boss_bar_update = function (func, self, ...)
+	if not Tuning.dead then
+		local ok, err = pcall(Tuning.layer_boss_targets, self)
+
+		if not ok then
+			warn_once("the boss bar could not show its bars: " .. tostring(err))
+		end
+	end
+
+	return func(self, ...)
+end
+
+-- --------------------------------------------------------------------------------------------- the On Fire look, kept on
+-- (2026-10-05, the user: "the burning only lasts 1 s when the monster spawns; make it last while it is alive") The modifier's
+-- burning look is the game's ailment effect "burning": the buff starts it once (MinionBuffExtension._start_fx ->
+-- Ailment.play_ailment_effect_template) and the material shows it for its duration (2 s) from its start time. Every machine
+-- keeps the duration ahead of the clock while the unit lives (the same material value, the start unchanged); once it dies or
+-- the buff ends it fades as the game's own does, GLOW_TAIL seconds later. Any On Fire enemy, the game's Havoc ones included.
+local glowing = setmetatable({}, { __mode = "k" }) -- unit -> { since = world time the look started }
+local glow_timer, GLOW_STEP, GLOW_TAIL = 0, 0.5, 3
+Tuning.GLOW_TEMPLATE = "common_minion_on_fire"
+
+local function world_time(unit)
+	return World.time(Unit.world(unit))
+end
+
+Tuning.on_minion_fx = function (self, template, started)
+	local unit = self and self._unit
+
+	if Tuning.dead or not unit or type(template) ~= "table" or template.name ~= Tuning.GLOW_TEMPLATE then
+		return
+	end
+
+	if not started then
+		glowing[unit] = nil
+	elseif not glowing[unit] then
+		local ok, t = pcall(world_time, unit)
+
+		glowing[unit] = { since = ok and t or nil }
+	end
+end
+
+local function keep_glow(unit, entry)
+	local Settings = require("scripts/settings/ailments/ailment_settings")
+	local template = Settings.effect_templates and Settings.effect_templates.burning
+	local t = world_time(unit)
+
+	entry.since = entry.since or t
+	Unit.set_vector3_for_materials(unit, "offset_time_duration", Vector3(template and template.offset_time or 1.2, entry.since, t - entry.since + GLOW_TAIL), true)
+end
+
+Tuning.update_glow = function (dt)
+	if next(glowing) == nil then
+		glow_timer = 0
+
+		return
+	end
+
+	glow_timer = glow_timer + (dt or 0)
+
+	if glow_timer < GLOW_STEP then
+		return
+	end
+
+	glow_timer = 0
+
+	for unit, entry in pairs(glowing) do
+		if not alive(unit) or (HEALTH_ALIVE and not HEALTH_ALIVE[unit]) then
+			glowing[unit] = nil
+		else
+			local ok, err = pcall(keep_glow, unit, entry)
+
+			if not ok then
+				glowing[unit] = nil
+				warn_once("the On Fire look could not be kept on: " .. tostring(err))
+			end
+		end
+	end
+end
+
+Tuning.glow_count = function ()
+	local n = 0
+
+	for _ in pairs(glowing) do
+		n = n + 1
+	end
+
+	return n
 end
 
 -- Applies the custom mods `tune` ({ speed = 120, ... }, percent) to a unit that has just spawned. Every step is guarded:
@@ -321,11 +626,6 @@ Tuning.apply = function (unit, tune, breed_name)
 		if not ok then
 			warn_once(string.format("hit mass of %s was not changed: %s", label, tostring(err)))
 		end
-	end
-
-	-- the On Fire modifier's burn (kept for the modifier's interval, see above)
-	if tune.burn then
-		fire_share[unit] = math.max(0, tonumber(tune.burn) or 100) / 100
 	end
 
 	-- run speed
@@ -705,6 +1005,20 @@ Tuning.fire_share = function (unit)
 	return fire_share[unit]
 end
 
+-- A wave's enemy given the On Fire modifier (execute.lua): its burn's share, the group's `burn` or Tuning.BURN_DEFAULT percent
+-- (2026-10-05, the user: "make the default 35%"). The game's own On Fire enemies (Havoc) keep the game's damage.
+Tuning.BURN_DEFAULT = 35
+
+Tuning.mark_fire = function (unit, tune)
+	if Tuning.dead or not unit then
+		return
+	end
+
+	local burn = tonumber(tune and tune.burn) or Tuning.BURN_DEFAULT
+
+	fire_share[unit] = math.max(0, burn) / 100
+end
+
 -- the share of the burn a player is under now (nil: the game's own damage)
 Tuning.burn_share = function (player_unit)
 	local mark = burn_share[player_unit]
@@ -850,6 +1164,35 @@ Tuning.install = function ()
 		Tuning.on_player_buff_added(self, template_name)
 	end)
 
+	-- the On Fire look kept on (every machine)
+	mod:hook_safe("MinionBuffExtension", "_start_fx", function (self, index, template)
+		Tuning.on_minion_fx(self, template, true)
+	end)
+	mod:hook_safe("MinionBuffExtension", "_stop_fx", function (self, index, template)
+		Tuning.on_minion_fx(self, template, false)
+	end)
+
+	-- health above the network's limit: the divided damage goes on the network after every write of the game (host)
+	for _, method in ipairs({ "add_damage", "add_heal", "set_health_instant" }) do
+		mod:hook_safe("HealthExtension", method, function (self)
+			Tuning.after_health_write(self)
+		end)
+	end
+
+	-- ...and the boss bars show it in bars (every machine)
+	if mod.hook_require and mod.hook then
+		local hooked_bars = setmetatable({}, { __mode = "k" })
+
+		mod:hook_require("scripts/ui/hud/elements/boss_health/hud_element_boss_health", function (HudElementBossHealth)
+			if Tuning.dead or type(HudElementBossHealth) ~= "table" or hooked_bars[HudElementBossHealth] then return end
+
+			hooked_bars[HudElementBossHealth] = true
+			mod:hook(HudElementBossHealth, "update", function (func, self, ...)
+				return Tuning.boss_bar_update(func, self, ...)
+			end)
+		end)
+	end
+
 	if mod.hook_require then
 		-- DMF runs this every time the game loads the file again (at every game start): the same table is hooked once only, or DMF
 		-- warns "Attempting to rehook active hook [start_shooting]" (seen 2026-10-04)
@@ -968,6 +1311,8 @@ end
 Tuning.update = function (dt)
 	if Tuning.dead then return end
 
+	Tuning.update_glow(dt)
+
 	keep_summoners(dt)
 
 	timer = timer + dt
@@ -1058,7 +1403,13 @@ end
 
 -- A client, every frame: puts the sizes on the units that have arrived here by now.
 Tuning.update_client = function (dt)
-	if Tuning.dead or #inbox == 0 then
+	if Tuning.dead then
+		return
+	end
+
+	Tuning.update_glow(dt)
+
+	if #inbox == 0 then
 		return
 	end
 
@@ -1229,6 +1580,9 @@ Tuning.reset = function ()
 	sized = {}
 	tuned_by_extension = {}
 	timer, send_timer = 0, 0
+	true_max_by_id = {}
+	glowing = setmetatable({}, { __mode = "k" })
+	glow_timer = 0
 end
 
 return Tuning

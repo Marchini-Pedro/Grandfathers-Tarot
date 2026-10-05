@@ -1243,7 +1243,7 @@ RealmsWavesView._refresh_rows = function (self)
 					content.checkbox_selected = applied
 
 					if burn then
-						content.stepper_value = tostring(part and part.tune and part.tune.burn or 100) .. "%"
+						content.stepper_value = tostring(part and part.tune and part.tune.burn or mod.rw.groups.tune_default("burn")) .. "%"
 						content.info = mod:localize("mod_fire_damage_info")
 					end
 				end
@@ -1473,12 +1473,12 @@ RealmsWavesView.cb_row_check = guarded(function (self, row)
 
 end)
 
--- The On Fire damage of a group (percent, 0 to 300; 100 is not stored)
+-- The On Fire damage of a group (percent, 0 to 300; the default, 35, is not stored)
 RealmsWavesView._set_burn = function (self, part, value)
 	local burn = mod.rw.groups.clamp_tune("burn", value)
 
 	part.tune = part.tune or {}
-	part.tune.burn = burn ~= 100 and burn or nil
+	part.tune.burn = burn ~= mod.rw.groups.tune_default("burn") and burn or nil
 
 	if next(part.tune) == nil then
 		part.tune = nil
@@ -1629,7 +1629,7 @@ RealmsWavesView._step_row = function (self, row, delta)
 		local part = self._parts[self._part_index]
 
 		if part then
-			self:_set_burn(part, ((part.tune and part.tune.burn) or 100) + delta * 10)
+			self:_set_burn(part, ((part.tune and part.tune.burn) or mod.rw.groups.tune_default("burn")) + delta * 10)
 		end
 	elseif self._screen == "detail" then
 		-- a group that only repeats may have 0 initial units; otherwise at least 1
@@ -1735,7 +1735,7 @@ RealmsWavesView.cb_row_value = guarded(function (self, row)
 		local part = self._parts[self._part_index]
 
 		if part then
-			Popup.open(self, { label = mod:localize("mod_fire_damage_title"), value = tostring(part.tune and part.tune.burn or 100), numeric = true, integer = true, min = 0, max = 300,
+			Popup.open(self, { label = mod:localize("mod_fire_damage_title"), value = tostring(part.tune and part.tune.burn or mod.rw.groups.tune_default("burn")), numeric = true, integer = true, min = 0, max = 300,
 				set = function (value) self:_set_burn(part, value) end })
 		end
 	elseif self._screen == "tune" then

@@ -2043,6 +2043,9 @@ do
   check("weakened: the game's own mark stays: a boss with less than its normal health is weakened, one with more is not", ogryn.ext.boss_system._is_weakened == true and not beast.ext.boss_system._is_weakened)
   check("weakened: nothing hooks the boss health bar any more (the 'Weakened' name is the game's), and the old helpers are gone", hooks["HudElementBossHealth.event_boss_encounter_start"] == nil and Tuning.is_health_tuned == nil)
   check("health: when the game already made the exact number nothing is written to the game object", #synced_health == 0)
+  -- On Fire (2026-10-05): a wave's On Fire enemies burn at 35 percent unless their group sets the damage; the others are not marked
+  run_hp("2 poxwalker[fire], 1 plague ogryn[fire]{burn=80}, 1 beast of nurgle")
+  check("on fire: a wave's On Fire enemies get the default 35 percent, a group's own value wins, others are not marked", Tuning.fire_share(first("chaos_poxwalker")) == 0.35 and Tuning.fire_share(first("chaos_plague_ogryn")) == 0.8 and Tuning.fire_share(first("chaos_beast_of_nurgle")) == nil)
 
   run_hp("1 plague ogryn{health=50}", 0.3)
   ogryn = first("chaos_plague_ogryn")
@@ -2088,16 +2091,105 @@ do
   synced_health = {}
   check("health: an extreme factor never gives a unit less than 1 health, and the real breed of the unit decides the normal health", Tuning.set_exact_health(pox, "other_breed_name", 0.0001) == 1 and pox.ext.health_system._health == 1 and synced_health[1].value == 1)
   do
-    -- (2026-10-04) never more health than the game can send to the other players (the network's health field); the clients read it
     local saved_nc = package.loaded["scripts/network_lookup/network_constants"]
+    ;(function ()
+    -- (2026-10-05) no health limit: a unit with more health than the network carries keeps it; the network gets it divided and the
+    -- boss bars show it in bars of the network's limit with "xN" (the user: 490k with a 130k limit shows x3)
     package.loaded["scripts/network_lookup/network_constants"] = { health_large = { max = 1500 } }
-    check("health cap: the spawn multiplier is held so the health stays within what the network carries (Plague Ogryn 1000 x 3.5 -> x1.5)", Tuning.network_health_max() == 1500 and Tuning.health_modifier({ health = 350 }, "chaos_plague_ogryn") == 1.5 and Tuning.health_modifier({ health = 120 }, "chaos_plague_ogryn") == 1.2 and Tuning.health_modifier({ health = 350 }) == 3.5)
-    local ogre = { ext = { health_system = { _health = 1000, max_health = function(self) return self._health end, _game_session = "s", _game_object_id = 77 }, unit_data_system = { breed = function() return { name = "chaos_plague_ogryn" } end } } }
+    check("network: the spawn multiplier stays within what the network carries, the game object is created with it (Plague Ogryn 1000 x 3.5 -> x1.5)", Tuning.network_health_max() == 1500 and Tuning.health_modifier({ health = 350 }, "chaos_plague_ogryn") == 1.5 and Tuning.health_modifier({ health = 120 }, "chaos_plague_ogryn") == 1.2 and Tuning.health_modifier({ health = 350 }) == 3.5)
+    local ogre = { gid = 77, ext = { health_system = { _health = 1000, _damage = 0, max_health = function(self) return self._health end, _game_session = "s", _game_object_id = 77 }, unit_data_system = { breed = function() return { name = "chaos_plague_ogryn" } end } } }
+    local h = ogre.ext.health_system
     local before_sync, before_echo = #synced_health, #echoes
     local got = Tuning.set_exact_health(ogre, "chaos_plague_ogryn", 3.5)
-    local warned = false
-    for k = before_echo + 1, #echoes do if echoes[k]:find("capped at 1500", 1, true) then warned = true end end
-    check("health cap: the exact health written for the other players is capped too, and it is said once", got == 1500 and ogre.ext.health_system._health == 1500 and synced_health[#synced_health].value == 1500 and #synced_health == before_sync + 1 and warned)
+    check("no health limit: 350 percent is 3500 health on the host, nothing is capped or warned", got == 3500 and h._health == 3500 and #echoes == before_echo)
+    check("no health limit: the network gets it divided by 3 (health 1166.7 and damage 0), so it fits", Tuning.network_scale(h) == 3 and #synced_health == before_sync + 2 and synced_health[before_sync + 1].field == "health" and math.abs(synced_health[before_sync + 1].value - 3500 / 3) < 1e-6 and synced_health[before_sync + 2].field == "damage" and synced_health[before_sync + 2].value == 0)
+    h._damage = 1200; Tuning.after_health_write(h)
+    check("no health limit: after a hit the network gets the damage divided (1200 -> 400): the share left that the others read is exact", synced_health[#synced_health].field == "damage" and synced_health[#synced_health].value == 400)
+    h._damage = 9000; Tuning.after_health_write(h)
+    check("no health limit: the damage sent is never more than the health", math.abs(synced_health[#synced_health].value - 3500 / 3) < 1e-6)
+    local n = #synced_health
+    Tuning.after_health_write(pox.ext.health_system); Tuning.after_health_write({})
+    check("no health limit: a unit within the limit is left to the game", #synced_health == n and Tuning.network_scale(pox.ext.health_system) == 1)
+    local saved_gs_set = GameSession.set_game_object_field
+    GameSession.set_game_object_field = function() error("session closed") end
+    local echo_count = #echoes
+    Tuning.after_health_write(h)
+    GameSession.set_game_object_field = saved_gs_set
+    check("no health limit: a failing network write is contained and said", #echoes == echo_count + 1 and echoes[#echoes]:find("could not be sent", 1, true) ~= nil)
+    -- the real maximum, for the other players' boss bars
+    local list = Tuning.health_layer_list()
+    check("state: the host lists the divided units with their real maximum (game object id 77, 3500)", list and #list == 1 and list[1][1] == 77 and list[1][2] == 3500)
+    check("state: the host reads the real maximum of its own unit", Tuning.true_max_health(ogre, h) == 3500 and Tuning.true_max_health(pox, pox.ext.health_system) == nil)
+    Tuning.receive_health_layers({ { 501, 490000 }, { "x", 3 }, { 502, -1 }, { 503, 0 / 0 }, "junk", { 504 } })
+    local husk = { gid = 501 }
+    check("state: a client keeps the real maximum the host sent for that unit, and drops broken entries", Tuning.true_max_health(husk, {}) == 490000 and Tuning.true_max_health({ gid = 502 }, {}) == nil and Tuning.true_max_health({ gid = 503 }, {}) == nil)
+    Tuning.receive_health_layers(nil)
+    check("state: a state without the list (nothing divided, an older host) forgets it", Tuning.true_max_health(husk, {}) == nil)
+    local many = {}
+    for i = 1, 40 do many[i] = { i, 5000 } end
+    Tuning.receive_health_layers(many)
+    check("state: at most 16 units are read", Tuning.true_max_health({ gid = 16 }, {}) == 5000 and Tuning.true_max_health({ gid = 17 }, {}) == nil)
+    Tuning.receive_health_layers(nil)
+    dead[ogre] = true
+    check("state: a dead unit leaves the list", Tuning.health_layer_list() == nil)
+    dead[ogre] = nil
+    -- the bars: 130k each; full bars first, the last one holds what is left over
+    local function layers(max, current) local behind, fraction = Tuning.health_layers(max, current, 130000); return behind, math.floor(fraction * 1000 + 0.5) / 1000 end
+    local b1, f1 = layers(490000, 490000)
+    local b2, f2 = layers(450000, 450000)
+    local b3, f3 = layers(490000, 425000)
+    local b4, f4 = layers(490000, 360000)
+    local b5, f5 = layers(490000, 100000)
+    local b6, f6 = layers(450000, 30000)
+    check("bars: 490k with a 130k limit shows x3 and a full bar; 450k shows x3 too (its last bar is not full)", b1 == 3 and f1 == 1 and b2 == 3 and f2 == 1)
+    check("bars: 65k lost is half the first bar, still x3; 130k lost is the next bar full, x2", b3 == 3 and f3 == 0.5 and b4 == 2 and f4 == 1)
+    check("bars: the last bar holds what is left over (100k of 100k; 30k of 60k), no x", b5 == 0 and f5 == 1 and b6 == 0 and f6 == 0.5)
+    local b7, f7 = Tuning.health_layers(100000, 50000, 130000)
+    local b8, f8 = Tuning.health_layers(0, 0, 130000)
+    local b9, f9 = Tuning.health_layers(490000, -5, 130000)
+    local b10, f10 = Tuning.health_layers(1000, 500, nil)
+    check("bars: within one bar, no health, below zero, no limit known: one plain bar", b7 == 0 and f7 == 0.5 and b8 == 0 and f8 == 0 and b9 == 0 and f9 == 0 and b10 == 0 and f10 == 0.5)
+    -- the boss bar element: the bar it is on, "xN" beside the name, the game's update still runs
+    do
+      local saved_localize, saved_require = Localize, require
+      Localize = function(key) return "loc:" .. tostring(key) end
+      local new_logic = 0
+      package.loaded["scripts/ui/hud/elements/hud_health_bar_logic"] = { new = function() new_logic = new_logic + 1; return { fresh = true } end }
+      package.loaded["scripts/ui/hud/elements/boss_health/hud_element_boss_health_settings"] = {}
+      local real = { pct = 1, current_health_percent = function(self) return self.pct end, max_health = function() return 3500 / 3 end, value = 5 }
+      real.extra = function(self, v) return self == real and v end
+      local target = { unit = { gid = 900 }, health_extension = real, localized_display_name = " loc:loc_weakened_monster_prefix", health_bar_logic = { old = true },
+        boss_extension = { display_name = function() return "loc_breed_plague_ogryn" end, is_empowered = function() return false end }, breed = { name = "chaos_plague_ogryn" } }
+      local plain = { unit = { gid = 901 }, health_extension = { current_health_percent = function() return 0.4 end }, localized_display_name = " Hound" }
+      local element = { _active_targets_array = { target, plain } }
+      Tuning.receive_health_layers({ { 900, 3500 } })
+      local ran = 0
+      Tuning.boss_bar_update(function(self) ran = ran + 1; return "done" end, element)
+      check("boss bar: a divided boss (3500 in bars of 1500) shows x2 and a full bar; its 'Weakened' name from the divided maximum is put right", target.localized_display_name == " loc:loc_breed_plague_ogryn  x2" and target.health_extension:current_health_percent() == 1 and ran == 1)
+      check("boss bar: the bar's other calls still reach the real extension", target.health_extension:extra(7) == 7 and target.health_extension.value == 5 and target.health_extension:max_health() == 3500 / 3)
+      check("boss bar: a boss within the limit is not touched", plain.localized_display_name == " Hound" and plain.health_extension:current_health_percent() == 0.4)
+      real.pct = 2750 / 3500
+      Tuning.boss_bar_update(function() end, element)
+      check("boss bar: 750 lost is half the first bar, still x2, the bar animation kept", target.localized_display_name:sub(-2) == "x2" and math.abs(target.health_extension:current_health_percent() - 0.5) < 1e-9 and target.health_bar_logic.old)
+      real.pct = 1900 / 3500
+      Tuning.boss_bar_update(function() end, element)
+      check("boss bar: on the next bar it shows x1 and starts a fresh bar animation (no ghost from the bar before)", target.localized_display_name == " loc:loc_breed_plague_ogryn  x1" and target.health_bar_logic.fresh and new_logic == 1 and element._force_update == true)
+      real.pct = 400 / 3500
+      Tuning.boss_bar_update(function() end, element)
+      check("boss bar: on the last bar (500 of it) the x goes away", target.localized_display_name == " loc:loc_breed_plague_ogryn" and math.abs(target.health_extension:current_health_percent() - 0.8) < 1e-9)
+      local broken = { _active_targets_array = { { unit = { gid = 900 }, health_extension = { current_health_percent = function() error("gone") end, max_health = function() return 1 end } } } }
+      local echo_before = #echoes
+      check("boss bar: an error in the bars is contained and said; the game's update still runs", Tuning.boss_bar_update(function() return "game" end, broken) == "game" and #echoes == echo_before + 1)
+      Tuning.dead = true
+      local untouched = { _active_targets_array = { { unit = { gid = 900 }, health_extension = real, localized_display_name = "x" } } }
+      Tuning.boss_bar_update(function() end, untouched)
+      Tuning.dead = false
+      check("boss bar: a retired mod leaves the bars alone", untouched._active_targets_array[1].localized_display_name == "x")
+      Tuning.receive_health_layers(nil)
+      Localize = saved_localize
+      package.loaded["scripts/ui/hud/elements/hud_health_bar_logic"], package.loaded["scripts/ui/hud/elements/boss_health/hud_element_boss_health_settings"] = nil, nil
+    end
+    end)()
     package.loaded["scripts/network_lookup/network_constants"] = saved_nc
   end
   check("health: exact already -> returns the health, writes nothing", (function() synced_health = {}; return Tuning.set_exact_health(pox, "x", 0.01) == 1 and #synced_health == 0 end)())
@@ -2352,12 +2444,13 @@ do
 
   -- the handshake of a player who joins: the director gives a late player the sizes, only when versions agree
   do
-    local welcomed, sent_all = {}, {}
+    local welcomed, sent_all, states, got_hl = {}, {}, {}, "none"
     local P3 = {
-      PROTO = 2, VERSION = "2.0.0", is_available = function() return true end, send_state = function() return true end, send_hello = function() end,
+      PROTO = 2, VERSION = "2.0.0", is_available = function() return true end, send_state = function(state) states[#states + 1] = state; return true end, send_hello = function() end,
       send_welcome = function(peer, ok) welcomed[#welcomed + 1] = { peer, ok } end, send_waves = function() return true end,
     }
-    local fake_tuning = { send_all = function(peer) sent_all[#sent_all + 1] = peer end, receive = function() end, update_client = function() end, status = function() return { tuned = 0, sizes_known = 0, unsent = 0, pending = 0 } end }
+    local fake_tuning = { send_all = function(peer) sent_all[#sent_all + 1] = peer end, receive = function() end, update_client = function() end, status = function() return { tuned = 0, sizes_known = 0, unsent = 0, pending = 0 } end,
+      health_layer_list = function() return { { 77, 3500 } } end, receive_health_layers = function(list) got_hl = list end }
     local D3 = load("core/director")
     D3.init({ events = Events, groups = Groups, protocol = P3, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod, cards = CardsMod, tuning = fake_tuning })
     is_server = true
@@ -2381,6 +2474,18 @@ do
     D3.on_welcome("host_peer", 2, "2.0.0", true)
     D3.on_scale("host_peer", { { id = 1, pct = 120 } })
     check("handshake: ...and takes them after a good welcome", got == 1)
+    -- the real maximum health of the units whose health is more than the network carries rides along in the state (`hl`)
+    D3.on_state("host_peer", { p = "waiting", m = "vote", r = 5, b = 1, c = "", k = {}, e = 0, hl = { { 5, 9000 } } })
+    check("state: a client hands the host's list of real maximum health to the custom mods", type(got_hl) == "table" and got_hl[1][2] == 9000)
+    D3.on_state("host_peer", { p = "waiting", m = "vote", r = 5, b = 1, c = "", k = {}, e = 0 })
+    check("state: a state without the list (an older host) clears it", got_hl == nil)
+    local hl_in_state
+    is_server = true
+    D3.on_exit_gameplay(); D3.on_enter_gameplay(); D3.on_mission_started(); D3.update(0.1); D3.update(1.5)
+    D3.on_exit_gameplay()
+    is_server = false
+    for _, st in ipairs(states) do if type(st) == "table" and st.hl then hl_in_state = st.hl end end
+    check("state: the host's state carries the list", hl_in_state and hl_in_state[1][1] == 77 and hl_in_state[1][2] == 3500, #states)
     local D4 = load("core/director")
     D4.init({ events = Events, groups = Groups, protocol = P3, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod, cards = CardsMod })
     is_server = true
@@ -2499,6 +2604,10 @@ do
   parts = Groups.parse("1 crusher{gap=40}, 1 mauler{time between attacks 150}, 1 hound{attack delay=60 gap=70}")
   check("tune: the new names (gap, time between attacks, attack delay) are the number as it is, the last one wins", parts[1].tune.gap == 40 and parts[2].tune.gap == 150 and parts[3].tune.gap == 70)
   check("tune: its readable name is 'Time between attacks'", Groups.tune_text({ gap = 50 }) == "Time between attacks 50%")
+  -- (2026-10-05) the On Fire damage is 35 percent unless set: 35 is not stored, 100 (the game's own damage) is
+  parts = Groups.parse("1 hound[fire]{burn=35}, 1 mauler[fire]{burn=100}, 1 crusher[fire]{fire damage 0}")
+  check("tune: On Fire damage's default is 35: burn=35 is nothing, 100 (the game's) and 0 are kept", parts[1].tune == nil and parts[2].tune.burn == 100 and parts[3].tune.burn == 0 and Groups.tune_default("burn") == 35 and Groups.tune_default("health") == 100 and Groups.tune_default("nope") == 100)
+  check("tune: On Fire damage is written and shown only when it is not 35", Groups.tune_recipe({ burn = 100 }) == "burn=100" and Groups.tune_recipe({ burn = 35 }) == "" and Groups.tune_text({ burn = 100 }) == "On Fire damage 100%" and Groups.tune_text({ burn = 35 }) == "")
   parts = Groups.parse("1 crusher{size=999 health=1 speed=100}")
   check("tune: values are clamped to their range (size 300 at most, health 10 at least) and 100 is the same as nothing", parts[1].tune.size == 300 and parts[1].tune.health == 10 and parts[1].tune.speed == nil)
   parts = Groups.parse("1 crusher{}, 1 hound{speed=100}")

@@ -765,6 +765,13 @@ local function snapshot()
 
 	local snap = { fx = Director.effects and Director.effects.snapshot() or nil, p = state.phase, m = state.mode, r = round1(state.remaining), b = state.ballot_id, c = state.chosen, k = k, e = state.empty and 1 or 0, z = paused and 1 or 0 }
 
+	-- the real maximum health of the units whose health is more than the network carries (spawn/tuning.lua, the boss bars)
+	if Tuning and Tuning.health_layer_list then
+		local ok, list = pcall(Tuning.health_layer_list)
+
+		snap.hl = ok and list or nil
+	end
+
 	-- the last fulfilled card (any mode): the card, how long ago it went out in played seconds, and which card it was (a number that changes)
 	if last_card then
 		local c = last_card.card
@@ -1269,6 +1276,7 @@ Director.on_state = function (sender, s)
 	end
 
 	if Director.effects then Director.effects.receive(s.fx) end
+	if Tuning and Tuning.receive_health_layers then pcall(Tuning.receive_health_layers, s.hl) end
 	local cands = {}
 
 	if type(s.k) == "table" then

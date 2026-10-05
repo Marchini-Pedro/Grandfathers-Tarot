@@ -184,7 +184,7 @@ return {
 	tune_burn = { en = "On Fire damage" },
 	tune_burn_info = { en = "How much the On Fire burn hurts the players it sets on fire: 50 = half. %d to %d." },
 	mod_fire_damage_info = { en = "Sets players next to it on fire. Burn damage, 0 to 300:" },
-	mod_fire_damage_title = { en = "On Fire damage, in percent (0 to 300)" },
+	mod_fire_damage_title = { en = "On Fire damage, in percent (0 to 300, 35 by default, 100 = the game's)" },
 	tune_damage_info = { en = "How hard its attacks and shots hit: 200 = twice the damage (a sniper's shot too). %d to %d." },
 	tune_health_info = { en = "Maximum health. 200 = twice as much. %d to %d." },
 	tune_size = { en = "Size" },

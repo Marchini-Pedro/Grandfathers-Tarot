@@ -228,9 +228,10 @@ Groups.TUNE = {
 }
 
 -- Values kept with the custom mods but set elsewhere than the Custom mods screen (2026-10-04): the damage of the On Fire modifier's
--- burn, set on the Mods screen beside the modifier (0 = no damage). In the recipe: {burn=50}.
+-- burn, set on the Mods screen beside the modifier (0 = no damage). In the recipe: {burn=50}. Its `default` (2026-10-05: 35, "the
+-- default On Fire damage 35%") is the value nobody set: it is not stored or written, every other value is (100 too).
 Groups.TUNE_EXTRA = {
-	{ id = "burn", name = "On Fire damage", min = 0, max = 300, step = 10, aliases = { "burn", "fire damage", "on fire damage", "burn damage" } },
+	{ id = "burn", name = "On Fire damage", min = 0, max = 300, step = 10, default = 35, aliases = { "burn", "fire damage", "on fire damage", "burn damage" } },
 }
 Groups.TUNE_ALL = {}
 
@@ -264,6 +265,13 @@ Groups.TUNE_IDS = table.concat(tune_ids, ", ")
 
 Groups.tune_def = function (id)
 	return tune_by_id[id]
+end
+
+-- the value a custom mod has when nobody set it (100 = unchanged, the On Fire damage 35)
+Groups.tune_default = function (id)
+	local def = tune_by_id[id]
+
+	return def and def.default or 100
 end
 
 -- the value in percent clamped to the allowed range of that setting (and rounded to a whole number)
@@ -301,7 +309,7 @@ Groups.tune_recipe = function (tune)
 	for _, def in ipairs(Groups.TUNE_ALL) do
 		local value = tune and tune[def.id]
 
-		if value and value ~= 100 then
+		if value and value ~= (def.default or 100) then
 			fields[#fields + 1] = def.id .. "=" .. value
 		end
 	end
@@ -316,7 +324,7 @@ Groups.tune_text = function (tune)
 	for _, def in ipairs(Groups.TUNE_ALL) do
 		local value = tune and tune[def.id]
 
-		if value and value ~= 100 then
+		if value and value ~= (def.default or 100) then
 			fields[#fields + 1] = def.name .. " " .. value .. "%"
 		end
 	end
@@ -370,7 +378,7 @@ local function parse_tune(inner)
 
 		local value = Groups.clamp_tune(id, amount)
 
-		tune[id] = value ~= 100 and value or nil
+		tune[id] = value ~= Groups.tune_default(id) and value or nil
 		pos = stop + 1
 	end
 
