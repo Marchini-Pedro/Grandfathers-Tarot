@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-05 - Boss health in bars, On Fire that lasts, the editor's memory (feature/cauldron-redesign)
+- No boss health limit: health above what the network carries is sent divided; boss bars show it in bars with "xN".
+- On Fire enemies keep their burning look while alive; On Fire damage is 35 percent by default.
+- The Deck keeps its scroll; the editor key reopens the screen that was left.
+- Both runners pass every gate (Lua 5.5 82.20% / LuaJIT 2.1 79.13%). Not yet tested in game.
+
 ## 2026-10-04 - Clients, Nightmare darkness, teleport, boss health, imports, On Fire damage (feature/cauldron-redesign)
 - Clients run the effects update (Specialist outlines) and apply combat ability grants to their own player, with a log line.
 - Raise the fallen teleports the rescued player once they stand.

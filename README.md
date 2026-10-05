@@ -24,7 +24,9 @@ random selection and player voting. No Twitch service is required.
   **Grace** and **Faith** have their own frames and sigils.
 - **The Cauldron:** build enemy groups with a searchable catalog and Dreg/Scab
   shelf, modifiers, custom stats and a live card preview. The On Fire modifier has its
-  burn damage (0 to 300 percent) on the right of its row.
+  burn damage (0 to 300 percent, 35 by default) on the right of its row, and its enemies
+  keep burning while they live. The editor key reopens the screen you left; the Deck
+  keeps its scroll.
 - **Enemy colour experiments:** per-group ARGB sliders and a method dropdown
   under **Custom > Enemy colour experiments**. Try natural/applied stimm,
   explicit loadout tint with an independent outline and protected-colour toggle.
@@ -46,7 +48,8 @@ random selection and player voting. No Twitch service is required.
 - **Test commands:** `/rw_test` and `/rw_test_close` play the card's sound, then spawn; `/rw_drawtest <card>`
   stages a three-card draw that picks it after 3 s (HUD only); `/rw_fulltest <card>` does the same with its sound and wave.
 - **Boss bars:** while a boss is up the Draw HUD slides below the boss health bars (or keeps the top and moves the
-  bars below it) and turns see-through (options).
+  bars below it) and turns see-through (options). A boss with more health than the network carries shows it in
+  bars, with "xN" for the full bars still to go.
 - **Last card window:** a compact full card face with its name, flavor, sigil and age,
   synchronized for every player. It has its own transparency slider and is movable
   with Custom HUD. Draw/Last Card omit enemy modifier labels.

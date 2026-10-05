@@ -248,3 +248,12 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   texts, the damaged text refused). Full runners pass every gate: Lua 5.5 2,518 assertions, 82.28%; LuaJIT 2.1 2,517 counted, 79.17%.
   Lua 5.5 needs `--timeout-seconds 280`: its instrumented logic_test now takes about 140 s and the default 120 s times out. Nothing
   tested in game yet.
+
+## 2026-10-05 — Boss health in bars, On Fire that lasts, the editor's memory (feature/cauldron-redesign)
+
+- Built: no health cap (divided network fields, the real maximum in the state, boss bars in layers with "xN"); the On Fire look
+  kept on while the enemy lives; On Fire damage 35 percent by default; the Deck's scroll and the last screen remembered.
+- Tests: logic (divided health and its failures, the state list, the bar layers incl. 490k/450k at 130k, the boss bar element,
+  the director's `hl`, the 35 default in recipes and waves), entry (hooks, the On Fire look, the boss bar hook), editor (the
+  stepper default, every remembered screen and its fallback). Full runners pass every gate: Lua 5.5 2,573 assertions, 82.20%;
+  LuaJIT 2.1 2,572 counted, 79.13% (both with `--timeout-seconds 280`). Nothing tested in game yet.

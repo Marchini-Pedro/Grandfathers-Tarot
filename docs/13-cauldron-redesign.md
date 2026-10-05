@@ -201,6 +201,18 @@ Old peers: a card with `damage=` in a recipe, or the effects `instant_rescue`, i
 
 Old peers: a text exported now (`.` fields, escapes) and a recipe with `burn=` are not read by them.
 
+## Tenth round: boss health in bars, On Fire that lasts, the editor's memory (2026-10-05)
+
+| Request | What was built |
+| --- | --- |
+| Remove the health limit; instead show x2, x3 beside the boss bar (a 130k limit: 490k shows x3, 450k x3 with its last bar not full) | The cap of the ninth round is gone. A unit with more health than the network's health field carries keeps its real health on the host (every hit, heal and death works on it); the network gets health and damage divided by the smallest whole `k` that fits (after each `add_damage`, `add_heal` and `set_health_instant` of `HealthExtension`), so the share of health left that clients read is exact. The spawn parameter itself stays within the limit (the game object is created with it) and the exact health is set right after. The real maximum goes to clients in the director's state (`hl`: game object id and maximum, 16 units at most). Every boss bar (host and clients) shows the health in bars of the network's limit: full bars first, the last one holds what is left over, and "xN" beside the name counts the full bars still behind the one shown. A new bar starts a fresh bar animation; a client's "Weakened" name, made from the divided maximum, is put right. |
+| The On Fire look lasts only 1 s after the spawn; make it last while the monster lives | The look is the game's "burning" ailment effect: the buff starts it once and the material shows it for 2 s. Every machine now keeps its end 3 s ahead of the clock (the same material value, the start unchanged) while the enemy lives and has the buff, so it fades 3 s after death or after the buff ends. This also applies to the game's own On Fire enemies (Havoc), whose look is the same. |
+| Default On Fire damage 35% | A wave's On Fire enemies burn players at 35 percent unless their group sets the damage (the Mods screen stepper starts at 35). 35 is not stored or written; 100 (the game's own damage) is now `{burn=100}`. The game's own Havoc On Fire enemies keep the game's damage. |
+| The Deck remembers its scroll | Noted when scrolling, when a card is opened and every frame on the Deck; Back to the Deck and the next open come back to it. |
+| The editor key reopens the window that was left | The screen that was open when the editor closed comes back: a card's screen, Face, its sound list, a group's Mods, Custom mods or Appearance, Settings, Presets, a preset being viewed. What is gone falls back: a deleted card to the Deck, a missing group to the card's screen, a missing preset to the presets. Kept for the game session (`mod.rw.editor_memory`). |
+
+Old peers: they read a divided unit's bar as one bar of the right share (no "xN"); a `burn=100` recipe is read by them as the game's damage too.
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -247,3 +259,7 @@ Old peers: a text exported now (`.` fields, escapes) and a recipe with `burn=` a
     outlines; Nightmare darkness at 0, 30 and 100 and the grey world for every player, ending with the dread; Raise the fallen
     teleports a hogtied host, bot and remote human once they stand; a Wrath boss's health on a client; a card exported, pasted in
     Discord and imported; On Fire damage at 0, 50 and 300 on host and clients.
+17. Tenth round: a Wrath boss above the network's limit (e.g. Chaos Spawn at 500 percent) on host and client: the bar's share, "xN"
+    counting down, each new bar full, the last bar partial, no "Weakened" on the client, the kill; two such bosses at once. On Fire
+    enemies keep burning while alive and stop after death; their default damage (35) and 100. The Deck's scroll after Back and
+    after reopening; the editor key reopening each screen, and a card deleted in between.

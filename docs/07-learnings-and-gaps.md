@@ -431,3 +431,15 @@ Things we know are missing or unverified, each with the next concrete step.
 - **Effects drawn per machine need a client update**: anything a client draws itself (outlines) is lost if only the host ticks.
 - **Template interval functions are looked up from the template table every interval**, so wrapping them once in the loaded
   `buff_templates` table changes the burn of every later On Fire enemy.
+
+## 2026-10-05 — Above the network's health limit, ailment looks
+
+- **The network limit is on the fields, not on the health.** The host's `HealthExtension` keeps `_health` and `_damage` and only
+  copies them to the game object (`add_damage`, `add_heal`, `set_health_instant`); clients compute the share as damage / health.
+  Writing both divided by the same `k` keeps the share exact for any health. The game object is created from the spawn
+  parameter, so that one must stay within the limit.
+- **A boss bar reads `health_extension:current_health_percent()` each frame from its target table**: replacing that one field
+  with a proxy changes what the bar shows without touching the element's code; the name text comes from
+  `target.localized_display_name` every frame.
+- **Ailment looks are a material value** (`offset_time_duration` = offset, start, duration, set by
+  `Ailment.play_ailment_effect_template`); keeping the end ahead of the clock keeps the look on without restarting it.
