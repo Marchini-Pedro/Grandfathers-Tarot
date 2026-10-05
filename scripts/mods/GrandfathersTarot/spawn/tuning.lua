@@ -992,7 +992,8 @@ end
 -- (2026-10-05, the user: "run speed does not affect the Mutant's run when it grabs") The charge (BtMutantChargerChargeAction) moves
 -- the Mutant by setting its velocity itself in _update_charging and _update_charged_past, which the navigation's movement modifier
 -- (our run speed) never sees; its navigating phase goes through the navigation and is already scaled. While one of those two runs
--- for a tuned unit, the velocity it sets is multiplied by the unit's run speed factor.
+-- for a tuned unit, the velocity it sets is multiplied by the unit's run speed factor. (2026-10-05, the user: "it stopped working
+-- for the run when grabbing") The run carrying the grabbed player is a third such step, _update_grabbed_target: scaled the same.
 local charge_scale = nil
 
 Tuning.speed_factor = function (unit)
@@ -1209,6 +1210,7 @@ Tuning.install = function ()
 	if mod.hook then
 		mod:hook("BtMutantChargerChargeAction", "_update_charging", function (...) return Tuning.charge_update(...) end)
 		mod:hook("BtMutantChargerChargeAction", "_update_charged_past", function (...) return Tuning.charge_update(...) end)
+		mod:hook("BtMutantChargerChargeAction", "_update_grabbed_target", function (...) return Tuning.charge_update(...) end)
 		mod:hook("MinionLocomotionExtension", "set_wanted_velocity", function (...) return Tuning.wanted_velocity(...) end)
 	end
 
