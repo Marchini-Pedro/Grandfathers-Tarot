@@ -156,6 +156,8 @@ return {
 					{ setting_id = "card_share_icons", type = "checkbox", default_value = true },
 					{ setting_id = "card_sounds", type = "checkbox", default_value = true },
 					{ setting_id = "nightmare_dread", type = "checkbox", default_value = true },
+					{ setting_id = "card_auras", type = "checkbox", default_value = true },
+					{ setting_id = "dream_sky", type = "checkbox", default_value = true },
 					numeric("nightmare_fog_strength", 30, 0, 100, "unit_percent", 5),
 					{ setting_id = "hud_show_percent", type = "checkbox", default_value = true },
 					{ setting_id = "colour_enemies", type = "checkbox", default_value = true },

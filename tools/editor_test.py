@@ -582,11 +582,77 @@ do
   W.stepper_qcd.content.hotspot_plus.pressed_callback()
   check("cooldown: the stepper beside the chance steps it too", settings.cd_wave_small == cd_before + 30)
   W.stepper_qcd.content.hotspot_minus.pressed_callback()
+  -- (2026-10-05) holding a cooldown's minus or plus repeats it: the click's step, then after 0.4 s one every 0.07 s until it is let go
+  local held = W.stepper_qcd.content.hotspot_plus
+  held.is_held = true
+  view:_update_hold(0.016); view:_update_hold(0.2)
+  check("cooldown hold: held for less than the delay, nothing more than the click", settings.cd_wave_small == cd_before)
+  view:_update_hold(0.25)
+  check("cooldown hold: past the delay it takes a step", settings.cd_wave_small == cd_before + 30, tostring(settings.cd_wave_small))
+  view:_update_hold(0.03); view:_update_hold(0.05)
+  check("cooldown hold: and keeps stepping while held", settings.cd_wave_small == cd_before + 60, tostring(settings.cd_wave_small))
+  held.is_held = false
+  view:_update_hold(0.5); view:_update_hold(0.5)
+  check("cooldown hold: let go, it stops", settings.cd_wave_small == cd_before + 60)
+  stage.content.hotspot_cd_minus.is_held = true
+  view:_update_hold(0.01); view:_update_hold(0.45); view:_update_hold(0.08)
+  stage.content.hotspot_cd_minus.is_held = false
+  view:_update_hold(0.1)
+  check("cooldown hold: the stage card's minus repeats too", settings.cd_wave_small == cd_before, tostring(settings.cd_wave_small))
+  held.is_held = true
+  view:_update_hold(0.01)
+  PPc.Popup.open(view, { label = "x", value = "1" })
+  view:_update_hold(1)
+  check("cooldown hold: nothing repeats while a popup is open", settings.cd_wave_small == cd_before)
+  PPc.Popup.cancel(view)
+  held.is_held = false
+  view:_update_hold(0.1)
   stage.content[view.TILE_IDS and view.TILE_IDS.hotspot_pip[3] or "hotspot_pip3"].pressed_callback()
   check("chance: a pip of the stage card sets the card's chance (3)", settings.pct_wave_small == mod.rw.cards.weight_for_level(3), tostring(settings.pct_wave_small))
   settings.pct_wave_small = nil; view:_reload(); view:_apply_screen(true)
   view:cb_back()
   check("cooldown: back on the Deck the plates and the value are there again", view._screen == "list" and tile(1).style.cd_minus_bg.visible and tile(1).content.cd_value == "2:00")
+  local deck_cd = tile(1).content.fx.cooldown
+  tile(1).content.hotspot_cd_plus.is_held = true
+  view:_update_hold(0.01); view:_update_hold(0.45); view:_update_hold(0.08)
+  tile(1).content.hotspot_cd_plus.is_held = false
+  view:_update_hold(0.1)
+  check("cooldown hold: a Deck tile's plus repeats while held", settings.cd_wave_small == deck_cd + 60, tostring(settings.cd_wave_small))
+  settings.cd_wave_small = nil; view:_reload(); view:_apply_screen(true)
+
+  -- (2026-10-05) the suit's aura lives on the Deck's tile: its shapes inside the tile, under the text; hidden on a card out of the draw
+  local Aura = dofile(BASE .. "/ui/aura.lua")
+  local fx1 = tile(1).content.fx
+  view:_tick_living_tile(tile(1), 2.3)
+  local aura_n, aura_in = 0, true
+  for i = 1, Aura.COUNT do
+    for _, id in ipairs({ "aura_c" .. i, "aura_r" .. i }) do
+      local st = tile(1).style[id]
+      if st.visible then
+        aura_n = aura_n + 1
+        if st.offset[1] < -0.01 or st.offset[2] < -0.01 or st.offset[1] + st.size[1] > 228.01 or st.offset[2] + st.size[2] > 270.01 or st.offset[3] >= tile(1).style.name.offset[3] then aura_in = false end
+      end
+    end
+  end
+  check("aura: the Deck's tile shows its suit's effect, inside the tile and under its text", (aura_n > 0) == Aura.has(fx1.suit.id) and aura_in, fx1.suit.id .. " " .. aura_n)
+  settings.card_auras = false
+  view:_tick_living_tile(tile(1), 2.6)
+  local off_n = 0
+  for i = 1, Aura.COUNT do if tile(1).style["aura_c" .. i].visible or tile(1).style["aura_r" .. i].visible then off_n = off_n + 1 end end
+  check("aura: the option 'Living card effects' off hides it on the Deck", off_n == 0)
+  settings.card_auras = nil
+  -- a Warp card on the Deck gets the warp motes of the HUD (2026-10-05, the user: "add the warp hud effect to the deck window")
+  settings.su_wave_small = "warp"; view:_reload(); view:_apply_screen(true)
+  view:_tick_living_tile(tile(1), 1.7)
+  local motes = 0
+  for i = 1, 10 do if tile(1).style["aura_c" .. i].visible then motes = motes + 1 end end
+  check("aura: a Warp card on the Deck has the warp's motes rising through it", tile(1).content.fx.suit.id == "warp" and motes > 0, motes)
+  settings.su_wave_small = "dream"; view:_reload(); view:_apply_screen(true)
+  view:_tick_living_tile(tile(1), 1.7)
+  local b1 = tile(1).style.border_t.color[2] .. "," .. tile(1).style.border_t.color[3]
+  view:_tick_living_tile(tile(1), 5.3)
+  check("aura: a Dream card on the Deck: its frame turns through a rainbow", tile(1).content.fx.suit.id == "dream" and b1 ~= tile(1).style.border_t.color[2] .. "," .. tile(1).style.border_t.color[3])
+  settings.su_wave_small = nil; view:_reload(); view:_apply_screen(true)
 
   -- the engine runs the hotspots of the row; they are disabled with the others while a popup is open
   check("engine rule: the hotspots of the cooldown row run (hover and click work)", hotspot_runs(tile(1), "hotspot_cd_minus") and hotspot_runs(tile(1), "hotspot_cd_value") and hotspot_runs(tile(1), "hotspot_cd_plus"))
@@ -1108,6 +1174,64 @@ check("count +1 saved", settings["wave_def_wave_small"] ~= nil and row(1).conten
 click_row(1, "hotspot_minus"); click_row(1, "hotspot_minus"); click_row(1, "hotspot_minus")
 check("count -3", row(1).content.row_name == "6 Poxwalker")
 
+-- (2026-10-05, the user's picture) a random group's long name is one line: its font shrinks to fit, then it is cut with "..."
+do
+  local n_before = #view._parts
+  view._parts[#view._parts + 1] = { one_of = { "chaos_beast_of_nurgle", "chaos_spawn", "chaos_ogryn_houndmaster", "chaos_plague_ogryn" }, count = 1 }
+  view._offset = math.max(0, #view._parts - 6)
+  view:_save()
+  local r = row(#view._parts - view._offset)
+  local shown = plain(r.content.row_name)
+  local fit = { chars = math.floor(305 / (r.style.row_name.font_size * 0.6)) }
+  check("rows: a long random group fits one line: a smaller font (17 to 26) and cut with ...", shown:sub(-3) == "..." and #shown <= fit.chars and r.style.row_name.font_size >= 17 and r.style.row_name.font_size < 26 and shown:find("^1 random of Beast") ~= nil, shown .. " @" .. tostring(r.style.row_name.font_size))
+  check("rows: a short name keeps the full font", row(1 - view._offset) == nil or view._offset > 0 or row(1).style.row_name.font_size == 26)
+  table.remove(view._parts)
+  view._offset = 0
+  view:_save()
+  check("rows: (the test group is gone again)", #view._parts == n_before and row(1).style.row_name.font_size == 26)
+
+  -- a colour experiment shows as a small diamond in its colour beside the name
+  view._parts[1].appearance = { method = "applied_stimm", a = 255, r = 200, g = 40, b = 30, outline = false, protect = false }
+  view:_save()
+  local mark = row(1).content.paint_rgb
+  check("rows: a group with a colour experiment has a small mark in that colour", mark ~= nil and mark[1] == 200 and mark[2] == 40 and mark[3] == 30)
+  view._parts[1].appearance = { method = "skin_burnt", a = 255, r = 0, g = 0, b = 0, outline = false, protect = false }
+  view:_save()
+  check("rows: a skin effect's mark has the effect's own colour (its channels do nothing)", row(1).content.paint_rgb ~= nil and row(1).content.paint_rgb[1] > 200)
+  view._parts[1].appearance = { method = "applied_stimm", a = 255, r = 5, g = 5, b = 5, outline = false, protect = false }
+  view:_save()
+  check("rows: a colour too dark for the row is shown pale", row(1).content.paint_rgb ~= nil and row(1).content.paint_rgb[1] > 150)
+  view._parts[1].appearance = nil
+  view:_save()
+  check("rows: no experiment, no mark", row(1).content.paint_rgb == nil and row(2).content.paint_rgb == nil)
+
+  -- a right click on a row changes its enemy and keeps the rest (2026-10-05)
+  view._parts[1].mods = { "enraged" }
+  view._parts[1].tune = { health = 200 }
+  view:_save()
+  local count1 = view._parts[1].count
+  row(1).content.hotspot_name.right_pressed_callback()
+  check("swap: a right click on a row opens the enemy picker for that group, and says so", view._screen == "picker" and view._replace_index == 1 and (view._picker_note or ""):find("picker_swap", 1, true) ~= nil, tostring(view._picker_note))
+  view:_add_breed("chaos_hound")
+  check("swap: the enemy picked replaces the group's enemy; its count, modifiers and custom mods stay; no group is added", view._screen == "detail" and view._parts[1].breed == "chaos_hound" and view._parts[1].count == count1 and view._parts[1].mods[1] == "enraged" and view._parts[1].tune.health == 200 and view._replace_index == nil and #view._parts == n_before)
+  row(1).content.hotspot_name.right_pressed_callback()
+  view:cb_toggle_random()
+  view:_add_breed("chaos_poxwalker"); view:_add_breed("renegade_melee")
+  view:cb_random_done()
+  check("swap: a random group made there replaces it too, keeping the rest", view._screen == "detail" and view._parts[1].breed == nil and #view._parts[1].one_of == 2 and view._parts[1].mods[1] == "enraged" and #view._parts == n_before)
+  row(1).content.hotspot_name.right_pressed_callback()
+  view:cb_back()
+  check("swap: Back from the picker changes nothing and forgets the swap", view._screen == "detail" and view._replace_index == nil and #view._parts[1].one_of == 2)
+  view:cb_add()
+  view:_add_breed("chaos_hound")
+  check("swap: the plain Add after it adds as before", #view._parts == n_before + 1 or view._parts[#view._parts].breed == "chaos_hound")
+  if #view._parts > n_before then table.remove(view._parts) end
+  view._parts[1] = { breed = "chaos_poxwalker", count = count1 }
+  view._screen = "detail"
+  view:_save()
+  check("swap: (the card is as it was)", plain(row(1).content.row_name) == "6 Poxwalker" and #view._parts == n_before, plain(row(1).content.row_name))
+end
+
 -- remove a part
 click_row(4, "hotspot_action")
 check("remove part", not row(4).visible and #view._parts == 3)
@@ -1352,7 +1476,7 @@ do
   check("mods screen: every description fits the two-line column (<= 138 characters)", longest <= 138, tostring(which) .. " " .. longest)
 end
 check("mods screen lists all 10 modifiers with checkboxes", row(10).visible and #view:_source() == 10 and row(1).content.show_check and not row(1).content.show_stepper and not row(1).content.show_action and not row(1).content.show_mods, row(10).content.row_name)
-check("mods screen: names, descriptions, havoc note", row(1).content.row_name == "Purple" and row(1).content.info:find("Encroaching Garden") ~= nil and row(1).content.info:find("heals nearby") ~= nil and row(6).content.row_name == "Pus-Hardened Skin" and row(3).content.row_name == "Red" and row(4).content.row_name == "Blight" and row(5).content.row_name == "Orange" and row(5).content.info:find("^Rampaging Enemies") ~= nil and row(9).content.row_name == "Purple Stimm" and row(6).content.info:find("note_havoc_only") ~= nil and row(2).content.info:find("note_havoc_only") == nil)
+check("mods screen: names, descriptions, havoc note", row(1).content.row_name == "Purple" and row(1).content.info:find("Encroaching Garden") ~= nil and row(1).content.info:find("heals nearby") ~= nil and row(6).content.row_name == "Pus-Hardened Skin" and row(3).content.row_name == "Red" and row(4).content.row_name == "Blight" and row(5).content.row_name == "Orange" and row(5).content.info:find("^Rampaging Enemies") ~= nil and row(9).content.row_name == "Twins" and row(6).content.info:find("note_havoc_only") ~= nil and row(2).content.info:find("note_havoc_only") == nil)
 check("mods screen: nothing ticked yet", not row(1).content.checkbox_selected and not row(2).content.checkbox_selected)
 do
   -- On Fire: its burn's damage beside it (2026-10-04)

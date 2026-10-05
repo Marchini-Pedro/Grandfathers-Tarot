@@ -516,7 +516,7 @@ do
   -- (2026-10-04, the design page) chips as wide as their labels in four columns, a one unit outline, a lit diamond on the effect chips
   local hi,heal_chip=chip("heal");local _,cleanse_chip=chip("cleanse")
   check("effects UI: chips are as wide as their labels (a longer name, a wider chip)",cleanse_chip.style.hotspot.size[1]>heal_chip.style.hotspot.size[1])
-  check("effects UI: a chip has a one unit outline and no second frame",W.rw_chip_1.style.chip_frame.size[1]==W.rw_chip_1.style.hotspot.size[1] and W.rw_chip_1.style.chip_fill.offset[1]==1 and W.rw_chip_1.style.chip_edge_r==nil)
+  check("effects UI: a chip has a one unit outline and no second frame",W.rw_chip_1.style.chip_frame.size[1]==W.rw_chip_1.style.hotspot.size[1] and W.rw_chip_1.style.chip_fill.offset[1]==1 and W.rw_chip_1.style.chip_edge_r==nil and W.rw_chip_1.style.chip_line_r.size[1]==1 and W.rw_chip_1.style.chip_line_r.offset[1]==W.rw_chip_1.style.chip_frame.size[1]-1 and W.rw_chip_1.style.chip_line_r.offset[3]>W.rw_chip_1.style.chip_fill.offset[3])
   check("effects UI: the effect chips have a diamond at the right end, the enemy chips none",heal_chip.style.chip_pip~=nil and heal_chip.style.chip_pip.offset[1]>heal_chip.style.hotspot.size[1]-24 and W.rw_chip_1.style.chip_pip==nil)
   check("effects UI: the effect shelf is four columns, one per group, each chip inside its column",(function() local bands=EV.shelf_layout.bands;if #bands~=4 then return false end;for _,c in ipairs(EV.shelf_layout.chips) do local b=bands[c.column];if c.x<b.x-0.5 or c.x+c.w>b.x+b.w+0.5 then return false end end;return bands[1].x<bands[2].x and bands[3].x<bands[4].x end)())
 

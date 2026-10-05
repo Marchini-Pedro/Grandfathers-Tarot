@@ -7,6 +7,7 @@
 local mod = get_mod("GrandfathersTarot")
 
 local Text = require("scripts/utilities/ui/text")
+local Aura = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/aura")
 
 local DeckView = {}
 
@@ -534,6 +535,16 @@ DeckView.install = function (View, h)
 			style.fog_veil.visible, style.fog_1.visible, style.fog_2.visible, style.fog_3.visible = false, false, false, false
 		end
 
+		-- the aura of the suit (ui/aura.lua) starts hidden too: _tick_living_tile moves it every frame
+		if style[IDS.aura_c[1]] then
+			for i = 1, Aura.COUNT do
+				style[IDS.aura_c[i]].visible, style[IDS.aura_r[i]].visible = false, false
+			end
+		end
+
+		fx.aura = Aura.new()
+		fx.w, fx.h = T.w, T.h
+
 		-- one dot per enemy colour, right aligned, each on a feather
 		local dots = card.dots
 		local count = math.min(#dots, 6)
@@ -859,6 +870,42 @@ DeckView.install = function (View, h)
 			local pulse, crackle = Cards.warp_pulse(t)
 
 			paint(style.glow, math.floor(150 * (0.45 + 0.55 * pulse) + 0.5), Spread.grey(fx.tmp, mix_into(fx.mix, suit.frame, suit.lit, 0.35 * pulse + 0.65 * crackle), fx.sat))
+		else
+			-- Dream's glow turns through a rainbow, Brute's flares with every blow (ui/aura.lua); Dream's frame follows its glow
+			local glow = Aura.glow(suit.id, t, fx.mix)
+
+			if glow then
+				paint(style.glow, math.floor(190 * glow + 0.5), Spread.grey(fx.tmp, fx.mix, fx.sat))
+			end
+
+			if suit.rainbow and fx.state ~= "cooling" then
+				local edge = Spread.grey(fx.tmp2, Aura.rainbow(t, fx.mix2, 0.12), fx.sat)
+
+				for i = 1, #IDS.border do
+					paint(style[IDS.border[i]], 255, edge)
+				end
+			end
+		end
+
+		-- the suit's aura (warp motes, flames, bubbles, feathers, clouds...): fainter while the card rests
+		if fx.aura and style[IDS.aura_c[1]] then
+			local alive = mod:get("card_auras") ~= false and Aura.update(fx.aura, suit.id, t, fx.w, fx.h, fx.k)
+			local dim = fx.state == "cooling" and 0.45 or 1
+
+			for i = 1, Aura.COUNT do
+				local p = fx.aura[i]
+				local circle, rect = style[IDS.aura_c[i]], style[IDS.aura_r[i]]
+				local on = alive and p.on
+
+				circle.visible, rect.visible = on and p.round, on and not p.round
+
+				if on then
+					local s = p.round and circle or rect
+
+					s.offset[1], s.offset[2], s.size[1], s.size[2] = p.x, p.y, p.w, p.h
+					paint(s, math.floor(p.a * dim + 0.5), Spread.grey(fx.tmp, p.rgb, fx.sat))
+				end
+			end
 		end
 
 		-- Nightmare's black fog comes and goes over the whole card

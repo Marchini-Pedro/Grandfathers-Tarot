@@ -33,7 +33,7 @@ Presets.UNDO_ID = "preset_undo"
 -- inclusive ranges, the same as the editor's steppers/popups
 local SUITS = {
 	plague = true, murmur = true, rage = true, blight = true, swarm = true, fateful = true,
-	volley = true, snare = true, brute = true, warp = true, heresy = true, nightmare = true, prayer = true, miracle = true, grace = true, faith = true,
+	volley = true, snare = true, brute = true, warp = true, heresy = true, nightmare = true, prayer = true, miracle = true, grace = true, faith = true, dream = true,
 }
 local SUIT_ALIAS = { fester = "heresy", dusk = "murmur" } -- the old name of Heresy: old presets and texts from friends still say it
 

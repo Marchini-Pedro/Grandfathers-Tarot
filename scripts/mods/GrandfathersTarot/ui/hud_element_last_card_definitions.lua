@@ -10,10 +10,11 @@ local mod = get_mod("GrandfathersTarot")
 local UIWorkspaceSettings = require("scripts/settings/ui/ui_workspace_settings")
 local UIWidget = require("scripts/managers/ui/ui_widget")
 local Spread = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/spread")
+local Aura = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/aura")
 
 local definitions = {}
 
-definitions.Spread = Spread
+definitions.Spread, definitions.Aura = Spread, Aura
 -- the card "in the hand" of the design page (2026-10-04): 240 wide, at most two name lines and two whisper lines
 definitions.WIDTH = 240
 definitions.HEIGHT = 160
@@ -123,6 +124,12 @@ passes[#passes + 1] = {
 }
 
 rect(passes, "card_bg", z + 4)
+
+-- the suit's aura over the face and under everything on it (ui/aura.lua; HudElementGrandfathersTarotLast._tick_aura)
+for i = 1, Aura.COUNT do
+	circle(passes, "aura_c" .. i, z + 4.5)
+	rect(passes, "aura_r" .. i, z + 4.5)
+end
 circle(passes, "sigil_ring", z + 7)
 circle(passes, "sigil_disc", z + 8)
 rect(passes, "card_accent", z + 5)

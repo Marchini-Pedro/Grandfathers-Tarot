@@ -93,7 +93,7 @@ do
   check("new names resolve", id("purple") == "garden" and id("Red") == "toll" and id("blight") == "corrupted" and id("Orange") == "bolstering" and id("Pus-Hardened Skin") == "toughened" and id("pus hardened") == "toughened")
   check("old names still resolve (saved recipes keep working)", id("garden") == "garden" and id("encroaching garden") == "garden" and id("final toll") == "toll" and id("toll") == "toll" and id("corrupted") == "corrupted" and id("bolstering") == "bolstering" and id("toughened skin") == "toughened" and id("tough") == "toughened")
   check("extra names: The Final Toll, Rampaging Enemies", id("the final toll") == "toll" and id("Rampaging Enemies") == "bolstering" and id("rampaging") == "bolstering")
-  check("purple (garden) and purple stimm are different modifiers", id("purple") == "garden" and id("purple stimm") == "purple_stimm" and id("Purple Stimmed") == "purple_stimm" and id("purple_stimm") == "purple_stimm" and id("splitting") == "purple_stimm")
+  check("purple (garden) and purple stimm are different modifiers", id("purple") == "garden" and id("purple stimm") == "purple_stimm" and id("Purple Stimmed") == "purple_stimm" and id("purple_stimm") == "purple_stimm" and id("splitting") == "purple_stimm" and id("twins") == "purple_stimm" and Groups.modifier("purple_stimm").name == "Twins")
   local d = function(mid) return Groups.modifier(mid).description end
   check("descriptions: prefixed as requested and otherwise unchanged", d("garden") == "Encroaching Garden. Extra health, resists impact, and heals nearby enemies." and d("toll") == "The Final Toll. Becomes enraged once it drops below half health (the vanilla Final Toll)." and d("bolstering") == "Rampaging Enemies. Slightly bigger and tougher (takes less damage). When it dies, enemies within 4 m get another stack, up to 5." and d("toughened") == "Tougher skin against ranged damage." and d("corrupted") == "Nurgle-corrupted: leaves corruption behind when it dies.", d("bolstering"))
   local m = Groups.parse("3 crushers[Purple+Red+Orange], 2 hounds[final toll, garden], 1 sniper[pus-hardened skin+blight]")
@@ -1833,6 +1833,28 @@ do
   check("tuning: hit mass is multiplied (2 -> 5) and the run speed gets a movement modifier of 1.2", c.ext.health_system.mass == 5 and #c.ext.navigation_system.mods == 1 and c.ext.navigation_system.mods[1] == 1.2 and plain.ext.health_system.mass == 2 and #plain.ext.navigation_system.mods == 0)
   check("tuning: time between attacks 40 writes melee_attack_speed x2.5 (100 / 40), the fire rate and the burst size go to the stat buffs", c.buffs.stats.melee_attack_speed == 2.5 and c.buffs.stats.ranged_attack_speed == 2 and c.buffs.stats.minion_num_shots_modifier == 3 and plain.buffs.stats.melee_attack_speed == nil)
   check("tuning: the modifiers are added first (Enraged), the custom mods after", c.buffs.added[1] == "havoc_enraged_enemies")
+  -- (2026-10-05) the Mutant's charge sets its velocity itself: while one of its steps runs for a tuned unit the velocity is scaled
+  do
+    check("charge: a tuned unit's run speed factor is kept (1.2), none for a plain unit", Tuning.speed_factor(c) == 1.2 and Tuning.speed_factor(plain) == nil)
+    local set = {}
+    local loco = { set = function(self, v) set[#set + 1] = v end }
+    local function locomotion_set(self, v) return Tuning.wanted_velocity(function(_, vel) set[#set + 1] = vel; return "set" end, self, v) end
+    local function step(self, unit, ...) locomotion_set(loco, 10); return "step", ... end
+    local a, b = Tuning.charge_update(step, {}, c, "x")
+    check("charge: during a step of a tuned Mutant the velocity it sets is multiplied by its factor (10 -> 12); the step's results pass through", math.abs(set[1] - 12) < 1e-9 and a == "step" and b == "x")
+    Tuning.charge_update(step, {}, plain)
+    locomotion_set(loco, 10)
+    check("charge: a plain unit's step and any velocity set outside a step are left alone", set[2] == 10 and set[3] == 10)
+    local ok = pcall(Tuning.charge_update, function() error("step failed") end, {}, c)
+    locomotion_set(loco, 10)
+    check("charge: an error in the step is passed on and the scaling ends with it", not ok and set[4] == 10)
+    Tuning.dead = true
+    Tuning.charge_update(step, {}, c)
+    Tuning.dead = false
+    check("charge: a retired mod scales nothing", set[5] == 10)
+    Tuning.charge_update(function(self, unit) locomotion_set(loco, nil) end, {}, c)
+    check("charge: no velocity given: nothing to scale", set[6] == nil and #set == 5)
+  end
   local scaled_c = 0; for _, s in ipairs(scales_set) do if s.unit == c and s.node == 1 and math.abs(s.x - 1.3) < 1e-9 and s.x == s.z then scaled_c = scaled_c + 1 end end
   check("tuning: the size is the unit's root scale (node 1, 1.3 on every axis); nothing for the plain unit", scaled_c == 1 and (function() for _, s in ipairs(scales_set) do if s.unit == plain then return false end end return true end)())
 
@@ -2954,7 +2976,7 @@ do
   local Presets = PresetsMod
   local function rec(r) return Groups.parse(r) end
   -- the palette is the reference page's, exactly
-  check("tarot: sixteen suits in order (the six of the reference, then volley, snare, brute, warp, heresy, NIGHTMARE last of the hostile twelve, then the four beneficial ones ending with Faith), every colour a 3-number rgb", #Cards.SUIT_ORDER == 16 and Cards.HOSTILE_COUNT == 12 and Cards.SUIT_ORDER[16] == "faith" and Cards.SUITS.faith.beneficial and Cards.SUIT_ORDER[7] == "volley" and Cards.SUIT_ORDER[10] == "warp" and Cards.SUIT_ORDER[11] == "heresy" and Cards.SUIT_ORDER[12] == "nightmare" and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
+  check("tarot: seventeen suits in order (the six of the reference, then volley, snare, brute, warp, heresy, NIGHTMARE last of the hostile twelve, then the five beneficial ones: Faith, then Dream last), every colour a 3-number rgb", #Cards.SUIT_ORDER == 17 and Cards.HOSTILE_COUNT == 12 and Cards.SUIT_ORDER[16] == "faith" and Cards.SUIT_ORDER[17] == "dream" and Cards.SUITS.dream.beneficial and Cards.SUITS.faith.beneficial and Cards.SUIT_ORDER[7] == "volley" and Cards.SUIT_ORDER[10] == "warp" and Cards.SUIT_ORDER[11] == "heresy" and Cards.SUIT_ORDER[12] == "nightmare" and (function() for _, id in ipairs(Cards.SUIT_ORDER) do local s = Cards.SUITS[id]; for _, k in ipairs({ "card", "hi", "frame", "text", "accent" }) do if not (s[k] and #s[k] == 3) then return false end end end return true end)())
   check("tarot: plague suit values from the palette", table.concat(Cards.SUITS.plague.card, ",") == "30,36,19" and table.concat(Cards.SUITS.plague.accent, ",") == "183,194,58" and table.concat(Cards.SUITS.fateful.frame, ",") == "138,122,74" and table.concat(Cards.SUITS.murmur.frame, ",") == "85,96,58")
   check("tarot: threat colours 1..5", table.concat(Cards.THREAT_COLORS[1], ",") == "167,194,124" and table.concat(Cards.THREAT_COLORS[3], ",") == "227,207,74" and table.concat(Cards.THREAT_COLORS[5], ",") == "207,74,48")
   check("tarot: the suit ids of the catalog and of the card module are the same set", (function() for id in pairs(Events.SUITS) do if not Cards.SUITS[id] then return false end end for id in pairs(Cards.SUITS) do if not Events.SUITS[id] then return false end end return true end)())
@@ -2997,7 +3019,7 @@ do
     local plain_sets_equal = true
     for from, to in pairs(Cards.SUIT_ALIAS) do if Events.SUIT_ALIAS[from] ~= to then plain_sets_equal = false end end
     for from, to in pairs(Events.SUIT_ALIAS) do if Cards.SUIT_ALIAS[from] ~= to then plain_sets_equal = false end end
-    check("heresy: Heresy, Nightmare and the blessings are special; its palette is its own (near-black red face, fresh blood frame, crimson accent, a lit red for words, a deep blood for the heartbeat)", Cards.SUITS.heresy.special == true and (function() local n = 0 for _, def in pairs(Cards.SUITS) do if def.special then n = n + 1 end end return n end)() == 6 and #Cards.SUITS.heresy.lit == 3 and #Cards.SUITS.heresy.blood == 3 and Cards.SUITS.heresy.frame[1] == 0x8a and Cards.SUITS.heresy.accent[1] == 0xd4 and Cards.SUITS.heresy.accent[2] == 0x2a)
+    check("heresy: Heresy, Nightmare and the blessings are special; its palette is its own (near-black red face, fresh blood frame, crimson accent, a lit red for words, a deep blood for the heartbeat)", Cards.SUITS.heresy.special == true and (function() local n = 0 for _, def in pairs(Cards.SUITS) do if def.special then n = n + 1 end end return n end)() == 7 and #Cards.SUITS.heresy.lit == 3 and #Cards.SUITS.heresy.blood == 3 and Cards.SUITS.heresy.frame[1] == 0x8a and Cards.SUITS.heresy.accent[1] == 0xd4 and Cards.SUITS.heresy.accent[2] == 0x2a)
     check("faith: a pink no other suit has (the accent's red is high and its blue above its green)", (function() local a = Cards.SUITS.faith.accent; if not (a[1] > 200 and a[3] > a[2]) then return false end for id, def in pairs(Cards.SUITS) do if id ~= "faith" and def.accent[1] > 200 and def.accent[3] > def.accent[2] + 20 then return false end end return true end)())
     check("threat six: Despair on a hostile card, Apotheosis on a beneficial one, nothing below six; the edges differ", Cards.threat_name(6, "plague") == "Despair" and Cards.threat_name(6, "faith") == "Apotheosis" and Cards.threat_name(5, "faith") == nil and Cards.threat_edge("heresy") == Cards.DESPAIR_EDGE and Cards.threat_edge("miracle") == Cards.APOTHEOSIS_EDGE)
     check("threat six: the shine never fades below 0.35 and stays within 0..1; the heartbeat stays within 0..1 and beats", (function() local lo, hi, beat_lo, beat_hi = 1, 0, 1, 0 for i = 0, 400 do local t = i / 37; for _, s in ipairs({ "plague", "grace" }) do local v = Cards.six_shine(t, s); lo, hi = math.min(lo, v), math.max(hi, v) end local b = Cards.heartbeat(t); beat_lo, beat_hi = math.min(beat_lo, b), math.max(beat_hi, b) end return lo >= 0.35 and hi <= 1 and hi > 0.9 and beat_lo >= 0 and beat_lo < 0.05 and beat_hi > 0.9 and beat_hi <= 1 end)())
@@ -3345,7 +3367,7 @@ do
   local function skipped(label, expect_text)
     check("purple stimm: " .. label .. " -> no buff, wave still spawns", #spawned == 1 and #spawned[1].buffs.added == 0, #spawned)
     local logged = false
-    for _, e in ipairs(echoes) do if e:find("Purple Stimm was skipped") and e:find(expect_text, 1, true) then logged = true end end
+    for _, e in ipairs(echoes) do if e:find("Twins was skipped") and e:find(expect_text, 1, true) then logged = true end end
     check("purple stimm: " .. label .. " -> reason logged", logged, expect_text)
   end
   Managers.state.mutator = nil

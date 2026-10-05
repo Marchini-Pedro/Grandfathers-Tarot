@@ -34,8 +34,9 @@ Cards.BASE = {
 -- rest, a glow that beats like a heart, a line of its own when it is drawn. The four BENEFICIAL suits follow (catalog/effects.lua):
 -- Prayer, Miracle, Grace and Faith (the Order of the Sacred Rose, added 2026-10-04: the only pink in the deck).
 -- (2026-10-04: Dusk is gone; NIGHTMARE, the darkest card, comes after Heresy: ... Warp, Heresy, Nightmare)
-Cards.SUIT_ORDER = { "plague", "murmur", "rage", "blight", "swarm", "fateful", "volley", "snare", "brute", "warp", "heresy", "nightmare", "prayer", "miracle", "grace", "faith" }
-Cards.HOSTILE_COUNT = 12 -- the first twelve of SUIT_ORDER are hostile, the rest beneficial
+-- (2026-10-05: DREAM, the fifth beneficial suit and Nightmare's opposite, comes last)
+Cards.SUIT_ORDER = { "plague", "murmur", "rage", "blight", "swarm", "fateful", "volley", "snare", "brute", "warp", "heresy", "nightmare", "prayer", "miracle", "grace", "faith", "dream" }
+Cards.HOSTILE_COUNT = 12 -- the first twelve of SUIT_ORDER are hostile, the rest (five since Dream) beneficial
 
 -- Names a suit used to have: cards saved, presets, shared texts and the hands other players sync may still say them (Fester became
 -- Heresy). Catalog/events.lua keeps the same list for the settings.
@@ -65,7 +66,17 @@ Cards.SUITS = {
 	grace = { name = "Grace", beneficial = true, special = true, card = hex("#1b2229"), hi = hex("#2c3540"), frame = hex("#E8EEF4"), text = hex("#f8fafc"), accent = hex("#E8EEF4"), whisper = "Rise, and carry the light.", icon = "grace" },
 	-- FAITH: the Order of the Sacred Rose, a wine-rose card with a sacred rose pink (no other suit is pink), a rose in a ring
 	faith = { name = "Faith", beneficial = true, special = true, card = hex("#220f1c"), hi = hex("#391a2e"), frame = hex("#c25a8c"), text = hex("#ffe4ef"), accent = hex("#f08cb8"), whisper = "Believe, and endure.", icon = "faith" },
+	-- DREAM (2026-10-05, the user: "the opposite of Nightmare: full of colours, something positive, cloudy, heavenly, dreamy; go hard"):
+	-- the brightest card of the deck, a twilight lavender with a sky-blue accent, a pastel pink frame that turns through a rainbow
+	-- (`rainbow`), clouds in every colour on its face (ui/aura.lua) and a sky that opens over the screen when it is drawn
+	-- (ui/hud_element_dream.lua). `lit` is the sunlight of its stars. A cloud with a star.
+	dream = { name = "Dream", beneficial = true, special = true, rainbow = true, card = hex("#2b2560"), hi = hex("#3b3380"), frame = hex("#ffb3e6"), text = hex("#fffaff"), accent = hex("#9fe8ff"), lit = hex("#fff4b8"), whisper = "Sleep now, and wake whole.", icon = "dream" },
 }
+
+-- every suit knows its own id (the HUD and the aura of a card go from the suit to its effects)
+for id, def in pairs(Cards.SUITS) do
+	def.id = id
+end
 
 -- one colour per threat level 1..6 (unfilled diamonds are an outline in the muted colour)
 Cards.THREAT_COLORS = { hex("#a7c27c"), hex("#74b22c"), hex("#e3cf4a"), hex("#d98a2e"), hex("#cf4a30"), hex("#16131f") }

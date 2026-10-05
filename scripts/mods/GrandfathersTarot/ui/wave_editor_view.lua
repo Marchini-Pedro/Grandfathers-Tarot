@@ -387,6 +387,8 @@ GrandfathersTarotView.update = function (self, dt, t, input_service)
 		self:_update_cauldron(dt, t)
 	end
 
+	self:_update_hold(dt)
+
 	if (self._popup == nil or self._popup.spec.allow_rows) and input_service:get("scroll_axis") then
 		local scroll = input_service:get("scroll_axis")
 		local amount = scroll and scroll[2] or 0
@@ -401,6 +403,72 @@ GrandfathersTarotView.update = function (self, dt, t, input_service)
 	end
 
 	return GrandfathersTarotView.super.update(self, dt, t, input_service)
+end
+
+-- Holding a cooldown's minus or plus (2026-10-05, the user: "when holding the - + in the cooldown windows, make it increase
+-- constantly"): the click takes its step as before; held for HOLD_DELAY, the button repeats it every HOLD_EVERY until it is let go
+-- (or the pointer leaves it). The Deck's tiles, the cooldown beside the chance, the Mirror's cooldown and the card on the stage.
+local HOLD_DELAY, HOLD_EVERY = 0.4, 0.07
+local TILE_NAMES = {}
+
+local function held_in(widget, minus_id, plus_id)
+	if not widget or not widget.visible then return nil end
+
+	local content = widget.content
+	local minus, plus = content[minus_id], content[plus_id]
+
+	if minus and minus.is_held and not minus.disabled then
+		return minus
+	elseif plus and plus.is_held and not plus.disabled then
+		return plus
+	end
+
+	return nil
+end
+
+GrandfathersTarotView._held_cooldown = function (self)
+	if self._popup then
+		return nil
+	end
+
+	local widgets = self._widgets_by_name
+
+	if self._screen == "list" then
+		for i = 1, Deck.CAPACITY do
+			TILE_NAMES[i] = TILE_NAMES[i] or TILE_PREFIX .. i
+
+			local held = held_in(widgets[TILE_NAMES[i]], "hotspot_cd_minus", "hotspot_cd_plus")
+
+			if held then
+				return held
+			end
+		end
+	elseif self._screen == "detail" or self._screen == "face" then
+		return held_in(widgets.stepper_qcd, "hotspot_minus", "hotspot_plus") or held_in(widgets.stepper_cooldown, "hotspot_minus", "hotspot_plus") or held_in(widgets[definitions.STAGE_CARD_NODE], "hotspot_cd_minus", "hotspot_cd_plus")
+	end
+
+	return nil
+end
+
+GrandfathersTarotView._update_hold = function (self, dt)
+	local held = self:_held_cooldown()
+
+	if held ~= self._hold_hotspot then
+		self._hold_hotspot, self._hold_t = held, 0
+
+		return
+	end
+
+	if not held then
+		return
+	end
+
+	self._hold_t = (self._hold_t or 0) + (dt or 0)
+
+	if self._hold_t >= HOLD_DELAY and held.pressed_callback then
+		self._hold_t = HOLD_DELAY - HOLD_EVERY
+		held.pressed_callback()
+	end
 end
 
 GrandfathersTarotView._setup_input_legend = function (self)
@@ -1555,6 +1623,7 @@ GrandfathersTarotView.cb_back = guarded(function (self)
 	if self._colour_drag then self._colour_drag = nil; self:_save() end
 	self._random_mode = false
 	self._random_pick = {}
+	self._replace_index = nil
 
 	if self._screen == "sounds" then
 		self._screen = "face"
@@ -1946,6 +2015,22 @@ GrandfathersTarotView._add_breed = function (self, breed)
 		return
 	end
 
+	-- (2026-10-05) a right click on a row of the Cauldron opened the picker to change that group's enemy: the group keeps everything
+	-- else (count, repeats, modifiers, custom mods, colour experiment) and the picker goes back to the card
+	local swap = self._replace_index and self._parts[self._replace_index]
+
+	if swap then
+		if self._popup then Popup.close_keep(self) end
+
+		swap.breed, swap.one_of = breed, nil
+		self._replace_index = nil
+		self._screen = "detail"
+		self._picker_note = nil
+		self:_save()
+
+		return
+	end
+
 	local stay = mod:get("picker_stay") == true
 
 	-- picked while the search box was open: in "back" mode close it (keeping what was typed);
@@ -2004,8 +2089,16 @@ GrandfathersTarotView.cb_random_done = guarded(function (self)
 
 	local stay = mod:get("picker_stay") == true
 	local pick = { unpack(self._random_pick) }
+	local swap = self._replace_index and self._parts[self._replace_index]
 
-	self._parts[#self._parts + 1] = { one_of = pick, count = 1 }
+	-- changing a group's enemy (a right click on its row): the group becomes the random one and keeps the rest
+	if swap then
+		swap.one_of, swap.breed = pick, nil
+		stay = false
+		self._replace_index = nil
+	else
+		self._parts[#self._parts + 1] = { one_of = pick, count = 1 }
+	end
 	self._random_mode = false
 	self._random_pick = {}
 
@@ -2076,9 +2169,29 @@ GrandfathersTarotView.cb_add = guarded(function (self)
 	if self._wave and mod.rw.groups.Effects.beneficial(self._wave.suit) then return end
 	self._random_mode = false
 	self._random_pick = {}
+	self._replace_index = nil
 	self._screen = "picker"
 	self._filter = ""
 	self._picker_note = nil
+	self:_apply_screen()
+end)
+
+-- A right click on an enemy row of the Cauldron (2026-10-05, the user: "right clicking an enemy lets you change the enemy while keeping
+-- all the modifiers chosen"): the picker opens for that group; the enemy picked (or a random group made there) replaces its enemy.
+GrandfathersTarotView.cb_row_swap = guarded(function (self, row)
+	local index = self._offset + row
+	local part = self._screen == "detail" and self._parts and self._parts[index]
+
+	if not part or (self._wave and mod.rw.groups.Effects.beneficial(self._wave.suit)) then
+		return
+	end
+
+	self._random_mode = false
+	self._random_pick = {}
+	self._replace_index = index
+	self._screen = "picker"
+	self._filter = ""
+	self._picker_note = mod:localize("picker_swap", mod.rw.groups.describe_part(part))
 	self:_apply_screen()
 end)
 

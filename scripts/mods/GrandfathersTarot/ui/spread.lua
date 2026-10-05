@@ -555,6 +555,16 @@ Spread.icon = function (id, size, shape)
 		tri(shape, 3, 1, 3, 14.6 * s, 17.2 * s, 9.4 * s, 17.2 * s, 12 * s, 12.6 * s)
 		tri(shape, 4, 1, 3, 9.4 * s, 17.2 * s, 8.4 * s, 10.4 * s, 12 * s, 12.6 * s)
 		circ(shape, 3, 2, 4, 12 * s, 12.2 * s, 1.8 * s)
+	elseif id == "dream" then
+		-- a cloud (three puffs on a flat foot) with a star over its right shoulder
+		circ(shape, 1, 1, 1, 8 * s, 15 * s, 4.6 * s)
+		circ(shape, 2, 1, 1, 13.2 * s, 12 * s, 6 * s)
+		circ(shape, 3, 1, 1, 18 * s, 15.4 * s, 4 * s)
+		tri(shape, 1, 1, 1, 6 * s, 15.2 * s, 19.5 * s, 15.2 * s, 19.5 * s, 19.4 * s)
+		tri(shape, 2, 1, 1, 6 * s, 15.2 * s, 19.5 * s, 19.4 * s, 6 * s, 19.4 * s)
+		tri(shape, 3, 1, 3, 20 * s, 1.2 * s, 21.6 * s, 5 * s, 18.4 * s, 5 * s)
+		tri(shape, 4, 1, 3, 18.4 * s, 5 * s, 21.6 * s, 5 * s, 20 * s, 8.8 * s)
+		circ(shape, 4, 1, 3, 20 * s, 5 * s, 1.3 * s)
 	elseif id == "prayer" or id == "miracle" or id == "grace" then
 		circ(shape, 1, 1, 1, 12 * s, 12 * s, 10 * s)
 		circ(shape, 2, 2, 2, 12 * s, 12 * s, 8 * s)

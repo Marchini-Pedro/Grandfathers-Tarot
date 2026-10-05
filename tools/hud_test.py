@@ -317,7 +317,7 @@ for _, suit_name in ipairs(Cards.SUIT_ORDER) do
   if n == 0 then icons_ok = false end
 end
 check("icons: every suit mark draws something and stays inside its 18 px box", icons_ok, "plague " .. used.plague .. " murmur " .. used.murmur .. " rage " .. used.rage .. " blight " .. used.blight .. " swarm " .. used.swarm .. " fateful " .. used.fateful)
-check("icons: sixteen suits, and the newer ones use their own slots (volley 7, snare 4, brute 5, warp 5, heresy 6, nightmare 7, faith 7)", #Cards.SUIT_ORDER == 16 and used.faith == 7 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.nightmare == 7 and used.warp == 5 and used.heresy == 6, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " nightmare " .. tostring(used.nightmare) .. " warp " .. used.warp .. " heresy " .. tostring(used.heresy))
+check("icons: seventeen suits, and the newer ones use their own slots (volley 7, snare 4, brute 5, warp 5, heresy 6, nightmare 7, faith 7, dream 8)", #Cards.SUIT_ORDER == 17 and used.dream == 8 and used.faith == 7 and used.volley == 7 and used.snare == 4 and used.brute == 5 and used.nightmare == 7 and used.warp == 5 and used.heresy == 6, "volley " .. used.volley .. " snare " .. used.snare .. " brute " .. used.brute .. " nightmare " .. tostring(used.nightmare) .. " warp " .. used.warp .. " heresy " .. tostring(used.heresy))
 check("icons: at the Deck's 26 units every mark also stays inside its box", (function()
   for _, suit_name in ipairs(Cards.SUIT_ORDER) do
     Spread.icon(Cards.SUITS[suit_name].icon, 26, icon)
@@ -400,7 +400,7 @@ for _, def in pairs(Definitions.widget_definitions) do for _, st in pairs(def.st
 check("definitions: only fonts that exist in the game", fonts_ok)
 local passes = 0
 for name, def in pairs(Definitions.widget_definitions) do if name:find("^card_") then passes = #def.passes end end
-check("definitions: a card has about 60 passes (all hidden but the ones it uses)", passes >= 50 and passes <= 80, passes)
+check("definitions: a card has about 100 passes (all hidden but the ones it uses; 24 of them the aura of its suit since 2026-10-05)", passes >= 90 and passes <= 110, passes)
 
 -- =====================================================================================================================
 -- the element: a whole hand, step by step
@@ -1071,6 +1071,135 @@ do
   end
 end
 
+-- the aura of a card (ui/aura.lua, 2026-10-05): every suit's own effect on its face, Dream the fifth beneficial suit
+do
+  local Aura = dofile(BASE .. "/ui/aura.lua")
+  local out = Aura.new()
+  local inside, every, shown = true, true, {}
+  for _, suit in ipairs(Cards.SUIT_ORDER) do
+    local has = Aura.has(suit)
+    if (suit == "heresy" or suit == "nightmare") == has then every = false end
+    if has then
+      for step = 0, 160 do
+        for _, size in ipairs({ { 228, 270, 1 }, { 176, 76, 0.65 }, { 132, 120, 0.65 }, { 240, 100, 0.75 }, { 319.2, 378, 1.4 } }) do
+          Aura.update(out, suit, step * 0.137, size[1], size[2], size[3])
+          for i = 1, Aura.COUNT do
+            local q = out[i]
+            if q.on then
+              shown[suit] = true
+              if q.x < -0.01 or q.y < -0.01 or q.x + q.w > size[1] + 0.01 or q.y + q.h > size[2] + 0.01 or q.a < 1 or q.a > 255 or q.a ~= math.floor(q.a) then inside = false end
+            end
+          end
+        end
+      end
+    end
+  end
+  local all_shown = true
+  for _, suit in ipairs(Cards.SUIT_ORDER) do if Aura.has(suit) and not shown[suit] then all_shown = false end end
+  check("aura: every suit but Heresy and Nightmare (they have their blood and fog) has one, and every one draws something", every and all_shown)
+  check("aura: every shape of every suit stays inside its card at every size (the UI cannot clip), its opacity a whole 1..255", inside)
+  local first = out[1]
+  Aura.update(out, "rage", 1, 228, 270, 1)
+  local x1, y1 = out[1].x, out[1].y
+  Aura.update(out, "rage", 1.3, 228, 270, 1)
+  check("aura: it moves with time and is written in place (no new tables while it runs)", out[1] == first and (out[1].x ~= x1 or out[1].y ~= y1))
+  local warm, low = true, true
+  for step = 0, 40 do
+    Aura.update(out, "rage", step * 0.21, 228, 270, 1)
+    for i = 1, 9 do if out[i].on then if out[i].rgb[1] <= out[i].rgb[3] then warm = false end if out[i].y < 270 * 0.55 then low = false end end end
+  end
+  check("aura: Rage's flames are warm (more red than blue) and lick up from the lower half of the card", warm and low)
+  local green = true
+  Aura.update(out, "plague", 3, 228, 270, 1)
+  for i = 1, 8 do if out[i].on and not (out[i].rgb[2] > out[i].rgb[3]) then green = false end end
+  check("aura: Plague's bubbles are bile green and its flies buzz", green and out[9].on and out[9].w < 4)
+  check("aura: Heresy, Nightmare and an unknown suit draw nothing", Aura.update(out, "heresy", 1, 228, 270, 1) == false and not out[1].on and Aura.update(out, "nightmare", 1, 228, 270, 1) == false and Aura.update(out, "nope", 1, 228, 270, 1) == false)
+  local rgb = { 0, 0, 0 }
+  local g1 = Aura.glow("dream", 0, rgb)
+  local c1 = rgb[1] .. "," .. rgb[2] .. "," .. rgb[3]
+  Aura.glow("dream", 4, rgb)
+  check("aura: Dream's glow turns through a rainbow, Brute's flares with every blow, the others keep their own", g1 ~= nil and c1 ~= rgb[1] .. "," .. rgb[2] .. "," .. rgb[3] and Aura.glow("brute", 0.01, rgb) > Aura.glow("brute", 1.5, rgb) and Aura.glow("plague", 0, rgb) == nil and Aura.glow("warp", 0, rgb) == nil)
+  local dream = Cards.SUITS.dream
+  check("dream: the fifth beneficial suit, last in the order, a card apart with a rainbow, its own whisper and mark", Cards.SUIT_ORDER[17] == "dream" and Cards.HOSTILE_COUNT == 12 and dream.beneficial and dream.special and dream.rainbow and Cards.suit("dream").id == "dream" and Cards.threat_name(6, "dream") == "Apotheosis" and dream.icon == "dream" and dream.whisper ~= "")
+  -- brighter than every other card: Nightmare's opposite
+  local function light(c) return c[1] + c[2] + c[3] end
+  local brightest = true
+  for id, def in pairs(Cards.SUITS) do if id ~= "dream" and light(def.card) >= light(dream.card) then brightest = false end end
+  check("dream: its card is the brightest of the deck (Nightmare's is the darkest)", brightest)
+
+  -- on the Spread: a Rage card's flames and a Dream card's clouds live on the card, inside it; a Warp card keeps its own motes
+  local e = new_element()
+  current_view = view_of({ hand = { card("r", "The Chariot", "rage", 3, { "renegade_executor" }, "Faster."), card("d", "The Star", "dream", 4, {}, "Sleep now."), card("w", "The Witch", "warp", 5, { "chaos_daemonhost" }, "It knows.") }, remaining = 9, win = 1, hand_seq = 700 })
+  frame(e); frame(e, 0.3)
+  local function aura_state(index)
+    local w, rec = e._widgets_by_name["card_" .. index], e._cards[index]
+    local n, ok = 0, true
+    for i = 1, Aura.COUNT do
+      for _, id in ipairs({ "aura_c" .. i, "aura_r" .. i }) do
+        local st = w.style[id]
+        if st.visible then
+          n = n + 1
+          if st.offset[1] < rec.x - 0.01 or st.offset[2] < rec.y - 0.01 or st.offset[1] + st.size[1] > rec.x + rec.cw + 0.01 or st.offset[2] + st.size[2] > rec.y + rec.ch + 0.01 then ok = false end
+        end
+      end
+    end
+    return n, ok
+  end
+  local n1, ok1 = aura_state(1)
+  local n2, ok2 = aura_state(2)
+  local n3 = aura_state(3)
+  check("aura on the Spread: Rage and Dream cards live, inside their cards; Warp keeps its own motes (no aura on it)", n1 > 0 and ok1 and n2 > 0 and ok2 and n3 == 0, n1 .. " " .. n2 .. " " .. n3)
+  local w2 = e._widgets_by_name.card_2
+  check("aura on the Spread: a Dream card's frame shows and glows (a rainbow)", w2.style.glow.visible and w2.style.rare_t.visible)
+  audit_ok("aura on the Spread", e)
+  settings.card_auras = false
+  frame(e)
+  local off1 = aura_state(1)
+  check("aura on the Spread: the option 'Living card effects' off hides them", off1 == 0)
+  settings.card_auras = nil
+end
+
+-- Dream's sky (ui/hud_element_dream.lua, 2026-10-05): a full-screen sky of light and clouds when a Dream card is drawn, a toggle
+do
+  local DreamDefs = dofile(BASE .. "/ui/hud_element_dream_definitions.lua")
+  local Dream = dofile(BASE .. "/ui/hud_element_dream.lua")
+  local el = setmetatable({}, Dream)
+  Dream.init(el, nil, 0, 1)
+  local w = el._widgets_by_name.dream
+  local function tick(dt) Dream.update(el, dt, 0, nil, nil, nil) end
+  local function dream_hand() return { card("s", "The Star", "dream", 4, {}, "Sleep now, and wake whole."), card("p", "The Fool", "swarm", 1, { "chaos_poxwalker" }, "x") } end
+  local hidden = true
+  for _, st in pairs(DreamDefs.widget_definitions.dream.style) do if st.visible ~= false then hidden = false end end
+  check("dream sky: one widget on the root node only, every pass starts hidden", DreamDefs.widget_definitions.dream.scenegraph_id == "screen" and hidden)
+  current_view = view_of({ hand = dream_hand(), win = 1, hand_seq = 500, drawn = false })
+  tick(0.1)
+  check("dream sky: nothing while the Dream card is only in the hand", not w.visible)
+  current_view = view_of({ hand = dream_hand(), win = 2, hand_seq = 501, drawn = true, drawn_age = 0.1 })
+  tick(0.1)
+  check("dream sky: nothing when another card is drawn", not w.visible)
+  current_view = view_of({ hand = dream_hand(), win = 1, hand_seq = 502, drawn = true, drawn_age = 0.1 })
+  tick(0.1)
+  check("dream sky: a drawn Dream card opens it at once, with the bloom of light from the middle", w.visible and w.style.veil.visible and w.style.bloom_1.visible and math.abs(w.style.bloom_1.offset[1] + w.style.bloom_1.size[1] / 2 - 960) < 0.01)
+  for _ = 1, 20 do tick(0.1) end
+  local veil = w.style.veil.color[1]
+  check("dream sky: at full strength it stays see-through and light (a pastel veil, not a dark one), clouds at the foot and the head, a rainbow edge, rays", veil > 10 and veil < 60 and w.style.veil.color[2] > 200 and w.style.veil.color[3] > 180 and w.style.cloud_1.visible and w.style.cloud_1.offset[2] > 700 and w.style.cloud_20.offset[2] < 100 and w.style.vig_1_t.color[1] > w.style.vig_12_t.color[1] and w.style.ray_1.visible and not w.style.bloom_1.visible, veil)
+  local seen = {}
+  for _ = 1, 20 do tick(0.1); seen[w.style.vig_1_t.color[2] .. "," .. w.style.vig_1_t.color[4]] = true end
+  local n = 0 for _ in pairs(seen) do n = n + 1 end
+  check("dream sky: its edge turns through the colours while it holds", n >= 3)
+  for _ = 1, 60 do tick(0.1) end
+  check("dream sky: it fades and is gone after about seven and a half seconds", not w.visible and el._age == nil)
+  current_view = view_of({ hand = dream_hand(), win = 1, hand_seq = 503, drawn = true, drawn_age = 9 })
+  tick(0.1)
+  check("dream sky: a player joining after the card was drawn is not shown it late", not w.visible)
+  settings.dream_sky = false
+  current_view = view_of({ hand = dream_hand(), win = 1, hand_seq = 504, drawn = true, drawn_age = 0.1 })
+  tick(0.1)
+  check("dream sky: the option off: never shown", not w.visible)
+  settings.dream_sky = nil
+  check("dream sky: rises, holds, fades", Dream.envelope(0.25) == 0.5 and Dream.envelope(3) == 1 and Dream.envelope(Dream.DURATION) == 0 and Dream.envelope(-1) == 0)
+end
+
 -- the Nightmare's dread (ui/hud_element_dread.lua, 2026-10-04): a full-screen black fog when a Nightmare card is drawn, a toggle
 do
   local DreadDefs = dofile(BASE .. "/ui/hud_element_dread_definitions.lua")
@@ -1251,6 +1380,25 @@ do
     local card=lc("bless-"..i,"The Light",suit,6,{},"Carry the light.","Purple")
     current_view=last_view(card,60+i,1);last_frame(el)
     check("last card: full special face and the sixth diamond's edge (DESPAIR lilac on Heresy, APOTHEOSIS warm white on blessings), no dots without enemies "..suit,w.style.th_o6.visible and w.style.th_h6.color[2]==(suit=="heresy" and 0xc7 or 0xff) and not w.style.sigil_ring.visible and not w.style.dot_1.visible and not w.style.mods.visible and not w.style.bg.visible and inside(el))
+  end
+  do
+    local fresh=setmetatable({},LastElement); LastElement.init(fresh,nil,0,1); fresh:_tick_aura(1)
+    check("last card: before any card nothing of an aura is drawn",not fresh._widget.style.aura_c1.visible)
+    local card=lc("dream-w","The Star","dream",4,{},"Sleep now, and wake whole.")
+    current_view=last_view(card,74,1);last_frame(el);last_frame(el)
+    local clouds=0
+    for i=1,12 do if w.style["aura_c"..i].visible or w.style["aura_r"..i].visible then clouds=clouds+1 end end
+    check("last card: a Dream card lives: its aura's clouds and stars on its face (inside the card), its glow on",clouds>0 and w.style.glow.visible and inside(el))
+    local rage=lc("rage-w","The Chariot","rage",3,{"renegade_executor"},"Faster. Faster.")
+    current_view=last_view(rage,75,1);last_frame(el);last_frame(el)
+    local flames=0
+    for i=1,12 do if w.style["aura_c"..i].visible then flames=flames+1 end end
+    check("last card: a Rage card burns (its flames inside the card)",flames>0 and inside(el))
+    local heresy=lc("heresy-w","The Hanged Man","heresy",5,{},"He does not answer.")
+    current_view=last_view(heresy,76,1);last_frame(el)
+    local none=true
+    for i=1,12 do if w.style["aura_c"..i].visible or w.style["aura_r"..i].visible then none=false end end
+    check("last card: Heresy has no aura (its own glow and blood)",none)
   end
   do
     local card=lc("faith-w","The Magician","faith",3,{},"Believe, and endure.")

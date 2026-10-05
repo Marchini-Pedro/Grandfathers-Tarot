@@ -78,6 +78,28 @@ WB.enemy_row = function (node_id)
 		put_rgb(style.color, 255, content.edge_rgb or R.muted)
 	end)
 
+	-- (2026-10-05, the user: "a subtle indicator that the enemy is affected by a colour experiment") a small diamond between the edge and
+	-- the name, in the experiment's colour, while the group has one (content.paint_rgb, set by the view; nil hides it); a faint halo
+	-- under it keeps it readable on the dark row
+	for i = 1, 2 do
+		local halo = i == 1
+		local side = halo and 11 or 8
+
+		passes[#passes + 1] = {
+			pass_type = "rotated_rect",
+			style_id = halo and "paint_mark_h" or "paint_mark",
+			style = { offset = { 14 - side / 2, H / 2 - side / 2, halo and 2.5 or 3 }, size = { side, side }, color = shape_color(), angle = math.pi / 4, pivot = { side / 2, side / 2 } },
+			visibility_function = function (content)
+				return content.paint_rgb ~= nil
+			end,
+			change_function = function (content, style)
+				if content.paint_rgb then
+					put_rgb(style.color, halo and 90 or 255, content.paint_rgb)
+				end
+			end,
+		}
+	end
+
 	text(passes, "row_name", C.name, 1, C.name_w, 30, 2, 26, "left", "center")
 	text(passes, "info", C.name, 29, C.name_w + 20, 17, 2, 15, "left", "center", function (content, style)
 		put_rgb(style.text_color, 255, R.muted)
@@ -170,7 +192,7 @@ WB.shelf_chip = function (node_id, w, pip)
 
 	Components.hotspot_pass(passes, "hotspot", { 0, 0, 0 }, { w, H })
 
-	rect(passes, "chip_frame", 0, 0, w, H, 0, function (content, style)
+	local function frame_color(content, style)
 		local st, tint = state_of(content.hotspot), content.tint or nil
 
 		if st == STATE.OFF then
@@ -182,7 +204,16 @@ WB.shelf_chip = function (node_id, w, pip)
 		else
 			put_rgb(style.color, 255, tint and tint.frame or R.frame)
 		end
-	end)
+	end
+
+	rect(passes, "chip_frame", 0, 0, w, H, 0, frame_color)
+	-- (2026-10-05, the user: "fix the outlines of Poxwalker, Melee, Rager and Beast of Nurgle") at a screen size other than 1080p the
+	-- fill, rounded to whole pixels, could cover the one unit edge the frame leaves around it on some chips: the four edges are drawn
+	-- again on top of the fill, so the outline is whole wherever the chip sits
+	rect(passes, "chip_line_t", 0, 0, w, 1, 0.7, frame_color)
+	rect(passes, "chip_line_b", 0, H - 1, w, 1, 0.7, frame_color)
+	rect(passes, "chip_line_l", 0, 0, 1, H, 0.7, frame_color)
+	rect(passes, "chip_line_r", w - 1, 0, 1, H, 0.7, frame_color)
 	rect(passes, "chip_fill", 1, 1, w - 2, H - 2, 0.5, function (content, style)
 		local st, tint = state_of(content.hotspot), content.tint or nil
 

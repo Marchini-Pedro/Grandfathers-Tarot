@@ -451,3 +451,13 @@ Things we know are missing or unverified, each with the next concrete step.
   `target.localized_display_name` every frame.
 - **Ailment looks are a material value** (`offset_time_duration` = offset, start, duration, set by
   `Ailment.play_ailment_effect_template`); keeping the end ahead of the clock keeps the look on without restarting it.
+
+## 2026-10-05 - Living cards, held buttons, chip outlines
+
+- **A hotspot knows it is held**: `ui_passes.lua` writes `content.is_held` (the pointer on it and the left button down) every
+  frame, so a held button repeats its step from the view's update without any input code of its own.
+- **A one unit frame under a fill can vanish**: at a UI scale other than 1 (1440p, 4K) the fill (offset 1, width w - 2) and the
+  frame (width w) are rounded separately, and on some x positions the fill covers the frame's last column. Edges drawn above the
+  fill always show.
+- **The UI cannot clip**: an effect on a card must keep every shape inside the card itself (ui/aura.lua clamps each particle and
+  the tests check it at every card size).

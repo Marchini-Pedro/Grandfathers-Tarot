@@ -13,6 +13,7 @@ local mod = get_mod("GrandfathersTarot")
 local Definitions = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/hud_element_last_card_definitions")
 
 local Spread = Definitions.Spread
+local Aura = Definitions.Aura
 local Z = Definitions.Z
 
 local HudElementGrandfathersTarotLast = class("HudElementGrandfathersTarotLast", "HudElementBase")
@@ -33,6 +34,13 @@ local TH_H = { "th_h1", "th_h2", "th_h3", "th_h4", "th_h5", "th_h6" }
 local TH_O = { "th_o1", "th_o2", "th_o3", "th_o4", "th_o5", "th_o6" }
 local DOT_H = { "dh_1", "dh_2", "dh_3", "dh_4", "dh_5", "dh_6" }
 local DOT = { "dot_1", "dot_2", "dot_3", "dot_4", "dot_5", "dot_6" }
+local AURA_C, AURA_R = {}, {}
+
+for i = 1, Aura.COUNT do
+	AURA_C[i], AURA_R[i] = "aura_c" .. i, "aura_r" .. i
+end
+
+local AURA_SIZE = 0.75 -- the aura's shapes on this card (the Deck's tile: 1)
 
 -- what the custom_hud edit mode shows when no card has gone out yet
 local SAMPLE = { key = "sample", name = "The Chariot", suit = "rage", threat = 3, breeds = { "renegade_executor", "renegade_gunner", "cultist_shocktrooper" }, whisper = "Faster. Faster.", modifiers = "Enraged", rare = false, cooldown = 180 }
@@ -290,6 +298,17 @@ HudElementGrandfathersTarotLast._setup = function (self, card, font)
 	paint(style.age, 255, Cards.BASE.muted)
 	style.age.visible = true
 
+	-- the suit's aura and Dream's rainbow are animated every frame (HudElementGrandfathersTarotLast._tick_aura)
+	self._aura_suit = Aura.has(suit.id) and not suit.blood and not suit.gloom and suit.id or nil
+	self._aura_box = { x, y, cw, ch }
+	self._aura = self._aura or Aura.new()
+	self._rainbow = suit.rainbow == true
+	self._glow_rgb = self._glow_rgb or { 0, 0, 0 }
+
+	for i = 1, Aura.COUNT do
+		style[AURA_C[i]].visible, style[AURA_R[i]].visible = false, false
+	end
+
 	-- Nightmare's fog is animated every frame (HudElementGrandfathersTarotLast._tick_fog)
 	self._fog_box = suit.fog and { x, y, cw, ch } or nil
 	self._fog = self._fog or Spread.new_fog()
@@ -322,6 +341,45 @@ HudElementGrandfathersTarotLast._tick_fog = function (self, t)
 		box(s, b[1], b[2] + bank[1], b[3], bank[2])
 		paint(s, bank[3], BLACK)
 		s.visible = bank[2] > 0 and bank[3] > 0
+	end
+end
+
+-- Every frame: the suit's aura on the card (flames, bubbles, warp motes, clouds...), Dream's rainbow glow and frame, Brute's blows
+HudElementGrandfathersTarotLast._tick_aura = function (self, t)
+	local style = self._widget.style
+	local b = self._aura_box
+	local suit = self._aura_suit
+
+	if not b then return end
+
+	local glow = suit and Aura.glow(suit, t, self._glow_rgb)
+
+	if glow then
+		paint(style.glow, math.floor(170 * glow + 0.5), self._glow_rgb)
+		style.glow.visible = true
+
+		if self._rainbow then
+			Aura.rainbow(t, self._glow_rgb, 0.12)
+
+			for j = 1, #RARE do paint(style[RARE[j]], 255, self._glow_rgb) end
+		end
+	end
+
+	local alive = suit ~= nil and mod:get("card_auras") ~= false and Aura.update(self._aura, suit, t, b[3], b[4], AURA_SIZE)
+
+	for i = 1, Aura.COUNT do
+		local p = self._aura[i]
+		local circle_style, rect_style = style[AURA_C[i]], style[AURA_R[i]]
+		local on = alive and p.on
+
+		circle_style.visible, rect_style.visible = on and p.round, on and not p.round
+
+		if on then
+			local s = p.round and circle_style or rect_style
+
+			box(s, b[1] + p.x, b[2] + p.y, p.w, p.h)
+			paint(s, p.a, p.rgb)
+		end
 	end
 end
 
@@ -368,6 +426,7 @@ HudElementGrandfathersTarotLast._refresh = function (self)
 	self._widget.visible = true
 	self:_tick_age(age)
 	self:_tick_fog(self._clock or 0)
+	self:_tick_aura(self._clock or 0)
 end
 
 HudElementGrandfathersTarotLast.update = function (self, dt, t, ui_renderer, render_settings, input_service)

@@ -127,8 +127,9 @@ Groups.MODIFIERS = {
 		-- that breed splits further. The death effect calls
 		-- Managers.state.mutator:mutator("mutator_stimmed_minions_purple"):add_split_spawn(...), but that
 		-- mutator has no template in the game, so Execute creates the class itself ("purple_stimm" prepare step).
-		id = "purple_stimm", name = "Purple Stimm", buffs = { "mutator_stimmed_minion_purple" }, prepare = "purple_stimm",
-		aliases = { "purple stimm", "purple stimmed", "purple stim", "stimmed purple", "purple split", "splitting" },
+		-- (2026-10-05, the user: "rename the Purple stimm buff to Twins": every split makes twins; the id and the old names stay valid)
+		id = "purple_stimm", name = "Twins", buffs = { "mutator_stimmed_minion_purple" }, prepare = "purple_stimm",
+		aliases = { "twins", "twin", "purple stimm", "purple stimmed", "purple stim", "stimmed purple", "purple split", "splitting" },
 		description = "Purple stimmed: when it dies it bursts and splits into two weaker enemies, which can split again. The split enemies are extra units.",
 	},
 	{

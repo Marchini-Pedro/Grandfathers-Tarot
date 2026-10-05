@@ -88,6 +88,16 @@ pcall(function ()
 	})
 end)
 
+-- Dream's sky: a full-screen overlay of light and clouds when a Dream card is drawn (ui/hud_element_dream.lua), Nightmare's opposite.
+pcall(function ()
+	mod:register_hud_element({
+		class_name = "HudElementGrandfathersTarotDream",
+		filename = BASE .. "/ui/hud_element_dream",
+		use_hud_scale = false,
+		visibility_groups = { "alive", "dead", "communication_wheel", "tactical_overlay" },
+	})
+end)
+
 -- The window of the last fulfilled card: its own element, so custom_hud moves it on its own.
 pcall(function ()
 	mod:register_hud_element({

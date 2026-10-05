@@ -175,8 +175,9 @@ blueprints.popup_input = Components.popup_input_definition()
 -- line toggles too and the Edit pill opens the card; a right click on any of them opens the card as well.
 local Spread = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/spread")
 local Deck = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/deck")
+local Aura = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/aura")
 
-blueprints.Deck, blueprints.Spread = Deck, Spread
+blueprints.Deck, blueprints.Spread, blueprints.Aura = Deck, Spread, Aura
 
 local TILE_W, TILE_H = Deck.TILE_W, Deck.TILE_H
 local DISPLAY_FONT = "itc_novarese_bold"
@@ -291,7 +292,12 @@ blueprints.TILE_IDS = {
 	ping = { "ping_t", "ping_b", "ping_l", "ping_r" },
 	bubble = { "bubble_1", "bubble_2", "bubble_3" },
 	icon_t = {}, icon_c = {}, icon_th = {}, icon_ch = {}, th_o = {}, th_h = {}, dot = {}, dot_h = {}, pip = {}, hotspot_pip = {},
+	aura_c = {}, aura_r = {},
 }
+
+for i = 1, Aura.COUNT do
+	blueprints.TILE_IDS.aura_c[i], blueprints.TILE_IDS.aura_r[i] = "aura_c" .. i, "aura_r" .. i
+end
 
 for i = 1, Spread.ICON_TRIS do
 	blueprints.TILE_IDS.icon_t[i] = "icon_t" .. i
@@ -371,6 +377,13 @@ blueprints.tile = function (node_id, k, interactive)
 			style.color[1], style.color[2], style.color[3], style.color[4] = 255, rgb[1], rgb[2], rgb[3]
 		end,
 	}
+
+	-- the aura of the suit (ui/aura.lua: flames, bubbles, feathers, clouds...): a circle and a rect per particle, over the face and under
+	-- everything written on it (wave_editor_deck.lua _tick_living_tile places them every frame)
+	for i = 1, Aura.COUNT do
+		circle_pass(passes, blueprints.TILE_IDS.aura_c[i], 1.5)
+		rect_pass(passes, blueprints.TILE_IDS.aura_r[i], 0, 0, 1, 1, 1.5)
+	end
 
 	-- "the vial fills": a liquid rising from the bottom of the card, with a bright top line and bubbles
 	rect_pass(passes, "vial", 0, H, W, 0, 2)

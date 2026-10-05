@@ -17,6 +17,7 @@ local mod = get_mod("GrandfathersTarot")
 local Definitions = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/hud_element_waves_definitions")
 
 local Spread = Definitions.Spread
+local Aura = Definitions.Aura
 local Z = Definitions.Z
 
 local HudElementGrandfathersTarotPanel = class("HudElementGrandfathersTarotPanel", "HudElementBase")
@@ -47,6 +48,13 @@ local ICON_CH = { "icon_ch1", "icon_ch2", "icon_ch3", "icon_ch4" }
 local TH_H = { "th_h1", "th_h2", "th_h3", "th_h4", "th_h5", "th_h6" }
 local BLOOD, BLOOD_C = { "blood_1", "blood_2", "blood_3" }, { "blood_c1", "blood_c2", "blood_c3" }
 local FOG = { "fog_1", "fog_2", "fog_3" }
+local AURA_C, AURA_R = {}, {}
+
+for i = 1, Aura.COUNT do
+	AURA_C[i], AURA_R[i] = "aura_c" .. i, "aura_r" .. i
+end
+
+local AURA_SIZE = 0.65 -- the aura's shapes on the Spread's cards (the Deck's tile is bigger: 1)
 local BLACK = { 0, 0, 0 }
 local MURMUR_SECONDS = 1.6 -- a threat 5 or 6 card writes its whisper letter by letter in this time after it is shown
 local DESPAIR_DEEP = { 44, 24, 70 } -- the dark end of Despair's breathing halo (the pale end is Cards.DESPAIR_EDGE)
@@ -1020,6 +1028,45 @@ HudElementGrandfathersTarotPanel._tick_living = function (self)
 		else
 			for k = 1, #BLOOD do
 				style[BLOOD[k]].visible, style[BLOOD_C[k]].visible = false, false
+			end
+
+			-- Dream's glow turns through a rainbow and Brute's flares with every blow (ui/aura.lua); Dream's frame follows its glow
+			local glow = suit and Aura.glow(suit.id, clock + i * 0.31, rec.mix)
+
+			if glow then
+				local base = rec.mode == 2 and 235 or rec.mode == 1 and 200 or 150
+
+				paint(style.glow, math.floor(base * glow + 0.5), Spread.grey(rec.tmp, rec.mix, rec.desat))
+				style.glow.visible = true
+			end
+
+			if suit and suit.rainbow then
+				Spread.grey(rec.tmp, Aura.rainbow(clock + i * 0.31, rec.mix2, 0.12), rec.desat)
+
+				for j = 1, #RARE do
+					paint(style[RARE[j]], 255, rec.tmp)
+				end
+			end
+		end
+
+		-- the suit's aura on the card's face (Heresy, Nightmare and Warp have their own life above: no aura)
+		local aura_on = suit ~= nil and not suit.blood and not suit.gloom and not suit.motes and mod:get("card_auras") ~= false
+
+		if aura_on then
+			rec.aura = rec.aura or Aura.new()
+			aura_on = Aura.update(rec.aura, suit.id, clock + i * 0.43, rec.cw, rec.ch, AURA_SIZE)
+		end
+
+		for k = 1, Aura.COUNT do
+			local p = rec.aura and rec.aura[k]
+			local circle_style, rect_style = style[AURA_C[k]], style[AURA_R[k]]
+			local on = aura_on and p.on
+
+			circle_style.visible, rect_style.visible = on and p.round, on and not p.round
+
+			if on then
+				box(p.round and circle_style or rect_style, rec.x + p.x, rec.y + p.y, p.w, p.h)
+				paint(p.round and circle_style or rect_style, p.a, Spread.grey(rec.tmp, p.rgb, rec.desat))
 			end
 		end
 

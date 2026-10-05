@@ -9,6 +9,46 @@ local WorkshopView = {}
 
 local PREVIEW_SECONDS = 5 -- the cooldown preview of the stage card plays through its look in this time
 local MOD_CHARS, INFO_CHARS = 22, 40 -- the modifiers of a row are cut at 22 visible characters, the line at 40
+-- (2026-10-05, the user's picture: "1 random of Beast of Nurgle / Chaos Spawn / Packmaster / Plague Ogryn" ran over three lines, over
+-- the header and the modifier line) a row's name is one line: its font shrinks from 26 down to 17 to fit, then it is cut with "..."
+local NAME_FONT, NAME_FONT_MIN, NAME_GLYPH = 26, 17, 0.6
+
+-- The font of a row's name that fits `visible` characters on one line `width` wide (NAME_FONT down to NAME_FONT_MIN), and how many
+-- characters fit at that font (a longer name is cut to that many with "...").
+local FIT = { font = NAME_FONT, chars = 0 }
+
+WorkshopView.fit_name = function (visible, width)
+	local font = math.max(NAME_FONT_MIN, math.min(NAME_FONT, math.floor(width / (math.max(1, visible) * NAME_GLYPH))))
+
+	FIT.font, FIT.chars = font, math.floor(width / (font * NAME_GLYPH))
+
+	return FIT
+end
+
+-- The colour of a group's colour experiment for the mark on its row (nil: no experiment). The skin effects have their own colour
+-- (their colour channels do nothing); a colour too dark to see on the row is shown in a pale lilac.
+local SKIN_RGB = { skin_burnt = { 232, 120, 40 }, skin_warp = { 96, 160, 255 }, skin_bruise = { 156, 116, 178 } }
+local DARK_PAINT = { 190, 170, 220 }
+
+WorkshopView.paint_rgb = function (appearance)
+	if type(appearance) ~= "table" or ((appearance.method or "none") == "none" and not appearance.outline) then
+		return nil
+	end
+
+	local skin = SKIN_RGB[appearance.method]
+
+	if skin then
+		return skin
+	end
+
+	local r, g, b = tonumber(appearance.r) or 0, tonumber(appearance.g) or 0, tonumber(appearance.b) or 0
+
+	if math.max(r, g, b) < 60 then
+		return DARK_PAINT
+	end
+
+	return { r, g, b }
+end
 
 WorkshopView.install = function (View, h)
 	local Workshop, Spread, TILE_IDS, definitions = h.Workshop, h.Spread, h.TILE_IDS, h.definitions
@@ -51,6 +91,7 @@ WorkshopView.install = function (View, h)
 			content.hotspot_plus.pressed_callback = callback(self, "cb_row_plus", i)
 			content.hotspot_action.pressed_callback = callback(self, "cb_row_action", i)
 			content.hotspot_mods.pressed_callback = callback(self, "cb_row_mods", i)
+			content.hotspot_name.right_pressed_callback = callback(self, "cb_row_swap", i)
 			content.hotspot_tune.pressed_callback = callback(self, "cb_row_tune", i)
 			content.hotspot_rep_minus.pressed_callback = callback(self, "cb_row_rep_step", i, -1)
 			content.hotspot_rep_plus.pressed_callback = callback(self, "cb_row_rep_step", i, 1)
@@ -265,13 +306,19 @@ WorkshopView.install = function (View, h)
 		local mods_shown = mods_text
 		local painter = self:_painter()
 
-		content.row_name = groups.describe_part(item)
+		local plain_name = groups.describe_part(item)
+		local suffix = item.breed and groups.faction_suffix(item.breed)
+		local name_fit = WorkshopView.fit_name(#plain_name + (suffix and #suffix + 2 or 0), Workshop.COL.name_w)
+		local name_chars = name_fit.chars - (suffix and #suffix + 2 or 0)
+
+		content.row_name = #plain_name > name_chars and plain_name:sub(1, math.max(1, name_chars - 3)) .. "..." or plain_name
+		widget.style.row_name.font_size = name_fit.font
 
 		-- a random group colours each enemy of the group, the modifier names get their own colours; the modifier text is cut at
 		-- MOD_CHARS visible characters WITHOUT losing the colours
 		if painter then
 			if item.one_of then
-				content.row_name = groups.render_segments(groups.paint_part_segments(item, painter, false), nil, painter.markup)
+				content.row_name = groups.render_segments(groups.paint_part_segments(item, painter, false), name_chars, painter.markup)
 			end
 
 			local _, modifiers = groups.describe_part_pieces(item)
@@ -323,6 +370,7 @@ WorkshopView.install = function (View, h)
 		end
 
 		content.row_name = with_faction(rw, item.breed, content.row_name)
+		content.paint_rgb = WorkshopView.paint_rgb(item.appearance)
 		content.info = mods_shown
 
 		-- with no modifier line under it the name is centred in the row, like the steppers beside it

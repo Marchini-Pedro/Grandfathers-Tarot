@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-05 - Living cards, Dream, the Workshop (polishing)
+- Every suit has its own living effect on its cards (flames on Rage, bubbles and flies on Plague, tracers on Volley, feathers on
+  Grace...), in the Deck, the Workshop, the hand and the last card window; the Warp motes now show on the Deck too.
+- A new beneficial suit, Dream: a rainbow card, and Dream's sky over the screen when it is drawn.
+- Holding a cooldown's - or + keeps stepping; a right click on an enemy row changes its enemy and keeps its modifiers.
+- A long random group's name fits its row; a small diamond marks a group with a colour experiment; chip outlines fixed.
+- The Purple Stimm modifier is called Twins.
+- Both full runners pass every gate (Lua 5.5 82.13% / LuaJIT 2.1 79.18%). Not yet tested in game.
+
 ## 2026-10-05 - Cooldown beside the chance, a clickable card preview, Deck search on typing (polishing)
 - The Workshop has the card's cooldown stepper beside its chance; the card on the stage takes clicks on its chance pips and its cooldown minus, plus and value.
 - Typing on the Deck opens its search; a dragged search box (Deck, enemy picker) keeps its place for the game session.

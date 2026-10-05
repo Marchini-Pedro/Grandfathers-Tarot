@@ -434,8 +434,51 @@ do
   commands.gt_drawtest("The", "Fool")
   check("entry: /gt_drawtest and /gt_fulltest say how to use them without a name, and pass a name on (refused here: no running cycle)", usage ~= nil and #echoed == before + 3 and echoed[#echoed]:find("GrandfathersTarot:", 1, true) ~= nil, echoed[#echoed])
 end
-check("entry: three HUD elements are registered, the Spread, the Nightmare's dread (full screen, not HUD-scaled) and the window of the last card (own node, so custom_hud moves it on its own)", #hud_elements == 3 and hud_elements[1].class_name == "HudElementGrandfathersTarotPanel" and hud_elements[2].class_name == "HudElementGrandfathersTarotDread" and hud_elements[2].use_hud_scale == false and hud_elements[3].class_name == "HudElementGrandfathersTarotLast" and hud_elements[3].filename:find("hud_element_last_card$") ~= nil and hud_elements[3].use_hud_scale == true, #hud_elements)
+check("entry: four HUD elements are registered, the Spread, the Nightmare's dread and Dream's sky (full screen, not HUD-scaled) and the window of the last card (own node, so custom_hud moves it on its own)", #hud_elements == 4 and hud_elements[1].class_name == "HudElementGrandfathersTarotPanel" and hud_elements[2].class_name == "HudElementGrandfathersTarotDread" and hud_elements[2].use_hud_scale == false and hud_elements[3].class_name == "HudElementGrandfathersTarotDream" and hud_elements[3].use_hud_scale == false and hud_elements[3].filename:find("hud_element_dream$") ~= nil and hud_elements[4].class_name == "HudElementGrandfathersTarotLast" and hud_elements[4].filename:find("hud_element_last_card$") ~= nil and hud_elements[4].use_hud_scale == true, #hud_elements)
 check("entry: commands registered (rw_test, rw_editor, rw_status, rw_custom, rw_roll, rw_start, rw_skip, rw_vote)", commands.gt_test and commands.gt_editor and commands.gt_status and commands.gt_custom and commands.gt_roll and commands.gt_start and commands.gt_skip and commands.gt_vote ~= nil)
+-- Instant rescue's golden health (2026-10-05): the player panels draw their health in the overshield colour while a charge is armed
+-- and the player has more than one wound left; the colour is swapped only for the draw
+do
+  local golden = {}
+  for _, h in ipairs(hooks) do if h.method == "_draw_health_bar" then golden[#golden + 1] = h end end
+  local RW = mod.rw
+  local saved_effects, saved_settings, saved_dead = RW.effects, package.loaded["scripts/settings/ui/ui_hud_settings"], RW.dead
+  RW.dead = nil
+  local charges = 1
+  RW.effects = { team_rescues = function() return charges end }
+  local Settings = { color_tint_main_1 = "white", color_tint_10 = "gold" }
+  package.loaded["scripts/settings/ui/ui_hud_settings"] = Settings
+  local seen
+  local function draw(self, x) seen = Settings.color_tint_main_1; return x end
+  local three = { _health_max_fraction = 1, _health_max_wounds = 3 }
+  check("golden health: the three player panel classes are hooked", #golden == 3 and golden[1].obj == "HudElementPlayerPanelBase" and golden[2].obj == "HudElementPersonalPlayerPanel" and golden[3].obj == "HudElementTeamPlayerPanel")
+  local fn = golden[1].fn
+  fn(draw, three, 1)
+  check("golden health: a charge armed and three wounds left: the health is drawn gold, the colour is put back after", seen == "gold" and Settings.color_tint_main_1 == "white")
+  fn(draw, { _health_max_fraction = 1 / 3, _health_max_wounds = 3 }, 1)
+  check("golden health: one wound left: the usual colour", seen == "white")
+  fn(draw, { _health_max_fraction = 2 / 3, _health_max_wounds = 3 }, 1)
+  check("golden health: two wounds left (corruption took one): gold", seen == "gold")
+  for _, state in ipairs({ "_dead", "_knocked_down", "_hogtied" }) do
+    local panel = { _health_max_fraction = 1, _health_max_wounds = 3 }
+    panel[state] = true
+    fn(draw, panel, 1)
+    check("golden health: none on a player " .. state:sub(2), seen == "white")
+  end
+  charges = 0
+  fn(draw, three, 1)
+  check("golden health: no charge armed: the usual colour", seen == "white")
+  charges = 1
+  local ok = pcall(fn, function() error("draw failed") end, three)
+  check("golden health: an error in the game's draw is passed on and the colour is still put back", not ok and Settings.color_tint_main_1 == "white")
+  RW.effects = nil
+  fn(draw, three, 1)
+  check("golden health: without the effects module: the usual colour", seen == "white")
+  RW.dead = true
+  fn(draw, three, 1)
+  check("golden health: a retired mod draws the usual colour", seen == "white")
+  RW.effects, package.loaded["scripts/settings/ui/ui_hud_settings"], RW.dead = saved_effects, saved_settings, saved_dead
+end
 check("entry: keybind functions exist (open_editor, vote_1..vote_5)", type(mod.open_editor) == "function" and type(mod.vote_1) == "function" and type(mod.vote_5) == "function")
 
 -- Retain strong object keys just as game EventManager does. DMF-owned registries

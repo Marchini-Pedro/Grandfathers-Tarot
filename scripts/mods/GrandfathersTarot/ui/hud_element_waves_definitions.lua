@@ -14,10 +14,11 @@ local mod = get_mod("GrandfathersTarot")
 local UIWorkspaceSettings = require("scripts/settings/ui/ui_workspace_settings")
 local UIWidget = require("scripts/managers/ui/ui_widget")
 local Spread = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/spread")
+local Aura = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/aura")
 
 local definitions = {}
 
-definitions.Spread = Spread
+definitions.Spread, definitions.Aura = Spread, Aura
 definitions.SCREEN_WIDTH = 1920
 definitions.SCREEN_HEIGHT = 1080
 definitions.LINES = 7 -- legacy panel: header + up to 5 candidates + key hint
@@ -147,6 +148,13 @@ local function card_passes()
 	}
 
 	rect(passes, "bg", z + 4)
+
+	-- the suit's aura over the face and under everything on it (ui/aura.lua; HudElementGrandfathersTarotPanel._tick_living)
+	for i = 1, Aura.COUNT do
+		circle(passes, "aura_c" .. i, z + 4.5)
+		rect(passes, "aura_r" .. i, z + 4.5)
+	end
+
 	rect(passes, "accent", z + 5)
 
 	for _, side in ipairs({ "t", "b", "l", "r" }) do

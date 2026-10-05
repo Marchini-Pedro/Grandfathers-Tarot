@@ -266,3 +266,19 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Tests: entry (the copy, once, without old settings, without a settings store; every command /gt_; the menu colours and the
   Workshop title).
 - 2026-10-05, feature/twin-voice-lines: added 122 twin-boss voice lines (from mission_vo_km_enforcer_twins_captain_twin_*, circumstance_vo_darkness_captain_twin_female_a) and the syringe events play_syringe_stab_self and play_syringe_heal_husk_charge_cancel to catalog/sounds.lua (9,434 to 9,558). Not tested: the user told me to skip both Lua runners; not heard in game.
+
+## 2026-10-05 - Living cards, Dream, the Workshop (polishing)
+
+- Built: Twins (the Purple Stimm modifier's name); holding a cooldown's - or + repeats it; a row's name fits one line; a mark for a
+  colour experiment; right click a row to change its enemy and keep the rest; the chip outlines drawn above the fill; the Dream
+  suit (a rainbow card, Dream's sky on screen); every suit's aura on the Deck, the stage, the Spread and the last card (the warp
+  motes on the Deck); options "Living card effects" and "Dream's sky on screen".
+- Tests: hud (every suit's aura inside its card at five sizes, Rage warm and low, Plague green, no aura on Heresy and Nightmare,
+  Dream's glow and Brute's flare, Dream the brightest card, auras on the Spread and the last card, the option; Dream's sky:
+  start, light veil, clouds, rainbow edge, fade, late joiner, option), editor (hold to repeat on the stepper, the stage and a
+  tile; nothing while a popup is open; the row fit; the colour mark; the swap and its random group; the Deck's aura, the Warp
+  motes, Dream's rainbow frame, the option), entry (four HUD elements), effects (the chip outline above the fill), logic (Twins).
+- Coverage the earlier polishing rounds had left untested, now tested so no floor is lowered: golden health (entry), the Mutant
+  charge scaling (logic), the skin effects (appearance). New floors: ui/aura.lua 82, ui/hud_element_dream.lua 79,
+  ui/hud_element_dream_definitions.lua 82. Full runners pass every gate: Lua 5.5 82.13%, LuaJIT 2.1 79.18%
+  (`--timeout-seconds 280`). Not tested in game yet.

@@ -241,6 +241,47 @@ local broken=unit(5); broken.fail=true
 A.apply(broken,purple,broken.breed); A.apply(control,purple,control.breed); A.update(0.25)
 check("native setter failure does not abort other units", control.colour[3]==1 and #warnings>0)
 A.reset(); broken.alive=false
+-- the skin effects (2026-10-05): the game's ailment look held at one moment, only once the engine has the effect's textures
+do
+  local saved_set, saved_world, saved_app, saved_World, saved_settings = Unit.set_vector3_for_materials, Unit.world, Application, World, package.loaded["scripts/settings/ailments/ailment_settings"]
+  local mats, textures, perms, now, loaded = {}, {}, {}, 50, false
+  Unit.set_vector3_for_materials = function(u, key, value) if u.skin_fail then error("material failure") end mats[#mats + 1] = { u = u, key = key, v = value } end
+  Unit.set_texture_for_materials = function(u, slot, res) textures[#textures + 1] = { u, slot, res } end
+  Unit.set_permutation_for_materials = function(u, name, on) perms[#perms + 1] = { u, name, on } end
+  Unit.world = function() return "world" end
+  World = { time = function() return now end }
+  Application = { can_get_resource = function(kind, res) return loaded and kind == "texture" end }
+  package.loaded["scripts/settings/ailments/ailment_settings"] = { effect_templates = { burning = { offset_time = 1.5, duration = 2, material_textures = { { slot = "burn_mask", resource = "tex/burn" } } } } }
+  local burnt = Schema.copy(purple); burnt.method = "skin_burnt"; burnt.a = 128
+  local skin_unit = unit(40)
+  A.apply(skin_unit, burnt, skin_unit.breed)
+  check("skin: nothing is written while the engine does not have the effect's textures (it waits)", #textures == 0 and #mats == 0 and A._skinned() == 0)
+  loaded = true
+  A.update(0.25)
+  check("skin: once they are there the textures and the burn permutation are set and the look is held", #textures == 1 and textures[1][3] == "tex/burn" and perms[1][2] == "HAVE_BURN" and A._skinned() == 1 and mats[#mats].key == "offset_time_duration")
+  local held = mats[#mats].v
+  check("skin: A picks the moment: the start is put half the duration (A 128 of 255) before now", math.abs(held[2] - (50 - 2 * 128 / 255)) < 1e-9 and held[1] == 1.5 and held[3] == 3)
+  now = 60; A.update(0.01)
+  check("skin: every frame the moment is held (the start follows the clock)", math.abs(mats[#mats].v[2] - (60 - 2 * 128 / 255)) < 1e-9)
+  local other = Schema.copy(purple); other.method = "skin_warp"
+  A.apply(control, other, control.breed)
+  check("skin: an effect the game has no template for leaves the enemy alone", A._skinned() == 1)
+  skin_unit.alive = false; A.update(0.01)
+  check("skin: a dead enemy is let go", A._skinned() == 0)
+  skin_unit.alive = true
+  A.apply(skin_unit, burnt, skin_unit.breed); A.update(0.01)
+  skin_unit.skin_fail = true; A.update(0.01)
+  check("skin: a failing write lets the enemy go and says so", A._skinned() == 0 and #warnings > 0)
+  skin_unit.skin_fail = false
+  A.reset()
+  A.apply(skin_unit, burnt, skin_unit.breed); A.update(0.01)
+  local before = #mats
+  A.reset()
+  check("skin: a reset ends the look (the effect is put out of time)", #mats == before + 1 and mats[#mats].v[2] < -1000 and A._skinned() == 0)
+  Unit.set_vector3_for_materials, Unit.world, Application, World = saved_set, saved_world, saved_app, saved_World
+  package.loaded["scripts/settings/ailments/ailment_settings"] = saved_settings
+  Unit.set_texture_for_materials, Unit.set_permutation_for_materials = nil, nil
+end
 rpcs.rw_hello("new",2,"2.0.0",1); rpcs.rw_hello("old",2,"2.0.0")
 sent={}; A.apply(treated,purple,treated.breed); A.send_all()
 check("only capable peer gets appearance RPC", #sent==1 and sent[1][1]=="rw_appearance" and sent[1][2]=="new")

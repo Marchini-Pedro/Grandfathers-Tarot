@@ -1,6 +1,6 @@
 -- Bounded card effects shared by the editor, presets and host runtime.
 local Effects = {}
-Effects.SUITS = { prayer = true, miracle = true, grace = true, faith = true }
+Effects.SUITS = { prayer = true, miracle = true, grace = true, faith = true, dream = true }
 -- The four groups of the editor's shelf (2026-10-04: Guidance became Buffs, Prayer became Items, and Game Effects is new), in order,
 -- with the colour of their dot. `short` is the name on the shelf chip and on the card line.
 Effects.CATEGORIES = {

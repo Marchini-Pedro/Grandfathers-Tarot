@@ -21,9 +21,12 @@ random selection and player voting. No Twitch service is required.
   cards on a page. **HERESY** (crimson; its glow beats like a heart and it bleeds in the HUD), **NIGHTMARE** (black,
   a breathing darkness and a dying light, black ink, a black fog over the card and, when drawn, over the screen and a grey
   world for every player (option "Nightmare darkness": 30 the usual, 100 almost black); once per game), **Warp** (a pulsing glow and rising motes), **Prayer**, **Miracle**,
-  **Grace** and **Faith** have their own frames and sigils.
+  **Grace**, **Faith** and **Dream** (a rainbow card; when drawn a sky of light and clouds opens over the screen) have
+  their own frames and sigils. Every suit's cards live: flames on Rage, bubbles and flies on Plague, tracers on Volley,
+  feathers on Grace and so on (option "Living card effects"). Hold a cooldown's `-` / `+` to keep stepping.
 - **The Workshop:** build enemy groups with a searchable catalog and Dreg/Scab
-  shelf, modifiers, custom stats and a live card preview. The On Fire modifier has its
+  shelf, modifiers, custom stats and a live card preview. Right click an enemy row to change
+  its enemy and keep its modifiers; a small diamond marks a group with a colour experiment. The On Fire modifier has its
   burn damage (0 to 300 percent, 35 by default) on the right of its row, and its enemies
   keep burning while they live. The editor key reopens the screen you left; the Deck
   keeps its scroll.

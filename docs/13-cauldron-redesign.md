@@ -227,6 +227,22 @@ Old peers: they read a divided unit's bar as one bar of the right share (no "xN"
 - The editor's card screen is called **The Grandfather's Workshop** (was Cauldron).
 - Peers must run the same version (the RPC names did not change, the mod id did).
 
+## Polishing: living cards, Dream, the Workshop (2026-10-05)
+
+| Request | What was built |
+| --- | --- |
+| Rename the Purple Stimm buff to Twins | The modifier is called **Twins** everywhere it is shown; its id (`purple_stimm`) and the old names stay valid in recipes, `twins` is a new one. |
+| Holding the - and + of a cooldown keeps stepping | The click takes its step as before; held for 0.4 s the button repeats it every 0.07 s until it is let go or the pointer leaves it. On the Deck's tiles, the cooldown beside the chance, the Face tab's cooldown and the card on the stage; not while a popup is open. |
+| Picture 1: "1 random of Beast of Nurgle / Chaos Spawn / ..." ran over three lines, over the header and the modifier line | A row's name is one line: its font shrinks from 26 down to 17 to fit, then it is cut with "..." (the colours of a random group are kept). |
+| A subtle sign that an enemy has a colour experiment | A small diamond between the row's edge and its name, in the experiment's colour (the skin effects have their own: burning orange, warp blue, bruise purple; a colour too dark for the row is shown pale lilac). |
+| Right click an enemy to change it and keep its modifiers | A right click on a row's name opens the enemy picker for that group (the top line says so). The enemy picked, or a random group made there, replaces the group's enemy; its count, repeats, modifiers, custom mods and colour experiment stay. Back changes nothing. |
+| Picture 2: the outlines of Poxwalker, Melee, Rager and Beast of Nurgle | At screen sizes other than 1080p the chip's fill, rounded to whole pixels, could cover the one unit frame on some chips. The four edges are now drawn again on top of the fill. |
+| A new beneficial suit, **Dream**, the opposite of Nightmare, colourful and positive, with an impactful heavenly effect | The fifth beneficial suit (after Faith): the brightest card of the deck (twilight lavender), a sky-blue accent, a pastel frame and glow that turn through a rainbow, clouds in every colour and rainbow stars on its face, a cloud with a star as its mark. When one is drawn **Dream's sky** opens over the whole screen for 7.5 s (every player, the draw is synced): a bloom of light from the middle, rays falling from above, clouds rolling in along the foot and the head of the screen, a rainbow edge, rising stars; see-through, light, never dark. Option "Dream's sky on screen". |
+| A fire effect on Rage and a plague effect on Plague, in the Deck and in the HUD / last card; a thematic effect for Plague, Murmur, Blight, Swarm, Fateful, Volley, Snare, Brute, Prayer, Miracle, Grace and Faith | `ui/aura.lua`: every suit's own animation on its card's face, under its text. Rage: flames lick up from the foot (yellow, orange, deep red) with embers. Plague: bile bubbles rise and pop, flies buzz. Murmur: pale lights drift and blink like whispers. Blight: drops of pus fall with trails, a yellow gas at the foot. Swarm: a whirling cloud of tiny things. Fateful: stars twinkle, dust of the last page sifts down. Volley: tracers streak across. Snare: a chain creeps round the edge, tightening. Brute: every 2.2 s a blow: a shock along the floor, chunks of brick fly, the glow flares. Prayer: incense rises with sparks of light. Miracle: golden stars flash open, motes of light. Grace: white feathers drift down, rocking. Faith: rose petals tumble. Dream: clouds and rainbow stars. On the Deck's tiles and the card on the stage, the Spread's cards and the last card window; fainter while a card rests, none on a card out of the draw. Heresy and Nightmare keep their own blood and fog. Option "Living card effects". |
+| The warp HUD effect on the Deck | A Warp card on the Deck (and in the last card window) has the warp's motes rising through it, flaring when it crackles; the Spread keeps its own motes over the card's top. |
+
+Old peers: a Dream card synced to a peer without it is shown as Plague there (an unknown suit); its effects are the same.
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -277,3 +293,7 @@ Old peers: they read a divided unit's bar as one bar of the right share (no "xN"
     counting down, each new bar full, the last bar partial, no "Weakened" on the client, the kill; two such bosses at once. On Fire
     enemies keep burning while alive and stop after death; their default damage (35) and 100. The Deck's scroll after Back and
     after reopening; the editor key reopening each screen, and a card deleted in between.
+18. Polishing: every suit's effect on the Deck, the stage card, the Spread and the last card at 1080p and 1440p (readable text,
+    nothing outside a card, the frame rate with a full Deck page); Rage's flames, Plague's bubbles, the Warp motes on the Deck;
+    a Dream card drawn (the sky, its rainbow frame; host and client); holding a cooldown's - and +; the long random group's row;
+    the colour-experiment diamond; a right click swap keeping Enraged and the custom mods; the Twins name; the chips' outlines.
