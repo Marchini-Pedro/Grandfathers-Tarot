@@ -163,6 +163,8 @@ GrandfathersTarotView = class("GrandfathersTarotView", "BaseView")
 -- Where the editor was left (2026-10-05, the user: "the Deck remembers its scroll; the editor key opens the window I left"):
 -- kept on mod.rw for this game session (the view object is made anew at every open). `deck_offset` is the Deck's scroll, the
 -- rest is the screen that was open and what it showed.
+local TYPING_BLOCK = 0.35 -- seconds after the editor opens in which typed keys do not open a search box
+
 local function memory()
 	local rw = mod.rw
 
@@ -212,6 +214,9 @@ GrandfathersTarotView.on_enter = function (self)
 	self._screen = "list"
 	self._offset = memory().deck_offset or 0
 	self._key = nil
+	-- (2026-10-05) the key that opened the editor ("-" for one player) is still in this frame's keystrokes: typing does not open a
+	-- search box for a moment after the editor opens
+	self._typing_blocked = TYPING_BLOCK
 	-- where each search box was last dragged to, kept for the game session (2026-10-05)
 	memory().popup_spots = memory().popup_spots or {}
 	self._popup_spots = memory().popup_spots
@@ -365,8 +370,8 @@ GrandfathersTarotView.update = function (self, dt, t, input_service)
 		end
 	end
 
-	if (self._screen == "picker" or self._screen == "list") and not self._popup then
-		self:_auto_search()
+	if (self._screen == "picker" or self._screen == "list") and not self._popup or (self._typing_blocked or 0) > 0 then
+		self:_auto_search(dt)
 	end
 
 	if self._screen == "list" then
@@ -857,6 +862,11 @@ end
 GrandfathersTarotView._open_detail = function (self, key)
 	if self._screen == "list" then
 		memory().deck_offset = self._offset
+	end
+
+	-- (2026-10-05) the Deck's search box closes when a card is opened; its filter stays for the Deck
+	if self._popup and self._popup.spec and self._popup.spec.place_key == "deck_search" then
+		Popup.close_keep(self)
 	end
 
 	self._key = key
@@ -2132,7 +2142,14 @@ local function typed_text()
 	return text ~= "" and text or nil
 end
 
-GrandfathersTarotView._auto_search = function (self)
+GrandfathersTarotView._auto_search = function (self, dt)
+	if (self._typing_blocked or 0) > 0 then
+		self._typing_blocked = self._typing_blocked - (dt or 0)
+		typed_text() -- (the keys of these frames are dropped)
+
+		return
+	end
+
 	if (self._screen ~= "picker" and self._screen ~= "list") or self._popup then
 		return
 	end

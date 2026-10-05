@@ -1228,7 +1228,22 @@ do
   view:on_exit(); view:on_enter()
   check("deck search: ...and the reopened editor uses it", view._popup_spots.deck_search[2] == 400)
   view._popup_spots.deck_search = nil
+  -- the key that opened the editor ("-") is not typed into a search box
+  view:on_exit(); view:on_enter()
+  strokes = { "-" }
+  frame()
+  check("deck search: the key that opened the editor does not open the search", view._popup == nil)
+  strokes = {}
+  for _ = 1, 40 do frame() end
+  strokes = { "a" }
+  frame()
+  check("deck search: a moment later, typing opens it as before", view._popup ~= nil and view._popup.spec.place_key == "deck_search")
+  strokes = {}
+  frame()
+  -- opening a card closes the Deck's search box; the Deck keeps its filter
   view:_open_detail(key_before)
+  check("deck search: opening a card closes the search box, the filter stays", view._popup == nil and view._screen == "detail" and view._deck_query == "a")
+  view:cb_back(); view:_set_deck_query(""); view:_open_detail(key_before)
 end
 
 -- typing on the picker screen opens the search box by itself ------------------------------------------------
