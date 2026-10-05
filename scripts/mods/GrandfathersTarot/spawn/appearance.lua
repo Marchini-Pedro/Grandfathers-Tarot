@@ -56,32 +56,27 @@ end
 -- Dark skin (2026-10-05, the user: "let's try the dark skin effect"): the game's ailment skin looks (Ailment.play_ailment_effect_template:
 -- a mask and a colour ramp texture on the materials, the HAVE_BURN permutation, and offset_time_duration = offset, start, duration)
 -- held at one moment of the effect: every frame the start is put `phase` seconds before now, so the shader keeps showing that
--- moment. A picks the phase (0 = the start of the effect, 255 = its end). The textures are loaded as packages first; nothing is
--- written before they are (an unloaded texture can crash the engine). No colour ramp of the game is black: which look reads
+-- moment. A picks the phase (0 = the start of the effect, 255 = its end). Nothing is written while the engine does not have the
+-- textures (an unloaded texture can crash the engine). No colour ramp of the game is black: which look reads
 -- darkest is what this experiment is for.
 local SKINS = { skin_burnt = "burning", skin_warp = "warpfire", skin_bruise = "broker_brittleness" }
-local skin_packages, skin_ready = {}, {}
 local skinned = {}
 
+-- (2026-10-05, in game: "Package reference ... does not exist") these textures are not packages of their own: the game writes them
+-- when the weapon or enemy that causes the ailment is in the mission, so they are only used when the engine already has them
+-- (Application.can_get_resource). Otherwise the look waits (checked again every quarter second) and says why once.
 local function skin_template(method)
 	local Settings = require("scripts/settings/ailments/ailment_settings")
 	local template = Settings.effect_templates and Settings.effect_templates[SKINS[method]]
 	if not template then return nil end
-	local packages, all = Managers.package, true
 	for _, texture in pairs(template.material_textures or {}) do
-		local resource = texture.resource
-		if not skin_ready[resource] then
-			if packages and packages:has_loaded(resource) then
-				skin_ready[resource] = true
-			else
-				all = false
-				if packages and not skin_packages[resource] then
-					skin_packages[resource] = packages:load(resource, "GrandfathersTarot_skin", function () skin_ready[resource] = true end) or true
-				end
-			end
+		local ok, has = pcall(function () return Application.can_get_resource("texture", texture.resource) end)
+		if not (ok and has) then
+			warn(method .. ": its textures are not loaded in this mission yet (the game loads them with what causes that effect); it waits")
+			return nil
 		end
 	end
-	return all and template or nil
+	return template
 end
 
 local function skin_time(record)

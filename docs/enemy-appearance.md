@@ -217,6 +217,7 @@ Methods `skin_burnt`, `skin_warp`, `skin_bruise`: the ailment effect templates `
 (ailment_settings.lua: a mask texture in `effect_mask`, a ramp in `effect_gradient`, the `HAVE_BURN` permutation and
 `offset_time_duration`). The look is held at one moment by writing the start time `phase` seconds before now every frame;
 A (0..255) picks the phase over the template's duration. Ending it writes a start long past. The two textures of each template
-are loaded as packages (`Managers.package:load`) before anything is written. Unknown until seen: whether the shader darkens the
+are not packages (in game: "Package reference ... does not exist"): the look is only written once
+`Application.can_get_resource("texture", ...)` says the engine has them (they come with what causes the ailment in that mission). Unknown until seen: whether the shader darkens the
 surface or only adds a glow (no game ramp is black), whether the packages load by resource path, the cost of one material write
 per enemy per frame.
