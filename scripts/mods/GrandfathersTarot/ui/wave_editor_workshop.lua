@@ -7,6 +7,10 @@ local mod = get_mod("GrandfathersTarot")
 
 local WorkshopView = {}
 
+local UIWidget = require("scripts/managers/ui/ui_widget")
+local LastDefs = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/hud_element_last_card_definitions")
+local LastPaint = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/last_card_paint")
+
 local PREVIEW_SECONDS = 5 -- the cooldown preview of the stage card plays through its look in this time
 local MOD_CHARS, INFO_CHARS = 22, 40 -- the modifiers of a row are cut at 22 visible characters, the line at 40
 -- (2026-10-05, the user's picture: "1 random of Beast of Nurgle / Chaos Spawn / Packmaster / Plague Ogryn" ran over three lines, over
@@ -563,7 +567,7 @@ WorkshopView.install = function (View, h)
 	local MIRROR_BUTTONS = { "btn_whisper_change", "btn_whisper_suit", "btn_reset_face" }
 	local PLATE, LOOK = definitions.PLATE_NODE_PREFIX, definitions.LOOK_NODE_PREFIX
 	local LOOKS = definitions.MIRROR_LOOKS
-	local MIRROR_DYNAMIC = { "rw_threat_big", "whisper_field", "rw_hand_card" }
+	local MIRROR_DYNAMIC = { "rw_threat_big", "whisper_field", "rw_hand_card", "rw_last_card" }
 
 	for i = 1, #mod.rw.cards.SUIT_ORDER do
 		MIRROR_DYNAMIC[#MIRROR_DYNAMIC + 1] = PLATE .. i
@@ -602,6 +606,12 @@ WorkshopView.install = function (View, h)
 		field.visible = false
 
 		self:_create_dynamic_widget("rw_hand_card", WB.hand_card("rw_hand_card", TILE_IDS)).visible = false
+
+		-- the last card window of the HUD, painted by the HUD's own painter (ui/last_card_paint.lua)
+		local last = self:_create_dynamic_widget("rw_last_card", UIWidget.create_definition(LastDefs.passes, "rw_last_card"))
+
+		last.visible = false
+		self._last_preview = LastPaint.new(last)
 	end
 
 	-- The card as the Spread draws it, at 1.5 times: the bar and the background as high as the lines of the name need (the HUD's
@@ -794,6 +804,15 @@ WorkshopView.install = function (View, h)
 		widgets.rw_hand_card.visible = true
 		self:_paint_hand(widgets.rw_hand_card, card, own)
 
+		-- and beside it the same card in the last card window, as the HUD draws it ("just drawn" where the HUD says how long ago)
+		local last = self._last_preview
+
+		if last and widgets.rw_last_card then
+			widgets.rw_last_card.visible = true
+			LastPaint.setup(last, card, LastPaint.chosen_font())
+			last._widget.content.age = mod:localize("face_last_sample")
+		end
+
 		widgets.mirror_desc.content.mirror_desc = string.format("{#color(%d,%d,%d)}%s{#reset()}  %s", own.accent[1], own.accent[2], own.accent[3], own.name, mod:localize("suit_desc_" .. card.suit))
 
 		-- the threat: the diamonds and what the level means (its name at 6, the murmur from 5)
@@ -844,6 +863,14 @@ WorkshopView.install = function (View, h)
 		-- the stage card lives too (Heresy's heartbeat, the sixth diamond's shine), but not while the cooldown preview plays
 		if stage and stage.visible and not play then
 			self:_tick_living_tile(stage, t)
+		end
+
+		-- the last card window's preview on the Mirror lives as on the HUD (its aura, Nightmare's fog)
+		local last = self._last_preview
+
+		if last and last._widget.visible and last._aura_box then
+			LastPaint.tick_aura(last, t)
+			LastPaint.tick_fog(last, t)
 		end
 
 		if not play then

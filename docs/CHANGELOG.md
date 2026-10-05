@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-05 - The effects seen, a clean help, the last card on the Face tab (polishing)
+- Fixed: Plague, Murmur, Swarm, Snare, Prayer and Faith showed no effect, and Dream only a few squares (their circles were drawn
+  under the card's face).
+- Volley fires bullets; Dream, Rage and Brute are more intense (twenty shapes a card, Rage's glow flickers, Brute's blow cracks
+  the floor and raises dust).
+- The "?" help is a clean card of its own, with a title, headings and bullets, cut to its text, on every screen.
+- The Face tab shows the last card window beside the hand card, under "When it is drawn".
+
 ## 2026-10-05 - Living cards, Dream, the Workshop (polishing)
 - Every suit has its own living effect on its cards (flames on Rage, bubbles and flies on Plague, tracers on Volley, feathers on
   Grace...), in the Deck, the Workshop, the hand and the last card window; the Warp motes now show on the Deck too.

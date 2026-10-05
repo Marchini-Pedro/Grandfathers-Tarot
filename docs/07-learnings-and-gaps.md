@@ -461,3 +461,12 @@ Things we know are missing or unverified, each with the next concrete step.
   fill always show.
 - **The UI cannot clip**: an effect on a card must keep every shape inside the card itself (ui/aura.lua clamps each particle and
   the tests check it at every card size).
+
+## 2026-10-05 - A circle is drawn on the whole layer under its z
+
+- `UIRenderer.draw_circle` (and `draw_triangle`) hand their z to `Gui.triangle` as a layer, which is a whole number: a circle at z 1.5
+  is drawn on layer 1. A rect at z 1 on the same layer (a card's face) is drawn after it and covers it, while rects at 1.5 still
+  show (they are drawn in order). Six suits' effects, all circles, were invisible in game while the tests passed. Every circle or
+  triangle that must be seen over a rect stands on a whole layer above the rect's; the tests now check the layers.
+- **Game text markup in long help**: `{#color(r,g,b)}`, `{#size(n)}` and `{#reset()}` work inside a word-wrapped text; a line of one
+  space at a small size (`{#size(8)} {#reset()}`) is the stock way to leave a little air between parts.

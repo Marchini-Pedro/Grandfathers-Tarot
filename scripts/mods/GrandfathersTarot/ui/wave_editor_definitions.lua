@@ -9,6 +9,8 @@ local UIFontSettings = require("scripts/managers/ui/ui_font_settings")
 local Components = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/wave_editor_components")
 local Workshop = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/workshop")
 local WB = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/workshop_blueprints")
+local Help = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/help_text")
+local LastDefs = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/hud_element_last_card_definitions")
 
 local definitions = {}
 
@@ -73,8 +75,9 @@ local scenegraph_definition = {
 	btn_help = node(1766, 36, 50, 44, 2),
 	btn_face = node(1480, 36, 270, 44, 2), -- a card's own screen: its face (suit, threat, whisper, look); same spot as More options, which is list-only
 	-- the card face screen: "Threat N by the numbers" under the rows, the live preview of the tile in the bottom right
-	help_panel = node(880, 90, 935, 300, 70),
-	help_text = node(900, 100, 895, 280, 71),
+	-- the "?" tooltip, a card of its own under the corner buttons (ui/help_text.lua; the view cuts its height to the text)
+	help_panel = node(1816 - Help.WIDTH, 90, Help.WIDTH, 300, 70),
+	help_text = node(1816 - Help.WIDTH + Help.PAD, 90 + Help.BODY_Y, Help.WIDTH - 2 * Help.PAD, 280, 72),
 	btn_wimport = node(645, 800, 300, 44, 2), -- list screen: import a shared wave into the first free custom slot
 	btn_default = node(965, 800, 320, 44, 2), -- list screen: restore every wave to the defaults
 	-- list screen: sort the cards by threat, rarity, number of enemies or face (the label is a text, then four buttons)
@@ -245,6 +248,9 @@ end
 
 scenegraph_definition.hand_caption = node(Workshop.HAND.x, Workshop.HAND.caption_y, P.w, 28, 2)
 scenegraph_definition.rw_hand_card = node(Workshop.HAND.x, Workshop.HAND.y, Workshop.HAND.w, Workshop.HAND.max_h, 2)
+-- beside it, the card in the last card window of the HUD, at its HUD size: its caption over the card, the card's top level with the
+-- hand card's (2026-10-05, the user: "fit the last card interface for that card beside it")
+scenegraph_definition.rw_last_card = node(Workshop.HAND.x + Workshop.HAND.w + Workshop.HAND.last_gap, Workshop.HAND.y - LastDefs.CARD_Y, LastDefs.WIDTH, LastDefs.HEIGHT, 2)
 scenegraph_definition.btn_reset_face = node(1070, under.actions_y, 170, 44, 2)
 
 local function header_pass(id, x, w, align)
@@ -294,11 +300,67 @@ local function plain_text(node_id, value_id, font_size, color, w, h, align, vali
 	}, node_id)
 end
 
--- the frames of the tooltip and of the input popup: four rects in the accent, the popup with the two corner brackets
-local help_frame, popup_frame = {}, {}
+-- the frame of the input popup: four rects in the accent and the two corner brackets
+local popup_frame = {}
 
-Components.frame_passes(help_frame, "frame", 935, 300, 1)
 Components.frame_passes(popup_frame, "frame", 800, 260, 1, { brackets = true })
+
+-- The "?" tooltip (2026-10-05, the user: "a more clean hover description"): an opaque panel in the page's own colours with a shadow,
+-- the accent's strip down its left edge and a thin frame, a "?" badge beside the title, a divider, then the body (the widget
+-- help_text) and a footer. Every height here is the panel's at 300; GrandfathersTarotView._layout_help cuts them to the text.
+local function help_passes()
+	local W = Help.WIDTH
+	local theme, accent = Components.theme, Components.accent
+	local passes = {}
+
+	local function shape(kind, id, x, y, w, h, z, paint)
+		passes[#passes + 1] = { pass_type = kind, style_id = id, style = { offset = { x, y, z }, size = { w, h }, color = { 255, 0, 0, 0 } }, change_function = paint }
+	end
+
+	local function words(id, x, y, w, h, z, font, size, align, paint)
+		passes[#passes + 1] = {
+			pass_type = "text",
+			style_id = id,
+			value_id = id,
+			value = "",
+			style = { font_type = font, font_size = size, text_color = { 255, 255, 255, 255 }, offset = { x, y, z }, size = { w, h }, text_horizontal_alignment = align, text_vertical_alignment = "center" },
+			change_function = paint,
+		}
+	end
+
+	local function in_accent(alpha)
+		return function (content, style)
+			Components.put_rgb(style.color or style.text_color, alpha, accent)
+		end
+	end
+
+	shape("rect", "shadow", 8, 10, W, 300, 0, function (content, style)
+		Components.put_rgb(style.color, 150, { 0, 0, 0 })
+	end)
+	shape("rect", "bg", 0, 0, W, 300, 1, function (content, style)
+		Components.put_rgb(style.color, 255, theme.panel)
+	end)
+	shape("rect", "strip", 0, 0, 5, 300, 3, in_accent(255))
+	shape("rect", "frame_t", 0, 0, W, 1, 3, in_accent(170))
+	shape("rect", "frame_b", 0, 299, W, 1, 3, in_accent(170))
+	shape("rect", "frame_l", 0, 0, 1, 300, 3, in_accent(170))
+	shape("rect", "frame_r", W - 1, 0, 1, 300, 3, in_accent(170))
+	shape("circle", "badge", Help.PAD - 2, 20, 36, 36, 4, in_accent(255))
+	words("badge_mark", Help.PAD - 2, 20, 36, 36, 5, "proxima_nova_bold", 26, "center", function (content, style)
+		Components.put_rgb(style.text_color, 255, theme.panel)
+	end)
+	words("title", Help.PAD + 46, 18, W - 2 * Help.PAD - 46, 40, 5, "itc_novarese_bold", 28, "left", function (content, style)
+		Components.put_rgb(style.text_color, 255, Help.LIT)
+	end)
+	shape("rect", "divider", Help.PAD, 66, W - 2 * Help.PAD, 1, 4, in_accent(110))
+	words("footer", Help.PAD, 300 - Help.FOOT + 6, W - 2 * Help.PAD, 24, 5, "proxima_nova_bold", 14, "right", function (content, style)
+		local muted, color = colors.muted, style.text_color
+
+		color[1], color[2], color[3], color[4] = muted[1], muted[2], muted[3], muted[4]
+	end)
+
+	return passes
+end
 
 local widget_definitions = {
 	background = UIWidget.create_definition({
@@ -424,11 +486,8 @@ local widget_definitions = {
 	hint_text = plain_text("hint_text", "hint_text", 20, colors.muted, 1660, 120, "left", "top"),
 
 	-- tooltip shown while the pointer is on the "?" corner button
-	help_panel = UIWidget.create_definition({
-		{ pass_type = "rect", style = { color = { 245, 15, 23, 19 } } },
-		unpack(help_frame),
-	}, "help_panel"),
-	help_text = plain_text("help_text", "help_text", 20, colors.text, 895, 280, "left", "top"),
+	help_panel = UIWidget.create_definition(help_passes(), "help_panel"),
+	help_text = plain_text("help_text", "help_text", Help.BODY_FONT, colors.text, Help.WIDTH - 2 * Help.PAD, 280, "left", "top"),
 
 	-- input popup: fill, gold frame, title and hint (input and buttons are dynamic)
 	rw_popup_panel = UIWidget.create_definition({

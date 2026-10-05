@@ -38,22 +38,22 @@ end
 
 for i = 1, definitions.CLOUDS_FOOT + definitions.CLOUDS_HEAD do
 	pass(passes, "circle", "cloud_" .. i, 3)
-	pass(passes, "circle", "cloud_heart_" .. i, 3.5)
+	pass(passes, "circle", "cloud_heart_" .. i, 4) -- (whole layers: a circle is drawn on the whole layer under its z)
 end
 
 for j = 1, definitions.VIGNETTE_STEPS do
 	for _, side in ipairs({ "t", "b", "l", "r" }) do
-		pass(passes, "rect", "vig_" .. j .. "_" .. side, 4)
+		pass(passes, "rect", "vig_" .. j .. "_" .. side, 5)
 	end
 end
 
 for i = 1, definitions.STARS do
-	pass(passes, "rect", "star_h_" .. i, 5)
-	pass(passes, "rect", "star_v_" .. i, 5)
+	pass(passes, "rect", "star_h_" .. i, 6)
+	pass(passes, "rect", "star_v_" .. i, 6)
 end
 
 for i = 1, definitions.BLOOM_RINGS do
-	pass(passes, "circle", "bloom_" .. i, 6)
+	pass(passes, "circle", "bloom_" .. i, 7)
 end
 
 definitions.scenegraph_definition = { screen = UIWorkspaceSettings.screen }

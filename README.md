@@ -23,7 +23,8 @@ random selection and player voting. No Twitch service is required.
   world for every player (option "Nightmare darkness": 30 the usual, 100 almost black); once per game), **Warp** (a pulsing glow and rising motes), **Prayer**, **Miracle**,
   **Grace**, **Faith** and **Dream** (a rainbow card; when drawn a sky of light and clouds opens over the screen) have
   their own frames and sigils. Every suit's cards live: flames on Rage, bubbles and flies on Plague, tracers on Volley,
-  feathers on Grace and so on (option "Living card effects"). Hold a cooldown's `-` / `+` to keep stepping.
+  feathers on Grace and so on (option "Living card effects"). Hold a cooldown's `-` / `+` to keep stepping. The `?` in the
+  corner of every editor screen explains it; the Face tab shows the card as it is drawn, in the hand and in the last card window.
 - **The Workshop:** build enemy groups with a searchable catalog and Dreg/Scab
   shelf, modifiers, custom stats and a live card preview. Right click an enemy row to change
   its enemy and keep its modifiers; a small diamond marks a group with a colour experiment. The On Fire modifier has its

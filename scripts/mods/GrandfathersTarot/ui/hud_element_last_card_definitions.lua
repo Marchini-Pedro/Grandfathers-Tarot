@@ -127,8 +127,8 @@ rect(passes, "card_bg", z + 4)
 
 -- the suit's aura over the face and under everything on it (ui/aura.lua; HudElementGrandfathersTarotLast._tick_aura)
 for i = 1, Aura.COUNT do
-	circle(passes, "aura_c" .. i, z + 4.5)
-	rect(passes, "aura_r" .. i, z + 4.5)
+	circle(passes, "aura_c" .. i, z + 5) -- (a whole layer above the face: a circle at z + 4.5 is drawn on z + 4, under it)
+	rect(passes, "aura_r" .. i, z + 5)
 end
 circle(passes, "sigil_ring", z + 7)
 circle(passes, "sigil_disc", z + 8)
@@ -181,6 +181,7 @@ for i = 1, 3 do
 end
 
 definitions.scenegraph_definition = scenegraph_definition
+definitions.passes = passes -- (the editor's card face screen makes its preview of the last card window from them)
 definitions.widget_definitions = {
 	last = UIWidget.create_definition(passes, "panel"),
 }

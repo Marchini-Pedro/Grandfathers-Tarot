@@ -379,10 +379,11 @@ blueprints.tile = function (node_id, k, interactive)
 	}
 
 	-- the aura of the suit (ui/aura.lua: flames, bubbles, feathers, clouds...): a circle and a rect per particle, over the face and under
-	-- everything written on it (wave_editor_deck.lua _tick_living_tile places them every frame)
+	-- everything written on it (wave_editor_deck.lua _tick_living_tile places them every frame). On a whole layer above the face's: the
+	-- game draws a circle on the whole layer under its z (1.5 is layer 1), where the face's rect covered it (2026-10-05, in game)
 	for i = 1, Aura.COUNT do
-		circle_pass(passes, blueprints.TILE_IDS.aura_c[i], 1.5)
-		rect_pass(passes, blueprints.TILE_IDS.aura_r[i], 0, 0, 1, 1, 1.5)
+		circle_pass(passes, blueprints.TILE_IDS.aura_c[i], 2)
+		rect_pass(passes, blueprints.TILE_IDS.aura_r[i], 0, 0, 1, 1, 2)
 	end
 
 	-- "the vial fills": a liquid rising from the bottom of the card, with a bright top line and bubbles

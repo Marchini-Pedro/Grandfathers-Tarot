@@ -282,3 +282,15 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   charge scaling (logic), the skin effects (appearance). New floors: ui/aura.lua 82, ui/hud_element_dream.lua 79,
   ui/hud_element_dream_definitions.lua 82. Full runners pass every gate: Lua 5.5 82.13%, LuaJIT 2.1 79.18%
   (`--timeout-seconds 280`). Not tested in game yet.
+
+## 2026-10-05 - The effects seen, a clean help, the last card on the Face tab (polishing 2)
+
+- Fixed: the aura's circles were drawn under the card's face (a circle is drawn on the whole layer under its z); every aura shape is
+  on a whole layer above the face, Dream's sky's too.
+- Built: twenty shapes a card; Volley's bullets; a stronger Dream, Rage (fire bed, flickering glow) and Brute (dust, cracks, shock);
+  the "?" tooltip as a card of its own with headings and bullets (ui/help_text.lua), every help rewritten; the last card window
+  beside the hand card on the Face tab ("When it is drawn"), painted by the HUD's painter (ui/last_card_paint.lua).
+- Tests: hud (every aura pass on a whole layer above the face, Dream's sky's layers, twenty shapes, unused ones off, Rage, Brute and
+  Dream above fifteen live shapes, Dream's big clouds, Volley's bullet, Rage's flicker, Brute's flare, the shared painter), editor
+  (the tile's layers, the help markup, its height, every help titled and bulleted and fitting, the panel cut to its text and its
+  pinned footer, the last card preview: shown, placed, repainted, living, hidden on the Cauldron). Not tested in game yet.

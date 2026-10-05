@@ -57,6 +57,7 @@ end
 local stubs = {
   ["scripts/managers/ui/ui_widget"] = UIWidget,
   ["scripts/managers/ui/ui_font_settings"] = { header_1 = {}, header_5 = {} },
+  ["scripts/settings/ui/ui_workspace_settings"] = { screen = { size = { 1920, 1080 } } }, -- (the last card window's definitions: the Mirror previews it)
   ["scripts/ui/pass_templates/text_input_pass_templates"] = { simple_input_field = {
     { pass_type = "hotspot", content_id = "hotspot", style = {} }, { style_id = "limit_text", style = {} },
     { style_id = "focused", style = {} }, { style_id = "display_text", style = {} } } },
@@ -635,6 +636,13 @@ do
     end
   end
   check("aura: the Deck's tile shows its suit's effect, inside the tile and under its text", (aura_n > 0) == Aura.has(fx1.suit.id) and aura_in, fx1.suit.id .. " " .. aura_n)
+  -- (2026-10-05, in game: the circles of Plague, Murmur, Swarm, Snare, Prayer and Faith were not seen) a circle is drawn on the whole layer
+  -- under its z: the aura stands on a whole layer above the face's (1), never on 1.5
+  local tile_layers = true
+  for _, pass in ipairs(view._blueprints and view._blueprints.tile("t", 1, true).passes or dofile(BASE .. "/ui/wave_editor_blueprints.lua").tile("t", 1, true).passes) do
+    if (pass.style_id or ""):find("^aura_") and (pass.style.offset[3] ~= math.floor(pass.style.offset[3]) or pass.style.offset[3] <= 1) then tile_layers = false end
+  end
+  check("aura: on the Deck's tile every aura shape is on a whole layer above the face (a circle at 1.5 was drawn under the face)", tile_layers)
   settings.card_auras = false
   view:_tick_living_tile(tile(1), 2.6)
   local off_n = 0
@@ -1006,8 +1014,23 @@ do
   check("hand: Heresy gets its frame in the preview too (two units at 1.5 times = 3, blood red, all four sides); the other suits none", hand.style.hand_edge_t.visible and hand.style.hand_edge_b.visible and hand.style.hand_edge_l.visible and hand.style.hand_edge_r.visible and hand.style.hand_edge_t.size[2] == 3 and hand.style.hand_edge_l.size[1] == 3 and hand.style.hand_edge_t.color[2] == 0x8a and hand.style.hand_edge_r.offset[1] == hand.style.hand_bg.size[1] - 3 and hand.style.hand_edge_b.offset[2] == hand.style.hand_bg.size[2] - 3)
   click_plate("fateful")
   check("hand: ...and a suit that is not Heresy hides it again", not hand.style.hand_edge_t.visible and not hand.style.hand_edge_l.visible)
+
+  -- (2026-10-05, the user: "fit the last card interface for that card beside it") the last card window of the HUD, beside the hand card
+  local last = W.rw_last_card
+  local sgd = view._definitions.scenegraph_definition
+  local lnode, hnode = sgd.rw_last_card, sgd.rw_hand_card
+  local LastDefs = dofile(BASE .. "/ui/hud_element_last_card_definitions.lua")
+  check("last card preview: shown on the face screen with the card's name, its caption and 'just drawn' for its age, in the suit's colours", last.visible and last.content.name == "The Devil" and last.content.kicker == "HUD_LAST_CARD" and last.content.age == "face_last_sample" and last.style.card_bg.visible and last.style.card_bg.color[2] == Cards.SUITS.fateful.card[1] and last.style.card_accent.color[2] == Cards.SUITS.fateful.accent[1], tostring(last.content.kicker))
+  check("last card preview: beside the hand card, its card's top level with the hand card's, the two inside the right side (525 wide)", lnode.position[1] >= hnode.position[1] + hnode.size[1] + 8 and lnode.position[1] + lnode.size[1] <= WK.RIGHT_X + WK.RIGHT_W and near(lnode.position[2] + LastDefs.CARD_Y, hnode.position[2]) and lnode.size[1] == LastDefs.WIDTH)
+  check("last card preview: the caption is renamed: When it is drawn", dofile(MODROOT .. "/scripts/mods/GrandfathersTarot/GrandfathersTarot_localization.lua").hand_caption.en == "When it is drawn")
+  click_plate("rage")
+  view:update(0.3, 12.3, inp)
+  local lit_n = 0
+  for i = 1, LastDefs.Aura.COUNT do if last.style["aura_c" .. i].visible or last.style["aura_r" .. i].visible then lit_n = lit_n + 1 end end
+  check("last card preview: a new suit repaints it, and its aura lives as on the HUD (Rage's fire)", last.style.card_accent.color[2] == Cards.SUITS.rage.accent[1] and lit_n > 4, lit_n)
+  click_plate("fateful")
   click("btn_enemies")
-  check("hand: ...gone on the Cauldron", not hand.visible and not W.hand_caption.visible)
+  check("hand: ...gone on the Cauldron", not hand.visible and not W.hand_caption.visible and not W.rw_last_card.visible)
   click("btn_face")
 
   -- whisper
@@ -1861,6 +1884,38 @@ do
   check("help: the wave screen explains the fixed timer, distances and sharing", W2.help_text.content.help_text == "help_detail")
   W2.btn_help.content.hotspot.is_hover = false; view:update(0.01, 0, input_stub3); click("btn_back")
   check("names: the Deck's top button is called Deck presets (it holds the whole deck), 'Spreads' is only the HUD's hand", (function() local loc = dofile(MODROOT .. "/scripts/mods/GrandfathersTarot/GrandfathersTarot_localization.lua"); local bad = {}; for k, v in pairs(loc) do local en = type(v) == "table" and v.en; if type(en) == "string" and en:find("Spreads", 1, true) then bad[#bad + 1] = k end end; return loc.btn_presets.en == "Deck presets" and #bad == 0, table.concat(bad, ",") end)())
+  -- (2026-10-05, the user: "a more clean ? hover description; there is no formatting") the help is a card of its own: a title, headings,
+  -- bullets and lit words in the game's markup, the panel cut to the text
+  do
+    local Help = dofile(BASE .. "/ui/help_text.lua")
+    local accent = { 200, 100, 50 }
+    local title, body, h = Help.format("# The Deck\nIntro line.\n## Cards\n- *Click* a card.\n- Two.\nAfter.", 704, accent)
+    check("help format: the title comes apart, a heading is upper case in the accent, a bullet is the accent's dot, a lit word is lit", title == "The Deck" and body:find("{#size(15)}{#color(200,100,50)}CARDS{#reset()}", 1, true) ~= nil and body:find("{#color(200,100,50)}" .. Help.BULLET .. "{#reset()}  {#color(255,246,222)}Click{#reset()} a card.", 1, true) ~= nil and not body:find("# The Deck", 1, true), body)
+    check("help format: the parts are lines; a paragraph after the bullets gets a little air", select(2, body:gsub("\n", "")) == 6 and body:find("Two.\n{#size(8)} {#reset()}\nAfter.", 1, true) ~= nil, body)
+    check("help format: the height counts every part (a heading, three lines, a gap and a paragraph)", h == Help.LINE * 4 + Help.HEAD + Help.GAP, tostring(h))
+    local plain_t, plain_b = Help.format("Just a sentence.", 704, accent)
+    check("help format: a text without markup comes back as it is, without a title", plain_t == nil and plain_b == "Just a sentence.")
+    local _, _, short = Help.format("- a b c", 704, accent)
+    local _, _, long = Help.format("- " .. string.rep("word ", 60), 704, accent)
+    check("help format: a long bullet takes more lines (the words wrap)", long >= 3 * short and Help.wrapped(string.rep("abcd ", 30), 20) == 8)
+    local loc = dofile(MODROOT .. "/scripts/mods/GrandfathersTarot/GrandfathersTarot_localization.lua")
+    local all_ok, tall = true, 0
+    for _, k in ipairs({ "hint_list", "hint_mods", "hint_presets", "hint_settings", "help_detail", "help_picker", "help_preset_view", "help_face", "help_tune", "help_appearance" }) do
+      local t, b, hh = Help.format(loc[k].en, Help.WIDTH - 2 * Help.PAD, accent)
+      tall = math.max(tall, Help.panel_height(hh))
+      if not t or not b:find(Help.BULLET, 1, true) or b:find("*", 1, true) or b:find("## ", 1, true) then all_ok = false end
+    end
+    check("help texts: every screen's help has a title and bullets, no markup left over, and the tallest fits under the corner buttons", all_ok and tall <= 1080 - 90 - 20, tall)
+    -- the panel follows its text: a short help makes a short panel, the frame's bottom and the footer under the text
+    W2.btn_help.content.hotspot.is_hover = true; view:update(0.01, 0, input_stub3)
+    local ps = W2.help_panel.style
+    local H = ps.bg.size[2]
+    check("help panel: an opaque card in the page's colours, as high as its text, its frame, strip and shadow along it, footer at the bottom", ps.bg.color[1] == 255 and H == Help.panel_height(select(3, Help.format("hint_list", Help.WIDTH - 2 * Help.PAD, accent))) and ps.strip.size[2] == H and ps.frame_l.size[2] == H and ps.shadow.size[2] == H and ps.frame_b.offset[2] == H - 1 and ps.footer.offset[2] > H - Help.FOOT and W2.help_panel.content.title == "help_title" and W2.help_panel.content.badge_mark == "?" and W2.help_panel.content.footer == "help_footer", tostring(H))
+    W2.btn_help.content.hotspot.is_hover = false; view:update(0.01, 0, input_stub3)
+    click("btn_help"); view:update(0.01, 0, input_stub3)
+    check("help panel: pinned, the footer says how to close it", W2.help_panel.visible and W2.help_panel.content.footer == "help_footer_pinned")
+    click("btn_help"); view:update(0.01, 0, input_stub3)
+  end
   check("help: texts exist in the localization for every screen", (function() local ok = true; for _, k in ipairs({ "hint_list", "hint_mods", "hint_presets", "hint_settings", "help_detail", "help_picker", "help_preset_view" }) do if not dofile(MODROOT .. "/scripts/mods/GrandfathersTarot/GrandfathersTarot_localization.lua")[k] then ok = false end end return ok end)())
   settings["pct_wave_small"] = 5
 

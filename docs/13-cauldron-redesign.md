@@ -243,6 +243,17 @@ Old peers: they read a divided unit's bar as one bar of the right share (no "xN"
 
 Old peers: a Dream card synced to a peer without it is shown as Plague there (an unknown suit); its effects are the same.
 
+## Polishing 2: the effects seen, a clean help, the last card on the Face tab (2026-10-05)
+
+| Request | What was built |
+| --- | --- |
+| Plague, Murmur, Swarm, Snare, Prayer and Faith show no effect (and Dream only "two squares") | Those effects are made of circles. The game draws a circle on the whole layer under its z (`Gui.triangle` takes a whole layer), so the aura's circles at z 1.5 on the Deck's tile (z + 4.5 on the HUD) were drawn on the face's own layer and the face covered them; the rects of the other suits were not. Every aura shape is now on a whole layer above the face (2 on the tile, z + 5 on the HUD and the last card); Dream's sky's clouds and their hearts too. Tests check every aura pass's layer. |
+| Volley more like bullets | Five bullets at a time: a brass slug (longer than high) with a white-hot nose, a fading tracer behind it, and a spark where it strikes the far edge. |
+| Dream more intense | Big soft clouds in every colour along the foot and the head (eight, a quarter of the card wide and more), a bright heart in four of them, motes of light rising, two rainbow stars flashing open. |
+| Brute and Rage more intense | Twenty shapes a card (was twelve). Rage: fourteen flames reaching higher, a breathing bed of fire along the foot, embers to the top, and its glow flickers. Brute: a blow every 1.8 s, twelve chunks flying higher, four puffs of dust, a shock along the floor, two cracks opening, a harder flare. |
+| A cleaner "?" description, with formatting (picture 1: a wall of text) | The tooltip is a card of its own: opaque, in the page's colours, with a shadow, the accent's strip and frame, a "?" badge and a title, a divider, the body and a footer ("Click the ? to keep this open"). Its height follows the text. The help strings are written in a small markup (`ui/help_text.lua`: `# ` a title, `## ` a heading, `- ` a bullet, `*lit*` words) turned into the game's `{#color}` / `{#size}` markup; every screen's help was rewritten as short sections and bullets. |
+| On the Face tab, the last card window beside the hand card; rename the caption | The caption is **When it is drawn**. Beside the hand card stands the last card window as the HUD draws it, at its HUD size (240 wide, the two fill the 525 of the right side), its card's top level with the hand card's, "just drawn" where the HUD says how long ago; its aura and Nightmare's fog live as on the HUD. The HUD's painter moved to `ui/last_card_paint.lua`, used by both. |
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -297,3 +308,6 @@ Old peers: a Dream card synced to a peer without it is shown as Plague there (an
     nothing outside a card, the frame rate with a full Deck page); Rage's flames, Plague's bubbles, the Warp motes on the Deck;
     a Dream card drawn (the sky, its rainbow frame; host and client); holding a cooldown's - and +; the long random group's row;
     the colour-experiment diamond; a right click swap keeping Enraged and the custom mods; the Twins name; the chips' outlines.
+19. Polishing 2: Plague, Murmur, Swarm, Snare, Prayer, Faith and Dream's clouds now seen on the Deck, the Spread and the last card;
+    Volley's bullets; Rage's fire bed and flicker; Brute's blow; the "?" panel on every screen (fits the text, readable markup,
+    pinned footer); the Face tab's last card beside the hand card (no overlap, its aura living).

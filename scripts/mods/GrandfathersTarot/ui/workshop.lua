@@ -228,6 +228,7 @@ Workshop.HAND = { x = Workshop.RIGHT_X, caption_y = Workshop.TOOLBAR_Y + 44 + 28
 Workshop.HAND.y = Workshop.HAND.caption_y + 32
 Workshop.HAND.w = Workshop.HAND.hud_w * Workshop.HAND.scale
 Workshop.HAND.max_h = 150 -- (a name of three lines)
+Workshop.HAND.last_gap = 16 -- the last card window's preview beside it (240 wide: the two fill the 525 of the right side)
 
 Workshop.plate_pos = function (index)
 	local M = Workshop.MIRROR.plate

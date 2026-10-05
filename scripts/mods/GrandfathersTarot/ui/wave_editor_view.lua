@@ -24,6 +24,7 @@ local ColourView = mod:io_dofile(BASE .. "/ui/wave_editor_appearance")
 local WorkshopView = mod:io_dofile(BASE .. "/ui/wave_editor_workshop")
 local WB = mod:io_dofile(BASE .. "/ui/workshop_blueprints")
 local Workshop = mod:io_dofile(BASE .. "/ui/workshop")
+local Help = mod:io_dofile(BASE .. "/ui/help_text")
 
 local Popup = Components.Popup
 local Deck = blueprints.Deck
@@ -364,7 +365,10 @@ GrandfathersTarotView.update = function (self, dt, t, input_service)
 	if help and widgets.help_panel then
 		local show = self._popup == nil and help.visible == true and (help.content.hotspot.is_hover == true or self._help_pinned == true)
 
-		if widgets.help_panel.visible ~= show then
+		if widgets.help_panel.visible ~= show or show and self._help_shown_pinned ~= self._help_pinned then
+			-- (laid out again as it opens: the page's accent may have changed with the card's suit, the footer with the pin)
+			if show then self:_layout_help() end
+
 			widgets.help_panel.visible = show
 			widgets.help_text.visible = show
 		end
@@ -1088,8 +1092,8 @@ GrandfathersTarotView._apply_screen = function (self, keep_offset)
 	local help_keys = { list = "hint_list", mods = "hint_mods", presets = "hint_presets", settings = "hint_settings", detail = "help_detail", picker = "help_picker", preset_view = "help_preset_view", face = "help_face", tune = "help_tune" }
 
 	widgets.hint_text.visible = false
-	widgets.help_text.content.help_text = mod:localize(help_keys[screen] or "hint_list")
-	if screen == "appearance" then widgets.help_text.content.help_text = mod:localize("help_appearance") end
+	self._help_key = screen == "appearance" and "help_appearance" or help_keys[screen] or "hint_list"
+	self:_layout_help()
 	widgets.btn_help.visible = true
 	widgets.btn_help.content.hotspot_text = "?"
 
@@ -2701,6 +2705,33 @@ GrandfathersTarotView.cb_wave_import = guarded(function (self)
 		end,
 	})
 end)
+
+-- The "?" tooltip of the screen (ui/help_text.lua): its title, the body in the game's text markup, and the panel cut to the text's
+-- height (the shadow, the panel, the strip and the side frames as high as it, the bottom frame and the footer moved under it).
+GrandfathersTarotView._layout_help = function (self)
+	local widgets = self._widgets_by_name
+	local panel, body = widgets.help_panel, widgets.help_text
+
+	if not panel or not body then return end
+
+	local title, text, height = Help.format(mod:localize(self._help_key or "hint_list"), Help.WIDTH - 2 * Help.PAD, Components.accent)
+	local style = panel.style
+	local H = Help.panel_height(height)
+
+	body.content.help_text = text
+	body.style.help_text.size[2] = height + 12
+	panel.content.title = title or mod:localize("help_title")
+	panel.content.badge_mark = "?"
+	panel.content.footer = mod:localize(self._help_pinned and "help_footer_pinned" or "help_footer")
+	self._help_shown_pinned = self._help_pinned
+
+	for _, id in ipairs({ "shadow", "bg", "strip", "frame_l", "frame_r" }) do
+		style[id].size[2] = H
+	end
+
+	style.frame_b.offset[2] = H - 1
+	style.footer.offset[2] = H - Help.FOOT + 6
+end
 
 -- help tooltip ("?" corner button): hover shows it, a click pins it open (for a pointer that cannot hover)
 GrandfathersTarotView.cb_help = function (self)

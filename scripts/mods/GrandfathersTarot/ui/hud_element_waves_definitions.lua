@@ -151,8 +151,8 @@ local function card_passes()
 
 	-- the suit's aura over the face and under everything on it (ui/aura.lua; HudElementGrandfathersTarotPanel._tick_living)
 	for i = 1, Aura.COUNT do
-		circle(passes, "aura_c" .. i, z + 4.5)
-		rect(passes, "aura_r" .. i, z + 4.5)
+		circle(passes, "aura_c" .. i, z + 5) -- (a whole layer above the face: a circle at z + 4.5 is drawn on z + 4, under it)
+		rect(passes, "aura_r" .. i, z + 5)
 	end
 
 	rect(passes, "accent", z + 5)

@@ -400,7 +400,7 @@ for _, def in pairs(Definitions.widget_definitions) do for _, st in pairs(def.st
 check("definitions: only fonts that exist in the game", fonts_ok)
 local passes = 0
 for name, def in pairs(Definitions.widget_definitions) do if name:find("^card_") then passes = #def.passes end end
-check("definitions: a card has about 100 passes (all hidden but the ones it uses; 24 of them the aura of its suit since 2026-10-05)", passes >= 90 and passes <= 110, passes)
+check("definitions: a card has about 120 passes (all hidden but the ones it uses; 40 of them the aura of its suit since 2026-10-05)", passes >= 105 and passes <= 130, passes)
 
 -- =====================================================================================================================
 -- the element: a whole hand, step by step
@@ -1106,7 +1106,7 @@ do
   local warm, low = true, true
   for step = 0, 40 do
     Aura.update(out, "rage", step * 0.21, 228, 270, 1)
-    for i = 1, 9 do if out[i].on then if out[i].rgb[1] <= out[i].rgb[3] then warm = false end if out[i].y < 270 * 0.55 then low = false end end end
+    for i = 1, 14 do if out[i].on then if out[i].rgb[1] <= out[i].rgb[3] then warm = false end if out[i].y < 270 * 0.5 then low = false end end end
   end
   check("aura: Rage's flames are warm (more red than blue) and lick up from the lower half of the card", warm and low)
   local green = true
@@ -1114,6 +1114,69 @@ do
   for i = 1, 8 do if out[i].on and not (out[i].rgb[2] > out[i].rgb[3]) then green = false end end
   check("aura: Plague's bubbles are bile green and its flies buzz", green and out[9].on and out[9].w < 4)
   check("aura: Heresy, Nightmare and an unknown suit draw nothing", Aura.update(out, "heresy", 1, 228, 270, 1) == false and not out[1].on and Aura.update(out, "nightmare", 1, 228, 270, 1) == false and Aura.update(out, "nope", 1, 228, 270, 1) == false)
+  -- (2026-10-05, in game: "Plague, Murmur, Swarm, Snare, Prayer and Faith show nothing") the game draws a circle on the whole layer
+  -- under its z: at 1.5 (and z + 4.5) it shared the face's layer and the face covered it. Every aura pass now stands on a whole layer
+  -- above the face's.
+  local function layers_ok(def, face_id)
+    local face, ok, n = def.style[face_id].offset[3], true, 0
+    for id, st in pairs(def.style) do
+      if id:find("^aura_") then
+        n = n + 1
+        local z = st.offset[3]
+        if z ~= math.floor(z) or math.floor(z) <= math.floor(face) then ok = false end
+      end
+    end
+    return ok and n == 2 * Aura.COUNT, n
+  end
+  local LastDefs = dofile(BASE .. "/ui/hud_element_last_card_definitions.lua")
+  local WavesDefs = dofile(BASE .. "/ui/hud_element_waves_definitions.lua")
+  check("aura layers: on the Spread's cards and the last card every aura shape is on a whole layer above the face (the Deck's tile: editor_test)", layers_ok(LastDefs.widget_definitions.last, "card_bg") and layers_ok(WavesDefs.widget_definitions.card_1, "bg"))
+  local DreamDefsL = dofile(BASE .. "/ui/hud_element_dream_definitions.lua")
+  local whole = true
+  for id, st in pairs(DreamDefsL.widget_definitions.dream.style) do if (id:find("^cloud") or id:find("^bloom")) and st.offset[3] ~= math.floor(st.offset[3]) then whole = false end end
+  check("aura layers: Dream's sky draws its clouds and their hearts on whole layers too", whole)
+
+  -- twenty shapes a card (2026-10-05, the user: "more intense"); a suit leaves the ones it does not use off
+  check("aura: twenty shapes a card", Aura.COUNT == 20)
+  Aura.update(out, "rage", 2, 228, 270, 1)
+  Aura.update(out, "murmur", 2, 228, 270, 1)
+  local left_on = false
+  for i = 11, Aura.COUNT do if out[i].on then left_on = true end end
+  check("aura: a suit with fewer shapes leaves the rest off (Murmur after Rage)", not left_on)
+  local most = { rage = 0, brute = 0, dream = 0 }
+  for suit in pairs(most) do
+    for step = 0, 60 do
+      Aura.update(out, suit, step * 0.093, 228, 270, 1)
+      local n = 0
+      for i = 1, Aura.COUNT do if out[i].on then n = n + 1 end end
+      most[suit] = math.max(most[suit], n)
+    end
+  end
+  check("aura: Rage, Brute and Dream are intense: at their height more than fifteen shapes live on the card", most.rage > 15 and most.brute > 15 and most.dream > 15, most.rage .. " " .. most.brute .. " " .. most.dream)
+  Aura.update(out, "dream", 3, 228, 270, 1)
+  local big = 0
+  for i = 1, 8 do if out[i].on and out[i].round and out[i].w >= 228 * 0.25 then big = big + 1 end end
+  check("aura: Dream's clouds are big soft puffs (circles a quarter of the card wide and more)", big >= 6, big)
+  -- Volley: bullets, a brass slug with a white-hot nose ahead of its tracer
+  local bullet = false
+  for step = 0, 80 do
+    Aura.update(out, "volley", step * 0.051, 228, 270, 1)
+    for i = 1, 5 do
+      local trail, slug, nose = out[i], out[5 + i], out[10 + i]
+      if slug.on and nose.on and slug.rgb[1] > slug.rgb[3] and nose.x > slug.x and slug.w > slug.h * 2 and (not trail.on or trail.x + trail.w <= slug.x + 0.01) then bullet = true end
+    end
+  end
+  check("aura: Volley fires bullets: a brass slug longer than high, its white-hot nose ahead, the tracer behind", bullet)
+  local rgb_r = { 0, 0, 0 }
+  local r1 = Aura.glow("rage", 0.1, rgb_r)
+  local r2 = Aura.glow("rage", 0.37, rgb_r)
+  check("aura: Rage's glow flickers like a fire", r1 ~= nil and r2 ~= nil and r1 ~= r2 and rgb_r[1] > rgb_r[3])
+  local b_flash, b_rest = Aura.glow("brute", 0.01, rgb_r), Aura.glow("brute", Aura.BRUTE_PERIOD * 0.6, rgb_r)
+  check("aura: Brute's glow flares hard with the blow", b_flash > 0.95 and b_rest < 0.4)
+  -- the HUD's last card and the editor's preview of it are painted by one painter
+  local Paint = dofile(BASE .. "/ui/last_card_paint.lua")
+  check("last card painter: shared, the same functions as the HUD element's", type(Paint.setup) == "function" and type(Paint.tick_aura) == "function" and type(Paint.new) == "function" and Paint.chosen_font() == "itc_novarese_bold")
+
   local rgb = { 0, 0, 0 }
   local g1 = Aura.glow("dream", 0, rgb)
   local c1 = rgb[1] .. "," .. rgb[2] .. "," .. rgb[3]

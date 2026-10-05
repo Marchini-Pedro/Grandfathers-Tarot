@@ -12,7 +12,7 @@ local Aura = {}
 
 local floor, sin, cos, abs, max, min, pi = math.floor, math.sin, math.cos, math.abs, math.max, math.min, math.pi
 
-Aura.COUNT = 12
+Aura.COUNT = 20
 
 Aura.new = function ()
 	local out = {}
@@ -118,31 +118,41 @@ end
 -- ------------------------------------------------------------------------------------------------- the suits
 local EFFECTS = {}
 
--- RAGE: flames lick up from the bottom edge (yellow at their root, orange, then a deep red as they die) and embers rise above them
+-- RAGE: a bed of fire along the foot of the card, flames licking up from it (yellow at their root, orange, then a deep red as they
+-- die, each one flickering) and embers rising above them to the top
 EFFECTS.rage = function (out, t, W, H, s)
-	for i = 1, 9 do
-		local u = life(t, i, 0.75 + 0.5 * hash(i, 1))
-		local d = s * (13 * (1 - u) + 3)
-		local x = W * (0.03 + 0.94 * (i - 0.5) / 9) - d / 2 + sin(t * 4 + i * 1.7) * 3 * s
-		local y = H - d - H * 0.32 * u
+	for i = 1, 14 do
+		local u = life(t, i, 0.55 + 0.45 * hash(i, 1))
+		local flicker = 0.85 + 0.15 * sin(t * 23 + i * 5)
+		local d = s * (20 * (1 - u) + 5) * flicker
+		local x = W * (0.02 + 0.96 * (i - 0.5) / 14) - d / 2 + sin(t * 5 + i * 1.7) * 4 * s
+		local y = H - d - H * 0.4 * u
 		local p = out[i]
 
-		if u < 0.35 then
-			lerp_into(p.rgb, FIRE_HOT, FIRE_MID, u / 0.35)
+		if u < 0.3 then
+			lerp_into(p.rgb, FIRE_HOT, FIRE_MID, u / 0.3)
 		else
-			lerp_into(p.rgb, FIRE_MID, FIRE_LOW, (u - 0.35) / 0.65)
+			lerp_into(p.rgb, FIRE_MID, FIRE_LOW, (u - 0.3) / 0.7)
 		end
 
-		put(p, true, x, y, d, d, 185 * min(1, u / 0.12) * (1 - u), W, H)
+		put(p, true, x, y, d, d, 235 * min(1, u / 0.1) * (1 - u * u), W, H)
 	end
 
-	for i = 10, 12 do
-		local u = life(t, i, 1.4 + 0.6 * hash(i, 1))
-		local x = W * hash(i + floor(t / 2), 3) + sin(t * 2 + i) * 6 * s
+	-- the bed of fire: a glowing band at the foot, breathing
+	local breath = 0.75 + 0.25 * sin(t * 7) * sin(t * 2.3)
+
+	rgb_into(out[15].rgb, FIRE_MID[1], FIRE_MID[2], FIRE_MID[3])
+	put(out[15], false, 0, H - 10 * s, W, 10 * s, 150 * breath, W, H)
+	rgb_into(out[16].rgb, FIRE_HOT[1], FIRE_HOT[2], FIRE_HOT[3])
+	put(out[16], false, 0, H - 4 * s, W, 4 * s, 200 * breath, W, H)
+
+	for i = 17, 20 do
+		local u = life(t, i, 1.1 + 0.6 * hash(i, 1))
+		local x = W * hash(i + floor(t / 1.7 + hash(i, 2)) * 5, 3) + sin(t * 3 + i) * 8 * s
 		local p = out[i]
 
-		rgb_into(p.rgb, 255, 196, 96)
-		put(p, false, x, H * (1 - u) - 2 * s, 2.2 * s, 2.2 * s, 235 * (1 - u) * (0.6 + 0.4 * sin(t * 21 + i)), W, H)
+		rgb_into(p.rgb, 255, 200, 100)
+		put(p, false, x, (H - 8 * s) * (1 - u), 2.6 * s, 2.6 * s, 250 * (1 - u) * (0.6 + 0.4 * sin(t * 21 + i)), W, H)
 	end
 end
 
@@ -268,34 +278,36 @@ EFFECTS.fateful = function (out, t, W, H, s)
 	end
 end
 
--- VOLLEY: tracers streak across the card, a bright head on the first four
+-- VOLLEY: bullets fly across the card, five at a time: a brass slug with a white-hot nose and a fading tracer behind it, and a spark
+-- where it strikes the far edge
 EFFECTS.volley = function (out, t, W, H, s)
-	for i = 1, 8 do
-		local period = 0.7 + 0.7 * hash(i, 1)
+	local flight = 0.22
+
+	for i = 1, 5 do
+		local period = 0.9 + 0.7 * hash(i, 1)
 		local cycle = t / period + hash(i, 2)
 		local u = cycle % 1
-		local p = out[i]
-		local length = (16 + 16 * hash(i, 4)) * s
-		local y = H * (0.08 + 0.84 * hash(i * 7 + floor(cycle), 3))
+		local y = H * (0.1 + 0.8 * hash(i * 7 + floor(cycle), 3))
+		local trail, slug, nose, spark = out[i], out[5 + i], out[10 + i], out[15 + i]
+		local slug_w, slug_h = 8 * s, 2.8 * s
 
-		if u < 0.4 then
-			local x = (W - length) * (u / 0.4)
+		if u < flight then
+			local k = u / flight
+			local x = (W - slug_w) * k
+			local length = min(x, (26 + 18 * hash(i, 4)) * s)
 
-			rgb_into(p.rgb, TRACER[1], TRACER[2], TRACER[3])
-			put(p, false, x, y, length, 1.4 * s, 175 * (1 - u / 0.4 * 0.5), W, H)
+			rgb_into(trail.rgb, TRACER[1], TRACER[2], TRACER[3])
+			put(trail, false, x - length, y + slug_h / 2 - 0.6 * s, length, 1.2 * s, 150, W, H)
+			rgb_into(slug.rgb, BRASS[1], BRASS[2], BRASS[3])
+			put(slug, false, x, y, slug_w, slug_h, 250, W, H)
+			rgb_into(nose.rgb, TRACER_HOT[1], TRACER_HOT[2], TRACER_HOT[3])
+			put(nose, true, x + slug_w - 1.6 * s, y - 0.2 * s, 3.2 * s, slug_h + 0.4 * s, 255, W, H)
+		elseif u < flight + 0.12 then
+			local k = (u - flight) / 0.12
+			local d = (4 + 10 * k) * s
 
-			if i <= 4 then
-				local head = out[8 + i]
-
-				rgb_into(head.rgb, TRACER_HOT[1], TRACER_HOT[2], TRACER_HOT[3])
-				put(head, false, x + length - 2.6 * s, y - 0.6 * s, 2.6 * s, 2.6 * s, 235, W, H)
-			end
-		else
-			p.on = false
-
-			if i <= 4 then
-				out[8 + i].on = false
-			end
+			rgb_into(spark.rgb, 255, 226, 160)
+			put(spark, true, W - d, y + slug_h / 2 - d / 2, d, d, 230 * (1 - k), W, H)
 		end
 	end
 end
@@ -329,35 +341,57 @@ EFFECTS.snare = function (out, t, W, H, s)
 	end
 end
 
--- BRUTE: every 2.2 s a blow lands at the bottom of the card: a shock runs along the floor and chunks of brick fly up and fall back
-Aura.BRUTE_PERIOD = 2.2
+-- BRUTE: every 1.8 s a blow lands at the foot of the card: the floor cracks, a shock runs along it, dust bursts up and chunks of brick
+-- fly high and fall back
+Aura.BRUTE_PERIOD = 1.8
 
 EFFECTS.brute = function (out, t, W, H, s)
 	local tau = t % Aura.BRUTE_PERIOD
 	local blow = tau / Aura.BRUTE_PERIOD
 
-	for i = 1, 10 do
+	for i = 1, 12 do
 		local p = out[i]
 		local side = i % 2 == 0 and 1 or -1
-		local vx = side * (18 + 40 * hash(i, 1)) * s
-		local vy = (55 + 50 * hash(i, 2)) * s
-		local g = 120 * s
+		local vx = side * (25 + 70 * hash(i, 1)) * s
+		local vy = (90 + 90 * hash(i, 2)) * s
+		local g = 170 * s
 		local x = W / 2 + vx * tau
 		local y = H - 4 * s - (vy * tau - g * tau * tau)
-		local size = (2.5 + 2.5 * hash(i, 3)) * s
-		local alpha = blow < 0.55 and 220 * (1 - blow / 0.55) or 0
+		local size = (3 + 4.5 * hash(i, 3)) * s
+		local alpha = blow < 0.7 and 250 * (1 - (blow / 0.7) ^ 2) or 0
 		local rock = i % 3 == 0 and DUST or i % 3 == 1 and BRICK or BRICK_DARK
 
 		rgb_into(p.rgb, rock[1], rock[2], rock[3])
 		put(p, false, x - size / 2, y - size, size, size, y > H and 0 or alpha, W, H)
 	end
 
-	for i = 11, 12 do
-		local spread = W * min(1, blow * 4)
+	-- the dust: four puffs swell from the point of the blow and thin away
+	for i = 13, 16 do
+		local k = min(1, blow * 3)
+		local d = (8 + 46 * k) * s * (0.7 + 0.5 * hash(i, 1))
+		local cx = W / 2 + (i - 14.5) * 16 * s * (0.4 + k)
 		local p = out[i]
 
 		rgb_into(p.rgb, DUST[1], DUST[2], DUST[3])
-		put(p, false, (W - spread) / 2, H - (i == 11 and 3 or 6) * s, spread, (i == 11 and 2 or 1) * s, 210 * max(0, 1 - blow * 4), W, H)
+		put(p, true, cx - d / 2, H - d * 0.75, d, d, 120 * (1 - k), W, H)
+	end
+
+	-- the shock along the floor, and the two cracks the blow opens in it (they close as it fades)
+	for i = 17, 18 do
+		local spread = W * min(1, blow * 5)
+		local p = out[i]
+
+		rgb_into(p.rgb, BRICK_FLASH[1], BRICK_FLASH[2], BRICK_FLASH[3])
+		put(p, false, (W - spread) / 2, H - (i == 17 and 3 or 7) * s, spread, (i == 17 and 3 or 1.5) * s, 240 * max(0, 1 - blow * 3), W, H)
+	end
+
+	for i = 19, 20 do
+		local k = min(1, blow * 8)
+		local length = H * (0.18 + 0.1 * hash(i, 1)) * k
+		local p = out[i]
+
+		rgb_into(p.rgb, 40, 18, 14)
+		put(p, false, W / 2 + (i == 19 and -9 or 7) * s, H - length, 2 * s, length, 220 * max(0, 1 - blow * 1.6), W, H)
 	end
 end
 
@@ -467,30 +501,50 @@ EFFECTS.faith = function (out, t, W, H, s)
 	out[12].on = false
 end
 
--- DREAM: soft clouds in every colour drift along the foot and the head of the card, rainbow stars twinkle between them
+-- DREAM: big soft clouds in every colour roll along the foot and the head of the card, a bright heart in each, motes of light rise
+-- through the middle and rainbow stars flash open between them
 EFFECTS.dream = function (out, t, W, H, s)
-	local puff = min(W, H) * 0.3
+	local puff = min(W, H) * 0.42
 
-	for i = 1, 6 do
-		local top = i > 4
-		local d = puff * (0.75 + 0.5 * hash(i, 1)) * (top and 0.7 or 1)
-		local drift = (hash(i, 2) + t * 0.025 * (i % 2 == 0 and 1 or -1)) % 1
+	for i = 1, 8 do
+		local top = i > 5
+		local d = puff * (0.7 + 0.5 * hash(i, 1)) * (top and 0.75 or 1)
+		local drift = (hash(i, 2) + t * 0.03 * (i % 2 == 0 and 1 or -1)) % 1
 		local x = drift * (W - d)
-		local y = (top and 0 or H - d * 0.8) + sin(t * 0.6 + i) * 3 * s
+		local y = (top and -d * 0.15 or H - d * 0.75) + sin(t * 0.6 + i) * 4 * s
 		local p = out[i]
 
-		hsv_into(p.rgb, t * 0.05 + i * 0.16, 0.28, 1)
-		put(p, true, x, y, d, d, 60 + 16 * sin(t * 0.7 + i * 1.7), W, H)
+		hsv_into(p.rgb, t * 0.05 + i * 0.13, 0.3, 1)
+		put(p, true, x, y, d, d, 120 + 30 * sin(t * 0.7 + i * 1.7), W, H)
+
+		-- the bright heart of the first four clouds
+		if i <= 4 then
+			local heart = out[8 + i]
+			local hd = d * 0.5
+
+			rgb_into(heart.rgb, 255, 250, 255)
+			put(heart, true, x + d * 0.25, y + d * 0.2, hd, hd, 110 + 30 * sin(t * 0.9 + i), W, H)
+		end
 	end
 
-	for i = 7, 12 do
-		local twinkle = max(0, sin(t * 1.7 + i * 2.2))
-		local cx, cy = W * (0.1 + 0.8 * hash(i, 3)), H * (0.2 + 0.6 * hash(i, 4))
+	for i = 13, 16 do
+		local u = life(t, i, 2.6 + hash(i, 1))
+		local d = (2.5 + 2 * hash(i, 4)) * s
 		local p = out[i]
-		local d = (1.8 + 3.2 * twinkle) * s
 
-		hsv_into(p.rgb, t * 0.12 + i * 0.13, 0.55, 1)
-		put(p, i % 2 == 0, cx - d / 2, cy - d / 2, d, d, 235 * twinkle, W, H)
+		hsv_into(p.rgb, t * 0.1 + i * 0.21, 0.45, 1)
+		put(p, true, W * (0.12 + 0.76 * hash(i, 3)) + sin(t * 1.4 + i) * 6 * s - d / 2, H * (0.85 - 0.7 * u), d, d, 230 * bell(u), W, H)
+	end
+
+	for i = 1, 2 do
+		local cycle = t / 1.6 + hash(i, 5)
+		local n = floor(cycle)
+		local shine = bell(cycle % 1)
+		local cx, cy = W * (0.15 + 0.7 * hash(n * 11 + i, 6)), H * (0.25 + 0.5 * hash(n * 5 + i, 7))
+		local rgb = out[15 + i * 2].rgb
+
+		hsv_into(rgb, t * 0.15 + i * 0.5, 0.5, 1)
+		sparkle(out, 16 + i * 2 - 1, 16 + i * 2, cx, cy, (3 + 12 * shine) * s, 1.8 * s, 250 * shine, rgb, W, H)
 	end
 end
 
@@ -510,6 +564,11 @@ Aura.update = function (out, suit, t, W, H, s)
 		return false
 	end
 
+	-- (a suit leaves the particles it does not use off)
+	for i = 1, Aura.COUNT do
+		out[i].on = false
+	end
+
 	effect(out, tonumber(t) or 0, W, H, s or 1)
 
 	return true
@@ -526,11 +585,18 @@ Aura.glow = function (suit, t, rgb)
 		return 0.55 + 0.25 * sin(t * 1.3)
 	elseif suit == "brute" then
 		local blow = (t % Aura.BRUTE_PERIOD) / Aura.BRUTE_PERIOD
-		local flash = max(0, 1 - blow * 5)
+		local flash = max(0, 1 - blow * 4)
 
 		lerp_into(rgb, BRICK_DARK, BRICK_FLASH, flash)
 
-		return 0.3 + 0.7 * flash
+		return 0.35 + 0.65 * flash
+	elseif suit == "rage" then
+		-- the fire's glow flickers, never quite still
+		local flicker = 0.5 + 0.25 * sin(t * 13) + 0.25 * sin(t * 7.7 + 1.3)
+
+		lerp_into(rgb, FIRE_LOW, FIRE_MID, flicker)
+
+		return 0.45 + 0.4 * flicker
 	end
 
 	return nil

@@ -25,6 +25,8 @@
     "ui/hud_element_dream.lua": 79,
     "ui/hud_element_dream_definitions.lua": 82,
     "ui/aura.lua": 82,
+    "ui/help_text.lua": 79,
+    "ui/last_card_paint.lua": 86,
     "ui/hud_element_last_card_definitions.lua": 77,
     "ui/spread.lua": 82,
     "ui/wave_editor_blueprints.lua": 77,
