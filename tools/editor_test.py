@@ -121,6 +121,7 @@ mod.get = function(self, id) return settings[id] end
 mod.set = function(self, id, v) settings[id] = v end
 mod.echo = function(self, fmt, ...) echoes[#echoes+1] = string.format(fmt, ...) end
 mod.error = function(self, fmt, ...) echoes[#echoes+1] = "ERROR " .. string.format(fmt, ...) end
+mod.warning = function(self, fmt, ...) echoes[#echoes+1] = "WARN " .. string.format(fmt, ...) end
 mod.localize = function(self, id, ...) local a = { ... } for i = 1, #a do a[i] = tostring(a[i]) end return id .. (#a > 0 and (":" .. table.concat(a, ",")) or "") end
 mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^RealmsWaves/", "") .. ".lua") end
 get_mod = function(name) return mod end
@@ -2911,6 +2912,57 @@ do
   check("a popup is open and keybinds are suppressed", mod.rw.text_input_active == true)
   view:on_exit()
   check("closing the whole editor while a popup is open releases the keybinds", mod.rw.text_input_active == false and view._popup == nil)
+end
+
+-- the editor remembers where it was left (2026-10-05): the Deck's scroll, and the screen the editor key opens again
+do
+  local PM = dofile(BASE .. "/ui/wave_editor_components.lua").Popup
+  mod.rw.editor_memory = nil
+  local put = function(id, v) settings[id] = v end
+  for i = 60, 79 do mod.rw.events.set_def(put, "custom_" .. i, "Scroll " .. i, mod.rw.groups.parse("2 hounds"), mod.rw.groups) end
+  view:on_enter()
+  check("memory: with nothing noted the editor opens on the Deck at the top", view._screen == "list" and view._offset == 0)
+  view:cb_scroll(1)
+  local scrolled = view._offset
+  view:_open_detail("wave_small")
+  view:cb_back()
+  check("memory: back on the Deck it is where it was scrolled to", scrolled > 0 and view._screen == "list" and view._offset == scrolled, tostring(scrolled))
+  view:on_exit(); view:on_enter()
+  check("memory: reopened, the Deck is still scrolled there", view._screen == "list" and view._offset == scrolled)
+  view:_open_detail("wave_small"); view._part_index = 1; view._screen = "mods"; view:_apply_screen()
+  view:on_exit(); view:on_enter()
+  check("memory: the editor key opens the screen that was left (a group's modifiers)", view._screen == "mods" and view._key == "wave_small" and view._part_index == 1 and view._wave and view._wave.key == "wave_small" and #view._parts > 0)
+  view:cb_back()
+  check("memory: Back from there goes where it always did", view._screen == "detail")
+  view._part_index = 99; view._screen = "tune"; view:on_exit(); view:on_enter()
+  check("memory: a group that is no longer there falls back to the card's screen", view._screen == "detail" and view._key == "wave_small")
+  view:cb_settings(); view:on_exit(); view:on_enter()
+  check("memory: Settings", view._screen == "settings")
+  view:cb_presets(); view:on_exit(); view:on_enter()
+  check("memory: Presets", view._screen == "presets")
+  view:_open_preset(2); view:on_exit(); view:on_enter()
+  check("memory: a preset being viewed", view._screen == "preset_view" and view._preset_index == 2)
+  mod.rw.editor_memory.preset_index = 99; view:on_enter()
+  check("memory: a preset slot that is not there opens the presets", view._screen == "presets")
+  view:_open_detail("wave_small"); view:cb_sound_picker(); view:on_exit(); view:on_enter()
+  check("memory: the card sound list (its search box opens as when it is entered)", view._screen == "sounds" and view._key == "wave_small" and view._popup ~= nil)
+  PM.cancel(view); view:on_exit()
+  mod.rw.editor_memory.screen, mod.rw.editor_memory.key = "detail", "custom_404"
+  view:on_enter()
+  check("memory: a card deleted meanwhile opens the Deck, where it was scrolled", view._screen == "list" and view._key == nil and view._offset == scrolled)
+  mod.rw.editor_memory.screen, mod.rw.editor_memory.key = "face", nil
+  view:on_enter()
+  check("memory: a card screen without a card opens the Deck", view._screen == "list")
+  local real_restore = view._restore
+  view._restore = function () error("broken memory") end
+  mod.rw.editor_memory.screen = "settings"
+  view:on_enter()
+  view._restore = real_restore
+  check("memory: a restore that fails opens the Deck and says so", view._screen == "list" and echoes[#echoes]:find("could not reopen", 1, true) ~= nil, echoes[#echoes])
+  table.remove(echoes)
+  mod.rw.editor_memory = nil
+  for i = 60, 79 do mod.rw.events.reset(put, "custom_" .. i) end
+  view:on_enter()
 end
 
 local errors = {}

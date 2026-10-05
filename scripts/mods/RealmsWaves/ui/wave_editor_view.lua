@@ -155,6 +155,26 @@ end
 
 RealmsWavesView = class("RealmsWavesView", "BaseView")
 
+-- Where the editor was left (2026-10-05, the user: "the Deck remembers its scroll; the editor key opens the window I left"):
+-- kept on mod.rw for this game session (the view object is made anew at every open). `deck_offset` is the Deck's scroll, the
+-- rest is the screen that was open and what it showed.
+local function memory()
+	local rw = mod.rw
+
+	if not rw then
+		return {}
+	end
+
+	rw.editor_memory = rw.editor_memory or {}
+
+	return rw.editor_memory
+end
+
+RealmsWavesView.memory = memory
+
+-- screens of one card (they need the card; those marked need the enemy group too)
+local CARD_SCREENS = { detail = false, picker = false, face = false, sounds = false, mods = true, tune = true, appearance = true }
+
 RealmsWavesView.init = function (self, settings)
 	self._screen = "list"
 	self._offset = 0
@@ -185,7 +205,7 @@ RealmsWavesView.on_enter = function (self)
 	self:_create_editor_widgets()
 
 	self._screen = "list"
-	self._offset = 0
+	self._offset = memory().deck_offset or 0
 	self._key = nil
 	self._confirm = nil
 	self._faction = mod:get("shelf_faction") == "dreg" and "dreg" or "scab"
@@ -199,12 +219,100 @@ RealmsWavesView.on_enter = function (self)
 	end
 
 	self:_reload()
-	self:_apply_screen()
+
+	local ok, restored = pcall(self._restore, self)
+
+	if not ok or not restored then
+		if not ok then
+			mod:warning("RealmsWaves: the editor could not reopen where it was left: %s", tostring(restored))
+		end
+
+		self._screen, self._key, self._wave = "list", nil, nil
+		self._offset = memory().deck_offset or 0
+		self:_apply_screen(true)
+	end
+end
+
+-- Notes where the editor is now (on_exit, and the Deck's scroll every frame)
+RealmsWavesView._remember = function (self)
+	local m = memory()
+
+	if self._screen == "list" then
+		m.deck_offset = self._offset
+	end
+
+	m.screen, m.key, m.offset, m.part_index, m.preset_index = self._screen, self._key, self._offset, self._part_index, self._preset_index
+	m.filter, m.suit_kind = self._filter, self._suit_kind
+end
+
+-- Opens the screen noted by _remember, when what it showed still exists. Returns true when it did.
+RealmsWavesView._restore = function (self)
+	local m = memory()
+	local screen = m.screen
+
+	if CARD_SCREENS[screen] ~= nil then
+		if not m.key then
+			return false
+		end
+
+		self._key = m.key
+		self:_reload()
+
+		if not self._wave or self._wave.key ~= m.key then
+			self._key, self._wave = nil, nil
+
+			return false
+		end
+
+		self._parts = copy_parts(self._wave.parts)
+		self._suit_kind = m.suit_kind
+
+		local index = tonumber(m.part_index)
+
+		if CARD_SCREENS[screen] and not (index and self._parts[index]) then
+			screen = "detail"
+		else
+			self._part_index = index
+		end
+
+		if screen == "picker" then
+			self._filter = m.filter
+		elseif screen == "sounds" then
+			-- the sound list is built by its own button (and its search box opens, as when it is entered)
+			self._screen, self._offset = "face", 0
+			self:_apply_screen()
+			self:cb_sound_picker()
+
+			return self._screen == "sounds"
+		end
+	elseif screen == "settings" then
+		self:_reload_settings()
+	elseif screen == "presets" or screen == "preset_view" then
+		self:_reload_presets()
+
+		if screen == "preset_view" then
+			if m.preset_index and self._preset_slots[m.preset_index] then
+				self._preset_index = m.preset_index
+				self:_reload_preset_view()
+			else
+				screen = "presets"
+			end
+		end
+	else
+		return false
+	end
+
+	self._screen = screen
+	self._offset = tonumber(m.offset) or 0
+	self:_apply_screen(true)
+
+	return true
 end
 
 RealmsWavesView.on_exit = function (self)
 	if self._colour_drag then self._colour_drag = nil; self:_save() end
 	self:_end_drag()
+	pcall(self._remember, self)
 	self._screen = "list"
 	Popup.cancel(self)
 	self:_refresh_text_flag()
@@ -251,6 +359,10 @@ RealmsWavesView.update = function (self, dt, t, input_service)
 
 	if self._screen == "picker" and not self._popup then
 		self:_auto_search()
+	end
+
+	if self._screen == "list" then
+		memory().deck_offset = self._offset
 	end
 
 	if self._screen == "list" and self._deck then
@@ -729,6 +841,10 @@ RealmsWavesView._save = function (self)
 end
 
 RealmsWavesView._open_detail = function (self, key)
+	if self._screen == "list" then
+		memory().deck_offset = self._offset
+	end
+
 	self._key = key
 	self._suit_kind = nil -- the hostile / beneficial switch starts on the card's own kind
 	self:_reload()
@@ -1389,6 +1505,11 @@ WorkshopView.install(RealmsWavesView, {
 
 RealmsWavesView.cb_scroll = guarded(function (self, direction)
 	self._offset = self:_clamp_offset(self._offset + direction * (self._screen == "list" and Deck.COLS or 1))
+
+	if self._screen == "list" then
+		memory().deck_offset = self._offset
+	end
+
 	self:_refresh_rows()
 	self:_set_interaction_enabled()
 end)
@@ -1413,8 +1534,16 @@ RealmsWavesView.cb_back = guarded(function (self)
 		self._key = nil
 	end
 
+	-- back on the Deck: where it was scrolled to
+	local deck = self._screen == "list"
+
 	self:_reload()
-	self:_apply_screen()
+
+	if deck then
+		self._offset = memory().deck_offset or 0
+	end
+
+	self:_apply_screen(deck)
 end)
 
 -- rows -----------------------------------------------------------------------
