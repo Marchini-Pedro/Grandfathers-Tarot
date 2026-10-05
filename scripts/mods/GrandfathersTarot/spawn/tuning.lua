@@ -58,6 +58,7 @@ local DAMAGE_STAT = { explosion = true, dot = true }
 
 local tuned_by_extension = {} -- host: buff extension -> record (for the hook below)
 Tuning.dead = false
+local speed_factor = setmetatable({}, { __mode = "k" }) -- unit -> its run speed factor (the Mutant's charge, see charge_update)
 local fire_share = setmetatable({}, { __mode = "k" }) -- the On Fire burn: enemy -> its group's share (see "On Fire damage" below)
 
 local tuned = {} -- host: { unit, mult = { [stat] = factor }, last = { [stat] = value written } }
@@ -640,6 +641,7 @@ Tuning.apply = function (unit, tune, breed_name)
 			end
 
 			navigation:add_movement_modifier(speed)
+			speed_factor[unit] = speed
 		end)
 
 		if not ok then
@@ -986,6 +988,45 @@ Tuning.after_summon = function (self, unit, breed, blackboard, scratchpad)
 	pcall(engage, unit)
 end
 
+-- --------------------------------------------------------------------------------------------------- the Mutant's charge
+-- (2026-10-05, the user: "run speed does not affect the Mutant's run when it grabs") The charge (BtMutantChargerChargeAction) moves
+-- the Mutant by setting its velocity itself in _update_charging and _update_charged_past, which the navigation's movement modifier
+-- (our run speed) never sees; its navigating phase goes through the navigation and is already scaled. While one of those two runs
+-- for a tuned unit, the velocity it sets is multiplied by the unit's run speed factor.
+local charge_scale = nil
+
+Tuning.speed_factor = function (unit)
+	return speed_factor[unit]
+end
+
+Tuning.charge_update = function (func, self, unit, ...)
+	local factor = not Tuning.dead and speed_factor[unit] or nil
+
+	if not factor then
+		return func(self, unit, ...)
+	end
+
+	charge_scale = factor
+
+	local result = { pcall(func, self, unit, ...) }
+
+	charge_scale = nil
+
+	if not result[1] then
+		error(result[2])
+	end
+
+	return (table.unpack or unpack)(result, 2)
+end
+
+Tuning.wanted_velocity = function (func, self, velocity, ...)
+	if charge_scale and velocity then
+		velocity = velocity * charge_scale
+	end
+
+	return func(self, velocity, ...)
+end
+
 -- ------------------------------------------------------------------------------------------------------------- On Fire damage
 -- (2026-10-04, the user: "its damage is too high, let me set it beside the modifier") The game's On Fire modifier
 -- (common_minion_on_fire, havoc_buff_templates.lua) puts players within 1 m of the enemy on fire every half second
@@ -1163,6 +1204,13 @@ Tuning.install = function ()
 	mod:hook_safe("PlayerUnitBuffExtension", "add_internally_controlled_buff", function (self, template_name)
 		Tuning.on_player_buff_added(self, template_name)
 	end)
+
+	-- the Mutant's charge follows the run speed (host)
+	if mod.hook then
+		mod:hook("BtMutantChargerChargeAction", "_update_charging", function (...) return Tuning.charge_update(...) end)
+		mod:hook("BtMutantChargerChargeAction", "_update_charged_past", function (...) return Tuning.charge_update(...) end)
+		mod:hook("MinionLocomotionExtension", "set_wanted_velocity", function (...) return Tuning.wanted_velocity(...) end)
+	end
 
 	-- the On Fire look kept on (every machine)
 	mod:hook_safe("MinionBuffExtension", "_start_fx", function (self, index, template)

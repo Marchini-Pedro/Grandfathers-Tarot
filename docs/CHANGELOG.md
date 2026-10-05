@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 - The Mutant's charge follows its run speed (feature/enemy-shadow)
+- A group's run speed now also scales the Mutant's charge (its direct-velocity phases; the navigating phase already was).
+- Dark skin seen in game: the textures load, but lowering A only fades the effect out; none of the looks gets close to dark.
+- Lua suites not run (the user's choice).
+
 ## 2026-10-05 - Dark skin experiments, draw buttons on the Deck (feature/enemy-shadow)
 - Three experimental appearance methods, "Dark skin: burnt / warp / bruised": the game's ailment skin looks held still on the enemy; A picks the moment of the effect shown (to find the darkest). Textures load as packages first.
 - The Deck has four buttons: add / remove the beneficial cards, add / remove the enemy cards from the draw.
