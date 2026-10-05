@@ -1,5 +1,13 @@
 # Learnings, dead ends and open gaps
 
+## 2026-10-05 - Why the twins and the stimm use sound were missing from the sound list
+
+The voice list was built from the `enemy_vo_*` dialogue files only, so the twins' mission lines (`mission_vo_km_enforcer_twins_captain_twin_*`)
+and darkness lines (`circumstance_vo_darkness_captain_twin_female_a`) were left out; only their laughs were in. The stimm use sound,
+`play_syringe_stab_self`, is not a plain event in the game's sound lists: the game reaches it through `player_character_sound_event_aliases.lua`
+(`syringe_*_pocketable`), so a scan of events missed it, as it did `play_syringe_heal_husk_charge_cancel`. Both are added. Gap: other mission
+bosses or alias-only events may be missing the same way; compare the catalog with the aliases file before trusting it as complete.
+
 ## 2026-10-03 - PR #7 merged during verification
 
 The final check refresh found PR #7 already merged on GitHub. The REST merge

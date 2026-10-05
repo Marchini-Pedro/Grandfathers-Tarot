@@ -265,3 +265,4 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   old one removed; mod_load_order.txt points to the new one.
 - Tests: entry (the copy, once, without old settings, without a settings store; every command /gt_; the menu colours and the
   Workshop title).
+- 2026-10-05, feature/twin-voice-lines: added 122 twin-boss voice lines (from mission_vo_km_enforcer_twins_captain_twin_*, circumstance_vo_darkness_captain_twin_female_a) and the syringe events play_syringe_stab_self and play_syringe_heal_husk_charge_cancel to catalog/sounds.lua (9,434 to 9,558). Not tested: the user told me to skip both Lua runners; not heard in game.

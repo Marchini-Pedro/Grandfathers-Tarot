@@ -125,8 +125,9 @@ Lua suites again not run or updated (the user's choice); every changed file was 
 
 At the user's request the list of completion sounds (`catalog/sounds.lua`) drops the weapon events (814), the non-vocal attack and
 impact sounds of enemies and players (147; any `_vce` vocalisation is kept) and the 60 `vo/play_sfx_es_*` routes (silent without a
-file), and adds voice lines from the game's dialogues (`dialogues/generated`): every enemy line (2,312) and one line per player voice
-and topic of combat talk (5,458; conversations, quirks, lore and responses left out). 9,434 entries in all. A voice line (`loc_...`)
+file), and adds voice lines from the game's dialogues (`dialogues/generated`): every enemy line (2,312), the twin bosses' mission and darkness lines (122 more, 2026-10-05) and one line per player voice
+and topic of combat talk (5,458; conversations, quirks, lore and responses left out). 9,558 entries in all (the two syringe events
+`play_syringe_stab_self`, the stimm use sound, and `play_syringe_heal_husk_charge_cancel` were missing and were added the same day). A voice line (`loc_...`)
 plays as the game plays the local player's own lines: `trigger_resource_external_event` on the 2D player voice route
 (`play_sfx_es_player_vo_2d`, `es_player_vo_2d`, format 4) on the player's auto source. Old peers do not know the voice lines: a card
 with one is silent for them.
