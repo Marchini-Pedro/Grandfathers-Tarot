@@ -123,7 +123,9 @@ RW.golden_health = function (panel)
 		return false
 	end
 
-	local wounds = (panel._health_fraction or 0) * (panel._health_max_wounds or 1)
+	-- wounds left = the segments corruption (permanent damage) has not taken, as the game counts them (Health.calculate_num_segments);
+	-- the health still in them does not matter (2026-10-05: a player low on health with three wounds lost the gold)
+	local wounds = (panel._health_max_fraction or 1) * (panel._health_max_wounds or 1)
 
 	return wounds > 1 + 1e-6
 end
