@@ -57,6 +57,7 @@ local combo_cut = setmetatable({}, { __mode = "k" }) -- (2026-10-06) units with 
 local cancel_chance = setmetatable({}, { __mode = "k" }) -- (2026-10-06) units with an Attack cancel chance ({cancel=30}): unit -> percent
 local spray_cut = setmetatable({}, { __mode = "k" }) -- (2026-10-06) Spray cut chance ({spray=30}): unit -> percent
 local net_feint = setmetatable({}, { __mode = "k" }) -- (2026-10-06) Net feint chance ({net=30}): unit -> percent
+local net_pause = setmetatable({}, { __mode = "k" }) -- (2026-10-06) Net feint pause ({pause=25}, tenths): unit -> seconds
 -- stats where the written value is a share of the damage taken (the game adds `value - 1` to the damage modifiers)
 local DAMAGE_STAT = { explosion = true, dot = true }
 
@@ -953,6 +954,7 @@ Tuning.apply = function (unit, tune, breed_name)
 	-- Spray cut and Net feint: Tuning.spray_run and Tuning.net_run
 	if (tonumber(tune.spray) or 0) > 0 then spray_cut[unit] = tonumber(tune.spray) end
 	if (tonumber(tune.net) or 0) > 0 then net_feint[unit] = tonumber(tune.net) end
+	if tonumber(tune.pause) then net_pause[unit] = tonumber(tune.pause) / 10 end
 
 	local label = tostring(breed_name or "enemy")
 
@@ -1293,7 +1295,8 @@ Tuning.net_leave = function (self, unit, breed, blackboard, scratchpad, action_d
 
 	if behavior and (scratchpad.num_shots_fired or 0) == 0 and type(t) == "number" then
 		behavior.net_is_ready = true
-		behavior.shoot_net_cooldown = t + NET_FEINT_PAUSE
+		-- the group's own Net feint pause, or the default
+		behavior.shoot_net_cooldown = t + (net_pause[unit] or NET_FEINT_PAUSE)
 	end
 end
 

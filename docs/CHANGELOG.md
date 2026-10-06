@@ -12,7 +12,7 @@
 - New custom modifier: Random combo end makes an enemy stop its combo after a random hit.
 - New custom modifier: Attack cancel chance makes an enemy's single attacks stop before they land, that often.
 - New custom modifiers: Spray cut chance (Flamers, the Beast of Nurgle's vomit stop part way) and Net feint chance (a Trapper
-  stops aiming and keeps his net).
+  stops aiming and keeps his net; Net feint pause sets how long he waits before aiming again).
 
 ## 2026-10-06 - Reveal Elites, a Boss bar for any enemy, the Blackout crash (polishing)
 - New buff: Reveal Elites outlines the Elites (amber) for its time. The combat abilities effect is removed; cards that had it

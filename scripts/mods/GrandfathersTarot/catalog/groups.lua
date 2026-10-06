@@ -236,6 +236,9 @@ Groups.TUNE = {
 	-- and may aim again after a moment. Their ids have no "_" (the recipe's names are letters and spaces).
 	{ id = "spray", name = "Spray cut chance", min = 0, max = 100, step = 5, default = 0, aliases = { "spray", "spray cut", "spray cut chance", "beam", "beam cut", "vomit cut" } },
 	{ id = "net", name = "Net feint chance", min = 0, max = 100, step = 5, default = 0, aliases = { "net", "net feint", "net feint chance", "net cancel" } },
+	-- (2026-10-06, the user: "let me decide the number for after the feint too") how long a feinting Trapper waits before he may aim
+	-- again, in TENTHS of a second (`tenths`: shown as seconds, 15 = 1.5 s, the default)
+	{ id = "pause", name = "Net feint pause", min = 0, max = 150, step = 5, default = 15, tenths = true, aliases = { "pause", "net pause", "feint pause", "net feint pause" } },
 	{ id = "combo", name = "Random combo end", min = 0, max = 1, step = 1, default = 0, toggle = true, aliases = { "combo", "random combo", "combo end", "combo cut", "random combo end" } },
 	-- (2026-10-06, the user: "set an individual unit as a boss, so it shows its total health and name as a boss unit; a toggle for any
 	-- unit, a custom modifier") a toggle, not a percent: 1 = its health and name in the game's boss bar (spawn/tuning.lua). {boss=1}
@@ -422,11 +425,20 @@ Groups.tune_text = function (tune)
 		local value = tune and tune[def.id]
 
 		if value and value ~= (def.default or 100) then
-			fields[#fields + 1] = def.toggle and def.name or (def.name .. " " .. value .. "%")
+			fields[#fields + 1] = def.toggle and def.name or (def.name .. " " .. Groups.tune_value_text(def, value))
 		end
 	end
 
 	return table.concat(fields, ", ")
+end
+
+-- A custom mod's value as the player reads it: "130%", or "1.5 s" for one kept in tenths of a second
+Groups.tune_value_text = function (def, value)
+	if def and def.tenths then
+		return string.format("%g s", (tonumber(value) or 0) / 10)
+	end
+
+	return tostring(value) .. "%"
 end
 
 -- true when at least one group of the recipe has custom mods

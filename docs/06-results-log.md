@@ -399,3 +399,8 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   gives the net back with a 1.5 s cooldown).
 - Tests: check_lua passes; offline, {spray=40} and {net=40} round-trip; 395 of 1000 sprays cut, 404 of 1000 aims feinted and each
   kept its net. The suites were not run.
+
+## 2026-10-06 - Net feint pause
+- Built: the wait after a Trapper's feint is a custom mod (0 to 15 s, 1.5 by default; tenths in the recipe, seconds on screen).
+- Tests: check_lua passes; offline, {pause=25} round-trips (the default is not written), reads "2.5 s", and a feint waits 2.5 s.
+  The suites were not run.
