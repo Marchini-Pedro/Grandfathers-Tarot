@@ -890,7 +890,7 @@ do
   frame(hidden)
   for k in pairs(draws) do draws[k] = nil end
   Element.draw(hidden, 0.016, 0, nil, rs, nil)
-  check("draw: a hidden HUD is not touched", draws[1].scale == nil)
+  check("draw: a hidden HUD is not drawn at all (no render pass; 2026-10-06, a performance pass)", #draws == 0)
   settings.tarot_scale = nil
 end
 
@@ -1346,6 +1346,25 @@ do
   Dream.init(el, nil, 0, 1)
   local w = el._widgets_by_name.dream
   local function tick(dt) Dream.update(el, dt, 0, nil, nil, nil) end
+  -- (2026-10-06, a performance pass) no render pass while hidden
+  do
+    local saved_draw, passes = HudElementBase.draw, 0
+    HudElementBase.draw = function() passes = passes + 1 end
+    local was = w.visible
+    w.visible = false; Dream.draw(el, 0.016, 0, nil, {}, nil)
+    local hidden_passes = passes
+    w.visible = true; Dream.draw(el, 0.016, 0, nil, {}, nil)
+    check("dream sky: no render pass while hidden, one while shown", hidden_passes == 0 and passes == 1)
+    w.visible = was; HudElementBase.draw = saved_draw
+  end
+  do
+    local broken = (function() local e = setmetatable({}, Dream); Dream.init(e, nil, 0, 1); return e end)()
+    broken._refresh = function() error("refresh broke") end
+    local before = #errors_logged
+    Dream.update(broken, 0.1, 0, nil, nil, nil); Dream.update(broken, 0.1, 0, nil, nil, nil)
+    check("dream sky: a failing refresh hides it and is reported once", broken._widget.visible == false and #errors_logged == before + 1 and errors_logged[#errors_logged]:find("Dream", 1, true) ~= nil)
+    for i = #errors_logged, before + 1, -1 do errors_logged[i] = nil end -- (on purpose; the check below wants none)
+  end
   local function dream_hand() return { card("s", "The Star", "dream", 4, {}, "Sleep now, and wake whole."), card("p", "The Fool", "swarm", 1, { "chaos_poxwalker" }, "x") } end
   local hidden = true
   for _, st in pairs(DreamDefs.widget_definitions.dream.style) do if st.visible ~= false then hidden = false end end
@@ -1396,6 +1415,25 @@ do
   Dread.init(el, nil, 0, 1)
   local w = el._widgets_by_name.dread
   local function tick(dt) Dread.update(el, dt, 0, nil, nil, nil) end
+  -- (2026-10-06, a performance pass) no render pass while hidden
+  do
+    local saved_draw, passes = HudElementBase.draw, 0
+    HudElementBase.draw = function() passes = passes + 1 end
+    local was = w.visible
+    w.visible = false; Dread.draw(el, 0.016, 0, nil, {}, nil)
+    local hidden_passes = passes
+    w.visible = true; Dread.draw(el, 0.016, 0, nil, {}, nil)
+    check("dread: no render pass while hidden, one while shown", hidden_passes == 0 and passes == 1)
+    w.visible = was; HudElementBase.draw = saved_draw
+  end
+  do
+    local broken = (function() local e = setmetatable({}, Dread); Dread.init(e, nil, 0, 1); return e end)()
+    broken._refresh = function() error("refresh broke") end
+    local before = #errors_logged
+    Dread.update(broken, 0.1, 0, nil, nil, nil); Dread.update(broken, 0.1, 0, nil, nil, nil)
+    check("dread: a failing refresh hides it and is reported once", broken._widget.visible == false and #errors_logged == before + 1 and errors_logged[#errors_logged]:find("dread", 1, true) ~= nil)
+    for i = #errors_logged, before + 1, -1 do errors_logged[i] = nil end -- (on purpose; the check below wants none)
+  end
   local function night_hand() return { card("n", "The Dark", "nightmare", 6, { "chaos_daemonhost" }, "It was never a dream."), card("p", "The Fool", "swarm", 1, { "chaos_poxwalker" }, "x") } end
   local hidden = true
   for _, st in pairs(DreadDefs.widget_definitions.dread.style) do if st.visible ~= false then hidden = false end end
@@ -1473,6 +1511,24 @@ do
     return el
   end
   local function last_frame(el) LastElement.update(el, 1 / 60, 0, nil, nil, nil) end
+  do
+    local el, saved_draw, passes = new_last(), HudElementBase.draw, 0
+    local w = el._widgets_by_name.last
+    HudElementBase.draw = function() passes = passes + 1 end
+    w.visible = false; LastElement.draw(el, 0.016, 0, nil, {}, nil)
+    local hidden_passes = passes
+    w.visible = true; LastElement.draw(el, 0.016, 0, nil, {}, nil)
+    check("last card: no render pass while hidden, one while shown (2026-10-06, a performance pass)", hidden_passes == 0 and passes == 1)
+    HudElementBase.draw = saved_draw
+  end
+  do
+    local broken = new_last()
+    broken._refresh = function() error("refresh broke") end
+    local before = #errors_logged
+    LastElement.update(broken, 0.1, 0, nil, nil, nil); LastElement.update(broken, 0.1, 0, nil, nil, nil)
+    check("last card: a failing refresh hides it and is reported once", broken._widget.visible == false and #errors_logged == before + 1 and errors_logged[#errors_logged]:find("last card", 1, true) ~= nil)
+    for i = #errors_logged, before + 1, -1 do errors_logged[i] = nil end -- (on purpose; the check below wants none)
+  end
   local function lc(key, name, suit, threat, breeds, whisper, mods, rare) return { key = key, name = name, suit = suit, threat = threat, breeds = breeds, whisper = whisper, modifiers = mods or "", rare = rare or false, cooldown = 120 } end
   local function last_view(card, seq, age) return view_of({ phase = "waiting", hand = nil, remaining = 60, hand_seconds = 0, last = card, last_seq = seq, last_age = age }) end
   local function inside(el)

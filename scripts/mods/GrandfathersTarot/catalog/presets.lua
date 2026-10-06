@@ -209,8 +209,10 @@ end
 -- Writes one stored wave onto `key` (the wave goes back to its defaults first, so nothing of the old
 -- settings survives). The key does not have to be the wave's own key: that is how a wave shared by a
 -- friend lands in whichever slot you chose.
+-- (2026-10-06) It starts from the built-in card, as the preset was captured against it: the mod's default deck
+-- (catalog/user_defaults.lua) would otherwise leave its own enemies on a card the preset keeps as built.
 Presets.apply_wave = function (wave, key, set_setting, Events, Groups)
-	Events.reset(set_setting, key)
+	Events.reset(set_setting, key, true)
 
 	local default = default_snapshot(key, Events, Groups)
 	local name = wave.name ~= "" and wave.name or (default and default.name) or key
@@ -241,8 +243,8 @@ Presets.apply_wave = function (wave, key, set_setting, Events, Groups)
 	set_setting("snd_" .. key, wave.sound or "")
 end
 
--- Writes a preset over the current setup: every wave goes back to its default first.
--- Returns the number of waves that were written from the preset.
+-- Writes a preset over the current setup: every wave goes back to its built-in default first (what capture compares with,
+-- so a saved setup and Undo come back exactly). Returns the number of waves that were written from the preset.
 Presets.apply = function (preset, set_setting, Events, Groups)
 	local stored = {}
 
@@ -258,11 +260,19 @@ Presets.apply = function (preset, set_setting, Events, Groups)
 
 			written = written + 1
 		else
-			Events.reset(set_setting, key)
+			Events.reset(set_setting, key, true)
 		end
 	end
 
 	return written
+end
+
+-- Every card back to the mod's defaults (Restore defaults, a blank preset slot): the built-in cards with the mod's default
+-- deck over them (catalog/user_defaults.lua).
+Presets.restore_defaults = function (set_setting, Events)
+	for _, key in ipairs(Events.keys()) do
+		Events.reset(set_setting, key)
+	end
 end
 
 -- The current state of ONE wave (for sharing it on its own).

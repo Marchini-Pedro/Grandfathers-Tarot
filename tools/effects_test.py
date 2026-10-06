@@ -62,7 +62,7 @@ check("effect sounds rank first", blessing[1].score>0 and blessing[1].event:find
 local outage=Sounds.search("",{parts={},effects={blackout={value=15}}},Groups)
 check("Blackout sound ranking",outage[1].score>0)
 -- (a term can match voice lines too: "smart_tag" talk ranks with the precision stance for Reveal)
-for id, terms in pairs({med_crate={"heal"},med_station={"healthstation"},cooldown={"play_ability"},reveal={"precision_stance","smart_tag"}}) do
+for id, terms in pairs({med_crate={"heal"},med_station={"healthstation"},reveal_elites={"precision_stance","smart_tag"},reveal={"precision_stance","smart_tag"}}) do
   local found=Sounds.search("",{parts={},effects={[id]={value=1}}},Groups)
   local hit=false
   for _, term in ipairs(terms) do if found[1].event:find(term,1,true) then hit=true end end
@@ -108,7 +108,7 @@ check("effect-only custom slot bypasses empty-slot shortcut", not Events.is_empt
 settings.ev_custom_1=10;settings.on_custom_1=true
 local timed=Events.timed_waves(get,Groups)
 check("benefits work with fixed timers", #timed>0)
-Events.reset(set,"custom_1")
+Events.reset(set,"custom_1",true)
 check("reset removes new fields", settings.fx_custom_1=="" and settings.snd_custom_1=="")
 
 local function player(id,local_unit)
@@ -144,18 +144,16 @@ check("party healing accepted", start(effect("heal",25)))
 check("heals living remote players through native API", p1.extensions.health_system.heals[1][1]==50 and #p2.extensions.health_system.heals==1 and #p4.extensions.health_system.heals==0)
 check("corruption healing accepted", start(effect("cleanse",50)))
 check("corruption uses native permanent-corruption healing then ordinary heal", p3.extensions.health_system.heals[2][2]=="buff_corruption_healing" and p3.extensions.health_system.heals[3][2]=="buff")
-check("cooldown accepted without husk mutation", start(effect("cooldown",100)) and p1.extensions.ability_system.restored==1 and p2.extensions.ability_system.restored==0)
+-- (2026-10-06) Combat abilities is retired (it never reached the clients' own abilities); Reveal Elites took its place
+check("Combat abilities is retired: a saved card that has it loads without it", (function() local v=Schema.parse("cooldown=100:4;heal=5:4"); return v and v.cooldown==nil and v.heal.value==5 and Schema.encode(v)=="heal=5:4" end)())
+check("Reveal Elites accepted", start(effect("reveal_elites",5)))
 local snapshot=E.snapshot()
+check("Reveal Elites: its time travels in the host's state", snapshot.reveal_elites==5)
 local client=dofile(BASE .. "/core/effects.lua")
 server=false;client.receive(snapshot)
-check("late join does not replay instantaneous grants", p1.extensions.ability_system.restored==1)
-server=true;start(effect("cooldown",50));snapshot=E.snapshot()
-p1.extensions.ability_system._is_local_unit=false;p2.extensions.ability_system._is_local_unit=true
-server=false;client.receive(snapshot);client.receive(snapshot)
-check("remote player applies host grant once", p2.extensions.ability_system.restored==0.5)
-client.receive({sequence=0,grant_sequence=0,grants={}})
-server=true
-p1.extensions.ability_system._is_local_unit=true;p2.extensions.ability_system._is_local_unit=false
+check("Reveal Elites: a client takes the host's time", client.snapshot().reveal_elites==5)
+server=true;E.cancel()
+check("Reveal Elites: stop ends it", E.snapshot().reveal_elites==0)
 p1.inventory.slot_pocketable_small="grim"
 check("stimm item accepted", start(effect("green_stimm",1)))
 check("items preserve occupied slots and use stable eligible order", #gifts==1 and gifts[1][1]==p2 and p1.inventory.slot_pocketable_small=="grim")
@@ -186,7 +184,7 @@ systems.health_station_system={_unit_to_extension_map={[far]=fs,[near]=ns}}
 check("Med Station recharge is disabled for now: saved charges never run", not start(effect("med_station",4)) and ns.charges==3 and not ns.synced and fs.charges==0)
 check("disabled effects stay parsed and encoded but are not allowed", Schema.parse("med_station=2:4").med_station.value==2 and not Schema.allowed({med_station={value=2,players=4}},"miracle").med_station)
 systems.health_station_system=nil
-check("four beneficial suits including Faith; categories are Healing, Buffs, Items and Game Effects", Schema.beneficial("faith") and Schema.CATEGORIES[2].id=="Buffs" and Schema.CATEGORIES[3].id=="Items" and Schema.CATEGORIES[4].id=="Game Effects" and Schema.definition("cooldown").category=="Buffs" and Schema.definition("blue_stimm").category=="Buffs" and Schema.definition("blue_stimm_item").category=="Items" and Schema.definition("revive").category=="Game Effects")
+check("four beneficial suits including Faith; categories are Healing, Buffs, Items and Game Effects", Schema.beneficial("faith") and Schema.CATEGORIES[2].id=="Buffs" and Schema.CATEGORIES[3].id=="Items" and Schema.CATEGORIES[4].id=="Game Effects" and Schema.definition("reveal_elites").category=="Buffs" and Schema.definition("cooldown")==nil and Schema.definition("blue_stimm").category=="Buffs" and Schema.definition("blue_stimm_item").category=="Items" and Schema.definition("revive").category=="Game Effects")
 -- the card's lines (2026-10-04, the design page): the amount first, then the short name
 check("summary: amount then name", Schema.summary({revive={value=2,players=4}})=="1 Raise the fallen" and Schema.summary({ammo={value=50,players=4}})=="50% Refill ammunition" and Schema.summary({reveal={value=15,players=4}})=="15s Reveal Specialists")
 local tags = {}
@@ -299,7 +297,7 @@ check("yellow stimm buff: the native concentration buff for the set players and 
 check("red stimm buff: the native combat buff", start(effect("red_stimm_buff",15,1)) and p1.extensions.buff_system.names[#p1.extensions.buff_system.names]=="syringe_power_boost_buff")
 E.cancel()
 local l1,l2={alive=true},{alive=true}
-local function light(on) return {on=on,is_enabled=function(s) return s.on end,set_enabled=function(s,on,hotjoin) assert(hotjoin==false);s.on=on end} end
+local function light(on) return {on=on,is_enabled=function(s) return s.on end,set_enabled=function(s,on,deterministic) assert(deterministic==true,"the lights are switched without an RPC");s.on=on end} end
 local a,b=light(true),light(false)
 systems.light_controller_system={_unit_to_extension_map={[l1]=a,[l2]=b}}
 check("blackout uses level controller", start(effect("blackout",2),"heresy") and not a.on and not b.on)
@@ -308,6 +306,17 @@ local l3,c={alive=true},light(true);systems.light_controller_system._unit_to_ext
 E.update(1);check("streamed lights join overlapping outage", not a.on and not c.on)
 E.update(2.25,true);check("outage expires during scheduler pause and restores initial states", a.on and not b.on and c.on)
 start(effect("blackout",30),"heresy");E.cancel();check("stop restores lighting", a.on and not b.on)
+-- (2026-10-06, a client crashed in a Blackout: the game's light RPC reached a light without its extension there) every machine
+-- darkens its own lights for the host's time
+start(effect("blackout",5),"heresy");local dark=E.snapshot();E.cancel()
+check("blackout: the host's state carries its time", dark.blackout==5 and a.on and c.on)
+server=false;client.reset();client.receive(dark);client.update(0.25)
+check("blackout: a client darkens its own lights from the host's state", not a.on and not c.on and not b.on)
+client.update(6)
+check("blackout: ...and lights them again when the time is up", a.on and c.on and not b.on)
+client.receive(dark);client.update(0.25);client.receive({sequence=dark.sequence,revision=dark.revision,time=dark.time+1,blackout=0})
+check("blackout: a host state without it lights them at once", a.on and c.on and not b.on)
+client.reset();server=true
 systems.light_controller_system=nil;check("missing light controller fails gracefully", not start(effect("blackout",1),"plague"))
 local specialist={id=50,alive=true,extensions={unit_data_system={breed=function() return {tags={special=true}} end}}}
 local grunt={id=51,alive=true,extensions={unit_data_system={breed=function() return {tags={special=false}} end}}}
@@ -332,6 +341,16 @@ check("duplicate active-guidance snapshot does not extend or revive duration",cl
 server=true;E.cancel();local stopped_snapshot=E.snapshot();server=false;client.receive(stopped_snapshot);client.receive(snapshot)
 check("older guidance revision cannot undo stop",client.snapshot().reveal==0)
 server=true
+-- Reveal Elites (2026-10-06): the Elites in amber, the Specialists left to Reveal Specialists
+local elite={id=52,alive=true,extensions={unit_data_system={breed=function() return {tags={elite=true}} end}}}
+local ee={settings=original};outline._unit_extension_data[elite]=ee
+E.reset();se.settings=original;start(effect("reveal_elites",1));E.update(0.25)
+check("Reveal Elites: Elites only, in amber", ee.settings.rw_guidance and ee.settings.rw_guidance.color[1]==0.86 and not se.settings.rw_guidance and not ge.settings.rw_guidance)
+start(effect("reveal",1));E.update(0.25)
+check("Reveal Elites: both reveals at once, each in its colour", se.settings.rw_guidance and se.settings.rw_guidance.color[1]==0.31 and ee.settings.rw_guidance.color[1]==0.86)
+E.update(1)
+check("Reveal Elites: the outlines go when the time is up", ee.settings==original and not se.settings.rw_guidance)
+outline._unit_extension_data[elite]=nil;E.reset()
 -- the card's sound is an ALERT at the draw (2026-10-04): no completion ticket, no sound when the wave ends
 E.reset()
 local ok,ticket=start(effect("heal",100),nil,event)

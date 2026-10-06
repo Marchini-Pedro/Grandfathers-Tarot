@@ -520,3 +520,18 @@ Things we know are missing or unverified, each with the next concrete step.
   aiming costs the Trapper his net. Give it back after the leave to make a feint.
 - The Beast of Nurgle's vomit and both Flamers use BtShootLiquidBeamAction (`attack_duration` 1.2 s and 1.8 s per spray, a new
   `shot_start_t` for each); returning "done" from its run is a clean stop (the leave stops the beam, effects and puddle).
+
+## 2026-10-06 - Defaults written over a reset; tests that skipped a round
+- A preset is a diff against the BUILT-IN cards. When Reset started writing the author's deck over a card, applying a preset
+  (which resets first) silently mixed the two: a card the preset kept as built stayed the deck's. Anything that captures a diff
+  must be applied over the same base it was captured against.
+- A fallback default in code (`mod:get(id) or 150`) drifts when the option's default changes; DMF hides it by writing the
+  defaults, so only a fresh store shows it. Change both, or read the default from one place.
+- Skipping the suites for a round let 60+ checks go stale and hid two bugs; run them before every merge, with the CI's timeout.
+
+## 2026-10-06 - Per-frame hooks
+- A hook on a method every enemy calls every frame (MinionLocomotionExtension.set_wanted_velocity) costs a DMF dispatch per enemy
+  per frame even when it does nothing. When only one unit's call matters, shadow the method on that instance (a field on the
+  extension table) for the length of the call instead.
+- `Unit.set_vector3_for_materials` walks every mesh of a unit: per enemy per frame it adds up. Hold a look at a few Hz instead.
+- The Mod Performance Monitor's "calls" counts hooked calls: a number near the enemy count points at a per-unit hook.

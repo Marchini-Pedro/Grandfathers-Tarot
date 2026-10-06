@@ -404,3 +404,21 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Built: the wait after a Trapper's feint is a custom mod (0 to 15 s, 1.5 by default; tenths in the recipe, seconds on screen).
 - Tests: check_lua passes; offline, {pause=25} round-trips (the default is not written), reads "2.5 s", and a feint waits 2.5 s.
   The suites were not run.
+
+## 2026-10-06 - The test suites before the merge
+- Ran: every suite (`run_tests.py --timeout-seconds 280`). Found two real bugs (a preset or Undo left the default deck's enemies on
+  a card it kept as built; the editor's time steppers started from 150 / 300) and many checks out of date (the version, the
+  author's defaults, Combat abilities retired, the deterministic Blackout, the Custom screen's rows, the new hooks).
+- Fixed: `Presets.apply` starts from the built-in cards, `Presets.restore_defaults` for Restore defaults and a blank slot; the
+  editor's and director's fallbacks match the mod menu. Updated the checks; added checks for this round's features.
+- Tests: all suites pass, coverage above every floor (see the CI run for the numbers).
+
+## 2026-10-06 - Performance pass, Delete and Clear
+- Measured: the Spread's update and draw offline (hud_test's stubs, a timed loop): microseconds on main and polishing alike.
+- Found: per-frame work new since main: a hook on every enemy's set_wanted_velocity (the Mutant's charge) and a material write
+  per skinned enemy per frame (the dark skins); hidden HUD elements still drew; boss bar and golden health hooks did work with
+  nothing to do. Delete and Clear this card gave a default deck's custom card back.
+- Built: the charge factor on the Mutant's own locomotion for the step (hook removed), skins held at 10 Hz, early returns; a
+  custom card emptied by the built-in reset.
+- Tests: all suites with new checks (the charge on the instance, the skin step, a hidden HUD not drawn, Delete and Clear with the
+  default deck).

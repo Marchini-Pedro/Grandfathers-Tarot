@@ -323,10 +323,10 @@ local function random_interval(first)
 	local low = math.max(5, number_setting("interval_min", 75))
 	local high = math.max(low, number_setting("interval_max", 75))
 	-- random: anywhere between the minimum and the maximum; otherwise always the minimum (a fixed time)
-	local interval = mod:get("interval_random") == false and low or low + math.random() * (high - low)
+	local interval = mod:get("interval_random") ~= true and low or low + math.random() * (high - low)
 
 	if first then
-		interval = interval + number_setting("initial_delay", 45)
+		interval = interval + number_setting("initial_delay", 0)
 	end
 
 	return interval
@@ -666,7 +666,7 @@ local function start_cycle(first)
 		mode = mode,
 		remaining = interval,
 		-- the highlighted voting window can never be longer than the whole countdown
-		vote_window = math.min(number_setting("vote_duration", 25), interval),
+		vote_window = math.min(number_setting("vote_duration", 5), interval),
 		ballot_id = ballot_seq,
 		chosen = "",
 		cands = cands,

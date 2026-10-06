@@ -9,6 +9,8 @@
     "catalog/events.lua": 76,
     "catalog/groups.lua": 76,
     "catalog/presets.lua": 79,
+    "catalog/user_defaults.lua": 95,
+    "catalog/version.lua": 100,
     "core/director.lua": 70,
     "core/protocol.lua": 72,
     "core/votes.lua": 71,

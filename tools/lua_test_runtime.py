@@ -17,6 +17,15 @@ _LuaRuntime = importlib.import_module(f"lupa.{BACKEND}").LuaRuntime
 _runtimes = []
 
 
+# The mod's version (catalog/version.lua): the handshake refuses any other, so the suites write theirs as "2.0.0" and send this.
+def mod_version():
+    return (RUNTIME_ROOT / "catalog/version.lua").read_text(encoding="utf-8").rsplit('return "', 1)[1].split('"', 1)[0]
+
+
+def with_version(source):
+    return source.replace('"2.0.0"', '"%s"' % mod_version())
+
+
 def LuaRuntime(*args, **kwargs):
     runtime = _LuaRuntime(*args, **kwargs)
     if os.environ.get("RW_COVERAGE_FILE"):

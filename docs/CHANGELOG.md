@@ -13,6 +13,12 @@
 - New custom modifier: Attack cancel chance makes an enemy's single attacks stop before they land, that often.
 - New custom modifiers: Spray cut chance (Flamers, the Beast of Nurgle's vomit stop part way) and Net feint chance (a Trapper
   stops aiming and keeps his net; Net feint pause sets how long he waits before aiming again).
+- Fixed: loading a preset or Undo last load could leave a card with the default deck's enemies instead of the saved ones.
+- Fixed: the editor's time steppers jumped from 75 s to 165 s while the option had never been saved; every fallback of the
+  editor's settings now matches the mod menu's default.
+- Fixed: Delete and "Clear this card" did nothing on a card of the default deck (it came straight back).
+- Faster: the Mutant's charge no longer hooks every enemy's movement; the dark skins are held ten times a second instead of every
+  frame; the HUD draws nothing while it is hidden; the boss bar and golden health hooks return at once when they have no work.
 
 ## 2026-10-06 - Reveal Elites, a Boss bar for any enemy, the Blackout crash (polishing)
 - New buff: Reveal Elites outlines the Elites (amber) for its time. The combat abilities effect is removed; cards that had it

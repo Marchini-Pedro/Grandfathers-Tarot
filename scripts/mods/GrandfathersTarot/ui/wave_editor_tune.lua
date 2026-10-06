@@ -195,7 +195,7 @@ TuneView.install = function (View, h)
 			label = mod:localize("popup_tune_title", mod:localize("tune_" .. item.id), part and groups().describe_part(part) or ""),
 			value = item.tenths and string.format("%g", value_of(self, item.id) / 10) or tostring(value_of(self, item.id)),
 			numeric = true, min = item.min / scale, max = item.max / scale, integer = not item.tenths,
-			hint = item.tenths and mod:localize("popup_tune_seconds_hint", item.min / scale, item.max / scale) or mod:localize("popup_tune_hint", item.min, item.max),
+			hint = item.tenths and mod:localize("popup_tune_seconds_hint", string.format("%g", item.min / scale), string.format("%g", item.max / scale)) or mod:localize("popup_tune_hint", item.min, item.max),
 			set = function (value)
 				self:_set_tune(item.id, value * scale)
 			end,

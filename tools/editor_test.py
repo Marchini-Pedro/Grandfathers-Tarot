@@ -135,6 +135,10 @@ mod.rw = {
   colors = dofile(BASE .. "/catalog/colors.lua"),
   cards = dofile(BASE .. "/catalog/cards.lua"),
 }
+-- (2026-10-06) The checks drive the editor from the built-in cards. The mod's default deck (catalog/user_defaults.lua: what a
+-- card's Reset and Restore defaults give since then) is put back for its own checks at the end.
+local AUTHOR_DECK = { cards = mod.rw.events.UserDefaults.cards, deck = mod.rw.events.UserDefaults.deck }
+mod.rw.events.UserDefaults.cards, mod.rw.events.UserDefaults.deck = {}, {}
 
 local results = {}
 local function check(name, cond, detail)
@@ -1579,11 +1583,11 @@ do
     local function box(id) local s = pass_by_style(row(1), id).style; return s.offset[1], s.size[1] end
     local mx, mw = box("hotspot_mods"); local tx, tw = box("hotspot_tune"); local ax, aw = box("hotspot_action")
     local plus = pass_by_style(row(1), "hotspot_plus").style
-    return plus.offset[1] + plus.size[1] <= mx and mx + mw <= tx and tx + tw <= ax and ax + aw <= 1710 and mw >= 100 and tw >= 100 and aw >= 100
+    return plus.offset[1] + plus.size[1] <= mx and mx + mw <= tx and tx + tw <= ax and ax + aw <= 1710 and mw >= 76 and tw >= 76 and aw >= 76
   end)())
   local n_parts = #view._parts
   click_row(1, "hotspot_tune")
-  check("custom: the screen opens for that group with ten rows (damage dealt is the tenth), Back and its own help text", view._screen == "tune" and view._part_index == 1 and #view:_source() == 10 and row(10).visible and W.description_text.content.description_text:find("view_desc_tune", 1, true) ~= nil and W.btn_back.visible and W.help_text.content.help_text == "help_tune")
+  check("custom: the screen opens for that group with its rows (the sixteen custom mods, then the boss name and colour), Back and its own help text", view._screen == "tune" and view._part_index == 1 and #view:_source() == 18 and view:_source()[10].id == "damage" and view:_source()[18].id == "boss_colour" and row(10).visible and W.description_text.content.description_text:find("view_desc_tune", 1, true) ~= nil and W.btn_back.visible and W.help_text.content.help_text == "help_tune")
   check("custom: every row is a value at 100 (unchanged) with - and +, no Reset yet, no Mods/Custom buttons", row(1).content.row_name == "tune_health" and row(7).content.row_name == "tune_mass" and row(1).content.show_stepper and row(1).content.stepper_value == "100" and not row(1).content.show_action and not row(1).content.show_tune and not row(1).content.show_mods and not row(1).content.show_check and row(1).content.info:find("tune_health_info:10,1000", 1, true) ~= nil, row(1).content.info)
   check("custom: the header says the values are percents", W.list_header.content.col_4 == "col_percent")
   local text_colour = rgba(row(1).style.row_name.text_color)
@@ -1628,6 +1632,61 @@ do
 
   -- the card's Deck tile says so
   check("custom: the card's modifier line says Custom", mod.rw.cards.modifier_line(view._parts, mod.rw.groups) == "Custom")
+
+  -- (2026-10-06) the rows after the ten percents: the chances, the Net feint pause (in seconds), two toggles, the boss name and
+  -- colour. Scrolled by 8: rows 3-10 are cancel, spray, net, pause, combo, boss, the name, the colour.
+  click_row(1, "hotspot_tune")
+  local function scroll(o) view._offset = o; view:_refresh_rows(); view:_set_interaction_enabled() end
+  scroll(8)
+  check("custom: a chance starts at 0 (off), the pause shows seconds (1.5s), a toggle is a checkbox without a number", row(3).content.row_name == "tune_cancel" and row(3).content.stepper_value == "0" and not row(3).content.show_action and row(6).content.row_name == "tune_pause" and row(6).content.stepper_value == "1.5s" and row(7).content.row_name == "tune_combo" and row(7).content.show_check and not row(7).content.checkbox_selected and not row(7).content.show_stepper and row(8).content.row_name == "tune_boss", row(6).content.stepper_value)
+  click_row(3, "hotspot_plus")
+  check("custom: + raises a chance by 5, saved as {cancel=5}, with Reset", view._parts[1].tune.cancel == 5 and settings.wave_def_wave_small:find("cancel=5", 1, true) ~= nil and row(3).content.show_action, settings.wave_def_wave_small)
+  click_row(3, "hotspot_action")
+  check("custom: Reset puts a chance back to 0 (out of the recipe)", view._parts[1].tune.cancel == nil and settings.wave_def_wave_small:find("cancel", 1, true) == nil)
+  click_row(6, "hotspot_plus")
+  check("custom: the pause steps by half a second (2s), kept in tenths ({pause=20})", view._parts[1].tune.pause == 20 and row(6).content.stepper_value == "2s" and settings.wave_def_wave_small:find("pause=20", 1, true) ~= nil)
+  click_row(6, "hotspot_value")
+  check("custom: the pause's number box is in seconds (0 to 15, halves and tenths)", view._popup ~= nil and view._popup.spec.min == 0 and view._popup.spec.max == 15 and view._popup.spec.integer == false and view._popup.spec.value == "2" and view._popup.spec.hint == "popup_tune_seconds_hint:0,15", view._popup and view._popup.spec.hint)
+  type_in("2.5"); PPt.Popup.commit(view)
+  check("custom: 2.5 s typed is 25 tenths", view._popup == nil and view._parts[1].tune.pause == 25 and row(6).content.stepper_value == "2.5s")
+  click_row(6, "hotspot_action")
+  check("custom: Reset puts the pause back to its 1.5 s", view._parts[1].tune.pause == nil and row(6).content.stepper_value == "1.5s")
+  click_row(7, "hotspot_check")
+  check("custom: the checkbox turns Random combo end on ({combo=1}), its name coloured", view._parts[1].tune.combo == 1 and row(7).content.checkbox_selected and settings.wave_def_wave_small:find("combo=1", 1, true) ~= nil)
+  click_row(8, "hotspot_value")
+  check("custom: a click on a toggle's value or name toggles it too (Boss bar on)", view._parts[1].tune.boss == 1 and row(8).content.checkbox_selected)
+  click_row(8, "hotspot_name"); click_row(7, "hotspot_check")
+  check("custom: ...and off again, out of the recipe", view._parts[1].tune.boss == nil and view._parts[1].tune.combo == nil and settings.wave_def_wave_small:find("boss=", 1, true) == nil)
+  -- the Boss name
+  check("custom: the Boss name row: the game's name until one is set, Edit on the right, no number", row(9).content.row_name == "tune_boss_name" and row(9).content.info == "tune_boss_name_info" and row(9).content.show_action and row(9).content.hotspot_action_text == "btn_boss_name_edit" and not row(9).content.show_stepper)
+  click_row(9, "hotspot_plus")
+  check("custom: - and + do nothing on the name", view._parts[1].boss_name == nil and view._popup == nil)
+  click_row(9, "hotspot_action")
+  check("custom: Edit opens a text box for the name", view._popup ~= nil and view._popup.spec.label:find("^popup_boss_name_title:") ~= nil and view._popup.spec.value == "" and view._popup.spec.max_length == 30)
+  type_in("  The   Warden {of} Rot "); PPt.Popup.commit(view)
+  check("custom: the name is cleaned (no braces, one space) and saved in the recipe as (name ...)", view._parts[1].boss_name == "The Warden of Rot" and settings.wave_def_wave_small:find("(name The Warden of Rot)", 1, true) ~= nil and row(9).content.info == "tune_boss_name_set:The Warden of Rot", settings.wave_def_wave_small)
+  click_row(9, "hotspot_value")
+  check("custom: a click on the name row opens the box with the name in it", view._popup ~= nil and view._popup.spec.value == "The Warden of Rot")
+  type_in(""); PPt.Popup.commit(view)
+  check("custom: an empty name gives the game's name back", view._parts[1].boss_name == nil and settings.wave_def_wave_small:find("(name", 1, true) == nil)
+  -- the Boss bar colour
+  check("custom: the colour row: the game's red (step 0), no Reset", row(10).content.row_name == "tune_boss_colour" and row(10).content.stepper_value == "0" and not row(10).content.show_action and row(10).content.info == "tune_boss_colour_info:Red (the game's)" and rgba(row(10).style.row_name.text_color) == "255,220,40,40", rgba(row(10).style.row_name.text_color))
+  click_row(10, "hotspot_plus")
+  check("custom: + steps to the first preset (Orange), its name in that colour, saved as (colour ff7a1a)", view._parts[1].boss_colour == "ff7a1a" and row(10).content.stepper_value == "1" and rgba(row(10).style.row_name.text_color) == "255,255,122,26" and row(10).content.show_action and settings.wave_def_wave_small:find("(colour ff7a1a)", 1, true) ~= nil, settings.wave_def_wave_small)
+  click_row(10, "hotspot_minus"); click_row(10, "hotspot_minus")
+  check("custom: - from the red wraps round to the last preset (White)", view._parts[1].boss_colour == "e8e8e8" and row(10).content.stepper_value == "9")
+  click_row(10, "hotspot_value")
+  check("custom: a click opens a colour code box", view._popup ~= nil and view._popup.spec.label:find("^popup_boss_colour_title:") ~= nil and view._popup.spec.value == "e8e8e8" and view._popup.spec.max_length == 7)
+  type_in(" #12AB9F "); PPt.Popup.commit(view)
+  check("custom: a code of one's own is kept (lower case, no #); the step shows # and the info the code", view._parts[1].boss_colour == "12ab9f" and row(10).content.stepper_value == "#" and row(10).content.info == "tune_boss_colour_info:#12ab9f")
+  click_row(10, "hotspot_action")
+  check("custom: Reset gives the game's red back", view._parts[1].boss_colour == nil and settings.wave_def_wave_small:find("(colour", 1, true) == nil and row(10).content.stepper_value == "0")
+  local saved_parts = view._parts; view._parts = {}
+  view:_tune_step({ colour = true }, 1); view:_tune_action({ colour = true }); view:_boss_name_popup(); view:_boss_colour_popup(); view:_set_tune("health", 150)
+  check("custom: with no group left the name, colour and values do nothing", view._popup == nil)
+  view._parts = saved_parts
+  scroll(0)
+  click("btn_back")
 
   -- clear everything
   click_row(1, "hotspot_tune"); click_row(1, "hotspot_action"); click_row(6, "hotspot_action"); click("btn_back")
@@ -1870,9 +1929,12 @@ do
 
   -- time between waves on the list screen
   local W2 = view._widgets_by_name
-  check("time: two steppers at the bottom of the list (minimum, maximum), label says what they are", W2.stepper_tmin.visible and W2.stepper_tmax.visible and W2.stepper_tmin.content.label == "set_interval_min" and W2.stepper_tmin.content.stepper_value == "150" and W2.stepper_tmax.content.stepper_value == "300" and not W2.stepper_chance.visible)
+  check("time: two steppers at the bottom of the list (the fixed time, the maximum), label says what they are; 75 s by default", W2.stepper_tmin.visible and W2.stepper_tmax.visible and W2.stepper_tmin.content.label == "set_interval_fixed" and W2.stepper_tmin.content.stepper_value == "75" and W2.stepper_tmax.content.stepper_value == "75" and W2.stepper_tmax.content.extra == "extra_not_random" and not W2.stepper_chance.visible)
   click("stepper_tmin", "hotspot_plus")
-  check("time: + adds 15 s from 150 and writes interval_min", settings.interval_min == 165 and W2.stepper_tmin.content.stepper_value == "165")
+  check("time: + adds 15 s from the 75 s it shows and writes interval_min", settings.interval_min == 90 and W2.stepper_tmin.content.stepper_value == "90", tostring(settings.interval_min))
+  settings.interval_min, settings.interval_max, settings.interval_random = 150, 300, true; view:_apply_screen(true)
+  check("time: with random on the label says minimum", W2.stepper_tmin.content.label == "set_interval_min" and W2.stepper_tmin.content.stepper_value == "150" and W2.stepper_tmax.content.stepper_value == "300")
+  settings.interval_random = nil
   settings.interval_min = 20; view:_apply_screen(true)
   click("stepper_tmin", "hotspot_plus"); check("time: 5 s steps below a minute", settings.interval_min == 25)
   click("stepper_tmin", "hotspot_minus"); click("stepper_tmin", "hotspot_minus"); click("stepper_tmin", "hotspot_minus"); click("stepper_tmin", "hotspot_minus"); click("stepper_tmin", "hotspot_minus"); click("stepper_tmin", "hotspot_minus")
@@ -1962,13 +2024,16 @@ do
     end
   end
   local ri, rit = find_row("interval_random")
-  check("settings: random-time toggle defaults on", rit and rit.on == true and row(ri).content.show_check and row(ri).content.checkbox_selected)
+  check("settings: random-time toggle defaults off (the author's options)", rit and rit.on == false and row(ri).content.show_check and not row(ri).content.checkbox_selected)
   local mi, mit = find_row("interval_min")
-  check("settings: minimum time row shows the minimum label while random is on", mit.label == "set_interval_min" and row(mi).content.show_stepper and row(mi).content.stepper_value == "150")
+  check("settings: with random off the minimum row is the fixed time, 75 s", mit.label == "set_interval_fixed" and row(mi).content.stepper_value == "75" and view:_item_at(find_row("interval_max")).muted == true)
+  mi = find_row("interval_min")
+  click_row(ri, "hotspot_check"); ri = find_row("interval_random"); mi, mit = find_row("interval_min")
+  check("settings: minimum time row shows the minimum label while random is on", settings.interval_random == true and mit.label == "set_interval_min" and row(mi).content.show_stepper and row(mi).content.stepper_value == "75")
   click_row(mi, "hotspot_plus")
-  check("settings: stepper adds 5 seconds and writes the setting", settings.interval_min == 155 and row(mi).content.stepper_value == "155", tostring(settings.interval_min))
+  check("settings: stepper adds 5 seconds and writes the setting", settings.interval_min == 80 and row(mi).content.stepper_value == "80", tostring(settings.interval_min))
   click_row(mi, "hotspot_minus"); click_row(mi, "hotspot_minus")
-  check("settings: stepper goes down", settings.interval_min == 145)
+  check("settings: stepper goes down", settings.interval_min == 70)
   settings.interval_min = 5; view:_reload_settings(); view:_apply_screen(true)
   click_row(mi, "hotspot_minus")
   check("settings: stepper stops at the minimum (5 seconds)", settings.interval_min == 5)
@@ -1983,10 +2048,10 @@ do
   local PPs = dofile(BASE .. "/ui/wave_editor_components.lua"); PPs.Popup.commit(view)
   check("settings: popup writes the number", settings.interval_max == 40 and row(mx).content.stepper_value == "40")
   local vi = find_row("vote_duration")
-  click_row(vi, "hotspot_plus"); check("settings: vote window steps by 5", settings.vote_duration == 30)
+  click_row(vi, "hotspot_plus"); check("settings: vote window steps by 5 (from its 5 s default)", settings.vote_duration == 10)
   local pi = find_row("hud_show_percent"); click_row(pi, "hotspot_check")
-  check("settings: percent toggle writes hud_show_percent", settings.hud_show_percent == false)
-  click_row(pi, "hotspot_check"); check("settings: ...and back on", settings.hud_show_percent == true)
+  check("settings: percent toggle writes hud_show_percent (off by default, so on)", settings.hud_show_percent == true)
+  click_row(pi, "hotspot_check"); check("settings: ...and back off", settings.hud_show_percent == false)
   local di = find_row("mode"); click_row(di, "hotspot_check")
   local vote_on = settings.mode == "vote"
   click_row(di, "hotspot_check")
@@ -3226,6 +3291,23 @@ for _, e in ipairs(echoes) do if e:find("^ERROR") then errors[#errors+1] = e end
 check("no errors logged by guarded callbacks", #errors == 0, table.concat(errors, " | "))
 
 -- DECK_DUMP=<file>: write the tiles of the Deck as JSON (tools/deck_preview.py draws them)
+-- (2026-10-06) the mod's default deck put back (catalog/user_defaults.lua): a standard card's Reset gives the deck's card; Clear
+-- this card and Delete empty a custom card (the user: "I can no longer delete or clear cards that were already created")
+do
+  mod.rw.events.UserDefaults.cards, mod.rw.events.UserDefaults.deck = AUTHOR_DECK.cards, AUTHOR_DECK.deck
+  mod.rw.presets.restore_defaults(function(id, v) settings[id] = v end, mod.rw.events)
+  view:_reload(); view:_open_detail("custom_3")
+  check("default deck: a custom card of the deck opens with its enemies (The Brothers)", view._wave.name == "The Brothers" and #view._parts == 2, view._wave.name)
+  click("btn_reset")
+  check("default deck: Clear this card empties it (it came back as the deck's card)", (settings.wave_def_custom_3 or "") == "" and #view._parts == 0 and settings.on_custom_3 == false)
+  view:_open_detail("custom_4"); click("btn_delete"); click("btn_delete")
+  check("default deck: Delete (twice) empties a custom card of the deck", (settings.wave_def_custom_4 or "") == "" and view._screen == "list")
+  view:_open_detail("wave_small"); mod.rw.events.set_def(function(id, v) settings[id] = v end, "wave_small", "Mine", mod.rw.groups.parse("2 hounds"), mod.rw.groups); view:_reload()
+  click("btn_reset")
+  check("default deck: a standard card's Reset gives the deck's card (The Wheel)", view._wave.name == "The Wheel", view._wave.name)
+  click("btn_back")
+end
+
 if DUMP and DUMP ~= "" then
   local function esc(s) return (tostring(s):gsub("[%c\"\\]", function(c) if c == "\n" then return "\\n" elseif c == "\"" then return "\\\"" elseif c == "\\" then return "\\\\" else return "" end end)) end
   local function ser(v)

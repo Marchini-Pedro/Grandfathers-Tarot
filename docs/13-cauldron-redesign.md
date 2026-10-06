@@ -327,6 +327,28 @@ The Lua tests were not run for this round; the suites still expect the built-in 
 | One for the beams and sprays | **Spray cut chance** (percent, 0 = off, `{spray=30}`): the Beast of Nurgle's vomit and the Flamers' fire share BtShootLiquidBeamAction; at each new spray (`shot_start_t`) the unit rolls, and a cut spray ends the action between a quarter and three quarters of its `attack_duration` (1.2 s, 1.8 s). The action's leave stops the beam, its effects and its puddle, as when the game ends it for range (`Tuning.spray_run`, a hook on its run; offline, 395 of 1000 at 40). |
 | One for the Trapper; would he lose the net and reload? | In the game, yes: `BtShootNetAction.leave` sets `net_is_ready = false` and the net cooldown whatever happened, so an aim the game interrupts costs a run away and a reload. **Net feint chance** (percent, `{net=30}`) keeps the net: at each aim the unit rolls; a feinting one stops 30 to 80 percent into the aim (the game's "aim interrupted" sound plays), and after the leave its net is ready again with a cooldown of the group's **Net feint pause** (0 to 15 s in half seconds, 1.5 by default; kept in tenths, `{pause=25}` = 2.5 s, shown in seconds), so he can aim again without reloading. Only before the action's first net (`Tuning.net_run`, `Tuning.net_leave`; offline, 404 of 1000 at 40, every one kept the net). |
 
+## Before the merge: the test suites (2026-10-06)
+
+The suites had not been run since the author's deck became the default. Run with `python tools/run_tests.py --timeout-seconds 280`
+(the CI's limit; logic_test takes over 120 s with coverage).
+
+| What failed | What was found and done |
+| --- | --- |
+| logic_test stopped at its start; protocol and appearance refused the handshake | The suites sent version "2.0.0"; the mod is 2.2.0 (`catalog/version.lua`). `tools/lua_test_runtime.py` now has `with_version`, which gives the suites the current version, so a version change no longer breaks them. |
+| Reset, presets, distances and cooldowns gave other values | Since the author's deck became the default, `Events.reset` writes it over the built-in card. The checks of the built-in reset use the new `Events.reset(set, key, true)` (built-in only); new checks cover the deck (The Wheel, The Brothers, its distances and cooldown). The editor's checks start from the built-in cards and put the deck back for their own checks (`UserDefaults.card` rebuilds when `cards` is replaced). |
+| A real bug: loading a preset left the deck's enemies | A preset stores what differs from the BUILT-IN cards, but applying it reset each card to the author's deck first: a card the preset kept as built (no `wave_def_`) kept the deck's enemies, and Undo last load did not come back exactly. `Presets.apply` now starts from the built-in cards (`Events.reset(..., true)`); Restore defaults and an empty preset slot use the new `Presets.restore_defaults` (the author's deck). Presets saved before load as they did. |
+| A real bug: the editor's time steppers started from 150 / 300 | The list screen showed 75 s but its - and + and number box started from the old 150 and 300 when the option had never been saved (165 after one click). Every fallback of the editor's settings screen and the director now matches the mod menu's default (75 s, random off, no first delay, a 5 s vote, no percent, Spidey Sense off). DMF normally writes the defaults, so this showed only on a profile that never had them. |
+| Two strings | `popup_tune_seconds_hint` used `%g`; the suites allow `%s` and `%d` only (the numbers are formatted before). The Net feint chance's explanation was 4 characters over its two lines. |
+| Changed on purpose | The options' new defaults (395 per wave, 500 alive, the timer below the card, Novarese Medium), Combat abilities retired (Reveal Elites in its place, a saved `cooldown=` dropped), the deterministic Blackout (a client's lights from the host's time), 16 custom mods on 18 rows, the narrower Mods / Custom / Remove buttons, the new hooks. |
+| Coverage | New checks for the Custom screen's chances, pause (seconds), toggles, Boss name and colour (`ui/wave_editor_tune.lua` 38 to above its 77 floor), and for the boss bars on host and client, their colours with and without Recolor Boss Health Bars, the Daemonhost's kills, the shields, the Packmaster's dogs, the sprays, the nets, Random combo end and the Attack cancel chance (`spawn/tuning.lua` 64 to above its 74 floor). New floors: `catalog/user_defaults.lua` 95, `catalog/version.lua` 100. No floor was lowered. |
+
+## Before the merge 2: performance, Delete and Clear (2026-10-06)
+
+| Report | What was found and done |
+| --- | --- |
+| "A complete performance pass, its performance is much worse than it used to be" (Mod Performance Monitor: 0.215 ms/frame, 146 calls a frame) | Compared with main, what runs every frame. The Spread itself costs microseconds offline on both (a timed loop over hud_test's stubs: 0.0075 ms a frame for three threat 6 cards). New on polishing and per enemy: **a hook on MinionLocomotionExtension.set_wanted_velocity** (the Mutant's charge, 2026-10-05) ran for every enemy every frame, the likely bulk of the 146 calls; now `Tuning.charge_update` puts the factor on that Mutant's own locomotion extension for the length of the step (an instance field shadows the class's method, then is removed) and the hook is gone. **The dark skins** (Bruised, Soulblaze, 12 groups of the default deck) wrote a material value on every skinned enemy every frame; now ten times a second, the moment centred on its phase (it moves by at most 0.05 s of a 2 to 4.5 s effect). Smaller: the HUD elements (Spread, dread, Dream, last card) skip their render pass while hidden; the boss bar's update and draw hooks return at once without a bar on screen (no per-frame table); the golden health hook returns at once without an Instant rescue charge. |
+| "I can no longer delete or clear cards that were already created" | Delete and "Clear this card" reset the card, and since the author's deck became the default a reset writes that deck's card over it: a card of the deck came straight back. A custom card is now emptied by the built-in reset (`Events.reset(..., true)`); a standard card's Reset still gives the deck's card. |
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -398,6 +420,9 @@ The Lua tests were not run for this round; the suites still expect the built-in 
     shield and it never comes back, for the host and a client alike; lit, as before (the Twins' shield raised). A Daemonhost's
     row: 1 kill, it leaves after the first player death (before this it never left); 2 kills and 3 kills; All, it stays until
     every player has died once (a rescued player's second death counts too).
+24. Before the merge: the Mod Performance Monitor in a busy wave against the 0.215 ms and 146 calls of before; a Bruised and a
+    Soulblaze group look as still as before (no flicker); a fast Mutant's charge and its run with a grabbed player still follow
+    the run speed; Delete and Clear this card on a card of the default deck; a preset saved, something changed, loaded back.
 24. Reveal Elites: amber outlines on the Elites for its time, host and client; Reveal Specialists still teal; a card saved with
     the old combat abilities effect still loads. A Blackout with a client: no crash, the client's lights go dark and come back.
     The Boss bar custom mod on a normal enemy (The Tower's): its name and health in the boss bar for the host and a client, gone

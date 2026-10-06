@@ -1,5 +1,5 @@
 import sys, os
-from lua_test_runtime import LuaRuntime
+from lua_test_runtime import LuaRuntime, with_version
 
 ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "mods", "GrandfathersTarot")
 lua = LuaRuntime(unpack_returned_tuples=True)
@@ -210,9 +210,13 @@ do
   s("sp_wave_small", 8); s("re_wave_small", 5); s("rf_wave_small", 20)
   local w = Events.get("wave_small", g, Groups)
   check("wave spread/repeat settings are read", w.spread == 8 and w.rep_every == 5 and w.rep_for == 20)
-  Events.reset(s, "wave_small")
+  Events.reset(s, "wave_small", true)
   w = Events.get("wave_small", g, Groups)
   check("reset restores spread/repeat defaults", w.spread == 3 and w.rep_every == 10 and w.rep_for == 60)
+  -- (2026-10-06) a plain reset puts the mod's default deck over it (catalog/user_defaults.lua: The Wheel spreads 5, every 5 for 20)
+  Events.reset(s, "wave_small")
+  w = Events.get("wave_small", g, Groups)
+  check("reset: the mod's default deck goes over the built-in card (its spread and repeat)", w.spread == 5 and w.rep_every == 5 and w.rep_for == 20 and w.name == "The Wheel", w.name)
 end
 
 -- Reset face (the Mirror): only the face goes back, the enemies, the chance and the rest stay
@@ -275,9 +279,13 @@ local before = Events.get("wave_small", get, Groups)
 Events.set_def(set, "wave_small", "Tiny Rush", Groups.parse("3 poxwalkers"), Groups)
 local after = Events.get("wave_small", get, Groups)
 check("standard override", after.name == "Tiny Rush" and #after.parts == 1 and after.modified and not after.is_custom and before.name == "The Fool")
-Events.reset(set, "wave_small")
+Events.reset(set, "wave_small", true)
 after = Events.get("wave_small", get, Groups)
 check("standard reset", after.name == "The Fool" and #after.parts == 4 and not after.modified and after.enabled and after.pct == 5, after.name)
+Events.reset(set, "wave_small")
+after = Events.get("wave_small", get, Groups)
+check("standard reset to the mod's default deck: the author's card (The Wheel, chance 10)", after.name == "The Wheel" and #after.parts == 1 and after.pct == 10, after.name)
+Events.reset(set, "wave_small", true)
 
 -- disabling, cooldown override, empty custom
 set("on_wave_large", false); set("cd_wave_large", 5)
@@ -286,8 +294,11 @@ check("enabled flag and cooldown override", wl.enabled == false and wl.cooldown 
 local pool_no_large = Events.build_pool(get, Groups)
 local has_large = false; for i = 1, #pool_no_large do if pool_no_large[i].key == "wave_large" then has_large = true end end
 check("disabled wave not in pool", not has_large)
-Events.reset(set, "custom_3")
+Events.reset(set, "custom_3", true)
 check("custom reset -> empty & disabled", Events.get("custom_3", get, Groups).parts == nil and Events.get("custom_3", get, Groups).enabled == false)
+Events.reset(set, "custom_3")
+check("custom reset to the mod's default deck: the author's custom card (The Brothers, on)", Events.get("custom_3", get, Groups).name == "The Brothers" and Events.get("custom_3", get, Groups).enabled == true)
+Events.reset(set, "custom_3", true)
 
 -- legacy 1.0.0 recipe setting still read
 settings["custom_4_recipe"] = "2 snipers"
@@ -357,13 +368,15 @@ do
   end
   settings.interval_min = 15; settings.interval_max = 40
   local seen_min, seen_max, in_range = math.huge, -math.huge, true
-  settings.interval_random = nil -- default: random
+  settings.interval_random = nil -- (2026-10-06) default: off, one fixed time (the options' default)
+  check("interval: random is off by default -> the minimum", math.abs(first_remaining() - 15) < 0.01)
+  settings.interval_random = true
   for _ = 1, 200 do
     local r = first_remaining()
     seen_min, seen_max = math.min(seen_min, r), math.max(seen_max, r)
     if r < 14.99 or r > 40.01 then in_range = false end
   end
-  check("interval: random (default) stays between the minimum and the maximum and actually varies", in_range and seen_max - seen_min > 5, seen_min .. ".." .. seen_max)
+  check("interval: random stays between the minimum and the maximum and actually varies", in_range and seen_max - seen_min > 5, seen_min .. ".." .. seen_max)
   settings.interval_random = false
   local fixed = {}
   for _ = 1, 20 do fixed[#fixed + 1] = first_remaining() end
@@ -1836,24 +1849,36 @@ do
   -- (2026-10-05) the Mutant's charge sets its velocity itself: while one of its steps runs for a tuned unit the velocity is scaled
   do
     check("charge: a tuned unit's run speed factor is kept (1.2), none for a plain unit", Tuning.speed_factor(c) == 1.2 and Tuning.speed_factor(plain) == nil)
+    -- (2026-10-06, a performance pass) the factor goes on that Mutant's own locomotion extension for the step, no global hook
     local set = {}
-    local loco = { set = function(self, v) set[#set + 1] = v end }
-    local function locomotion_set(self, v) return Tuning.wanted_velocity(function(_, vel) set[#set + 1] = vel; return "set" end, self, v) end
-    local function step(self, unit, ...) locomotion_set(loco, 10); return "step", ... end
+    local Locomotion = {}
+    Locomotion.__index = Locomotion
+    function Locomotion.set_wanted_velocity(self, v) set[#set + 1] = v; return "set" end
+    c.ext.locomotion_system = setmetatable({}, Locomotion)
+    plain.ext.locomotion_system = setmetatable({}, Locomotion)
+    local function step(self, unit, ...) unit.ext.locomotion_system:set_wanted_velocity(10); return "step", ... end
     local a, b = Tuning.charge_update(step, {}, c, "x")
     check("charge: during a step of a tuned Mutant the velocity it sets is multiplied by its factor (10 -> 12); the step's results pass through", math.abs(set[1] - 12) < 1e-9 and a == "step" and b == "x")
+    check("charge: after the step its locomotion has the class's method again (nothing left on the instance)", rawget(c.ext.locomotion_system, "set_wanted_velocity") == nil)
     Tuning.charge_update(step, {}, plain)
-    locomotion_set(loco, 10)
+    c.ext.locomotion_system:set_wanted_velocity(10)
     check("charge: a plain unit's step and any velocity set outside a step are left alone", set[2] == 10 and set[3] == 10)
-    local ok = pcall(Tuning.charge_update, function() error("step failed") end, {}, c)
-    locomotion_set(loco, 10)
-    check("charge: an error in the step is passed on and the scaling ends with it", not ok and set[4] == 10)
+    local ok = pcall(Tuning.charge_update, function(self, unit) unit.ext.locomotion_system:set_wanted_velocity(10); error("step failed") end, {}, c)
+    c.ext.locomotion_system:set_wanted_velocity(10)
+    check("charge: an error in the step is passed on and the scaling ends with it", not ok and math.abs(set[4] - 12) < 1e-9 and set[5] == 10 and rawget(c.ext.locomotion_system, "set_wanted_velocity") == nil)
     Tuning.dead = true
     Tuning.charge_update(step, {}, c)
     Tuning.dead = false
-    check("charge: a retired mod scales nothing", set[5] == 10)
-    Tuning.charge_update(function(self, unit) locomotion_set(loco, nil) end, {}, c)
-    check("charge: no velocity given: nothing to scale", set[6] == nil and #set == 5)
+    check("charge: a retired mod scales nothing", set[6] == 10)
+    Tuning.charge_update(function(self, unit) unit.ext.locomotion_system:set_wanted_velocity(nil) end, {}, c)
+    check("charge: no velocity given: nothing to scale", set[7] == nil and #set == 6)
+    local own = function(self, v) set[#set + 1] = "own " .. tostring(v) end
+    c.ext.locomotion_system.set_wanted_velocity = own
+    Tuning.charge_update(step, {}, c)
+    check("charge: a method another mod put on the instance is used and put back", set[7] == "own 12.0" or set[7] == "own 12", tostring(set[7]))
+    check("charge: ...and put back", rawget(c.ext.locomotion_system, "set_wanted_velocity") == own)
+    c.ext.locomotion_system = nil
+    check("charge: a unit without locomotion runs its step as the game's", Tuning.charge_update(function() return "plain step" end, {}, c) == "plain step")
   end
   local scaled_c = 0; for _, s in ipairs(scales_set) do if s.unit == c and s.node == 1 and math.abs(s.x - 1.3) < 1e-9 and s.x == s.z then scaled_c = scaled_c + 1 end end
   check("tuning: the size is the unit's root scale (node 1, 1.3 on every axis); nothing for the plain unit", scaled_c == 1 and (function() for _, s in ipairs(scales_set) do if s.unit == plain then return false end end return true end)())
@@ -2005,9 +2030,10 @@ do
   local single = pad(2.5, { 0.5, 0.8 }, "attack_swing", 1.6)
   fix(nil, c, nil, nil, 10, nil, single, PLAGUE)
   check("chain: a single sweep is kept until its sweep has stopped (0.8 + 0.27), the game used its start (0.5 + 0.27)", math.abs((single.attack_duration - 10) - 1.0666666666666667) < 1e-9, single.attack_duration - 10)
-  local oobb = { melee_attack_speed = 2.5, attack_type = "oobb", attack_timings = { 0.5, 1.0 }, attack_event = "attack_swing", attack_duration = 11 }
+  -- the game ends them at max(1.6 / 2.5, 1.0 + 0.27) after the start, as this does
+  local oobb = { melee_attack_speed = 2.5, attack_type = "oobb", attack_timings = { 0.5, 1.0 }, attack_event = "attack_swing", attack_duration = 10 + 1.2666666666666666 }
   fix(nil, c, nil, nil, 10, nil, oobb, PLAGUE)
-  check("chain: attacks that are not sweeps are left alone (the game already waits for their last timing)", oobb.attack_duration == 11)
+  check("chain: attacks that are not sweeps are left alone (the game already waits for their last timing)", math.abs(oobb.attack_duration - 11.266666666666667) < 1e-9, oobb.attack_duration)
   local calm = pad(1, COMBO, "attack_sword_combo", 3.5555555555555554); calm.melee_attack_speed = nil
   untouched = calm.attack_duration
   fix(nil, c, nil, nil, 10, nil, calm, PLAGUE)
@@ -2188,7 +2214,7 @@ do
       local ran = 0
       Tuning.boss_bar_update(function(self) ran = ran + 1; return "done" end, element)
       check("boss bar: a divided boss (3500 in bars of 1500) shows x2 and a full bar; its 'Weakened' name from the divided maximum is put right", target.localized_display_name == " loc:loc_breed_plague_ogryn  x2" and target.health_extension:current_health_percent() == 1 and ran == 1)
-      check("boss bar: the bar's other calls still reach the real extension", target.health_extension:extra(7) == 7 and target.health_extension.value == 5 and target.health_extension:max_health() == 3500 / 3)
+      check("boss bar: the bar's other calls still reach the real extension", target.health_extension:extra(7) == 7 and target.health_extension.value == 5 and target.health_extension:max_health() == 3500 and target.health_extension:current_health() == 3500)
       check("boss bar: a boss within the limit is not touched", plain.localized_display_name == " Hound" and plain.health_extension:current_health_percent() == 0.4)
       real.pct = 2750 / 3500
       Tuning.boss_bar_update(function() end, element)
@@ -2610,6 +2636,197 @@ do
   Tuning.reset(); Bypass.reset()
 end
 
+-- (2026-10-06) spawn/tuning.lua: the boss bars (host and client), their colours, the Daemonhost's kills, the shields, the
+-- Packmaster's dogs, the sprays, the nets, Random combo end and the Attack cancel chance
+do
+  local T = load("spawn/tuning")
+  T.init({ protocol = { is_available = function() return false end, send_scales = function() return true end } })
+  local saved = { su = ScriptUnit, unit = Unit, spawner = Managers.state.unit_spawner, event = Managers.event, alive = HEALTH_ALIVE, player = Managers.player, pacing = Managers.state.pacing, bb = BLACKBOARDS, random = math.random, get_mod = get_mod, difficulty = Managers.state.difficulty }
+  local dead = {}
+  HEALTH_ALIVE = setmetatable({}, { __index = function(_, u) return not dead[u] end })
+  ScriptUnit = { has_extension = function(u, sys) return u.ext and u.ext[sys] end }
+  Unit = { alive = function(u) return not dead[u] end }
+  get_mod = function(name) if name == "RecolorBossHealthBars" then return nil end return saved.get_mod(name) end
+  local fired = {}
+  Managers.event = { trigger = function(self, name, unit, ext) fired[#fired + 1] = { name = name, unit = unit, ext = ext } end }
+  local units = {}
+  Managers.state.unit_spawner = { game_object_id = function(self, u) return u.gid end, unit_exists = function(self, id) return units[id] ~= nil end, unit = function(self, id) return units[id] end }
+  local function breed_ext(name, shown) return { breed = function() return { name = name, display_name = shown ~= false and ("loc_breed_" .. name) or nil } end } end
+  local tower = { gid = 7, ext = { unit_data_system = breed_ext("cultist_mutant") } }
+  local ogryn = { gid = 8, ext = { unit_data_system = breed_ext("chaos_plague_ogryn"), boss_system = {} } }
+  local nameless = { gid = 9, ext = { unit_data_system = breed_ext("chaos_hound", false) } }
+  units[7], units[8], units[9] = tower, ogryn, nameless
+  local function by_id(list, id) for _, item in ipairs(list or {}) do if item == id or type(item) == "table" and item[1] == id then return item end end end
+  local function events_for(unit, name) local n = 0; for _, e in ipairs(fired) do if e.unit == unit and e.name == name then n = n + 1 end end return n end
+
+  T.apply(tower, { boss = 1 }, "cultist_mutant"); T.name_boss(tower, "  The {Tower} ", "#FF7A1A")
+  T.mark_boss(ogryn); T.name_boss(ogryn, "Big Lad", nil)
+  T.mark_boss(nameless)
+  local list = T.boss_list()
+  local t_item, o_item = by_id(list, 7), by_id(list, 8)
+  check("boss bars: the host lists the marked units by id with the group's name and colour; a real boss only when named", #list == 3 and type(t_item) == "table" and t_item[2] == "The Tower" and t_item[3] == "ff7a1a" and type(o_item) == "table" and o_item[2] == "Big Lad" and o_item[3] == "" and by_id(list, 9) == 9)
+  T.update_bosses(0.3, true)
+  local standin = fired[1] and fired[1].ext
+  check("boss bars: the host starts one bar with a stand-in: the breed's name, the custom name, the colour (ARGB)", #fired == 1 and fired[1].name == "boss_encounter_start" and fired[1].unit == tower and standin._rw_stand_in and standin.display_name() == "loc_breed_cultist_mutant" and standin._rw_custom_name == "The Tower" and standin._rw_colour[1] == 255 and standin._rw_colour[2] == 255 and standin._rw_colour[3] == 122 and standin._rw_colour[4] == 26 and standin.is_weakened() == false and standin.boss_is_depleted_interrupter() == false and standin.is_empowered() == nil)
+  check("boss bars: a real boss keeps the game's bar, its name written on its own extension", ogryn.ext.boss_system._rw_custom_name == "Big Lad" and ogryn.ext.boss_system._rw_colour == nil and events_for(ogryn, "boss_encounter_start") == 0)
+  check("boss bars: a breed without a display name gets no bar", events_for(nameless, "boss_encounter_start") == 0)
+  T.update_bosses(0.1, true); T.update_bosses(0.3, true)
+  check("boss bars: checked four times a second, a bar is started once", #fired == 1)
+  local hud = {}
+  T.boss_hud_created({ event_boss_encounter_start = function(self, unit, ext) hud[#hud + 1] = { unit, ext } end })
+  check("boss bars: a boss HUD made anew gets the bars shown here", #hud == 1 and hud[1][1] == tower and hud[1][2] == standin)
+  local readable = { current_health_percent = function() return 0.5 end }
+  local element = { _active_targets_array = { { unit = tower, boss_extension = standin, health_extension = readable }, { unit = ogryn, boss_extension = ogryn.ext.boss_system } } }
+  T.drop_dead_bosses(element)
+  check("boss bars: a stand-in with a readable health keeps its bar", events_for(tower, "boss_encounter_end") == 0)
+  element._active_targets_array[1].health_extension = { current_health_percent = function() error("destroyed object of type HuskHealthExtension") end }
+  T.drop_dead_bosses(element); T.drop_dead_bosses({})
+  check("boss bars: one whose health can no longer be read ends in that frame (a client crashed when the Tower died)", events_for(tower, "boss_encounter_end") == 1 and events_for(ogryn, "boss_encounter_end") == 0)
+  dead[tower] = true; T.update_bosses(0.3, true)
+  check("boss bars: a dead unit leaves the list", by_id(T.boss_list(), 7) == nil and by_id(T.boss_list(), 8) ~= nil)
+  dead[tower] = nil; T.mark_boss(tower); T.update_bosses(0.3, true)
+  T.end_bosses()
+  check("boss bars: the end of the game ends every bar and forgets the list", events_for(tower, "boss_encounter_end") == 2 and T.boss_list() == nil)
+  -- a client
+  fired = {}
+  T.receive_bosses({ { 7, "  Tower{}", "ZZZ" }, 8, "junk", { -1 }, { 1e12 }, { 9, "", "00ff00" } })
+  T.update_bosses(0.3, false)
+  local client_standin = fired[1] and fired[1].ext
+  check("boss bars, client: the host's list starts the bars here; the name cleaned, a bad colour dropped, bad ids skipped", #fired == 1 and fired[1].unit == tower and client_standin._rw_custom_name == "Tower" and client_standin._rw_colour == nil)
+  T.receive_bosses({ { 8, "", "00ff00" } }); T.update_bosses(0.3, false)
+  check("boss bars, client: a unit gone from the host's list ends its bar; a real boss takes the colour on its extension", events_for(tower, "boss_encounter_end") == 1 and ogryn.ext.boss_system._rw_colour[3] == 255 and ogryn.ext.boss_system._rw_custom_name == nil)
+  Managers.state.unit_spawner = nil; T.update_bosses(0.3, false)
+  check("boss bars, client: no spawner (the session closing) is not an error", T.boss_list() == nil)
+  T.receive_bosses("junk"); T.end_bosses()
+  -- the colours: the widget group a target is drawn in (one target in the first, two or more from the second)
+  local function group(c) return { health = { style = { bar = { color = c }, max = { color = { 0 } }, text = { text_color = { 0 } } } }, health_text = { style = { text = { text_color = { 0 } } } } } end
+  local g1, g2, g3 = group({ 255, 1, 2, 3 }), group({ 255, 4, 5, 6 }), group(nil)
+  local own = { _rw_colour = { 255, 10, 20, 30 } }
+  local el = { _active_targets_array = { { boss_extension = own } }, _widget_groups = { g1, g2, g3 }, _max_health_bars = 3 }
+  T.colour_boss_bars(el)
+  check("boss bar colours: one target: the first group takes its colour, the others keep theirs", g1.health.style.bar.color[2] == 10 and g2.health.style.bar.color[2] == 4 and g3.health.style.bar.color == nil)
+  el._active_targets_array = { { boss_extension = { _rw_stand_in = true } }, { boss_extension = own } }
+  T.colour_boss_bars(el)
+  check("boss bar colours: two targets from the second group; a stand-in without a colour is the game's red, a bar without one is coloured too; the first group is no longer wanted", g2.health.style.bar.color[2] == 255 and g2.health.style.bar.color[3] == 0 and g3.health.style.bar.color[2] == 10 and g1.health.style.bar.color[2] == 1)
+  el._active_targets_array = {}
+  T.colour_boss_bars(el)
+  check("boss bar colours: a group no longer wanted goes back to its own colour (the game's red when it had none)", g1.health.style.bar.color[2] == 1 and g2.health.style.bar.color[2] == 4 and g3.health.style.bar.color[2] == 255 and g3.health.style.bar.color[3] == 0)
+  get_mod = function(name) if name == "RecolorBossHealthBars" then return { is_enabled = function() return true end, get = function(self, id) return ({ color_others_r = 0, color_others_g = 200, color_others_b = 0 })[id] end } end return saved.get_mod(name) end
+  g1.health.style.bar.color = nil
+  el._active_targets_array = { { boss_extension = { _rw_stand_in = true } } }
+  local drawn = { T.boss_bar_draw(function(self, a) return "drawn", a end, el, 5) }
+  check("boss bar colours: with Recolor Boss Health Bars a stand-in takes its 'others' colour, and its max part, name and number too; then the bars are drawn", drawn[1] == "drawn" and drawn[2] == 5 and g1.health.style.bar.color[3] == 200 and g1.health.style.max.color[3] == 200 and g1.health.style.text.text_color[3] == 200 and g1.health_text.style.text.text_color[3] == 200)
+  el._active_targets_array = {}
+  T.colour_boss_bars(el)
+  check("boss bar colours: with Recolor a group no longer wanted is left to it", g1.health.style.bar.color[3] == 200)
+  get_mod = function(name) if name == "RecolorBossHealthBars" then return { is_enabled = function() return true end, get = function() return nil end } end return saved.get_mod(name) end
+  el._active_targets_array = { { boss_extension = { _rw_stand_in = true } } }
+  T.colour_boss_bars(el)
+  check("boss bar colours: Recolor without an 'others' colour: the game's red", g1.health.style.bar.color[2] == 255 and g1.health.style.bar.color[3] == 0)
+  local bad = { _active_targets_array = { { boss_extension = own } }, _widget_groups = 5 }
+  local still = T.boss_bar_draw(function() return "drawn anyway" end, bad)
+  check("boss bar colours: an error colouring is contained, the bars are still drawn", still == "drawn anyway")
+  -- the Daemonhost's kills before it leaves
+  local real = { player_deaths = 0, other = 1 }
+  local two = T.death_counter(real, 2)
+  two.player_deaths = 1
+  check("daemonhost: with 2 kills to leave, the first death is kept from the game", real.player_deaths == 0 and two.player_deaths == 1)
+  two.player_deaths = 2
+  check("daemonhost: ...the second is told (at least the game's 1)", real.player_deaths >= 1 and two.player_deaths == 2)
+  two.other = 5
+  check("daemonhost: the other fields of the component pass through", real.other == 5 and two.other == 5)
+  Managers.player = { players = function() return { a = 1, b = 2, c = 3 } end }
+  local everyone = { player_deaths = 0 }
+  local all = T.death_counter(everyone, "all")
+  all.player_deaths = 2; local after_two = everyone.player_deaths
+  all.player_deaths = 3
+  check("daemonhost: 'all' waits for every player in the game (3 here)", after_two == 0 and everyone.player_deaths >= 1)
+  Managers.player = nil
+  local alone = { player_deaths = 0 }; T.death_counter(alone, "all").player_deaths = 1
+  check("daemonhost: 'all' with no player list counts one", alone.player_deaths >= 1)
+  local listened = {}
+  Managers.state.pacing = { set_minion_listening_for_player_deaths = function(self, unit, statistics, set) listened[#listened + 1] = { unit, statistics, set } end }
+  local dh, stats = { gid = 20 }, { player_deaths = 0 }
+  BLACKBOARDS = { [dh] = { statistics = stats } }
+  T.watch_daemonhost(dh, "chaos_daemonhost", 3); T.watch_daemonhost({ gid = 21 }, "chaos_hound", 3); T.watch_daemonhost(nil, "chaos_daemonhost", 3)
+  check("daemonhost: a wave's Daemonhost is registered to hear the deaths (it never went through its passive stage); no other breed", #listened == 1 and listened[1][1] == dh and listened[1][2] == stats and listened[1][3] == true)
+  local function pass(self, unit, component, set) return component end
+  local proxy = T.listen_deaths(pass, nil, dh, stats, true)
+  check("daemonhost: the game's registration gets a counter of its own for it", proxy ~= stats and proxy.player_deaths == 0)
+  check("daemonhost: unregistering, or one that leaves at the first kill, is the game's own", T.listen_deaths(pass, nil, dh, stats, false) == stats and T.listen_deaths(pass, nil, { gid = 22 }, stats, true) == stats)
+  local quick = { gid = 23 }; BLACKBOARDS[quick] = { statistics = stats }; T.watch_daemonhost(quick, "chaos_daemonhost", nil)
+  check("daemonhost: without a number it leaves at the first kill (the game's own)", T.listen_deaths(pass, nil, quick, stats, true) == stats)
+  -- shields and dogs
+  local captain = { ext = { toughness_system = { destroy_shield = function(self) self.down = true end } } }
+  T.drop_shield(captain); T.drop_shield({ ext = {} }); T.drop_shield(nil)
+  check("shield: a (no shield) Captain's shield is destroyed (it never comes back); one without is left alone", captain.ext.toughness_system.down == true)
+  local pm, other_pm = { gid = 30 }, { gid = 31 }
+  T.forbid_summon(pm); T.forbid_summon(nil)
+  local function yes() return true end
+  check("dogs: a (no dogs) Packmaster cannot summon, the others can", T.can_summon(yes, { _unit = pm }) == false and T.can_summon(yes, { _unit = other_pm }) == true and T.can_summon(yes, nil) == true)
+  -- sprays and nets (math.random fixed: the integer roll, then the fraction)
+  local roll, frac = 1, 0
+  math.random = function(a, b) if a then return roll end return frac end
+  local flamer, calm = { gid = 40 }, { gid = 41 }
+  T.apply(flamer, { spray = 40 }, "renegade_flamer")
+  local function run() return "running" end
+  local sp, ad = { shot_start_t = 10, shooting_liquid_beam = true }, { attack_duration = 1.2 }
+  check("spray: before its cut a spray runs as the game's", T.spray_run(run, nil, flamer, nil, nil, sp, ad, 0.1, 10.2) == "running")
+  check("spray: a cut spray ends a quarter through (1.2 s: at 10.3)", T.spray_run(run, nil, flamer, nil, nil, sp, ad, 0.1, 10.3) == "done")
+  roll = 41; sp.shot_start_t = 12
+  check("spray: each spray rolls again (41 > 40: not cut)", T.spray_run(run, nil, flamer, nil, nil, sp, ad, 0.1, 13.1) == "running")
+  check("spray: a unit without the chance is never cut", T.spray_run(run, nil, calm, nil, nil, { shot_start_t = 10, shooting_liquid_beam = true }, ad, 0.1, 20) == "running")
+  roll = 1; frac = 1
+  Managers.state.difficulty = { get_table_entry_by_challenge = function(self, t) return t[2] end }
+  local sp2 = { shot_start_t = 30, shooting_liquid_beam = true }
+  T.spray_run(run, nil, flamer, nil, nil, sp2, { attack_duration = { 1, 2, 3 } }, 0.1, 30)
+  check("spray: a length per difficulty is read for this one (2 s, three quarters: 31.5)", math.abs(sp2._rw_spray_cut - 31.5) < 1e-9)
+  local trapper = { gid = 50 }
+  T.apply(trapper, { net = 30, pause = 25 }, "renegade_netgunner")
+  roll, frac = 1, 0
+  local behavior = { net_is_ready = true, shoot_net_cooldown = 0 }
+  local np, nd = { internal_state = "aiming", shoot_t = 20, num_shots_fired = 0, behavior_component = behavior }, { aim_duration = 1 }
+  check("net: the aim runs until its feint", T.net_run(run, nil, trapper, nil, nil, np, nd, 0.1, 19.5) == "running")
+  check("net: a feinting aim stops before the shot (a fifth to seven tenths into it: at 19.8)", T.net_run(run, nil, trapper, nil, nil, np, nd, 0.1, 19.8) == "done" and np._rw_feinted)
+  behavior.net_is_ready, behavior.shoot_net_cooldown = false, 99 -- what the game's leave does
+  T.net_leave(nil, trapper, nil, nil, np, nd, 19.8)
+  check("net: after the leave the net is ready again, with the group's Net feint pause (2.5 s)", behavior.net_is_ready == true and math.abs(behavior.shoot_net_cooldown - 22.3) < 1e-9)
+  behavior.net_is_ready = false
+  T.net_leave(nil, trapper, nil, nil, np, nd, 25)
+  check("net: a leave that was not a feint is the game's (the net used)", behavior.net_is_ready == false)
+  local fired_np = { internal_state = "aiming", shoot_t = 40, num_shots_fired = 1, behavior_component = behavior }
+  check("net: no feint once a net was fired", T.net_run(run, nil, trapper, nil, nil, fired_np, nd, 0.1, 40) == "running" and fired_np._rw_feint_t == nil)
+  local plain_trapper = { gid = 51 }
+  T.apply(plain_trapper, { net = 100 }, "renegade_netgunner")
+  local pp = { internal_state = "aiming", shoot_t = 60, num_shots_fired = 0, behavior_component = { net_is_ready = false } }
+  T.net_run(run, nil, plain_trapper, nil, nil, pp, {}, 0.1, 60)
+  T.net_leave(nil, plain_trapper, nil, nil, pp, {}, 60)
+  check("net: without a pause of its own the net comes back 1.5 s later", pp.behavior_component.net_is_ready == true and math.abs(pp.behavior_component.shoot_net_cooldown - 61.5) < 1e-9)
+  -- Random combo end and the Attack cancel chance
+  local brute, feinter = { gid = 60 }, { gid = 61 }
+  T.apply(brute, { combo = 1 }, "chaos_plague_ogryn"); T.apply(feinter, { cancel = 100 }, "chaos_ogryn_executor")
+  local function combo_pad() return { attack_type = "sweep", attack_event = "combo", attack_sweep_timings = { { 1.0, 1.2 }, { 1.8, 1.9 }, { 2.7, 2.8 } }, attack_duration = 13.5 } end
+  local cad = { attack_anim_durations = { combo = 3.5, swing = 1.6 } }
+  roll = 1
+  local c1 = combo_pad(); T.fix_attack_end(nil, brute, nil, nil, 10, nil, c1, cad)
+  check("combo end: stopped after its first hit (0.27 s after it, before the second)", math.abs(c1.attack_duration - (10 + 1.2 + 0.26666666666666666)) < 1e-9, c1.attack_duration)
+  roll = 3
+  local c3 = combo_pad(); T.fix_attack_end(nil, brute, nil, nil, 10, nil, c3, cad)
+  check("combo end: the last hit drawn: the whole combo", c3.attack_duration == 13.5)
+  local single = { attack_type = "oobb", attack_event = "swing", attack_timing = 10.9, attack_duration = 11.6 }
+  roll = 1; T.fix_attack_end(nil, feinter, nil, nil, 10, nil, single, cad)
+  check("cancel: an attack of one hit stops 0.15 s before it lands", math.abs(single.attack_duration - 10.75) < 1e-9, single.attack_duration)
+  local many = combo_pad(); T.fix_attack_end(nil, feinter, nil, nil, 10, nil, many, cad)
+  check("cancel: a combo is left to Random combo end", many.attack_duration == 13.5)
+  local none = { attack_type = "oobb", attack_event = "nothing", attack_duration = 11 }
+  T.fix_attack_end(nil, feinter, nil, nil, 10, nil, none, cad); T.fix_attack_end(nil, feinter, nil, nil, 10, nil, nil, cad)
+  check("cancel: an attack of no known timing is left alone", none.attack_duration == 11)
+  T.retire()
+  check("retired: the hooks do nothing (the game's own runs)", T.spray_run(run, nil, flamer, nil, nil, { shot_start_t = 99, shooting_liquid_beam = true }, ad, 0.1, 99.9) == "running" and T.net_run(run, nil, trapper, nil, nil, { internal_state = "aiming", shoot_t = 99, num_shots_fired = 0 }, nd, 0.1, 99) == "running")
+  ScriptUnit, Unit, Managers.state.unit_spawner, Managers.event, HEALTH_ALIVE = saved.su, saved.unit, saved.spawner, saved.event, saved.alive
+  Managers.player, Managers.state.pacing, BLACKBOARDS, math.random, get_mod, Managers.state.difficulty = saved.player, saved.pacing, saved.bb, saved.random, saved.get_mod, saved.difficulty
+end
+
 -- custom mods ("tuning") in the recipe ----------------------------------------------------------------------------------
 do
   local parts = Groups.parse("3 crushers[enraged]{health=150 size=130}@2, 2 hounds")
@@ -2645,9 +2862,13 @@ do
   check("tune: the readable text lists the changed ones in catalog order", Groups.tune_text({ mass = 200, health = 150 }) == "Health 150%, Hit mass 200%" and Groups.tune_text(nil) == "" and Groups.tune_text({ size = 100 }) == "")
   check("tune: has_tune, copy_tune, clamp_tune", Groups.has_tune(Groups.parse("1 hound, 1 crusher{mass=200}")) and not Groups.has_tune(Groups.parse("1 hound")) and Groups.copy_tune(nil) == nil and Groups.copy_tune({ size = 120 }).size == 120 and Groups.clamp_tune("burst", 1000) == 500 and Groups.clamp_tune("gap", 26.4) == 26 and Groups.clamp_tune("gap", 1000) == 400 and Groups.clamp_tune("gap", 5) == 25)
   check("tune: ten custom mods (damage dealt since 2026-10-04), each with a range around 100 and a step", (function()
-    if #Groups.TUNE ~= 10 then return false end
-    for _, def in ipairs(Groups.TUNE) do if not (def.min < 100 and def.max > 100 and def.step > 0 and def.name ~= "") then return false end end
+    for i = 1, 10 do local def = Groups.TUNE[i]; if not (def.min < 100 and def.max > 100 and def.step > 0 and def.name ~= "" and not def.default) then return false end end
     return true
+  end)())
+  -- (2026-10-06) then the chances (0-100 percent, off by default), the Net feint pause (tenths of a second) and two toggles
+  check("tune: sixteen custom mods; the six after the percents have their own default (chances 0, the pause 1.5 s, toggles off)", (function()
+    local by = {}; for i, def in ipairs(Groups.TUNE) do by[def.id] = def; if i > 10 and def.default == nil then return false end end
+    return #Groups.TUNE == 16 and by.cancel.max == 100 and by.cancel.default == 0 and by.spray.default == 0 and by.net.default == 0 and by.pause.tenths and by.pause.default == 15 and by.combo.toggle and by.boss.toggle and by.boss.default == 0
   end)())
   check("tune: damage dealt is read from a recipe and written back, its aliases too", (function()
     local p = Groups.parse("2 snipers{damage=200}")
@@ -2701,6 +2922,20 @@ do
   local expected = Presets.encode({ name = "X", waves = back.waves })
   check("presets: after apply the setup equals the saved one, the leftovers (custom_1, pct_wave_medium, boss_ambush off) are gone", applied_named == expected, applied:sub(1, 200))
   check("presets: apply does not turn untouched standard waves into overrides", other["wave_def_wave_large"] == "" and other["wave_def_boss_ambush"] == "", tostring(other["wave_def_boss_ambush"]))
+  -- (2026-10-06) the mod's default deck (catalog/user_defaults.lua): Restore defaults gives it; a preset is applied over the
+  -- built-in cards it was captured against, so a card it keeps as built does not take the deck's enemies
+  local mine, theirs = {}, {}
+  local function mget(id) return mine[id] end
+  local function mset(id, v) mine[id] = v end
+  local function tget(id) return theirs[id] end
+  local function tset(id, v) theirs[id] = v end
+  Presets.restore_defaults(mset, Events)
+  check("presets: Restore defaults gives the mod's default deck (The Wheel, The Brothers)", Events.get("wave_small", mget, Groups).name == "The Wheel" and Events.get("custom_3", mget, Groups).name == "The Brothers")
+  mine.wave_def_wave_small = ""; mine.pct_wave_small = 7
+  local kept = Presets.capture(mget, Events, Groups)
+  Presets.restore_defaults(tset, Events)
+  Presets.apply(kept, tset, Events, Groups)
+  check("presets: a saved setup comes back exactly over the default deck (a card kept as built stays The Fool)", Presets.encode({ name = "X", waves = Presets.capture(tget, Events, Groups).waves }) == Presets.encode({ name = "X", waves = kept.waves }) and Events.get("wave_small", tget, Groups).name == "The Fool" and Events.get("wave_small", tget, Groups).pct == 7)
 
   -- damaged / hostile text is refused as a whole
   local function bad(t) local p, e = Presets.decode(t, Events, Groups); return p == nil and type(e) == "string" and e end
@@ -2800,6 +3035,8 @@ do
   local sdef = Events.spawn_def(wave)
   check("distance: stored values reach the spawn definition", sdef.dmin == 35 and sdef.dmax == 120)
   Events.reset(s, "wave_small")
+  check("distance: a reset gives the mod's default deck's distances (The Wheel 25 to 100 m)", store.dmin_wave_small == 25 and store.dmax_wave_small == 100)
+  Events.reset(s, "wave_small", true)
   check("distance: reset puts them back to 0", store.dmin_wave_small == 0 and store.dmax_wave_small == 0)
   -- presets
   local Presets = load("catalog/presets")
@@ -3132,8 +3369,8 @@ do
   local w2 = Events.get("custom_1", function(id) return st[id] end, Groups)
   check("settings: junk values fall back (suit plague, threat 6 at most, no look, no whisper)", w2.suit == "plague" and w2.threat_override == 6 and w2.look == "" and w2.whisper == "")
   local sets = {}
-  Events.reset(function(id, v) sets[id] = v end, "custom_1")
-  check("settings: reset clears the card data", sets.su_custom_1 == "" and sets.th_custom_1 == 0 and sets.wh_custom_1 == "" and sets.cl_custom_1 == "")
+  Events.reset(function(id, v) sets[id] = v end, "custom_10", true)
+  check("settings: reset clears the card data", sets.su_custom_10 == "" and sets.th_custom_10 == 0 and sets.wh_custom_10 == "" and sets.cl_custom_10 == "")
   -- sharing and spreads carry the card data
   local store = { su_custom_2 = "rage", th_custom_2 = 2, wh_custom_2 = "Run | now ~ 100%", cl_custom_2 = "vial", wave_def_custom_2 = "Chase\t5 hounds", on_custom_2 = true, cd_custom_2 = 180 }
   local function g(id) return store[id] end
@@ -3596,7 +3833,7 @@ do
   local all = data.options.widgets
   local mp, ma = find("max_per_wave", all), find("max_alive", all)
   check("options: max enemies per wave 1-500, max alive 10-1000", mp.range[1] == 1 and mp.range[2] == 500 and ma.range[1] == 10 and ma.range[2] == 1000, mp.range[2] .. "/" .. ma.range[2])
-  check("options: defaults unchanged (80 per wave, 120 alive)", mp.default_value == 80 and ma.default_value == 120)
+  check("options: defaults are the author's (395 per wave, 500 alive)", mp.default_value == 395 and ma.default_value == 500)
   local ok = true
   for _, id in ipairs({ "mult_normal", "mult_boss", "mult_special" }) do
     local w = find(id, all)
@@ -3640,8 +3877,8 @@ do
   -- the look options of the Spread: size, opacity, timer below, corner symbol, font
   local sc, op, tb, hi, ft = find("tarot_scale", all), find("tarot_opacity", all), find("tarot_timer_below", all), find("tarot_hide_icon", all), find("tarot_font", all)
   check("options: HUD size 50-200 pct (default 100) and opacity 10-100 pct (default 100), in steps of 5", sc and op and sc.range[1] == 50 and sc.range[2] == 200 and sc.default_value == 100 and sc.step_size_value == 5 and op.range[1] == 10 and op.range[2] == 100 and op.default_value == 100 and op.step_size_value == 5 and sc.unit_text == "unit_percent")
-  check("options: timer below and hide the corner symbol are checkboxes, off by default", tb and hi and tb.type == "checkbox" and hi.type == "checkbox" and tb.default_value == false and hi.default_value == false)
-  local font_ok = ft ~= nil and ft.type == "dropdown" and ft.default_value == "itc_novarese_bold" and #ft.options >= 5
+  check("options: timer below (on, the author's default) and hide the corner symbol (off) are checkboxes", tb and hi and tb.type == "checkbox" and hi.type == "checkbox" and tb.default_value == true and hi.default_value == false)
+  local font_ok = ft ~= nil and ft.type == "dropdown" and ft.default_value == "itc_novarese_medium" and #ft.options >= 5
   local valid_fonts = { itc_novarese_bold = true, itc_novarese_medium = true, friz_quadrata = true, proxima_nova_bold = true, rexlia = true, machine_medium = true }
   local default_listed = false
   for _, o in ipairs(ft and ft.options or {}) do
@@ -3692,10 +3929,12 @@ do
     check("default cooldown: a cooldown set on the card itself always wins", cd() == 90)
     settings.tarot_default_cooldown = 300
     check("default cooldown: a standard card keeps its own cooldown (The Fool 120 s)", Events.get("wave_small", getter, Groups).cooldown == 120)
-    Events.reset(function(id, value) settings[id] = value end, "custom_5")
+    Events.reset(function(id, value) settings[id] = value end, "custom_5", true)
     check("default cooldown: a custom slot that is reset goes back to the option (cd_ cleared)", settings.cd_custom_5 == nil and cd() == 300, tostring(settings.cd_custom_5))
-    Events.reset(function(id, value) settings[id] = value end, "wave_small")
+    Events.reset(function(id, value) settings[id] = value end, "wave_small", true)
     check("default cooldown: resetting a standard card restores its own cooldown", settings.cd_wave_small == 120)
+    Events.reset(function(id, value) settings[id] = value end, "wave_small")
+    check("default cooldown: a plain reset gives the mod's default deck's cooldown (The Wheel 60 s)", settings.cd_wave_small == 60)
     settings.tarot_default_cooldown = nil; settings.wave_def_custom_5 = nil; settings.cd_custom_5 = nil; settings.cd_wave_small = nil
   end
   -- text next to the detail-screen steppers: node width minus 440 px, about 10 px per character
@@ -3915,7 +4154,7 @@ end
 
 return table.concat(results, "\n") .. "\n--- echoes ---\n" .. table.concat(echoes, "\n")
 '''
-out = lua.execute(harness, ROOT.replace("\\", "/"))
+out = lua.execute(with_version(harness), ROOT.replace("\\", "/"))
 print(out)
 fails = [l for l in out.split("\n") if l.startswith("FAIL")]
 print("\nFAILURES:", len(fails))

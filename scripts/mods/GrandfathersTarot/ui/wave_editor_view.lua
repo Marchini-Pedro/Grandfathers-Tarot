@@ -770,16 +770,16 @@ end
 local SETTINGS_ROWS = {
 	-- id, kind, then the numbers for a "number" row. Labels/infos are localized as set_<id> / set_<id>_info.
 	{ id = "mode", kind = "mode" },
-	{ id = "interval_random", kind = "toggle", default = true },
+	{ id = "interval_random", kind = "toggle", default = false },
 	{ id = "interval_min", kind = "number", default = 75, min = 5, max = 1800, step = 5 },
 	{ id = "interval_max", kind = "number", default = 75, min = 5, max = 1800, step = 5, needs = "interval_random" },
-	{ id = "initial_delay", kind = "number", default = 45, min = 0, max = 600, step = 5 },
-	{ id = "vote_duration", kind = "number", default = 25, min = 5, max = 120, step = 5 },
+	{ id = "initial_delay", kind = "number", default = 0, min = 0, max = 600, step = 5 },
+	{ id = "vote_duration", kind = "number", default = 5, min = 5, max = 120, step = 5 },
 	{ id = "ballot_size", kind = "number", default = 3, min = 2, max = 5, step = 1 },
 	{ id = "pool_all_players", kind = "toggle", default = false },
-	{ id = "hud_show_percent", kind = "toggle", default = true },
+	{ id = "hud_show_percent", kind = "toggle", default = false },
 	{ id = "colour_enemies", kind = "toggle", default = true },
-	{ id = "colour_spidey", kind = "toggle", default = true, needs = "colour_enemies" },
+	{ id = "colour_spidey", kind = "toggle", default = false, needs = "colour_enemies" },
 }
 
 local function setting_flag(id, default)
@@ -795,7 +795,7 @@ end
 -- Live rows for the settings screen (values come straight from the mod's settings).
 GrandfathersTarotView._reload_settings = function (self)
 	local rows = {}
-	local random_on = setting_flag("interval_random", true)
+	local random_on = setting_flag("interval_random", false)
 
 	for i = 1, #SETTINGS_ROWS do
 		local def = SETTINGS_ROWS[i]
@@ -990,7 +990,7 @@ GrandfathersTarotView._apply_screen = function (self, keep_offset)
 		widgets.bottom_title.content.bottom_title = (self._deleted_count or 0) > 0 and mod:localize("bottom_list_deleted", self._deleted_count) or mod:localize("bottom_list_title")
 
 		-- the time between waves (the same two settings as in the options menu)
-		local random_on = setting_flag("interval_random", true)
+		local random_on = setting_flag("interval_random", false)
 		local tmin, tmax = widgets.stepper_tmin.content, widgets.stepper_tmax.content
 
 		tmin.label = mod:localize(random_on and "set_interval_min" or "set_interval_fixed")
@@ -1830,8 +1830,9 @@ GrandfathersTarotView.cb_delete = guarded(function (self)
 	if self._confirm and self._confirm.key == wave.key and (self._t or 0) <= self._confirm.expires then
 		self._confirm = nil
 
+		-- (2026-10-06) emptied, not given the default deck's card back (a plain reset would write that deck's card over it)
 		if wave.is_custom then
-			mod.rw.events.reset(set_setting, wave.key)
+			mod.rw.events.reset(set_setting, wave.key, true)
 		else
 			set_setting("del_" .. wave.key, true)
 		end
@@ -2361,8 +2362,10 @@ GrandfathersTarotView.cb_toggle_enabled = guarded(function (self)
 	self:_apply_screen(true)
 end)
 
+-- Reset: a standard card goes back to the default deck's; a custom card's "Clear this card" empties it (2026-10-06: it used to
+-- give the default deck's custom card back, so a card of that deck could not be cleared)
 GrandfathersTarotView.cb_reset = guarded(function (self)
-	mod.rw.events.reset(set_setting, self._key)
+	mod.rw.events.reset(set_setting, self._key, self._wave and self._wave.is_custom)
 	self:_reload()
 	self._parts = copy_parts(self._wave.parts)
 	self:_apply_screen()
@@ -2547,7 +2550,13 @@ GrandfathersTarotView.cb_preset_load = guarded(function (self)
 	rw.presets.write(set_setting, rw.presets.UNDO_ID, backup)
 
 	local blank = slot.preset == nil
-	local written = rw.presets.apply(slot.preset or { waves = {} }, set_setting, rw.events, rw.groups)
+	local written = 0
+
+	if blank then
+		rw.presets.restore_defaults(set_setting, rw.events)
+	else
+		written = rw.presets.apply(slot.preset, set_setting, rw.events, rw.groups)
+	end
 
 	self:_reload()
 	self:_refresh_preset(blank and mod:localize("preset_loaded_blank", slot.index) or mod:localize("preset_loaded", slot.name, written))
@@ -2814,7 +2823,7 @@ GrandfathersTarotView.cb_defaults = guarded(function (self)
 
 		backup.name = mod:localize("preset_undo_name")
 		rw.presets.write(set_setting, rw.presets.UNDO_ID, backup)
-		rw.presets.apply({ waves = {} }, set_setting, rw.events, rw.groups)
+		rw.presets.restore_defaults(set_setting, rw.events)
 		rw.events.set_order(set_setting, {})
 		set_setting("deck_sort", "")
 
@@ -2864,11 +2873,11 @@ GrandfathersTarotView._set_time = function (self, id, value)
 end
 
 GrandfathersTarotView.cb_tmin_step = guarded(function (self, delta)
-	self:_set_time("interval_min", next_time(tonumber(mod:get("interval_min")) or 150, delta))
+	self:_set_time("interval_min", next_time(tonumber(mod:get("interval_min")) or 75, delta))
 end)
 
 GrandfathersTarotView.cb_tmax_step = guarded(function (self, delta)
-	self:_set_time("interval_max", next_time(tonumber(mod:get("interval_max")) or 300, delta))
+	self:_set_time("interval_max", next_time(tonumber(mod:get("interval_max")) or 75, delta))
 end)
 
 local function time_popup(self, id, label_key, default)
@@ -2883,11 +2892,11 @@ local function time_popup(self, id, label_key, default)
 end
 
 GrandfathersTarotView.cb_tmin_input = guarded(function (self)
-	time_popup(self, "interval_min", "set_interval_min", 150)
+	time_popup(self, "interval_min", "set_interval_min", 75)
 end)
 
 GrandfathersTarotView.cb_tmax_input = guarded(function (self)
-	time_popup(self, "interval_max", "set_interval_max", 300)
+	time_popup(self, "interval_max", "set_interval_max", 75)
 end)
 -- popup ------------------------------------------------------------------------
 

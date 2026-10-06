@@ -333,7 +333,7 @@ HudElementGrandfathersTarotPanel._refresh_legacy = function (self, view, is_samp
 		local cand = cands[i]
 		local colour = view.my_vote == i and COLOUR_MINE or COLOUR_LINE
 
-		local with_pct = mod:get("hud_show_percent") ~= false
+		local with_pct = mod:get("hud_show_percent") == true
 
 		if is_vote then
 			if with_pct then
@@ -1425,7 +1425,12 @@ HudElementGrandfathersTarotPanel.draw = function (self, dt, t, ui_renderer, rend
 	local size, opacity = o.scale, o.opacity * (self._boss_fade or 1)
 	local push = self._boss_push or 0
 
-	if not self._visible or (size == 1 and opacity == 1 and push == 0) then
+	-- (2026-10-06, a performance pass) hidden (every widget hidden by _hide): no render pass at all
+	if not self._visible then
+		return
+	end
+
+	if size == 1 and opacity == 1 and push == 0 then
 		return HudElementGrandfathersTarotPanel.super.draw(self, dt, t, ui_renderer, render_settings, input_service)
 	end
 

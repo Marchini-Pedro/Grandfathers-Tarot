@@ -2,11 +2,11 @@
 from pathlib import Path
 import sys
 
-from lua_test_runtime import LuaRuntime
+from lua_test_runtime import LuaRuntime, with_version
 
 root = Path(__file__).resolve().parents[1] / "scripts/mods/GrandfathersTarot"
 lua = LuaRuntime(unpack_returned_tuples=True)
-output = lua.execute(r'''
+output = lua.execute(with_version(r'''
 local ROOT=...
 local warnings,errors,sends,registered,received={},{},{},{},{}
 local mod={ get=function() return true end,
@@ -99,6 +99,6 @@ local safe=pcall(function()
 end)
 check("protocol inputs: absent optional handlers safely ignore valid RPCs", safe)
 return table.concat(results,"\n")
-''', root.as_posix())
+'''), root.as_posix())
 print(output)
 sys.exit(1 if any(line.startswith("FAIL ") for line in output.splitlines()) else 0)

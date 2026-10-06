@@ -177,7 +177,15 @@ RW.golden_health = function (panel)
 end
 
 local function golden_draw(func, self, ...)
-	local golden = not RW.dead and select(2, pcall(RW.golden_health, self)) == true
+	-- (a performance pass) this runs every frame for every panel: without a charge armed, and gold not shown, it is the game's
+	local effects = RW.effects
+	local charges = not RW.dead and effects and effects.team_rescues and effects.team_rescues() or 0
+
+	if charges <= 0 and not self._rw_golden then
+		return func(self, ...)
+	end
+
+	local golden = charges > 0 and select(2, pcall(RW.golden_health, self)) == true
 
 	-- (2026-10-06, the user: "healed back above one wound with Instant rescue armed, the gold does not come back") The game draws the
 	-- segments again only when a health value changed (_draw_health_segments, set by _apply_health_fraction), and the colour is

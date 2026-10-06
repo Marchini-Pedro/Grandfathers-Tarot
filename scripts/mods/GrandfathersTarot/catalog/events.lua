@@ -503,7 +503,8 @@ end
 
 -- Back to defaults: standard waves return to the built-in definition; custom slots are emptied. Then (2026-10-06) the mod's own
 -- default deck (catalog/user_defaults.lua, the author's) is written over it: a card it holds comes back as the author made it.
-Events.reset = function (set_setting, key)
+-- `builtin` leaves that deck out: a preset stores what differs from the built-in cards, so it is applied over them.
+Events.reset = function (set_setting, key, builtin)
 	local std = by_key[key]
 
 	set_setting("fx_" .. key, "")
@@ -524,6 +525,10 @@ Events.reset = function (set_setting, key)
 	set_setting("cl_" .. key, "")
 	set_setting("ev_" .. key, 0)
 	set_setting("del_" .. key, false)
+
+	if builtin then
+		return
+	end
 
 	for setting, value in pairs(UserDefaults.card(key)) do
 		set_setting(setting, value)

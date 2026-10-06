@@ -260,17 +260,21 @@ do
   A.update(0.25)
   check("skin: once they are there the textures and the burn permutation are set and the look is held", #textures == 1 and textures[1][3] == "tex/burn" and perms[1][2] == "HAVE_BURN" and A._skinned() == 1 and mats[#mats].key == "offset_time_duration")
   local held = mats[#mats].v
-  check("skin: A picks the moment: the start is put half the duration (A 128 of 255) before now", math.abs(held[2] - (50 - 2 * 128 / 255)) < 1e-9 and held[1] == 1.5 and held[3] == 3)
+  -- (2026-10-06, a performance pass) held ten times a second, the moment centred on the phase (half a step, 0.05 s, ahead)
+  check("skin: A picks the moment: the start is put half the duration (A 128 of 255) before now, half a step ahead", math.abs(held[2] - (50 - 2 * 128 / 255 + 0.05)) < 1e-9 and held[1] == 1.5 and held[3] == 3)
+  local writes = #mats
   now = 60; A.update(0.01)
-  check("skin: every frame the moment is held (the start follows the clock)", math.abs(mats[#mats].v[2] - (60 - 2 * 128 / 255)) < 1e-9)
+  check("skin: not written again within a step (no engine write per enemy per frame)", #mats == writes)
+  A.update(0.1)
+  check("skin: every tenth of a second the moment is held (the start follows the clock)", math.abs(mats[#mats].v[2] - (60 - 2 * 128 / 255 + 0.05)) < 1e-9)
   local other = Schema.copy(purple); other.method = "skin_warp"
   A.apply(control, other, control.breed)
   check("skin: an effect the game has no template for leaves the enemy alone", A._skinned() == 1)
-  skin_unit.alive = false; A.update(0.01)
+  skin_unit.alive = false; A.update(0.1)
   check("skin: a dead enemy is let go", A._skinned() == 0)
   skin_unit.alive = true
   A.apply(skin_unit, burnt, skin_unit.breed); A.update(0.01)
-  skin_unit.skin_fail = true; A.update(0.01)
+  skin_unit.skin_fail = true; A.update(0.1)
   check("skin: a failing write lets the enemy go and says so", A._skinned() == 0 and #warnings > 0)
   skin_unit.skin_fail = false
   A.reset()
@@ -434,7 +438,8 @@ def editor_harness():
   view:cb_back(); view:cb_back(); click_row(1,"hotspot_mods")''')
 
 if __name__ == "__main__":
-    checks = LuaRuntime(unpack_returned_tuples=True).execute(RUNTIME, BASE)
+    from lua_test_runtime import with_version
+    checks = LuaRuntime(unpack_returned_tuples=True).execute(with_version(RUNTIME), BASE)
     output = LuaRuntime(unpack_returned_tuples=True).execute(editor_harness(), ROOT.as_posix(), "", os.environ.get("UI_DUMP_DIR", "").replace("\\", "/"), os.environ.get("UI_REAL_TEXT", ""))
     failures = [line for line in output.splitlines() if line.startswith("FAIL")]
     for line in output.splitlines():

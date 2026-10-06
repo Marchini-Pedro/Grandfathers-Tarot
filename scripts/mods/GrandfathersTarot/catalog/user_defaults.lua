@@ -639,12 +639,12 @@ UserDefaults.cards = {
 	wh_wave_small = "The Wheel Turneth. Pray He Favors Thee.",
 }
 
--- the settings of one card (its key: "wave_small", "custom_7"): { setting = value }, built once
-local by_card = nil
+-- the settings of one card (its key: "wave_small", "custom_7"): { setting = value }, built once (again only if `cards` is replaced)
+local by_card, built_from = nil, nil
 
 UserDefaults.card = function (key)
-	if not by_card then
-		by_card = {}
+	if built_from ~= UserDefaults.cards then
+		by_card, built_from = {}, UserDefaults.cards
 
 		for setting, value in pairs(UserDefaults.cards) do
 			for _, prefix in ipairs(UserDefaults.CARD_PREFIXES) do

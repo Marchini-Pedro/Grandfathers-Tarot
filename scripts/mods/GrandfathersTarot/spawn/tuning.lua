@@ -775,11 +775,21 @@ local function recolor_others(other)
 	return tonumber(r) and tonumber(g) and tonumber(b) and { 255, r, g, b } or GAME_RED
 end
 
+local wanted = {}
+
 Tuning.colour_boss_bars = function (element)
 	local targets, groups = element._active_targets_array or {}, element._widget_groups or {}
 	local count = #targets
+
+	-- (a performance pass) no bar on screen and none of ours to give back: nothing to do (this runs every frame)
+	if count == 0 and not element._rw_coloured then
+		return
+	end
+
 	local recolor = recolor_mod()
-	local wanted = {}
+
+	for index in pairs(wanted) do wanted[index] = nil end
+	element._rw_coloured = nil
 
 	for i = 1, math.min(count, element._max_health_bars or count) do
 		local boss = targets[i] and targets[i].boss_extension
@@ -809,6 +819,7 @@ Tuning.colour_boss_bars = function (element)
 			if colour then
 				bar.color = colour
 				bar._rw_ours = true
+				element._rw_coloured = true
 
 				if recolor then
 					if style.max then style.max.color = colour end
@@ -843,7 +854,9 @@ Tuning.boss_bar_draw = function (func, self, ...)
 end
 
 Tuning.boss_bar_update = function (func, self, ...)
-	if not Tuning.dead then
+	local targets = self and self._active_targets_array
+
+	if not Tuning.dead and targets and #targets > 0 then
 		local dropped, drop_err = pcall(Tuning.drop_dead_bosses, self)
 
 		if not dropped then
@@ -1494,7 +1507,9 @@ end
 -- (our run speed) never sees; its navigating phase goes through the navigation and is already scaled. While one of those two runs
 -- for a tuned unit, the velocity it sets is multiplied by the unit's run speed factor. (2026-10-05, the user: "it stopped working
 -- for the run when grabbing") The run carrying the grabbed player is a third such step, _update_grabbed_target: scaled the same.
-local charge_scale = nil
+-- (2026-10-06, a performance pass) The factor goes on that Mutant's own locomotion extension for the length of the step (a field of
+-- the instance shadows the class's method), not through a hook on MinionLocomotionExtension.set_wanted_velocity: that one ran for
+-- every enemy, every frame.
 
 Tuning.speed_factor = function (unit)
 	return speed_factor[unit]
@@ -1502,30 +1517,28 @@ end
 
 Tuning.charge_update = function (func, self, unit, ...)
 	local factor = not Tuning.dead and speed_factor[unit] or nil
+	local locomotion = factor and ScriptUnit.has_extension(unit, "locomotion_system")
+	local method = locomotion and locomotion.set_wanted_velocity
 
-	if not factor then
+	if not method then
 		return func(self, unit, ...)
 	end
 
-	charge_scale = factor
+	local own = rawget(locomotion, "set_wanted_velocity")
+
+	locomotion.set_wanted_velocity = function (extension, velocity, ...)
+		return method(extension, velocity and velocity * factor or velocity, ...)
+	end
 
 	local result = { pcall(func, self, unit, ...) }
 
-	charge_scale = nil
+	locomotion.set_wanted_velocity = own
 
 	if not result[1] then
 		error(result[2])
 	end
 
 	return (table.unpack or unpack)(result, 2)
-end
-
-Tuning.wanted_velocity = function (func, self, velocity, ...)
-	if charge_scale and velocity then
-		velocity = velocity * charge_scale
-	end
-
-	return func(self, velocity, ...)
 end
 
 -- ------------------------------------------------------------------------------------------------------------- On Fire damage
@@ -1811,7 +1824,6 @@ Tuning.install = function ()
 		mod:hook("BtMutantChargerChargeAction", "_update_charging", function (...) return Tuning.charge_update(...) end)
 		mod:hook("BtMutantChargerChargeAction", "_update_charged_past", function (...) return Tuning.charge_update(...) end)
 		mod:hook("BtMutantChargerChargeAction", "_update_grabbed_target", function (...) return Tuning.charge_update(...) end)
-		mod:hook("MinionLocomotionExtension", "set_wanted_velocity", function (...) return Tuning.wanted_velocity(...) end)
 	end
 
 	-- the On Fire look kept on (every machine)

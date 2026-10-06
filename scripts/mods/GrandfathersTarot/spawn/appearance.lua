@@ -79,11 +79,17 @@ local function skin_template(method)
 	return template
 end
 
+-- (2026-10-06, a performance pass) held SKIN_STEP at a time, not every frame: the moment shown is centred on the phase, so it moves
+-- by at most half a step (0.05 s of an effect of 2 to 4.5 s) instead of an engine write per skinned enemy per frame
+local SKIN_STEP = 0.1
+local skin_timer = 0
+
 local function skin_time(record)
 	local template, unit = record.skin, record.unit
 	local now = World.time(Unit.world(unit))
 	local phase = template.duration * record.config.a / 255
-	Unit.set_vector3_for_materials(unit, "offset_time_duration", Vector3(template.offset_time, now - phase, template.duration + 1), true)
+	local lead = math.min(SKIN_STEP / 2, phase)
+	Unit.set_vector3_for_materials(unit, "offset_time_duration", Vector3(template.offset_time, now - phase + lead, template.duration + 1), true)
 end
 
 local function apply_skin(record)
@@ -345,13 +351,17 @@ end
 Appearance.update = function (dt)
 	if retired then return end
 	clock, cadence, renewal = clock + dt, cadence + dt, renewal + dt
-	-- the dark skins are held still every frame (the moment must not drift)
-	for unit, record in pairs(skinned) do
-		if not alive(unit) then
-			skinned[unit] = nil
-		else
-			local ok, err = pcall(skin_time, record)
-			if not ok then skinned[unit] = nil; warn("dark skin failed: " .. tostring(err)) end
+	-- the dark skins are held still, SKIN_STEP at a time (the moment must not drift)
+	skin_timer = skin_timer + dt
+	if skin_timer >= SKIN_STEP then
+		skin_timer = 0
+		for unit, record in pairs(skinned) do
+			if not alive(unit) then
+				skinned[unit] = nil
+			else
+				local ok, err = pcall(skin_time, record)
+				if not ok then skinned[unit] = nil; warn("dark skin failed: " .. tostring(err)) end
+			end
 		end
 	end
 	if cadence < 0.25 then return end
@@ -392,7 +402,7 @@ Appearance.reset = function (send_clear)
 		remove(unit)
 	end
 	records, pending, skinned = {}, {}, {}
-	clock, cadence, renewal = 0, 0, 0
+	clock, cadence, renewal, skin_timer = 0, 0, 0, 0
 	generation = generation + 1
 end
 Appearance.retire = function () Appearance.reset(true); retired = true end

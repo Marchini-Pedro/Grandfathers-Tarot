@@ -252,4 +252,11 @@ HudElementGrandfathersTarotDream.update = function (self, dt, t, ui_renderer, re
 	end
 end
 
+-- (2026-10-06, a performance pass) nothing to draw while hidden: no render pass at all
+HudElementGrandfathersTarotDream.draw = function (self, ...)
+	if not (self._widget and self._widget.visible) then return end
+
+	return HudElementGrandfathersTarotDream.super.draw(self, ...)
+end
+
 return HudElementGrandfathersTarotDream
