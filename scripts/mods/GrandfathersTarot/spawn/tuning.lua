@@ -54,6 +54,7 @@ local STAT_IDS = { "gap", "fire", "burst", "explosion", "dot", "damage" }
 local INVERSE = { gap = true }
 local ATTACK_END_OFFSET = 0.26666666666666666 -- the game's ATTACK_SPEED_THRESHOLD_FRAME_OFFSET (bt_melee_attack_action.lua:118)
 local combo_cut = setmetatable({}, { __mode = "k" }) -- (2026-10-06) units with Random combo end ({combo=1}): unit -> true
+local cancel_chance = setmetatable({}, { __mode = "k" }) -- (2026-10-06) units with an Attack cancel chance ({cancel=30}): unit -> percent
 -- stats where the written value is a share of the damage taken (the game adds `value - 1` to the damage modifiers)
 local DAMAGE_STAT = { explosion = true, dot = true }
 
@@ -945,6 +946,8 @@ Tuning.apply = function (unit, tune, breed_name)
 	if tune.boss == 1 then Tuning.mark_boss(unit) end
 	-- Random combo end: Tuning.fix_attack_end ends each attack of several hits after a random one
 	if tune.combo == 1 then combo_cut[unit] = true end
+	-- Attack cancel chance: Tuning.fix_attack_end stops an attack of one hit before it lands, that often
+	if (tonumber(tune.cancel) or 0) > 0 then cancel_chance[unit] = tonumber(tune.cancel) end
 
 	local label = tostring(breed_name or "enemy")
 
@@ -1122,7 +1125,7 @@ end
 
 -- the hits of the attack that just started: { start, stop } of each sweep, or { moment, moment } of each hit (an empty list for
 -- an attack of no known timing)
-local function attack_hits(scratchpad)
+local function attack_hits(scratchpad, t)
 	local hits = {}
 	local list = scratchpad.attack_sweep_timings
 
@@ -1140,6 +1143,11 @@ local function attack_hits(scratchpad)
 
 			hits[i] = { moment, moment }
 		end
+	elseif type(scratchpad.attack_timing) == "number" and type(t) == "number" then
+		-- one hit that is not a sweep: its moment is kept as a time of the clock
+		local moment = scratchpad.attack_timing - t
+
+		hits[1] = { moment, moment }
 	end
 
 	return hits
@@ -1151,19 +1159,20 @@ Tuning.fix_attack_end = function (self, unit, breed, target_unit, t, spawn_compo
 	end
 
 	local cut = combo_cut[unit] == true
+	local chance = cancel_chance[unit]
 
-	if not scratchpad.melee_attack_speed and not cut then
+	if not scratchpad.melee_attack_speed and not cut and not chance then
 		return
 	end
 
 	local ok, err = pcall(function ()
 		local record = record_of(unit)
 
-		if not cut and not (record and record.mult.melee_attack_speed) and not wave_unit(unit) then
+		if not cut and not chance and not (record and record.mult.melee_attack_speed) and not wave_unit(unit) then
 			return
 		end
 
-		local hits = attack_hits(scratchpad)
+		local hits = attack_hits(scratchpad, t)
 		local durations = action_data and action_data.attack_anim_durations
 		local base = durations and durations[scratchpad.attack_event]
 
@@ -1189,6 +1198,11 @@ Tuning.fix_attack_end = function (self, unit, breed, target_unit, t, spawn_compo
 
 				scratchpad.attack_duration = t + math.max(stop, hits[last][2] + 0.01)
 			end
+		end
+
+		-- Attack cancel chance: an attack of one hit stops 0.15 s before its hit begins (a feint)
+		if chance and #hits == 1 and type(hits[1][1]) == "number" and math.random(1, 100) <= chance then
+			scratchpad.attack_duration = t + math.max(0.05, hits[1][1] - 0.15)
 		end
 	end)
 

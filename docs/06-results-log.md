@@ -387,3 +387,8 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Built: the correction for every unit of a wave; the Random combo end custom mod.
 - Tests: check_lua passes; offline, a x1.3 combo lasts 3.11 s (was 2.73 s) and Random combo end splits 300 combos about evenly
   between one, two and three hits. The suites were not run.
+
+## 2026-10-06 - Attack cancel chance
+- Built: a percent custom mod; each single-hit melee attack has that chance to end 0.15 s before its hit.
+- Tests: check_lua passes; offline, {cancel=30 combo=1} round-trips and 291 of 1000 single attacks were cancelled at 30 percent.
+  The suites were not run.

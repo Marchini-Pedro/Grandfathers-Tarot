@@ -306,6 +306,8 @@ local L = {
 	btn_dogs = { en = "Dogs" },
 	btn_shield = { en = "Shield" },
 	tune_boss = { en = "Boss bar" },
+	tune_cancel = { en = "Attack cancel chance" },
+	tune_cancel_info = { en = "The chance that an attack of one hit stops before it lands, like a feint: 30 = three in ten. 0 = never. %d to %d." },
 	tune_combo = { en = "Random combo end" },
 	tune_combo_info = { en = "An attack of several hits (the Plague Ogryn's three-hit combo) stops after a random one of them: the first, the second or the last." },
 	tune_boss_name = { en = "Boss name" },

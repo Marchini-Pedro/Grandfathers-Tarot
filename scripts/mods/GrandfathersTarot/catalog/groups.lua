@@ -228,6 +228,9 @@ Groups.TUNE = {
 	{ id = "damage", name = "Damage dealt", min = 10, max = 500, step = 10, aliases = { "damage", "dmg", "damage dealt", "attack damage", "hits" } },
 	-- (2026-10-06, the user: "a boss randomly cancels its combo on attack 1, 2 or 3; a toggle") a toggle: each attack of several hits
 	-- (the Plague Ogryn's three-hit combo, any chained sweep) ends after a random one of its hits, the last one included (spawn/tuning.lua)
+	-- (2026-10-06, the user: "another toggle for randomly cancelling any non-combo attack with a chance") a percent, 0 = off: each
+	-- attack of one hit has that chance to stop before its hit lands (a feint; spawn/tuning.lua)
+	{ id = "cancel", name = "Attack cancel chance", min = 0, max = 100, step = 5, default = 0, aliases = { "cancel", "attack cancel", "cancel chance", "attack cancel chance", "feint" } },
 	{ id = "combo", name = "Random combo end", min = 0, max = 1, step = 1, default = 0, toggle = true, aliases = { "combo", "random combo", "combo end", "combo cut", "random combo end" } },
 	-- (2026-10-06, the user: "set an individual unit as a boss, so it shows its total health and name as a boss unit; a toggle for any
 	-- unit, a custom modifier") a toggle, not a percent: 1 = its health and name in the game's boss bar (spawn/tuning.lua). {boss=1}
