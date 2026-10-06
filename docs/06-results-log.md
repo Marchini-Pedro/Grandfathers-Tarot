@@ -357,3 +357,8 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Built: the side state (`o = 1`), the same-frame end of a stand-in's bar, real numbers for any divided unit, the boss bar colour,
   the version (catalog/version.lua, 2.2.0, also the handshake).
 - Tests: check_lua passes; offline, colours parse, clean, step and round-trip, the protocol reports 2.2.0. The suites were not run.
+
+## 2026-10-06 - Boss name and colour on real bosses
+- Found: units with the game's BossExtension were skipped, so their group's name and colour did nothing.
+- Built: such units go on the boss list when their group has a name or colour; every machine writes them on the real extension.
+- Tests: check_lua passes. The suites were not run.

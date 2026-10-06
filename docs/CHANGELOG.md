@@ -2,7 +2,7 @@
 
 ## 2026-10-06 - Version 2.2.0: boss bar colours, fixes for clients (polishing)
 - The mod options show the version (2.2.0). Host and players must have the same version.
-- A Boss bar colour of your own per enemy group.
+- A Boss bar colour of your own per enemy group. The Boss name and colour also work on Monsters and Captains.
 - Fixed: players who joined saw no reveal outlines and no custom boss bars unless the card cycle was running.
 - Fixed: a player who joined crashed when an enemy with a custom boss bar died.
 - Fixed: the health number of a very strong enemy was halved for players who joined.

@@ -582,6 +582,13 @@ Tuning.name_boss = function (unit, name, colour)
 	if unit then
 		boss_names[unit] = clean_name(name)
 		boss_colours[unit] = clean_hex(colour)
+
+		-- (2026-10-06, the user: "swapping the boss bar colour and name of a unit that is already a boss does nothing") a unit the
+		-- game already shows as a boss (a Monster, a Captain) goes on the list with its name and colour, Boss bar or not: every
+		-- machine writes them on its own boss extension (Tuning.update_bosses)
+		if (boss_names[unit] or boss_colours[unit]) and ScriptUnit.has_extension(unit, "boss_system") then
+			boss_marked[unit] = true
+		end
 	end
 end
 
@@ -671,7 +678,18 @@ Tuning.update_bosses = function (dt, is_host)
 	end
 
 	for unit, info in pairs(wanted) do
-		if not boss_shown[unit] and not ScriptUnit.has_extension(unit, "boss_system") then
+		local real = ScriptUnit.has_extension(unit, "boss_system")
+
+		-- a real boss: its own bar (the game starts it), with the group's name and colour on its extension, read by
+		-- Tuning.layer_boss_targets and Tuning.colour_boss_bars like a stand-in's
+		if real and (info.name or info.colour) then
+			local hex = clean_hex(info.colour)
+
+			real._rw_custom_name = clean_name(info.name)
+			real._rw_colour = hex and { 255, tonumber(hex:sub(1, 2), 16), tonumber(hex:sub(3, 4), 16), tonumber(hex:sub(5, 6), 16) } or nil
+		end
+
+		if not boss_shown[unit] and not real then
 			local standin = stand_in(unit, info)
 
 			if standin then
