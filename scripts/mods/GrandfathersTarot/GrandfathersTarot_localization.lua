@@ -306,6 +306,8 @@ local L = {
 	btn_dogs = { en = "Dogs" },
 	btn_shield = { en = "Shield" },
 	tune_boss = { en = "Boss bar" },
+	tune_combo = { en = "Random combo end" },
+	tune_combo_info = { en = "An attack of several hits (the Plague Ogryn's three-hit combo) stops after a random one of them: the first, the second or the last." },
 	tune_boss_name = { en = "Boss name" },
 	tune_boss_colour = { en = "Boss bar colour" },
 	tune_boss_colour_info = { en = "The colour of its boss bar: %s. - and + step through the colours; click the name to type a colour code. A Monster's or a Captain's own bar takes it too." },

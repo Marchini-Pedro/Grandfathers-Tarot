@@ -8,6 +8,8 @@
 - Fixed: the health number of a very strong enemy was halved for players who joined.
 - Fixed: boss bar colours were overwritten by the Recolor Boss Health Bars mod (custom enemies' bars were white).
 - Fixed: Instant rescue's golden health did not come back after healing above one wound.
+- Fixed: a faster enemy (Enraged and the like) lost the last hits of its combo, like the Plague Ogryn's third.
+- New custom modifier: Random combo end makes an enemy stop its combo after a random hit.
 
 ## 2026-10-06 - Reveal Elites, a Boss bar for any enemy, the Blackout crash (polishing)
 - New buff: Reveal Elites outlines the Elites (amber) for its time. The combat abilities effect is removed; cards that had it

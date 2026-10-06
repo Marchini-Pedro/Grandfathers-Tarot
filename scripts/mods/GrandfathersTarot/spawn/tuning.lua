@@ -53,6 +53,7 @@ local STAT_IDS = { "gap", "fire", "burst", "explosion", "dot", "damage" }
 -- custom mods that are a TIME while the stat they write is a speed: the factor is 100 / value
 local INVERSE = { gap = true }
 local ATTACK_END_OFFSET = 0.26666666666666666 -- the game's ATTACK_SPEED_THRESHOLD_FRAME_OFFSET (bt_melee_attack_action.lua:118)
+local combo_cut = setmetatable({}, { __mode = "k" }) -- (2026-10-06) units with Random combo end ({combo=1}): unit -> true
 -- stats where the written value is a share of the damage taken (the game adds `value - 1` to the damage modifiers)
 local DAMAGE_STAT = { explosion = true, dot = true }
 
@@ -942,6 +943,8 @@ Tuning.apply = function (unit, tune, breed_name)
 
 	-- the Boss bar: its bar on every machine (Tuning.update_bosses)
 	if tune.boss == 1 then Tuning.mark_boss(unit) end
+	-- Random combo end: Tuning.fix_attack_end ends each attack of several hits after a random one
+	if tune.combo == 1 then combo_cut[unit] = true end
 
 	local label = tostring(breed_name or "enemy")
 
@@ -1105,39 +1108,87 @@ end
 
 -- Called after every melee attack has started (BtMeleeAttackAction._start_attack_anim). The game ends such an attack at
 -- max(duration / melee_attack_speed, T + 0.27 s) where T is the end of the FIRST hit of a chained sweep (see the header):
--- with a high speed a chain stops after one hit. For a unit with a custom time between attacks T is made the end of the
--- LAST hit, and an attack is only ever lengthened by this, never shortened.
+-- with a high speed a chain stops after one hit, and its later hits never come. (2026-10-06, the user: "the Plague Ogryn of
+-- Anger cancels the last attack of his three-hit combo") Enraged and the stimm look raise the speed through the game's buffs:
+-- the ogryn's 3.56 s combo ended at about 2.7 s, before its third hit (2.70 to 2.84 s). So for every unit of a wave (not only one
+-- with a custom time between attacks) T is the end of the LAST hit, and an attack is only ever lengthened by this.
+-- Random combo end ({combo=1}): an attack of several hits ends after a random one of them (the last one included), 0.27 s after
+-- it and never once the next has begun.
+local function wave_unit(unit)
+	local bypass = mod.rw and mod.rw.bypass
+
+	return unit ~= nil and bypass ~= nil and bypass.is_tracked ~= nil and bypass.is_tracked(unit) == true
+end
+
+-- the hits of the attack that just started: { start, stop } of each sweep, or { moment, moment } of each hit (an empty list for
+-- an attack of no known timing)
+local function attack_hits(scratchpad)
+	local hits = {}
+	local list = scratchpad.attack_sweep_timings
+
+	if scratchpad.attack_type == "sweep" and type(list) == "table" then
+		if type(list[1]) == "table" then
+			for i = 1, #list do
+				hits[i] = { list[i][1], list[i][2] }
+			end
+		elseif type(list[1]) == "number" and type(list[2]) == "number" then
+			hits[1] = { list[1], list[2] }
+		end
+	elseif type(scratchpad.attack_timings) == "table" then
+		for i = 1, #scratchpad.attack_timings do
+			local moment = scratchpad.attack_timings[i]
+
+			hits[i] = { moment, moment }
+		end
+	end
+
+	return hits
+end
+
 Tuning.fix_attack_end = function (self, unit, breed, target_unit, t, spawn_component, scratchpad, action_data)
-	if Tuning.dead or type(scratchpad) ~= "table" or not scratchpad.melee_attack_speed then
+	if Tuning.dead or type(scratchpad) ~= "table" then
+		return
+	end
+
+	local cut = combo_cut[unit] == true
+
+	if not scratchpad.melee_attack_speed and not cut then
 		return
 	end
 
 	local ok, err = pcall(function ()
 		local record = record_of(unit)
 
-		if not record or not record.mult.melee_attack_speed then
+		if not cut and not (record and record.mult.melee_attack_speed) and not wave_unit(unit) then
 			return
 		end
 
-		local list = scratchpad.attack_sweep_timings
-
-		if scratchpad.attack_type ~= "sweep" or type(list) ~= "table" then
-			return
-		end
-
-		local last = list[#list]
-		local stop = type(last) == "table" and last[2] or list[2]
+		local hits = attack_hits(scratchpad)
 		local durations = action_data and action_data.attack_anim_durations
 		local base = durations and durations[scratchpad.attack_event]
 
-		if type(stop) ~= "number" or type(base) ~= "number" or type(t) ~= "number" then
+		if #hits == 0 or type(hits[#hits][2]) ~= "number" or type(base) ~= "number" or type(t) ~= "number" then
 			return
 		end
 
-		local wanted = t + math.max(base / scratchpad.melee_attack_speed, stop + ATTACK_END_OFFSET)
+		-- sped up: the attack lasts until its last hit is over
+		if scratchpad.melee_attack_speed then
+			local wanted = t + math.max(base / scratchpad.melee_attack_speed, hits[#hits][2] + ATTACK_END_OFFSET)
 
-		if type(scratchpad.attack_duration) == "number" and wanted > scratchpad.attack_duration then
-			scratchpad.attack_duration = wanted
+			if type(scratchpad.attack_duration) == "number" and wanted > scratchpad.attack_duration then
+				scratchpad.attack_duration = wanted
+			end
+		end
+
+		-- Random combo end: the last hit of this attack, at random
+		if cut and #hits > 1 then
+			local last = math.random(1, #hits)
+
+			if last < #hits and type(hits[last][2]) == "number" and type(hits[last + 1][1]) == "number" then
+				local stop = math.min(hits[last][2] + ATTACK_END_OFFSET, hits[last + 1][1] - 0.05)
+
+				scratchpad.attack_duration = t + math.max(stop, hits[last][2] + 0.01)
+			end
 		end
 	end)
 
