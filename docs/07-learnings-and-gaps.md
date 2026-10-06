@@ -486,3 +486,8 @@ Things we know are missing or unverified, each with the next concrete step.
 - A Daemonhost counts player deaths only after `BtChaosDaemonhostPassiveAction.leave` registers it with the PacingManager;
   `PlayerDeath.die` adds one to every registered `statistics` component. One spawned with `optional_aggro_state = "aggroed"`
   skips the passive stage and never leaves unless registered by hand.
+
+## 2026-10-06 - A player's ability resource is restored on both sides
+- A player's combat ability resource is simulated by their own game and by the host; the host's state corrects the client. The
+  game's talents restore it on both (buffs run on both). Restoring it only on the client is undone at once.
+- A copy of a card's groups in the editor must carry every field of a part; a new field left out is lost on the next save.

@@ -153,6 +153,10 @@ local function copy_parts(parts)
 			mods = part.mods and { unpack(part.mods) } or nil,
 			tune = mod.rw.groups.copy_tune(part.tune),
 			appearance = mod.rw.groups.Appearance.copy(part.appearance),
+			-- the row's own toggle (2026-10-06): without these a click on Dogs, Shield or a Daemonhost's kills was saved and lost
+			nodogs = part.nodogs,
+			noshield = part.noshield,
+			leaves = part.leaves,
 		}
 	end
 

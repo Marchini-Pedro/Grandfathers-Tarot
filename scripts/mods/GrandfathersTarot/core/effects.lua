@@ -347,10 +347,14 @@ local function apply(id, effect, list)
 		local targets, spawner = {}, Managers.state.unit_spawner
 		for _, player in ipairs(list) do
 			local ability = ext(player.unit, "ability_system")
-			if ability and ability._is_local_unit and ability.restore_ability_resource_percentage then
+			-- (2026-10-06, the user: "not working for client") a player's ability resource is simulated by their game AND the host's,
+			-- and the host's copy wins: like the game's own talents, it is restored on both. The host does it here for every player
+			-- (a remote player's unit is a full PlayerUnitAbilityExtension on the server); the grant tells that player's game.
+			if ability and (ability._is_local_unit or ability._is_server) and ability.restore_ability_resource_percentage then
 				local ok, err = pcall(ability.restore_ability_resource_percentage, ability, "combat_ability", effect.value / 100, true)
 				if not ok then warn(tostring(err)) end
-			elseif ability and spawner then
+			end
+			if ability and not ability._is_local_unit and spawner then
 				local object = spawner:game_object_id(player.unit)
 				if object then targets[#targets + 1] = object end
 			end

@@ -330,3 +330,10 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   one death unless its row says otherwise.
 - Tests: check_lua passes; recipes with the new markers round-trip through Groups.parse and to_recipe (an offline script). The
   suites were not run.
+
+## 2026-10-06 - Fixes from the user's test: the row's toggle, combat abilities for clients
+- The row's toggle did nothing: the editor's copy of the groups (wave_editor_view.lua copy_parts) dropped nodogs, noshield and
+  leaves, so every click was saved and reloaded without it. It copies them now.
+- "Restore combat abilities" did not reach clients: the host applied it only to its own unit and sent the others a grant their game
+  applied alone; the host's simulation of their unit then corrected it back. The host now restores every player's resource on
+  its side too (core/effects.lua), and still sends the grant.

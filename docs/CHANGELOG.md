@@ -1,6 +1,8 @@
 # Changelog
 
 ## 2026-10-06 - 75 s between waves, the Captains' shield, the Daemonhost's kills (polishing)
+- Fixed: the Dogs, Shield and Daemonhost kills toggles did nothing when clicked.
+- Fixed: "Buffs: restore combat abilities" did not work for the players who joined (it worked for the host).
 - Waves come every 75 seconds by default.
 - A Captain's or a Twin's row has a Shield toggle: turned off, it comes without its void shield.
 - A Daemonhost's row chooses how many players must die before it leaves: 1, 2, 3 or all. Daemonhosts of a card used to never
