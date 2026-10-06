@@ -612,6 +612,7 @@ WorkshopView.install = function (View, h)
 
 		last.visible = false
 		self._last_preview = LastPaint.new(last)
+		self._last_preview._aura_option = "deck_card_effects" -- (the editor's option, not the HUD's)
 	end
 
 	-- The card as the Spread draws it, at 1.5 times: the bar and the background as high as the lines of the name need (the HUD's

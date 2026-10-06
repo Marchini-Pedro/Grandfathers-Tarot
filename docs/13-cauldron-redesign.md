@@ -254,6 +254,22 @@ Old peers: a Dream card synced to a peer without it is shown as Plague there (an
 | A cleaner "?" description, with formatting (picture 1: a wall of text) | The tooltip is a card of its own: opaque, in the page's colours, with a shadow, the accent's strip and frame, a "?" badge and a title, a divider, the body and a footer ("Click the ? to keep this open"). Its height follows the text. The help strings are written in a small markup (`ui/help_text.lua`: `# ` a title, `## ` a heading, `- ` a bullet, `*lit*` words) turned into the game's `{#color}` / `{#size}` markup; every screen's help was rewritten as short sections and bullets. |
 | On the Face tab, the last card window beside the hand card; rename the caption | The caption is **When it is drawn**. Beside the hand card stands the last card window as the HUD draws it, at its HUD size (240 wide, the two fill the 525 of the right side), its card's top level with the hand card's, "just drawn" where the HUD says how long ago; its aura and Nightmare's fog live as on the HUD. The HUD's painter moved to `ui/last_card_paint.lua`, used by both. |
 
+## Polishing 3: effects that follow the threat, new looks, options (2026-10-05)
+
+| Request | What was built |
+| --- | --- |
+| Every card's effect grows and shrinks with its difficulty | `Aura.update(..., level)` takes the card's threat (1 to 6): the number of shapes of every suit (`Aura.amount(lv, lo, hi)`), their size (0.85 to 1.05) and their light (0.62 to 1 of it) grow with it; the glows of Rage, Brute and Dream too, Brute's blows come faster. 28 circles / rects and 12 triangles a card (was 20 / 0). |
+| More Swarm, Volley and Fateful at high threat | Swarm: 8 to 26 things, faster and wider, a second cloud whirling the other way at 5 and 6. Volley: 2 to 7 bullets, faster. Fateful: 2 to 6 stars, 3 to 10 motes of dust, a falling star at 5 and 6. |
+| Rage: flames / blaze, fewer circles unless 5 or 6 | A blaze of triangle tongues of flame in three layers (deep red, orange, a yellow heart; 6 at threat 1, 12 at 6), swaying and flickering over the bed of fire; balls of fire: none at 1 and 2, three faint ones at 3 and 4, nine at 5, fourteen at 6. |
+| Blight: remove the two big circles | The two gas clouds are gone: a pool of pus lies along the foot (deeper with the threat, its surface trembling) and every drop bursts into two droplets where it lands. |
+| More Murmur at high threat; at 5 and 6 every letter murmurs | 5 to 20 lights, larger and brighter. A Murmur card of threat 5 or 6 writes all its texts letter by letter (the name, the enemies, the modifiers, the whisper, in that order), holds them, wipes them from the end and writes them again (`ui/murmur_text.lua`; the game's colour tags are kept whole). On the Deck and the cards of the editor, the Spread's name and the last card's name and whisper. |
+| Lightning / strong weather on Heresy 5 and 6 | A storm: rain lashing down (14 streaks at 5, 22 at 6), lightning from the top in six slivers with a branch, the whole card flashing; every 3.3 s at 5, every 2.1 s with a second flicker at 6. |
+| Prayer looked like water | Candles along the foot (2 to 5: wax, a trembling flame, its glow), incense smoke rising from them, soft rays of light from above, a halo at 5 and 6; no teal any more. |
+| A slider for Dream's sky | "Dream's sky strength", 0 to 150 percent (0 = none), replaces the on / off option. |
+| Snare is called Entrapment | The suit's name (its id stays `snare`, old cards and recipes keep working). |
+| A toggle for all the card effects in the Deck | "Card effects in the Deck": every living effect of the editor's cards (the Deck, the card being edited, the Face tab's previews: auras, Heresy's heartbeat, Nightmare's fog, the sixth diamond's shine, the murmur of the letters). Off, the cards stand still. "Living card effects" is now "Card effects on the HUD" (the hand and the last card window). |
+| Hover descriptions for every option | Every option and group of the mod's menu has a description (DMF shows `<setting_id>_description` on hover): 57 new ones. |
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -311,3 +327,7 @@ Old peers: a Dream card synced to a peer without it is shown as Plague there (an
 19. Polishing 2: Plague, Murmur, Swarm, Snare, Prayer, Faith and Dream's clouds now seen on the Deck, the Spread and the last card;
     Volley's bullets; Rage's fire bed and flicker; Brute's blow; the "?" panel on every screen (fits the text, readable markup,
     pinned footer); the Face tab's last card beside the hand card (no overlap, its aura living).
+20. Polishing 3: a card of threat 1 against one of 6 for every suit (fewer, fainter shapes against a busy card); Rage's blaze
+    of triangles; Blight's pool and splashes; the Murmur card of threat 5 or 6 writing its letters (Deck, Spread, last card);
+    Heresy's storm at 5 and 6; Prayer's candles; the Dream sky slider at 0, 50 and 150; Entrapment's name; the option "Card
+    effects in the Deck" off; the hover text of every option in the mod menu.

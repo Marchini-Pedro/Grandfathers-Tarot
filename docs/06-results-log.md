@@ -294,3 +294,15 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   Dream above fifteen live shapes, Dream's big clouds, Volley's bullet, Rage's flicker, Brute's flare, the shared painter), editor
   (the tile's layers, the help markup, its height, every help titled and bulleted and fitting, the panel cut to its text and its
   pinned footer, the last card preview: shown, placed, repainted, living, hidden on the Cauldron). Not tested in game yet.
+
+## 2026-10-05 - Effects that follow the threat, new looks, options (polishing 3)
+
+- Built: every aura scales with the card's threat (count, size, light; glows too); 28 shapes and 12 triangles a card; Rage's blaze
+  of flame tongues with balls of fire only from 3 (many at 5 and 6); Blight's pool and splashes; busier Swarm, Volley, Fateful;
+  Murmur's letters at threat 5 and 6 (ui/murmur_text.lua); Heresy's storm at 5 and 6; Prayer's candles, smoke and light; Snare
+  renamed Entrapment; the Dream sky slider; the option "Card effects in the Deck"; a description for every option.
+- Tests: hud (every suit at threats 1, 3, 5 and 6 inside its card, triangles too; every suit grows with the threat; Swarm, Volley
+  and Fateful much busier at 6; Rage's tongues and its toned-down balls; Blight without big circles, its pool and splashes;
+  Heresy's rain, bolt and flash; Prayer's candles without blue; Entrapment's second chain; the murmur's cut, timeline and
+  order; the Dream slider; the last card's Heresy storm), editor (the Deck's option and the HUD's apart, the Murmur card's
+  letters on the Deck and the option giving them back, Entrapment). Not tested in game yet.

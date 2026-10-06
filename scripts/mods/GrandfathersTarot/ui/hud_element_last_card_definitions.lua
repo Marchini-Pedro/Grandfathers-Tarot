@@ -130,6 +130,10 @@ for i = 1, Aura.COUNT do
 	circle(passes, "aura_c" .. i, z + 5) -- (a whole layer above the face: a circle at z + 4.5 is drawn on z + 4, under it)
 	rect(passes, "aura_r" .. i, z + 5)
 end
+
+for i = 1, Aura.TRIS do
+	triangle(passes, "aura_t" .. i, z + 5)
+end
 circle(passes, "sigil_ring", z + 7)
 circle(passes, "sigil_disc", z + 8)
 rect(passes, "card_accent", z + 5)

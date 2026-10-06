@@ -48,11 +48,17 @@ local ICON_CH = { "icon_ch1", "icon_ch2", "icon_ch3", "icon_ch4" }
 local TH_H = { "th_h1", "th_h2", "th_h3", "th_h4", "th_h5", "th_h6" }
 local BLOOD, BLOOD_C = { "blood_1", "blood_2", "blood_3" }, { "blood_c1", "blood_c2", "blood_c3" }
 local FOG = { "fog_1", "fog_2", "fog_3" }
-local AURA_C, AURA_R = {}, {}
+local AURA_C, AURA_R, AURA_T = {}, {}, {}
 
 for i = 1, Aura.COUNT do
 	AURA_C[i], AURA_R[i] = "aura_c" .. i, "aura_r" .. i
 end
+
+for i = 1, Aura.TRIS do
+	AURA_T[i] = "aura_t" .. i
+end
+
+local Murmur = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/murmur_text")
 
 local AURA_SIZE = 0.65 -- the aura's shapes on the Spread's cards (the Deck's tile is bigger: 1)
 local BLACK = { 0, 0, 0 }
@@ -714,6 +720,8 @@ HudElementGrandfathersTarotPanel._setup_card = function (self, index, card)
 	end
 
 	widget.content.name = card.name
+	-- a Murmur card of threat 5 or 6: its name murmurs, written letter by letter, over and over (_tick_living)
+	rec.murmur = Murmur.on(card.suit, card.threat) and Murmur.new({ card.name }) or nil
 	box(style.name, rec.x + Spread.ACCENT_WIDTH + Spread.PAD_X, rec.y + Spread.PAD_Y, layout.name_w, layout.lines * Spread.NAME_LINE)
 	style.name.visible = true
 
@@ -1031,7 +1039,7 @@ HudElementGrandfathersTarotPanel._tick_living = function (self)
 			end
 
 			-- Dream's glow turns through a rainbow and Brute's flares with every blow (ui/aura.lua); Dream's frame follows its glow
-			local glow = suit and Aura.glow(suit.id, clock + i * 0.31, rec.mix)
+			local glow = suit and Aura.glow(suit.id, clock + i * 0.31, rec.mix, rec.threat)
 
 			if glow then
 				local base = rec.mode == 2 and 235 or rec.mode == 1 and 200 or 150
@@ -1049,25 +1057,25 @@ HudElementGrandfathersTarotPanel._tick_living = function (self)
 			end
 		end
 
-		-- the suit's aura on the card's face (Heresy, Nightmare and Warp have their own life above: no aura)
-		local aura_on = suit ~= nil and not suit.blood and not suit.gloom and not suit.motes and mod:get("card_auras") ~= false
+		-- the suit's aura on the card's face, as strong as its threat (Nightmare and Warp have their own life above, Heresy its blood and,
+		-- at threat 5 and 6, a storm); the option "Card effects on the HUD" turns it off
+		local effects_on = mod:get("card_auras") ~= false
+		local aura_on = suit ~= nil and not suit.motes and effects_on and Aura.has(suit.id, rec.threat)
 
-		if aura_on then
-			rec.aura = rec.aura or Aura.new()
-			aura_on = Aura.update(rec.aura, suit.id, clock + i * 0.43, rec.cw, rec.ch, AURA_SIZE)
+		rec.aura = rec.aura or Aura.new()
+		rec.aura_paint = rec.aura_paint or function (s, alpha, rgb)
+			paint(s, alpha, Spread.grey(rec.tmp, rgb, rec.desat))
 		end
 
-		for k = 1, Aura.COUNT do
-			local p = rec.aura and rec.aura[k]
-			local circle_style, rect_style = style[AURA_C[k]], style[AURA_R[k]]
-			local on = aura_on and p.on
+		if aura_on then
+			aura_on = Aura.update(rec.aura, suit.id, clock + i * 0.43, rec.cw, rec.ch, AURA_SIZE, rec.threat)
+		end
 
-			circle_style.visible, rect_style.visible = on and p.round, on and not p.round
+		Aura.draw(rec.aura, style, AURA_C, AURA_R, AURA_T, rec.x, rec.y, aura_on, 1, rec.aura_paint)
 
-			if on then
-				box(p.round and circle_style or rect_style, rec.x + p.x, rec.y + p.y, p.w, p.h)
-				paint(p.round and circle_style or rect_style, p.a, Spread.grey(rec.tmp, p.rgb, rec.desat))
-			end
+		-- a Murmur card of threat 5 or 6: its name is written, held and wiped, over and over
+		if rec.murmur and effects_on and Murmur.tick(rec.murmur, clock + i * 0.9) then
+			by_name[CARD[i]].content.name = rec.murmur.shown[1]
 		end
 
 		-- Nightmare's black fog comes and goes over the whole card

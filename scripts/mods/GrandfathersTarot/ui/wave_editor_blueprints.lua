@@ -292,11 +292,15 @@ blueprints.TILE_IDS = {
 	ping = { "ping_t", "ping_b", "ping_l", "ping_r" },
 	bubble = { "bubble_1", "bubble_2", "bubble_3" },
 	icon_t = {}, icon_c = {}, icon_th = {}, icon_ch = {}, th_o = {}, th_h = {}, dot = {}, dot_h = {}, pip = {}, hotspot_pip = {},
-	aura_c = {}, aura_r = {},
+	aura_c = {}, aura_r = {}, aura_t = {},
 }
 
 for i = 1, Aura.COUNT do
 	blueprints.TILE_IDS.aura_c[i], blueprints.TILE_IDS.aura_r[i] = "aura_c" .. i, "aura_r" .. i
+end
+
+for i = 1, Aura.TRIS do
+	blueprints.TILE_IDS.aura_t[i] = "aura_t" .. i
 end
 
 for i = 1, Spread.ICON_TRIS do
@@ -384,6 +388,10 @@ blueprints.tile = function (node_id, k, interactive)
 	for i = 1, Aura.COUNT do
 		circle_pass(passes, blueprints.TILE_IDS.aura_c[i], 2)
 		rect_pass(passes, blueprints.TILE_IDS.aura_r[i], 0, 0, 1, 1, 2)
+	end
+
+	for i = 1, Aura.TRIS do
+		triangle_pass(passes, blueprints.TILE_IDS.aura_t[i], 2)
 	end
 
 	-- "the vial fills": a liquid rising from the bottom of the card, with a bright top line and bubbles

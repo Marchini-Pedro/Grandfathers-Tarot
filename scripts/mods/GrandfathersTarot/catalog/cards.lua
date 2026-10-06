@@ -50,7 +50,7 @@ Cards.SUITS = {
 	swarm = { name = "Swarm", card = hex("#1b1d17"), hi = hex("#262a1f"), frame = hex("#474c3a"), text = hex("#d9d8c6"), accent = hex("#9aa37a"), whisper = "Too many to count.", icon = "cluster" },
 	fateful = { name = "Fateful", card = hex("#17140f"), hi = hex("#231e14"), frame = hex("#8a7a4a"), text = hex("#efe6c9"), accent = hex("#e6dfc3"), whisper = "The last page.", icon = "star" },
 	volley = { name = "Volley", card = hex("#121a1d"), hi = hex("#1b2a30"), frame = hex("#3d5963"), text = hex("#d5dfe0"), accent = hex("#7fb2c2"), whisper = "Something is aiming at you.", icon = "crosshair" },
-	snare = { name = "Snare", card = hex("#0f1b18"), hi = hex("#17302a"), frame = hex("#2f5f55"), text = hex("#d3e1db"), accent = hex("#5fbfa5"), whisper = "You cannot run from this.", icon = "links" },
+	snare = { name = "Entrapment", card = hex("#0f1b18"), hi = hex("#17302a"), frame = hex("#2f5f55"), text = hex("#d3e1db"), accent = hex("#5fbfa5"), whisper = "You cannot run from this.", icon = "links" },
 	brute = { name = "Brute", card = hex("#241311"), hi = hex("#35201b"), frame = hex("#74352b"), text = hex("#efdcd4"), accent = hex("#cf5c45"), whisper = "It does not stop for walls.", icon = "plate" },
 	-- WARP lives too (2026-10-04): its glow pulses and crackles and motes of the warp rise from it (`motes`; `lit` is the crackle)
 	warp = { name = "Warp", card = hex("#1a1127"), hi = hex("#281a3b"), frame = hex("#5e408f"), text = hex("#e9dff5"), accent = hex("#b184e0"), lit = hex("#ead6ff"), motes = true, whisper = "It knows your name.", icon = "warp" },

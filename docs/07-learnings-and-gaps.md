@@ -470,3 +470,11 @@ Things we know are missing or unverified, each with the next concrete step.
   triangle that must be seen over a rect stands on a whole layer above the rect's; the tests now check the layers.
 - **Game text markup in long help**: `{#color(r,g,b)}`, `{#size(n)}` and `{#reset()}` work inside a word-wrapped text; a line of one
   space at a small size (`{#size(8)} {#reset()}`) is the stock way to leave a little air between parts.
+
+## 2026-10-05 - DMF option tooltips, triangles for flames
+
+- **DMF hover text**: a widget's tooltip is its `tooltip` field or, when it has none, the localization key
+  `<setting_id>_description` (dmf/scripts/mods/dmf/modules/core/options.lua); groups take it too. Every option now has one.
+- **Triangles make flames**: a tongue of flame is one triangle (a wide base on the card's foot, a swaying apex); three layers of
+  them read as a blaze where circles read as bubbles. Triangle corners are relative to the pass's offset, so an aura's triangles
+  take the card's top left as offset and their corners in card space.

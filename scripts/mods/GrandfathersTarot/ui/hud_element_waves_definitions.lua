@@ -155,6 +155,10 @@ local function card_passes()
 		rect(passes, "aura_r" .. i, z + 5)
 	end
 
+	for i = 1, Aura.TRIS do
+		triangle(passes, "aura_t" .. i, z + 5)
+	end
+
 	rect(passes, "accent", z + 5)
 
 	for _, side in ipairs({ "t", "b", "l", "r" }) do

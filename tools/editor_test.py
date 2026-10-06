@@ -643,11 +643,18 @@ do
     if (pass.style_id or ""):find("^aura_") and (pass.style.offset[3] ~= math.floor(pass.style.offset[3]) or pass.style.offset[3] <= 1) then tile_layers = false end
   end
   check("aura: on the Deck's tile every aura shape is on a whole layer above the face (a circle at 1.5 was drawn under the face)", tile_layers)
-  settings.card_auras = false
+  settings.deck_card_effects = false
   view:_tick_living_tile(tile(1), 2.6)
   local off_n = 0
   for i = 1, Aura.COUNT do if tile(1).style["aura_c" .. i].visible or tile(1).style["aura_r" .. i].visible then off_n = off_n + 1 end end
-  check("aura: the option 'Living card effects' off hides it on the Deck", off_n == 0)
+  for i = 1, Aura.TRIS do if tile(1).style["aura_t" .. i].visible then off_n = off_n + 1 end end
+  check("aura: the option 'Card effects in the Deck' off hides it on the Deck (the HUD's option does not)", off_n == 0)
+  settings.deck_card_effects = nil
+  settings.card_auras = false
+  view:_tick_living_tile(tile(1), 2.9)
+  local hud_off_n = 0
+  for i = 1, Aura.COUNT do if tile(1).style["aura_c" .. i].visible or tile(1).style["aura_r" .. i].visible then hud_off_n = hud_off_n + 1 end end
+  check("aura: 'Card effects on the HUD' off leaves the Deck's effects alone", hud_off_n > 0 or not Aura.has(tile(1).content.fx.suit.id, tile(1).content.fx.threat))
   settings.card_auras = nil
   -- a Warp card on the Deck gets the warp motes of the HUD (2026-10-05, the user: "add the warp hud effect to the deck window")
   settings.su_wave_small = "warp"; view:_reload(); view:_apply_screen(true)
@@ -660,7 +667,27 @@ do
   local b1 = tile(1).style.border_t.color[2] .. "," .. tile(1).style.border_t.color[3]
   view:_tick_living_tile(tile(1), 5.3)
   check("aura: a Dream card on the Deck: its frame turns through a rainbow", tile(1).content.fx.suit.id == "dream" and b1 ~= tile(1).style.border_t.color[2] .. "," .. tile(1).style.border_t.color[3])
-  settings.su_wave_small = nil; view:_reload(); view:_apply_screen(true)
+  -- (2026-10-05, the user: "for Murmur cards of threat 5 and 6, all the letters in the card do the murmur effect")
+  local Murmur = dofile(BASE .. "/ui/murmur_text.lua")
+  settings.su_wave_small = "murmur"; settings.th_wave_small = 6; view:_reload(); view:_apply_screen(true)
+  local mc = tile(1).content
+  local full_name, full_comp, full_whisper = mc.name, mc.comp, mc.whisper
+  local m = mc.fx.murmur
+  local phase = #mc.fx.key * 0.37
+  local write = m.total / Murmur.SPEED
+  view:_tick_living_tile(tile(1), write * 0.1 - phase + 100 * (write + Murmur.HOLD + Murmur.ERASE + Murmur.GAP))
+  local partial = mc.name ~= full_name and #mc.name < #full_name and mc.whisper == ""
+  view:_tick_living_tile(tile(1), write + 1 - phase + 100 * (write + Murmur.HOLD + Murmur.ERASE + Murmur.GAP))
+  local whole = mc.name == full_name and mc.comp == full_comp and mc.whisper == full_whisper
+  check("murmur letters: a threat 6 Murmur card on the Deck writes its letters one by one (the name first, the whisper last), then holds them whole", m ~= nil and m.total > 20 and partial and whole, tostring(mc.name))
+  view:_tick_living_tile(tile(1), write * 0.1 - phase + 100 * (write + Murmur.HOLD + Murmur.ERASE + Murmur.GAP))
+  settings.deck_card_effects = false
+  view:_tick_living_tile(tile(1), 3)
+  check("murmur letters: the option 'Card effects in the Deck' off gives the card its whole letters back", mc.name == full_name and mc.whisper == full_whisper)
+  settings.deck_card_effects = nil
+  settings.th_wave_small = 4; view:_reload(); view:_apply_screen(true)
+  check("murmur letters: not on a Murmur card of threat 4", tile(1).content.fx.murmur == nil)
+  settings.su_wave_small = nil; settings.th_wave_small = nil; view:_reload(); view:_apply_screen(true)
 
   -- the engine runs the hotspots of the row; they are disabled with the others while a popup is open
   check("engine rule: the hotspots of the cooldown row run (hover and click work)", hotspot_runs(tile(1), "hotspot_cd_minus") and hotspot_runs(tile(1), "hotspot_cd_value") and hotspot_runs(tile(1), "hotspot_cd_plus"))
@@ -854,7 +881,7 @@ do
   check("warp: a custom card with a Daemonhost is a Warp card without anyone choosing: its label, the eye in a triangle (4 triangles, a pupil cut in the card's colour)", tile(13).content.suit_label == "WARP" and tile(13).style.icon_t1.visible and tile(13).style.icon_t4.visible and tile(13).style.icon_c1.visible and tile(13).style.icon_th4.visible, tile(13).content.suit_label)
   check("warp: the card is purple (the suit's colours)", tile(13).style.suit_label.text_color[2] == 0xb1 and tile(13).style.suit_label.text_color[3] == 0x84 and tile(13).style.suit_label.text_color[4] == 0xe0)
   settings.su_custom_1 = "snare"; reload()
-  check("warp: choosing another suit wins over the default", tile(13).content.suit_label == "SNARE" and tile(13).style.icon_c4.visible)
+  check("warp: choosing another suit wins over the default", tile(13).content.suit_label == "ENTRAPMENT" and tile(13).style.icon_c4.visible)
   settings.su_custom_1 = nil
   -- all fifteen suits draw a mark
   local all_marks = true
@@ -1160,7 +1187,7 @@ do
   click_plate("warp")
   check("suit: clicking Warp writes su_<key> and the card shows it with its mark (an eye in a triangle), and says what it is for", settings.su_boss_ambush == "warp" and plate_of("warp").content.selected and stage.content.suit_label == "WARP" and stage.style.icon_t1.visible and W.mirror_desc.content.mirror_desc:find("suit_desc_warp", 1, true) ~= nil)
   click_plate("snare")
-  check("suit: and Snare", settings.su_boss_ambush == "snare" and stage.content.suit_label == "SNARE" and W.mirror_desc.content.mirror_desc:find("suit_desc_snare", 1, true) ~= nil)
+  check("suit: and Entrapment (the suit snare, renamed 2026-10-05)", settings.su_boss_ambush == "snare" and stage.content.suit_label == "ENTRAPMENT" and W.mirror_desc.content.mirror_desc:find("suit_desc_snare", 1, true) ~= nil)
   settings.su_boss_ambush = nil; view:_reload(); view:_apply_screen(true)
   click("btn_back"); click("btn_back")
 

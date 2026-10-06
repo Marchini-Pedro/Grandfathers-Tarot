@@ -28,11 +28,17 @@ local TH_H = { "th_h1", "th_h2", "th_h3", "th_h4", "th_h5", "th_h6" }
 local TH_O = { "th_o1", "th_o2", "th_o3", "th_o4", "th_o5", "th_o6" }
 local DOT_H = { "dh_1", "dh_2", "dh_3", "dh_4", "dh_5", "dh_6" }
 local DOT = { "dot_1", "dot_2", "dot_3", "dot_4", "dot_5", "dot_6" }
-local AURA_C, AURA_R = {}, {}
+local AURA_C, AURA_R, AURA_T = {}, {}, {}
 
 for i = 1, Aura.COUNT do
 	AURA_C[i], AURA_R[i] = "aura_c" .. i, "aura_r" .. i
 end
+
+for i = 1, Aura.TRIS do
+	AURA_T[i] = "aura_t" .. i
+end
+
+local Murmur = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/murmur_text")
 
 local AURA_SIZE = 0.75 -- the aura's shapes on this card (the Deck's tile: 1)
 
@@ -270,7 +276,9 @@ Paint.setup = function (self, card, font)
 	style.age.visible = true
 
 	-- the suit's aura and Dream's rainbow are animated every frame (HudElementGrandfathersTarotLast._tick_aura)
-	self._aura_suit = Aura.has(suit.id) and not suit.blood and not suit.gloom and suit.id or nil
+	-- (as strong as the card's threat; Heresy only at 5 and 6, its storm)
+	self._aura_suit = Aura.has(suit.id, threat) and suit.id or nil
+	self._aura_level = threat
 	self._aura_box = { x, y, cw, ch }
 	self._aura = self._aura or Aura.new()
 	self._rainbow = suit.rainbow == true
@@ -279,6 +287,13 @@ Paint.setup = function (self, card, font)
 	for i = 1, Aura.COUNT do
 		style[AURA_C[i]].visible, style[AURA_R[i]].visible = false, false
 	end
+
+	for i = 1, Aura.TRIS do
+		style[AURA_T[i]].visible = false
+	end
+
+	-- a Murmur card of threat 5 or 6: its name and its whisper murmur, over and over (Paint.tick_aura)
+	self._murmur = Murmur.on(card.suit, threat) and Murmur.new({ content.name, content.whisper }) or nil
 
 	-- Nightmare's fog is animated every frame (HudElementGrandfathersTarotLast._tick_fog)
 	self._fog_box = suit.fog and { x, y, cw, ch } or nil
@@ -323,7 +338,9 @@ Paint.tick_aura = function (self, t)
 
 	if not b then return end
 
-	local glow = suit and Aura.glow(suit, t, self._glow_rgb)
+	-- (the HUD's window follows "Card effects on the HUD", the editor's preview "Card effects in the Deck": self._aura_option)
+	local effects_on = mod:get(self._aura_option or "card_auras") ~= false
+	local glow = suit and effects_on and Aura.glow(suit, t, self._glow_rgb, self._aura_level)
 
 	if glow then
 		paint(style.glow, math.floor(170 * glow + 0.5), self._glow_rgb)
@@ -336,21 +353,15 @@ Paint.tick_aura = function (self, t)
 		end
 	end
 
-	local alive = suit ~= nil and mod:get("card_auras") ~= false and Aura.update(self._aura, suit, t, b[3], b[4], AURA_SIZE)
+	local alive = suit ~= nil and effects_on and Aura.update(self._aura, suit, t, b[3], b[4], AURA_SIZE, self._aura_level)
 
-	for i = 1, Aura.COUNT do
-		local p = self._aura[i]
-		local circle_style, rect_style = style[AURA_C[i]], style[AURA_R[i]]
-		local on = alive and p.on
+	Aura.draw(self._aura, style, AURA_C, AURA_R, AURA_T, b[1], b[2], alive, 1, paint)
 
-		circle_style.visible, rect_style.visible = on and p.round, on and not p.round
+	-- the murmur of the letters
+	local m = self._murmur
 
-		if on then
-			local s = p.round and circle_style or rect_style
-
-			box(s, b[1] + p.x, b[2] + p.y, p.w, p.h)
-			paint(s, p.a, p.rgb)
-		end
+	if m and effects_on and Murmur.tick(m, t) then
+		self._widget.content.name, self._widget.content.whisper = m.shown[1], m.shown[2]
 	end
 end
 

@@ -4,7 +4,7 @@
 -- along the foot and the head of the screen, its edges glow in a rainbow that turns, and stars twinkle and drift up. It rises when the
 -- card is drawn (every player sees it: the draw is synced), holds, and fades out after DURATION seconds. Everything is see-through.
 --
--- The option "Dream's sky on screen" (dream_sky) turns it off. No allocation per frame: the passes are written in place.
+-- The option "Dream's sky strength" (dream_sky_strength, percent: 0 turns it off, 150 is half again as bright) scales it. No allocation per frame: the passes are written in place.
 local mod = get_mod("GrandfathersTarot")
 
 local Definitions = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/hud_element_dream_definitions")
@@ -43,6 +43,13 @@ for j = 1, Definitions.VIGNETTE_STEPS do
 end
 
 -- How strong the sky is `age` seconds after the draw: rises, holds, fades (0..1)
+-- the option "Dream's sky strength" as a factor (1 = 100 percent; 0 to 1.5)
+HudElementGrandfathersTarotDream.option = function ()
+	local value = tonumber(mod:get("dream_sky_strength"))
+
+	return value and math.max(0, math.min(150, value)) / 100 or 1
+end
+
 HudElementGrandfathersTarotDream.envelope = function (age)
 	if age < 0 or age >= DURATION then
 		return 0
@@ -208,7 +215,7 @@ HudElementGrandfathersTarotDream._refresh = function (self, dt)
 	local rw = mod.rw
 	local director, Cards = rw and rw.director, rw and rw.cards
 
-	if not director or not Cards or not mod:is_enabled() or mod:get("dream_sky") == false then
+	if not director or not Cards or not mod:is_enabled() or HudElementGrandfathersTarotDream.option() <= 0 then
 		return self:_hide()
 	end
 
@@ -227,7 +234,7 @@ HudElementGrandfathersTarotDream._refresh = function (self, dt)
 		return self:_hide()
 	end
 
-	self:_paint(self._age, strength, self._clock)
+	self:_paint(self._age, strength * HudElementGrandfathersTarotDream.option(), self._clock)
 end
 
 HudElementGrandfathersTarotDream.update = function (self, dt, t, ui_renderer, render_settings, input_service)

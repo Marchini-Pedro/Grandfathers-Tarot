@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-05 - Effects that follow the threat, new looks, options (polishing)
+- Every card's effect grows with its threat: more, larger and brighter at 5 and 6, quieter at 1 and 2.
+- Rage burns as a blaze of flames (balls of fire only on the fiercest cards); Blight drips into a pool of pus; Prayer burns candles
+  under light from above; Heresy of threat 5 and 6 is caught in a storm with lightning; a Murmur card of threat 5 or 6 murmurs
+  every letter on it.
+- Snare is now called Entrapment.
+- Options: a slider for Dream's sky, "Card effects in the Deck" apart from "Card effects on the HUD", and a description on every
+  option of the mod menu.
+
 ## 2026-10-05 - The effects seen, a clean help, the last card on the Face tab (polishing)
 - Fixed: Plague, Murmur, Swarm, Snare, Prayer and Faith showed no effect, and Dream only a few squares (their circles were drawn
   under the card's face).

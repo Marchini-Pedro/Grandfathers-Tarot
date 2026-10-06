@@ -8,6 +8,7 @@ local mod = get_mod("GrandfathersTarot")
 
 local Text = require("scripts/utilities/ui/text")
 local Aura = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/aura")
+local Murmur = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/murmur_text")
 
 local DeckView = {}
 
@@ -495,6 +496,10 @@ DeckView.install = function (View, h)
 
 		content.whisper = "\"" .. card.whisper .. "\""
 		style.whisper.visible = true
+		fx.full_name = card.name
+
+		-- a Murmur card of threat 5 or 6: every letter on it murmurs (ui/murmur_text.lua; _tick_living_tile writes them)
+		fx.murmur = Murmur.on(card.suit, card.threat) and Murmur.new({ content.name, content.comp, content.mods, content.whisper }) or nil
 		paint(style.whisper, 255, tone(card.suit == "murmur" and Cards.BASE.whisper or Cards.BASE.muted))
 
 		-- the stage card: its name and its line are click areas, underlined under the pointer (blueprints.tile, `interactive`)
@@ -540,10 +545,17 @@ DeckView.install = function (View, h)
 			for i = 1, Aura.COUNT do
 				style[IDS.aura_c[i]].visible, style[IDS.aura_r[i]].visible = false, false
 			end
+
+			for i = 1, Aura.TRIS do
+				style[IDS.aura_t[i]].visible = false
+			end
 		end
 
 		fx.aura = Aura.new()
 		fx.w, fx.h = T.w, T.h
+		fx.aura_paint = function (s, alpha, rgb)
+			paint(s, alpha, Spread.grey(fx.tmp, rgb, fx.sat))
+		end
 
 		-- one dot per enemy colour, right aligned, each on a feather
 		local dots = card.dots
@@ -835,6 +847,28 @@ DeckView.install = function (View, h)
 			return
 		end
 
+		-- the option "Card effects in the Deck" off: the tile stands still, its aura gone and its letters whole
+		if mod:get("deck_card_effects") == false then
+			if not fx.stilled then
+				fx.stilled = true
+
+				if fx.aura and widget.style[IDS.aura_c[1]] then
+					Aura.draw(fx.aura, widget.style, IDS.aura_c, IDS.aura_r, IDS.aura_t, 0, 0, false, 1, fx.aura_paint)
+				end
+
+				if fx.murmur then
+					local texts, content = fx.murmur.texts, widget.content
+
+					content.name, content.comp, content.mods, content.whisper = texts[1], texts[2], texts[3], texts[4]
+					fx.murmur.n = -1
+				end
+			end
+
+			return
+		end
+
+		fx.stilled = false
+
 		local Cards = mod.rw.cards
 		local style, suit = widget.style, fx.suit
 
@@ -872,7 +906,7 @@ DeckView.install = function (View, h)
 			paint(style.glow, math.floor(150 * (0.45 + 0.55 * pulse) + 0.5), Spread.grey(fx.tmp, mix_into(fx.mix, suit.frame, suit.lit, 0.35 * pulse + 0.65 * crackle), fx.sat))
 		else
 			-- Dream's glow turns through a rainbow, Brute's flares with every blow (ui/aura.lua); Dream's frame follows its glow
-			local glow = Aura.glow(suit.id, t, fx.mix)
+			local glow = Aura.glow(suit.id, t, fx.mix, fx.threat)
 
 			if glow then
 				paint(style.glow, math.floor(190 * glow + 0.5), Spread.grey(fx.tmp, fx.mix, fx.sat))
@@ -887,25 +921,21 @@ DeckView.install = function (View, h)
 			end
 		end
 
-		-- the suit's aura (warp motes, flames, bubbles, feathers, clouds...): fainter while the card rests
+		-- the suit's aura (warp motes, flames, bubbles, feathers, clouds, Heresy's storm...), as strong as the card's threat: fainter while
+		-- the card rests
 		if fx.aura and style[IDS.aura_c[1]] then
-			local alive = mod:get("card_auras") ~= false and Aura.update(fx.aura, suit.id, t, fx.w, fx.h, fx.k)
-			local dim = fx.state == "cooling" and 0.45 or 1
+			local alive = Aura.update(fx.aura, suit.id, t, fx.w, fx.h, fx.k, fx.threat)
 
-			for i = 1, Aura.COUNT do
-				local p = fx.aura[i]
-				local circle, rect = style[IDS.aura_c[i]], style[IDS.aura_r[i]]
-				local on = alive and p.on
+			Aura.draw(fx.aura, style, IDS.aura_c, IDS.aura_r, IDS.aura_t, 0, 0, alive, fx.state == "cooling" and 0.45 or 1, fx.aura_paint)
+		end
 
-				circle.visible, rect.visible = on and p.round, on and not p.round
+		-- a Murmur card of threat 5 or 6: its letters are written, held and wiped, over and over
+		local m = fx.murmur
 
-				if on then
-					local s = p.round and circle or rect
+		if m and Murmur.tick(m, t + (fx.key and #fx.key or 0) * 0.37) then
+			local content = widget.content
 
-					s.offset[1], s.offset[2], s.size[1], s.size[2] = p.x, p.y, p.w, p.h
-					paint(s, math.floor(p.a * dim + 0.5), Spread.grey(fx.tmp, p.rgb, fx.sat))
-				end
-			end
+			content.name, content.comp, content.mods, content.whisper = m.shown[1], m.shown[2], m.shown[3], m.shown[4]
 		end
 
 		-- Nightmare's black fog comes and goes over the whole card
@@ -1084,9 +1114,9 @@ DeckView.install = function (View, h)
 
 			if caption then
 				if hovered_widget and hovered_pip then
-					caption.content.deck_hover = mod:localize("tile_pip_hover", hovered_widget.content.name, hovered_pip)
+					caption.content.deck_hover = mod:localize("tile_pip_hover", hovered_widget.content.fx.full_name or hovered_widget.content.name, hovered_pip)
 				else
-					caption.content.deck_hover = hovered_widget and hovered_widget.content.name or strip_name or ""
+					caption.content.deck_hover = hovered_widget and (hovered_widget.content.fx and hovered_widget.content.fx.full_name or hovered_widget.content.name) or strip_name or ""
 				end
 			end
 
