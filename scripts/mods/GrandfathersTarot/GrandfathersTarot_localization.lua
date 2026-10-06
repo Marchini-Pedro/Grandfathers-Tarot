@@ -307,6 +307,10 @@ local L = {
 	btn_shield = { en = "Shield" },
 	tune_boss = { en = "Boss bar" },
 	tune_boss_name = { en = "Boss name" },
+	tune_boss_colour = { en = "Boss bar colour" },
+	tune_boss_colour_info = { en = "The colour of its boss bar: %s. - and + step through the colours; click the name to type a colour code." },
+	popup_boss_colour_title = { en = "Boss bar colour: %s" },
+	popup_boss_colour_hint = { en = "A colour code like ff7a1a (red green blue, two digits each). Empty: the game's red." },
 	tune_boss_name_info = { en = "The name in the boss bar. Empty: the enemy's own name. Used while Boss bar is on." },
 	tune_boss_name_set = { en = "Shown in the boss bar as: %s" },
 	btn_boss_name_edit = { en = "Edit" },
@@ -603,6 +607,18 @@ local L = {
 local function tint(key, colour) L[key].en = "{#color(" .. colour .. ")}" .. L[key].en .. "{#reset()}" end
 
 L.mod_name.en = "{#color(128,160,52)}The Grandfather's {#color(196,182,84)}Tarot{#reset()}"
+
+-- the version beside the name and at the start of the description (catalog/version.lua)
+do
+	local ok, version = pcall(function ()
+		return get_mod("GrandfathersTarot"):io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/catalog/version")
+	end)
+
+	if ok and type(version) == "string" then
+		L.mod_name.en = L.mod_name.en .. "  {#color(150,146,128)}v" .. version .. "{#reset()}"
+		L.mod_description.en = "Version " .. version .. ". " .. L.mod_description.en
+	end
+end
 tint("group_timing", "128,160,52")
 tint("group_spawn", "196,182,84")
 tint("group_multipliers", "150,118,62")

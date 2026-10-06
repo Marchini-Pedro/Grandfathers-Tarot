@@ -22,7 +22,8 @@ local Protocol = {}
 
 -- 2 / 2.0.0: the synced state carries the tarot hand (h, w, sq, dn, y, cd); the handshake refuses older peers
 Protocol.PROTO = 2
-Protocol.VERSION = "2.0.0"
+-- 2.2.0 (2026-10-06): the host's state also goes out while no card cycle runs (`o = 1`: effects, boss bars, health layers)
+Protocol.VERSION = get_mod("GrandfathersTarot"):io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/catalog/version")
 
 local RPC_HELLO = "rw_hello"
 local RPC_WELCOME = "rw_welcome"

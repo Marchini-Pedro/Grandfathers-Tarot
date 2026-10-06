@@ -349,3 +349,11 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Built: a per-group Boss name for the boss bar ("(name ...)" in the recipe, sent with the host's boss list).
 - Tests: check_lua passes; offline, names with "and", separators and too many characters parse, clean and round-trip. The suites
   were not run.
+
+## 2026-10-06 - Version 2.2.0: clients without a cycle, boss bar colour and numbers, a client crash
+- Found: the state (effects, health layers, boss bars) was sent only while the card cycle ran; a client crashed reading a stand-in
+  boss's destroyed HuskHealthExtension (the bar ended a few frames late); a client undid the network division of a unit's health
+  only above the limit, not from 98 percent of it.
+- Built: the side state (`o = 1`), the same-frame end of a stand-in's bar, real numbers for any divided unit, the boss bar colour,
+  the version (catalog/version.lua, 2.2.0, also the handshake).
+- Tests: check_lua passes; offline, colours parse, clean, step and round-trip, the protocol reports 2.2.0. The suites were not run.

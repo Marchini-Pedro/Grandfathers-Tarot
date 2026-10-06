@@ -49,6 +49,22 @@ TuneView.install = function (View, h)
 		local value = value_of(self, item.id)
 		local changed = value ~= groups().tune_default(item.id)
 
+		-- the Boss bar colour: the row's name in it; - and + step through the presets, a click on the name for a colour code
+		if item.colour then
+			local part = part_of(self)
+			local hex = part and part.boss_colour
+			local r, g, b = groups().hex_rgb(hex)
+
+			content.row_name = mod:localize("tune_boss_colour")
+			content.info = mod:localize("tune_boss_colour_info", groups().boss_colour_name(hex))
+			content.show_check, content.show_stepper, content.show_share, content.show_mods, content.show_rep = false, true, false, false, false
+			content.show_action = hex ~= nil
+			content.hotspot_action_text = mod:localize("btn_tune_reset")
+			content.stepper_value = tostring(groups().boss_colour_index(hex) or "#")
+
+			return r and { 255, r, g, b } or { 255, 220, 40, 40 }
+		end
+
 		-- the Boss name: its text under the row's name, Edit on the right
 		if item.text then
 			local part = part_of(self)
@@ -90,7 +106,38 @@ TuneView.install = function (View, h)
 	View._tune_step = function (self, item, delta)
 		if item.text then return end
 
+		if item.colour then
+			local part = part_of(self)
+
+			if part then
+				part.boss_colour = groups().next_boss_colour(part.boss_colour, delta)
+				self:_save()
+			end
+
+			return
+		end
+
 		self:_set_tune(item.id, value_of(self, item.id) + delta * item.step)
+	end
+
+	-- the Boss bar colour: a colour code box ("ff7a1a"; empty = the game's red)
+	View._boss_colour_popup = function (self)
+		local part = part_of(self)
+
+		if not part then
+			return
+		end
+
+		Popup.open(self, {
+			label = mod:localize("popup_boss_colour_title", groups().describe_part(part)),
+			value = part.boss_colour or "",
+			max_length = 7,
+			hint = mod:localize("popup_boss_colour_hint"),
+			set = function (text)
+				part.boss_colour = groups().clean_hex(text)
+				self:_save()
+			end,
+		})
 	end
 
 	-- the Boss name: a text box (empty = the game's own name)
@@ -134,6 +181,12 @@ TuneView.install = function (View, h)
 			return
 		end
 
+		if item.colour then
+			self:_boss_colour_popup()
+
+			return
+		end
+
 		Popup.open(self, {
 			label = mod:localize("popup_tune_title", mod:localize("tune_" .. item.id), part and groups().describe_part(part) or ""),
 			value = tostring(value_of(self, item.id)),
@@ -149,6 +202,17 @@ TuneView.install = function (View, h)
 	View._tune_action = function (self, item)
 		if item.text then
 			self:_boss_name_popup()
+
+			return
+		end
+
+		if item.colour then
+			local part = part_of(self)
+
+			if part then
+				part.boss_colour = nil
+				self:_save()
+			end
 
 			return
 		end

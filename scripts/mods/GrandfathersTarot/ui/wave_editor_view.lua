@@ -158,6 +158,7 @@ local function copy_parts(parts)
 			noshield = part.noshield,
 			leaves = part.leaves,
 			boss_name = part.boss_name,
+			boss_colour = part.boss_colour,
 		}
 	end
 

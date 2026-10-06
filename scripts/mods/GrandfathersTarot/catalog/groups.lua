@@ -248,6 +248,65 @@ for _, def in ipairs(Groups.TUNE) do
 end
 
 Groups.TUNE_SCREEN[#Groups.TUNE_SCREEN + 1] = { id = "boss_name", name = "Boss name", text = true }
+-- (2026-10-06, the user: "let me customize its color") the colour of the group's boss bar: part.boss_colour, "(colour ff7a1a)"
+Groups.TUNE_SCREEN[#Groups.TUNE_SCREEN + 1] = { id = "boss_colour", name = "Boss bar colour", colour = true }
+
+-- the steps of the colour's - and +; nil (the first step) is the game's red
+Groups.BOSS_COLOURS = {
+	{ name = "Orange", hex = "ff7a1a" },
+	{ name = "Gold", hex = "e8c040" },
+	{ name = "Green", hex = "5ec850" },
+	{ name = "Bile", hex = "9cb030" },
+	{ name = "Teal", hex = "3cbcb0" },
+	{ name = "Blue", hex = "4890ff" },
+	{ name = "Purple", hex = "b050ff" },
+	{ name = "Pink", hex = "ff5aa8" },
+	{ name = "White", hex = "e8e8e8" },
+}
+
+-- "ff7a1a" from "#FF7A1A", "ff7a1a", " FF7A1A "; nil for anything else
+Groups.clean_hex = function (text)
+	local hex = type(text) == "string" and text:match("^%s*#?(%x%x%x%x%x%x)%s*$")
+
+	return hex and hex:lower() or nil
+end
+
+Groups.hex_rgb = function (hex)
+	hex = Groups.clean_hex(hex)
+
+	if not hex then
+		return nil
+	end
+
+	return tonumber(hex:sub(1, 2), 16), tonumber(hex:sub(3, 4), 16), tonumber(hex:sub(5, 6), 16)
+end
+
+-- 0 for the game's red, the step of a preset, nil for a colour of one's own
+Groups.boss_colour_index = function (hex)
+	if not hex then return 0 end
+
+	for i, preset in ipairs(Groups.BOSS_COLOURS) do
+		if preset.hex == hex then return i end
+	end
+
+	return nil
+end
+
+Groups.boss_colour_name = function (hex)
+	local index = Groups.boss_colour_index(hex)
+
+	if index == 0 then return "Red (the game's)" end
+
+	return index and Groups.BOSS_COLOURS[index].name or ("#" .. hex)
+end
+
+Groups.next_boss_colour = function (hex, delta)
+	local count = #Groups.BOSS_COLOURS + 1
+	local index = (Groups.boss_colour_index(hex) or 0) + delta
+	index = index % count
+
+	return index > 0 and Groups.BOSS_COLOURS[index].hex or nil
+end
 
 -- A Boss name as the recipe can hold it: letters, digits, spaces and ' - . ! ? only, 30 characters at most; nil for nothing
 Groups.BOSS_NAME_MAX = 30
@@ -818,6 +877,7 @@ Groups.extra_recipe = function (part)
 	if part.noshield and Groups.has_shield(part) then text = text .. Groups.NO_SHIELD end
 	if part.leaves and Groups.can_leave(part) then text = text .. "(leaves " .. tostring(part.leaves) .. ")" end
 	if part.boss_name then text = text .. "(name " .. part.boss_name .. ")" end
+	if part.boss_colour then text = text .. "(colour " .. part.boss_colour .. ")" end
 
 	return text
 end
@@ -941,7 +1001,7 @@ Groups.parse = function (recipe)
 			end
 
 			-- the row's toggle, in any order at the end: "(no dogs)", "(no shield)", "(leaves 2)"
-			local nodogs, noshield, leaves, boss_name
+			local nodogs, noshield, leaves, boss_name, boss_colour
 
 			while true do
 				local before, marker = name:match("^(.-)%s*%(([^()]*)%)%s*$")
@@ -953,6 +1013,8 @@ Groups.parse = function (recipe)
 					noshield = true
 				elseif marker and marker:match("^leaves ") then
 					leaves = Groups.leaves_value(marker:sub(8))
+				elseif marker and (marker:match("^colour ") or marker:match("^color ")) then
+					boss_colour = Groups.clean_hex(marker:match("^%a+ (.*)$"))
 				elseif marker and marker:match("^bossname %d+$") then
 					boss_name = Groups.clean_boss_name(boss_names[tonumber(marker:match("%d+"))])
 				else
@@ -1040,6 +1102,7 @@ Groups.parse = function (recipe)
 				new_part.noshield = noshield and Groups.has_shield(new_part) or nil
 				new_part.leaves = leaves and Groups.can_leave(new_part) and leaves or nil
 				new_part.boss_name = boss_name
+				new_part.boss_colour = boss_colour
 
 				local key = part_key(new_part)
 				local part = by_key[key]

@@ -814,6 +814,29 @@ local function snapshot()
 	return snap
 end
 
+-- (2026-10-06, the user: a client saw no reveal outlines and no custom boss bars after waves were started by hand, and saw them
+-- after /gt_start) The state goes out only while the card cycle runs. Without it the host still sends what the units and the
+-- effects need, once a second: `o = 1`, the effects (reveals, the Blackout), the health layers and the boss bars.
+local side_timer = 0
+
+local function side_snapshot()
+	local snap = { o = 1, fx = Director.effects and Director.effects.snapshot() or nil }
+
+	if Tuning and Tuning.health_layer_list then
+		local ok, list = pcall(Tuning.health_layer_list)
+
+		snap.hl = ok and list or nil
+	end
+
+	if Tuning and Tuning.boss_list then
+		local ok, list = pcall(Tuning.boss_list)
+
+		snap.bb = ok and list or nil
+	end
+
+	return snap
+end
+
 local function broadcast()
 	if host_state and Protocol.is_available() then
 		Protocol.send_state(snapshot(), "others")
@@ -996,6 +1019,15 @@ Director.update = function (dt)
 			release_held(dt, paused or stopped)
 
 			Execute.update(dt, paused or stopped)
+
+			if stopped or not started or not host_state then
+				side_timer = side_timer + dt
+
+				if side_timer >= SEND_INTERVAL and Protocol.is_available() then
+					side_timer = 0
+					Protocol.send_state(side_snapshot(), "others")
+				end
+			end
 		end
 	elseif Tuning then
 		-- a client: the sizes the host sent (custom mods) go onto the units as they arrive here
@@ -1285,6 +1317,11 @@ Director.on_state = function (sender, s)
 	if Director.effects then Director.effects.receive(s.fx) end
 	if Tuning and Tuning.receive_health_layers then pcall(Tuning.receive_health_layers, s.hl) end
 	if Tuning and Tuning.receive_bosses then pcall(Tuning.receive_bosses, s.bb) end
+
+	-- the host runs no card cycle: only the units and the effects (side_snapshot)
+	if s.o == 1 then
+		return
+	end
 	local cands = {}
 
 	if type(s.k) == "table" then

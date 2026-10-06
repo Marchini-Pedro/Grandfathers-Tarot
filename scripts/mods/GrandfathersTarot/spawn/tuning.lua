@@ -433,6 +433,14 @@ local function layered_proxy(target, real)
 		current_health_percent = function ()
 			return target._rw_fraction or real:current_health_percent()
 		end,
+		-- (2026-10-06, the user: "the new boss bar healths numbers are not synced") a client reads the real numbers (NumericUI's
+		-- boss health number reads current_health)
+		current_health = function ()
+			return real:current_health_percent() * (target._rw_max or real:max_health())
+		end,
+		max_health = function ()
+			return target._rw_max or real:max_health()
+		end,
 	}, {
 		__index = function (_, key)
 			local value = real[key]
@@ -474,7 +482,11 @@ Tuning.layer_boss_targets = function (element)
 		local real = target._rw_health or target.health_extension
 		local max = real and size and Tuning.true_max_health(target.unit, real)
 
-		if max and max > size then
+		-- a divided unit: from 98 percent of the network's limit (Tuning.fit_network), so also one under the limit itself, whose
+		-- numbers a client read halved (2026-10-06); the "xN" layers only above the limit (health_layers gives one bar below it)
+		if max and (max > size or math.abs(real:max_health() - max) > 1) then
+			target._rw_max = max
+
 			if not target._rw_health then
 				target._rw_health = real
 				target._rw_name = target.localized_display_name
@@ -517,7 +529,8 @@ end
 -- extension (a Monster, a Captain) is left to the game.
 local boss_marked = setmetatable({}, { __mode = "k" }) -- host: unit -> true
 local boss_names = setmetatable({}, { __mode = "k" }) -- host: unit -> its group's Boss name (2026-10-06)
-local boss_ids = {} -- a client: game object id -> its Boss name, or true, from the host's state
+local boss_colours = setmetatable({}, { __mode = "k" }) -- host: unit -> its group's Boss bar colour ("ff7a1a")
+local boss_ids = {} -- a client: game object id -> { name, colour } from the host's state
 local boss_shown = {} -- every machine: unit -> its stand-in, while its bar was started here
 local boss_timer = 0
 Tuning.MAX_BOSSES = 16
@@ -532,7 +545,15 @@ local function clean_name(text)
 	return text ~= "" and text or nil
 end
 
-local function stand_in(unit, custom_name)
+local function clean_hex(text)
+	local hex = type(text) == "string" and text:match("^%s*#?(%x%x%x%x%x%x)%s*$")
+
+	return hex and hex:lower() or nil
+end
+
+local function stand_in(unit, info)
+	local custom_name = info and info.name
+	local hex = info and clean_hex(info.colour)
 	local data = ScriptUnit.has_extension(unit, "unit_data_system")
 	local breed = data and data:breed()
 	local name = breed and breed.display_name
@@ -544,6 +565,8 @@ local function stand_in(unit, custom_name)
 	return {
 		_rw_stand_in = true,
 		_rw_custom_name = clean_name(custom_name), -- written over the bar's name (Tuning.layer_boss_targets)
+		-- the bar's colour (Tuning.colour_boss_bars), ARGB
+		_rw_colour = hex and { 255, tonumber(hex:sub(1, 2), 16), tonumber(hex:sub(3, 4), 16), tonumber(hex:sub(5, 6), 16) } or nil,
 		display_name = function () return name end,
 		is_empowered = function () return nil end,
 		is_weakened = function () return false end,
@@ -555,8 +578,11 @@ local function living(unit)
 	return unit and alive(unit) and (not HEALTH_ALIVE or HEALTH_ALIVE[unit] == true)
 end
 
-Tuning.name_boss = function (unit, name)
-	if unit then boss_names[unit] = clean_name(name) end
+Tuning.name_boss = function (unit, name, colour)
+	if unit then
+		boss_names[unit] = clean_name(name)
+		boss_colours[unit] = clean_hex(colour)
+	end
 end
 
 Tuning.mark_boss = function (unit)
@@ -582,7 +608,7 @@ Tuning.boss_list = function ()
 
 			if ok and id then
 				-- { id, name } for a named one, the id alone otherwise
-				list[#list + 1] = boss_names[unit] and { id, boss_names[unit] } or id
+				list[#list + 1] = (boss_names[unit] or boss_colours[unit]) and { id, boss_names[unit] or "", boss_colours[unit] or "" } or id
 			end
 		end
 	end
@@ -598,10 +624,10 @@ Tuning.receive_bosses = function (list)
 		for i = 1, math.min(#list, Tuning.MAX_BOSSES) do
 			local item = list[i]
 			local id = tonumber(type(item) == "table" and item[1] or item)
-			local name = type(item) == "table" and clean_name(item[2]) or nil
+			local info = type(item) == "table" and { name = clean_name(item[2]), colour = clean_hex(item[3]) } or {}
 
 			if id and id == id and id >= 0 and id < 1e9 then
-				map[math.floor(id)] = name or true
+				map[math.floor(id)] = info
 			end
 		end
 	end
@@ -628,15 +654,15 @@ Tuning.update_bosses = function (dt, is_host)
 
 	if is_host then
 		for unit in pairs(boss_marked) do
-			if living(unit) then wanted[unit] = boss_names[unit] or true else boss_marked[unit] = nil end
+			if living(unit) then wanted[unit] = { name = boss_names[unit], colour = boss_colours[unit] } else boss_marked[unit] = nil end
 		end
 	elseif next(boss_ids) ~= nil then
 		local spawner = Managers.state and Managers.state.unit_spawner
 
-		for id, name in pairs(boss_ids) do
+		for id, info in pairs(boss_ids) do
 			local ok, unit = pcall(function () return spawner and spawner:unit_exists(id) and spawner:unit(id) end)
 
-			if ok and unit and living(unit) then wanted[unit] = name end
+			if ok and unit and living(unit) then wanted[unit] = info end
 		end
 	end
 
@@ -644,9 +670,9 @@ Tuning.update_bosses = function (dt, is_host)
 		if not wanted[unit] then end_bar(unit, standin) end
 	end
 
-	for unit, name in pairs(wanted) do
+	for unit, info in pairs(wanted) do
 		if not boss_shown[unit] and not ScriptUnit.has_extension(unit, "boss_system") then
-			local standin = stand_in(unit, type(name) == "string" and name or nil)
+			local standin = stand_in(unit, info)
 
 			if standin then
 				boss_shown[unit] = standin
@@ -674,10 +700,82 @@ Tuning.end_bosses = function ()
 	boss_shown, boss_ids = {}, {}
 	boss_marked = setmetatable({}, { __mode = "k" })
 	boss_names = setmetatable({}, { __mode = "k" })
+	boss_colours = setmetatable({}, { __mode = "k" })
+end
+
+-- (2026-10-06, a client crashed when the Tower with a custom boss bar died: "Cannot access property current_health_percent on
+-- destroyed object of type HuskHealthExtension", hud_element_boss_health.lua:258) The game ends a real boss's bar when its
+-- BossExtension is destroyed, in the same frame as the health extension; a stand-in's bar was ended only by the quarter-second
+-- check. Every frame, right before the game's update, a stand-in's bar whose unit is dead or whose health can no longer be read
+-- is ended.
+Tuning.drop_dead_bosses = function (element)
+	local targets = element._active_targets_array
+
+	if not targets then
+		return
+	end
+
+	for i = #targets, 1, -1 do
+		local target = targets[i]
+		local standin = target and target.boss_extension
+
+		if standin and standin._rw_stand_in then
+			local health = target._rw_health or target.health_extension
+			local readable = living(target.unit) and health and pcall(function () return health:current_health_percent() end)
+
+			if not readable then
+				end_bar(target.unit, standin)
+			end
+		end
+	end
+end
+
+-- The colour of each boss bar (every frame, before the game's update): the widget group a target is drawn in (the same rule as
+-- HudElementBossHealth.update: one target in the first group, two or more from the second) takes its stand-in's colour, any other
+-- goes back to the game's own (kept the first time).
+Tuning.colour_boss_bars = function (element)
+	local targets, groups = element._active_targets_array or {}, element._widget_groups or {}
+	local count = #targets
+	local wanted = {}
+
+	for i = 1, math.min(count, element._max_health_bars or count) do
+		local target = targets[i]
+		local colour = target and target.boss_extension and target.boss_extension._rw_colour
+
+		if colour then
+			wanted[count > 1 and i + 1 or i] = colour
+		end
+	end
+
+	for index, group in ipairs(groups) do
+		local style = group.health and group.health.style and group.health.style.bar
+
+		if style and style.color then
+			style._rw_default = style._rw_default or style.color
+
+			local colour = wanted[index] or style._rw_default
+
+			if style.color ~= colour then
+				style.color = colour
+			end
+		end
+	end
 end
 
 Tuning.boss_bar_update = function (func, self, ...)
 	if not Tuning.dead then
+		local dropped, drop_err = pcall(Tuning.drop_dead_bosses, self)
+
+		if not dropped then
+			warn_once("a dead boss's bar could not be ended: " .. tostring(drop_err))
+		end
+
+		local coloured, colour_err = pcall(Tuning.colour_boss_bars, self)
+
+		if not coloured then
+			warn_once("a boss bar's colour could not be set: " .. tostring(colour_err))
+		end
+
 		local ok, err = pcall(Tuning.layer_boss_targets, self)
 
 		if not ok then

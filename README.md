@@ -9,7 +9,7 @@ random selection and player voting. No Twitch service is required.
 > `feature/cauldron-redesign` adds Faith, a crimson Heresy, Nightmare (once per game), one
 > cooldown look, the beneficial shelf and card sounds that play at the draw ([guide](docs/13-cauldron-redesign.md));
 > offline checks pass, game acceptance is pending.
-> Runtime version: `2.0.0`; last tagged release: `v1.13.0`.
+> Runtime version: `2.2.0` (`catalog/version.lua`); last tagged release: `v1.13.0`.
 
 ## Features
 

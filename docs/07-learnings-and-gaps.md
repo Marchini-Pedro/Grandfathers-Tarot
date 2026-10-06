@@ -499,3 +499,10 @@ Things we know are missing or unverified, each with the next concrete step.
 - The boss bar (HudElementBossHealth) needs no real BossExtension: `boss_encounter_start` with any object answering `display_name`,
   `is_empowered` and `boss_is_depleted_interrupter`, and `boss_encounter_end` to drop it. A HUD made anew has no bars: hook its
   `init` to give them again.
+
+## 2026-10-06 - The boss bar's lifetime, state without a cycle
+- HudElementBossHealth reads a target's health extension every frame while `ALIVE[unit]`; a husk's health extension is destroyed
+  before the unit, and class.lua errors on any access to it. A bar started with a stand-in must be ended in the same frame: check
+  it right before the bar's update.
+- Anything clients need outside the card cycle (effects, unit lists) cannot ride only on the cycle's state; the director's side
+  state carries it.
