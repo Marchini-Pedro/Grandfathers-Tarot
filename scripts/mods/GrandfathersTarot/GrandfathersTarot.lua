@@ -40,8 +40,44 @@ RW.migrate_old_settings = function ()
 	return copied
 end
 
+-- (2026-10-06, the author: "make my deck and all my options the mod's default") A fresh install starts with the author's deck
+-- (catalog/user_defaults.lua; the options' defaults are in GrandfathersTarot_data.lua). Only when the player has no deck of their
+-- own yet (no card ever saved, nothing to copy from RealmsWaves): nobody's deck is changed. Returns how many settings it wrote.
+RW.seed_defaults = function (fresh)
+	if not fresh or mod:get("defaults_seeded") == true then
+		return 0
+	end
+
+	local Defaults = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/catalog/user_defaults")
+	local written = 0
+
+	for _, list in ipairs({ Defaults.cards, Defaults.deck }) do
+		for setting, value in pairs(list) do
+			if mod:get(setting) == nil then
+				mod:set(setting, value)
+				written = written + 1
+			end
+		end
+	end
+
+	mod:set("defaults_seeded", true)
+
+	return written
+end
+
 do
+	-- a fresh install: never migrated, no deck order and no first card saved yet
+	local fresh = mod:get("gt_settings_migrated") == nil and mod:get("deck_order") == nil and mod:get("on_wave_small") == nil
 	local ok, err = pcall(RW.migrate_old_settings)
+	local copied = ok and err or 0
+
+	if fresh and copied == 0 then
+		local seeded, seed_err = pcall(RW.seed_defaults, true)
+
+		if not seeded then
+			mod:error("GrandfathersTarot: the default deck could not be written: %s", tostring(seed_err))
+		end
+	end
 
 	if not ok then
 		mod:error("GrandfathersTarot: the settings of RealmsWaves could not be copied: %s", tostring(err))

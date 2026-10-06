@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-06 - The author's deck as the default, the Packmaster's dogs (polishing)
+- A new player starts with the author's deck, options and last card window position; Restore defaults and a card's Reset give
+  those cards back.
+- A Packmaster's row has a Dogs toggle: turned off, he comes without his hounds.
+
 ## 2026-10-05 - Rage's anger, quieter Heresy and Prayer, a slower murmur (polishing)
 - Rage cards no longer burn: the whole card turns red with anger, deeper and throbbing faster the higher its threat.
 - Heresy keeps its lightning without the rain; Prayer keeps only its beams of light.

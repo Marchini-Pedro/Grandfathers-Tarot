@@ -1140,6 +1140,19 @@ Tuning.watch_summoner = function (unit, breed_name)
 	end
 end
 
+-- (2026-10-06) a Packmaster of a "(no dogs)" group: SummonedMinionsExtension.can_summon_minions says no for him (Tuning.install)
+local no_summon = setmetatable({}, { __mode = "k" })
+
+Tuning.forbid_summon = function (unit)
+	if unit then no_summon[unit] = true end
+end
+
+Tuning.can_summon = function (func, self, ...)
+	if self and no_summon[self._unit] then return false end
+
+	return func(self, ...)
+end
+
 Tuning.summoner_count = function ()
 	local n = 0
 
@@ -1186,6 +1199,9 @@ Tuning.install = function ()
 		end)
 		mod:hook("BtSummonMinionsAction", "_patrol_setup", function (...)
 			return Tuning.patrol_setup(...)
+		end)
+		mod:hook("SummonedMinionsExtension", "can_summon_minions", function (...)
+			return Tuning.can_summon(...)
 		end)
 	end
 

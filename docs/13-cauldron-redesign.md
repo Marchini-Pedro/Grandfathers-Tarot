@@ -281,6 +281,15 @@ Old peers: a Dream card synced to a peer without it is shown as Plague there (an
 
 Triangles: 8 a card now (only Heresy's lightning uses them).
 
+## The author's deck as the default, the Packmaster's dogs (2026-10-06)
+
+| Request | What was built |
+| --- | --- |
+| Make my deck and all my options / window locations the mod's default | `catalog/user_defaults.lua` holds every card setting of the author's deck (621, read from their user_settings.config on 2026-10-06) and the Deck's order and sort. A fresh install (never migrated, no card saved, nothing copied from RealmsWaves) is seeded with it once (`RW.seed_defaults`, flag `defaults_seeded`); nobody's own deck is touched. `Events.reset` (a card's Reset, Restore defaults, an empty preset, a preset's card) writes these values over the built-in ones, and Restore defaults also takes the default deck's order and sort. The options' defaults in GrandfathersTarot_data.lua are the author's (28 changed: timing 600 s fixed, 3 cards, 30 s to pick, spawn limits and distances, the Spread's timings and font, the editor key Num -, ...). The last card window's default place is the author's: x 1680, y 550. |
+| A Packmaster: decide whether he spawns dogs, a toggle at the right of his line | A **Dogs** chip at the right end of a Packmaster's row (the Mods, Custom and Remove chips are a little narrower to make room; on other rows it is hidden): lit, he calls his hounds the game's way; dark, he comes alone. Stored in the recipe as `(no dogs)` ("1 packmaster[enraged](no dogs)"), so it travels with shared cards and presets. On the host a unit of such a group is marked at spawn and `SummonedMinionsExtension.can_summon_minions` answers no for it (spawn/tuning.lua). |
+
+The Lua tests were not run for this round (the user's request); the suites still expect the built-in reset values and the old chip widths.
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -345,3 +354,6 @@ Triangles: 8 a card now (only Heresy's lightning uses them).
 21. Polishing 4: Rage cards of threat 1, 3 and 6 side by side (the red deepening, the throb quickening, the text still readable);
     Heresy 5 and 6 with lightning and no rain; Prayer's beams alone; a Murmur card of threat 5 and one of 6 writing slowly and
     starting again (on the Deck, the Spread and the last card).
+22. The defaults: a card's Reset and Restore defaults give the author's cards back; the mod menu's options reset to the author's
+    values; the last card window at 1680, 550 on a fresh profile. The Dogs chip on a Packmaster's row: dark, the Packmaster of
+    that card never calls his hounds (host); lit, he does; the chip absent on other rows; Mods, Custom and Remove still readable.

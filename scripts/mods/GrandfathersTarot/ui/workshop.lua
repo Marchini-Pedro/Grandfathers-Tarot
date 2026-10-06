@@ -30,9 +30,10 @@ Workshop.COL = {
 	name = 24, name_w = 305,
 	weight = 347, repeat_ = 523,
 	same = 727,
-	mods = 771, mods_w = 100,
-	tune = 879, tune_w = 116,
-	remove = 1003, remove_w = 108,
+	mods = 771, mods_w = 84,
+	tune = 863, tune_w = 100,
+	remove = 971, remove_w = 84,
+	dogs = 1063, dogs_w = 64, -- a Packmaster's group only: whether he calls his hounds (2026-10-06)
 }
 -- the plate of a stepper on a row: minus, value, plus. Compact since 2026-10-04 (the user: "too large, make it cleaner"): it was
 -- 40, 56 and 40 high with a 22 unit value; the signs are 6 units from the middle instead of 7

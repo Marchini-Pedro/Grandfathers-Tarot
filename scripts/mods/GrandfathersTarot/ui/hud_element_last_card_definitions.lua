@@ -41,7 +41,7 @@ local scenegraph_definition = {
 		-- the Spread (which is 700 wide from x 610); the player moves it where it suits them.
 		horizontal_alignment = "left",
 		size = { definitions.WIDTH, definitions.HEIGHT },
-		position = { 1330, 36, 50 },
+		position = { 1680, 550, 50 }, -- (2026-10-06) the author's place for it: the right side, under the middle
 	},
 }
 

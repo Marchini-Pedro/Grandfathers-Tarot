@@ -64,7 +64,7 @@ WorkshopView.install = function (View, h)
 	local STATIC = { "enemy_header", "shelf_panel", "quick_label", "threat_label", "threat_name", "spawn_label" }
 	-- the stage: on the Cauldron and on the Mirror
 	local STAGE_WIDGETS = { "stage_plate", "stage_caption", "stage_stats", STAGE }
-	local ROW_HOTSPOTS = { "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same", "hotspot_mods", "hotspot_tune", "hotspot_action" }
+	local ROW_HOTSPOTS = { "hotspot_name", "hotspot_minus", "hotspot_value", "hotspot_plus", "hotspot_rep_minus", "hotspot_rep_value", "hotspot_rep_plus", "hotspot_same", "hotspot_mods", "hotspot_tune", "hotspot_action", "hotspot_dogs" }
 
 	-- every dynamic widget of the Cauldron by name (rows, chips, suit tiles, the threat control, the stage card)
 	local DYNAMIC = { "rw_threat" }
@@ -97,6 +97,7 @@ WorkshopView.install = function (View, h)
 			content.hotspot_mods.pressed_callback = callback(self, "cb_row_mods", i)
 			content.hotspot_name.right_pressed_callback = callback(self, "cb_row_swap", i)
 			content.hotspot_tune.pressed_callback = callback(self, "cb_row_tune", i)
+			content.hotspot_dogs.pressed_callback = callback(self, "cb_row_dogs", i)
 			content.hotspot_rep_minus.pressed_callback = callback(self, "cb_row_rep_step", i, -1)
 			content.hotspot_rep_plus.pressed_callback = callback(self, "cb_row_rep_step", i, 1)
 			content.hotspot_rep_value.pressed_callback = callback(self, "cb_row_rep_input", i)
@@ -390,6 +391,11 @@ WorkshopView.install = function (View, h)
 		content.hotspot_tune_text = mod:localize("btn_tune")
 		content.hotspot_mods_on = item.mods ~= nil and #item.mods > 0
 		content.hotspot_tune_on = groups.tune_text(item.tune) ~= ""
+		-- a Packmaster's group: the Dogs toggle (lit: he calls his hounds, the game's way; dark: he comes alone)
+		content.show_dogs = groups.calls_dogs(item)
+		content.hotspot_dogs.disabled = not content.show_dogs
+		content.hotspot_dogs_text = mod:localize("btn_dogs")
+		content.hotspot_dogs_on = not item.nodogs
 
 		if colors and item.breed then
 			name_color = colors.argb(item.breed) or name_color

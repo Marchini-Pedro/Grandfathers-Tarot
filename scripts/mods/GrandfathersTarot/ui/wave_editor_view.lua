@@ -1926,6 +1926,18 @@ GrandfathersTarotView.cb_row_same = guarded(function (self, row)
 	self:_save()
 end)
 
+-- (2026-10-06) the Dogs toggle of a Packmaster's group: he calls his hounds (the game's way) or comes alone ("(no dogs)" in the recipe)
+GrandfathersTarotView.cb_row_dogs = guarded(function (self, row)
+	local item = self._screen == "detail" and self:_item_at(row)
+
+	if not item or not mod.rw.groups.calls_dogs(item) then
+		return
+	end
+
+	item.nodogs = not item.nodogs or nil
+	self:_save()
+end)
+
 GrandfathersTarotView.cb_row_rep_input = guarded(function (self, row)
 	local item = self._screen == "detail" and self:_item_at(row)
 
@@ -2780,6 +2792,11 @@ GrandfathersTarotView.cb_defaults = guarded(function (self)
 		rw.presets.apply({ waves = {} }, set_setting, rw.events, rw.groups)
 		rw.events.set_order(set_setting, {})
 		set_setting("deck_sort", "")
+
+		-- (2026-10-06) the default deck's own order and sort (catalog/user_defaults.lua)
+		for setting, value in pairs(rw.events.UserDefaults.deck) do
+			if setting:find("^deck_") then set_setting(setting, value) end
+		end
 		self:_reload()
 		self:_apply_screen()
 		mod:echo("%s", mod:localize("msg_defaults_restored"))

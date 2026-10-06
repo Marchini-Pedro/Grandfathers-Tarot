@@ -11,6 +11,7 @@ local Events = {}
 local Effects = get_mod("GrandfathersTarot"):io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/catalog/effects")
 Events.Effects = Effects
 local Sounds = get_mod("GrandfathersTarot"):io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/catalog/sounds")
+local UserDefaults = get_mod("GrandfathersTarot"):io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/catalog/user_defaults")
 Events.has_content = Effects.has_content
 
 -- The most cards a deck holds: the standard cards and the custom slots together (the keys custom_1 ... custom_N, N = CUSTOM_SLOTS, are
@@ -500,7 +501,8 @@ Events.set_def = function (set_setting, key, name, parts, Groups)
 	set_setting("wave_def_" .. key, clean_name(name) .. DEF_SEPARATOR .. Groups.to_recipe(parts))
 end
 
--- Back to defaults: standard waves return to the built-in definition; custom slots are emptied.
+-- Back to defaults: standard waves return to the built-in definition; custom slots are emptied. Then (2026-10-06) the mod's own
+-- default deck (catalog/user_defaults.lua, the author's) is written over it: a card it holds comes back as the author made it.
 Events.reset = function (set_setting, key)
 	local std = by_key[key]
 
@@ -522,7 +524,13 @@ Events.reset = function (set_setting, key)
 	set_setting("cl_" .. key, "")
 	set_setting("ev_" .. key, 0)
 	set_setting("del_" .. key, false)
+
+	for setting, value in pairs(UserDefaults.card(key)) do
+		set_setting(setting, value)
+	end
 end
+
+Events.UserDefaults = UserDefaults
 
 -- Back to the defaults of a card's face only (Reset face on the card face screen): the suit the card would have without a choice,
 -- the threat worked out from the enemies, the suit's own whisper, the look the suit gives, the default cooldown. The enemies and

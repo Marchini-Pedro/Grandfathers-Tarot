@@ -28,7 +28,8 @@ random selection and player voting. No Twitch service is required.
   corner of every editor screen explains it; the Face tab shows the card as it is drawn, in the hand and in the last card window.
 - **The Workshop:** build enemy groups with a searchable catalog and Dreg/Scab
   shelf, modifiers, custom stats and a live card preview. Right click an enemy row to change
-  its enemy and keep its modifiers; a small diamond marks a group with a colour experiment. The On Fire modifier has its
+  its enemy and keep its modifiers; a small diamond marks a group with a colour experiment. A Packmaster's row has a Dogs
+  toggle: off, he comes without his hounds. The On Fire modifier has its
   burn damage (0 to 300 percent, 35 by default) on the right of its row, and its enemies
   keep burning while they live. The editor key reopens the screen you left; the Deck
   keeps its scroll.

@@ -716,9 +716,29 @@ local function part_key(part)
 	end
 	key = key .. Groups.Appearance.recipe(part.appearance)
 
+	if part.nodogs then
+		key = key .. Groups.NO_DOGS
+	end
+
 	return key
 end
 Groups.part_key = part_key
+
+-- (2026-10-06) A Packmaster's group can come without his hounds: "1 packmaster(no dogs)" (part.nodogs; spawn/tuning.lua stops his
+-- summoning). True when the group can have a Packmaster in it (the toggle is shown on its row).
+Groups.NO_DOGS = "(no dogs)"
+Groups.DOG_CALLERS = { chaos_ogryn_houndmaster = true }
+
+Groups.calls_dogs = function (part)
+	if not part then return false end
+	if part.breed then return Groups.DOG_CALLERS[part.breed] == true end
+
+	for i = 1, #(part.one_of or {}) do
+		if Groups.DOG_CALLERS[part.one_of[i]] then return true end
+	end
+
+	return false
+end
 
 -- Splits "enraged|garden" into canonical, de-duplicated modifier ids (in catalog order).
 local function parse_modifiers(inner)
@@ -830,6 +850,14 @@ Groups.parse = function (recipe)
 				end
 			end
 
+			-- "(no dogs)": a Packmaster comes without his hounds
+			local nodogs
+			local without_dogs = name:match("^(.-)%s*%(%s*[nN][oO]%s+[dD][oO][gG][sS]%s*%)%s*$")
+
+			if without_dogs then
+				name, nodogs = without_dogs, true
+			end
+
 			local appearance
 			local without_appearance, appearance_text = name:match("^(.-)%s*<(.-)>%s*$")
 			if without_appearance then
@@ -904,6 +932,7 @@ Groups.parse = function (recipe)
 				new_part.mods = mods
 				new_part.tune = tune
 				new_part.appearance = appearance
+				new_part.nodogs = nodogs and Groups.calls_dogs(new_part) or nil
 
 				local key = part_key(new_part)
 				local part = by_key[key]
@@ -981,6 +1010,9 @@ Groups.to_recipe = function (parts)
 		end
 
 		field = field .. Groups.Appearance.recipe(part.appearance)
+		if part.nodogs then
+			field = field .. Groups.NO_DOGS
+		end
 		if part.rep_same then
 			field = field .. "@="
 		elseif (part.rep or 0) > 0 then

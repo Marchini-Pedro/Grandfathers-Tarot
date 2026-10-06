@@ -315,3 +315,10 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Tests: hud (Rage only red rects, its veil and edges deeper at 6, its throb faster, its glow stronger; Heresy without rain;
   Prayer only beams, 2 to 6; the murmur's speeds, its timeline and five repeats; the last card's Rage and Heresy), editor (the
   Murmur card on the Deck at the new speed). Not tested in game yet.
+
+## 2026-10-06 - The author's deck as the default, the Packmaster's dogs
+
+- Built: catalog/user_defaults.lua (the author's 621 card settings, the Deck's order and sort), seeded once on a fresh install and
+  written back by every reset; the options' defaults and the last card window's place set to the author's; the Packmaster's Dogs
+  toggle ("(no dogs)" in the recipe, the summon refused for such a unit).
+- Tests: not run this round (the user's request). Expected to need updates: the reset values, the row chips' widths.

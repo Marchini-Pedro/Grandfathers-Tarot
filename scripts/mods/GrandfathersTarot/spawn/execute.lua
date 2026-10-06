@@ -320,7 +320,7 @@ local function expand(parts, field, picks)
 		local amount = scaled_amount(base, percent_for(part))
 
 		for _ = 1, amount do
-			queue[#queue + 1] = { breed = breed_of(part, picks), mods = part.mods, tune = part.tune, appearance = part.appearance }
+			queue[#queue + 1] = { breed = breed_of(part, picks), mods = part.mods, tune = part.tune, appearance = part.appearance, nodogs = part.nodogs }
 		end
 	end
 
@@ -603,7 +603,7 @@ end
 -- Returns true, or false and a reason. `tune` = the group's custom mods (Groups.TUNE, percent), see spawn/tuning.lua.
 -- `appearance` = the group's enemy colour experiments (spawn/appearance.lua); `face_target` (a wave in front of the player): the unit
 -- looks at the target instead of looking where the target looks
-local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appearance, face_target)
+local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appearance, face_target, nodogs)
 	local spawn_manager = Managers.state.minion_spawn
 	local side_system = Managers.state.extension:system("side_system")
 	local villains = side_system and side_system:get_side_from_name("villains")
@@ -664,6 +664,8 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 	if appearance and unit and Appearance then Appearance.apply(unit, appearance, breed_name) end
 	-- a summoner (the Packmaster) is kept fighting (spawn/tuning.lua)
 	if Tuning and Tuning.watch_summoner then Tuning.watch_summoner(unit, breed_name) end
+	-- a Packmaster of a "(no dogs)" group never calls his hounds
+	if nodogs and Tuning and Tuning.forbid_summon then Tuning.forbid_summon(unit) end
 
 	return true, unit
 end
@@ -780,7 +782,7 @@ Execute.update = function (dt, paused)
 		local ok, why
 
 		if position then
-			ok, why = spawn_one(entry.breed, position, target, entry.mods, entry.tune, entry.appearance, job.close)
+			ok, why = spawn_one(entry.breed, position, target, entry.mods, entry.tune, entry.appearance, job.close, entry.nodogs)
 		end
 
 		if ok then
