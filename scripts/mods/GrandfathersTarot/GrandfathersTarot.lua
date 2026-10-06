@@ -179,6 +179,18 @@ end
 local function golden_draw(func, self, ...)
 	local golden = not RW.dead and select(2, pcall(RW.golden_health, self)) == true
 
+	-- (2026-10-06, the user: "healed back above one wound with Instant rescue armed, the gold does not come back") The game draws the
+	-- segments again only when a health value changed (_draw_health_segments, set by _apply_health_fraction), and the colour is
+	-- applied in that draw. When the gold comes or goes on its own (above one wound again, a charge armed or spent), that draw is
+	-- asked for here: this hook runs every frame.
+	if golden ~= (self._rw_golden == true) then
+		self._rw_golden = golden
+
+		if self._health_bar_segment_widgets then
+			self._draw_health_segments = true
+		end
+	end
+
 	if not golden then
 		return func(self, ...)
 	end

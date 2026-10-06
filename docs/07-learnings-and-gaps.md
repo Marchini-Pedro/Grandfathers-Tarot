@@ -510,3 +510,7 @@ Things we know are missing or unverified, each with the next concrete step.
 ## 2026-10-06 - Other mods on the boss bar
 - RecolorBossHealthBars hook_safes HudElementBossHealth.update and writes bar, max and text colours every frame (nil for a breed
   that is not `is_boss`). A colour that must win is written in a hook on `_draw_widgets`, which runs after every update hook.
+
+## 2026-10-06 - The player panels' health bar is retained
+- HudElementPlayerPanelBase._draw_health_bar runs every frame but draws (and colours) the segments only when
+  `_draw_health_segments` is set, by a change of a health value. A colour decided elsewhere must set it when its decision changes.

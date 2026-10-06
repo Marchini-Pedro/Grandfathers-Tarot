@@ -367,3 +367,9 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Found: RecolorBossHealthBars recolours every bar after the bar's update (nil, white, for a non-boss unit), over ours.
 - Built: the colours are set right before the bars are drawn; a stand-in without a colour takes that mod's "others" colour.
 - Tests: check_lua passes. The suites were not run.
+
+## 2026-10-06 - Instant rescue's golden health after healing
+- Found: the panels redraw their health segments only when a health value changes, so a gold that came or went without one
+  kept the old colour.
+- Built: the panel hook asks for the redraw whenever the gold decision changes.
+- Tests: check_lua passes. The suites were not run.
