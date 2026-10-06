@@ -6,6 +6,7 @@
 - Fixed: players who joined saw no reveal outlines and no custom boss bars unless the card cycle was running.
 - Fixed: a player who joined crashed when an enemy with a custom boss bar died.
 - Fixed: the health number of a very strong enemy was halved for players who joined.
+- Fixed: boss bar colours were overwritten by the Recolor Boss Health Bars mod (custom enemies' bars were white).
 
 ## 2026-10-06 - Reveal Elites, a Boss bar for any enemy, the Blackout crash (polishing)
 - New buff: Reveal Elites outlines the Elites (amber) for its time. The combat abilities effect is removed; cards that had it

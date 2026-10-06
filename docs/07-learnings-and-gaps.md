@@ -506,3 +506,7 @@ Things we know are missing or unverified, each with the next concrete step.
   it right before the bar's update.
 - Anything clients need outside the card cycle (effects, unit lists) cannot ride only on the cycle's state; the director's side
   state carries it.
+
+## 2026-10-06 - Other mods on the boss bar
+- RecolorBossHealthBars hook_safes HudElementBossHealth.update and writes bar, max and text colours every frame (nil for a breed
+  that is not `is_boss`). A colour that must win is written in a hook on `_draw_widgets`, which runs after every update hook.

@@ -748,17 +748,41 @@ Tuning.drop_dead_bosses = function (element)
 	end
 end
 
--- The colour of each boss bar (every frame, before the game's update): the widget group a target is drawn in (the same rule as
--- HudElementBossHealth.update: one target in the first group, two or more from the second) takes its stand-in's colour, any other
--- goes back to the game's own (kept the first time).
+-- The colour of each boss bar. (2026-10-06, the user: "the colour is always white for custom enemies and red for normal bosses;
+-- the Recolor Boss Health Bars mod?") That mod sets the bar's colour after every update of the boss bar (a hook_safe on update):
+-- its own colour for a real boss, and nil for any other unit (a white bar for a stand-in). So the colours are set right before
+-- the bars are DRAWN (a hook on _draw_widgets), after every update and every mod's hook on it. The widget group a target is drawn
+-- in (one target in the first group, two or more from the second, as HudElementBossHealth.update) takes the group's colour; a
+-- stand-in without one takes Recolor's "others" colour (the game's red without that mod). With Recolor on, its look is kept: the
+-- bar's max part and its name (and NumericUI's number) take the colour too. A group coloured here and no longer wanted goes back
+-- to the game's colour (only without Recolor, which sets its own every frame).
+local GAME_RED = { 255, 255, 0, 0 }
+
+local function recolor_mod()
+	local other = get_mod and get_mod("RecolorBossHealthBars")
+
+	return other and (not other.is_enabled or other:is_enabled()) and other or nil
+end
+
+local function recolor_others(other)
+	local r, g, b = other:get("color_others_r"), other:get("color_others_g"), other:get("color_others_b")
+
+	return tonumber(r) and tonumber(g) and tonumber(b) and { 255, r, g, b } or GAME_RED
+end
+
 Tuning.colour_boss_bars = function (element)
 	local targets, groups = element._active_targets_array or {}, element._widget_groups or {}
 	local count = #targets
+	local recolor = recolor_mod()
 	local wanted = {}
 
 	for i = 1, math.min(count, element._max_health_bars or count) do
-		local target = targets[i]
-		local colour = target and target.boss_extension and target.boss_extension._rw_colour
+		local boss = targets[i] and targets[i].boss_extension
+		local colour = boss and boss._rw_colour
+
+		if not colour and boss and boss._rw_stand_in then
+			colour = recolor and recolor_others(recolor) or GAME_RED
+		end
 
 		if colour then
 			wanted[count > 1 and i + 1 or i] = colour
@@ -766,18 +790,49 @@ Tuning.colour_boss_bars = function (element)
 	end
 
 	for index, group in ipairs(groups) do
-		local style = group.health and group.health.style and group.health.style.bar
+		local widget = group.health
+		local style = widget and widget.style
+		local bar = style and style.bar
 
-		if style and style.color then
-			style._rw_default = style._rw_default or style.color
+		if bar and bar.color then
+			bar._rw_default = bar._rw_default or bar.color
 
-			local colour = wanted[index] or style._rw_default
+			local colour = wanted[index]
 
-			if style.color ~= colour then
-				style.color = colour
+			if colour then
+				bar.color = colour
+				bar._rw_ours = true
+
+				if recolor then
+					if style.max then style.max.color = colour end
+					if style.text then style.text.text_color = colour end
+
+					local number = group.health_text
+					local number_style = number and number.style and number.style.text
+
+					if number_style then number_style.text_color = colour end
+				end
+			elseif bar._rw_ours then
+				bar._rw_ours = nil
+
+				if not recolor then
+					bar.color = bar._rw_default
+				end
 			end
 		end
 	end
+end
+
+Tuning.boss_bar_draw = function (func, self, ...)
+	if not Tuning.dead then
+		local ok, err = pcall(Tuning.colour_boss_bars, self)
+
+		if not ok then
+			warn_once("a boss bar's colour could not be set: " .. tostring(err))
+		end
+	end
+
+	return func(self, ...)
 end
 
 Tuning.boss_bar_update = function (func, self, ...)
@@ -786,12 +841,6 @@ Tuning.boss_bar_update = function (func, self, ...)
 
 		if not dropped then
 			warn_once("a dead boss's bar could not be ended: " .. tostring(drop_err))
-		end
-
-		local coloured, colour_err = pcall(Tuning.colour_boss_bars, self)
-
-		if not coloured then
-			warn_once("a boss bar's colour could not be set: " .. tostring(colour_err))
 		end
 
 		local ok, err = pcall(Tuning.layer_boss_targets, self)
@@ -1634,6 +1683,10 @@ Tuning.install = function ()
 			hooked_bars[HudElementBossHealth] = true
 			mod:hook(HudElementBossHealth, "update", function (func, self, ...)
 				return Tuning.boss_bar_update(func, self, ...)
+			end)
+			-- the colours, right before the bars are drawn (Tuning.colour_boss_bars)
+			mod:hook(HudElementBossHealth, "_draw_widgets", function (func, self, ...)
+				return Tuning.boss_bar_draw(func, self, ...)
 			end)
 			mod:hook_safe(HudElementBossHealth, "init", function (self)
 				if not Tuning.dead then pcall(Tuning.boss_hud_created, self) end

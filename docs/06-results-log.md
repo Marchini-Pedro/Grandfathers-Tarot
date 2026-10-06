@@ -362,3 +362,8 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Found: units with the game's BossExtension were skipped, so their group's name and colour did nothing.
 - Built: such units go on the boss list when their group has a name or colour; every machine writes them on the real extension.
 - Tests: check_lua passes. The suites were not run.
+
+## 2026-10-06 - Boss bar colours over Recolor Boss Health Bars
+- Found: RecolorBossHealthBars recolours every bar after the bar's update (nil, white, for a non-boss unit), over ours.
+- Built: the colours are set right before the bars are drawn; a stand-in without a colour takes that mod's "others" colour.
+- Tests: check_lua passes. The suites were not run.
