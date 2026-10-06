@@ -1,9 +1,11 @@
--- Native gameplay effects run on the host. Guidance (Buffs: reveal Specialists) and completion audio render locally.
+-- Native gameplay effects run on the host. Guidance (Buffs: reveal Specialists, reveal Elites), the Blackout's lights and completion
+-- audio render locally, on every machine.
 local mod = get_mod("GrandfathersTarot")
 local Schema = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/catalog/effects")
 local Sounds = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/catalog/sounds")
 local Effects = {}
 local clock, cadence, reveal_until, blackout_until = 0, 0, 0, 0
+local reveal_elites_until = 0
 local lights, buffs, outlines, audio = {}, {}, {}, {}
 local sequence, received, warned = 0, nil, {}
 local grants, grant_sequence, grant_received = {}, 0, nil
@@ -164,9 +166,13 @@ Effects.tick_audio = function (dt)
 	end
 end
 Effects.chain_size = function () return #chain end
+-- (2026-10-06, a client crashed during a Blackout: the game's rpc_light_controller_set_enabled reached a level light that has no
+-- light controller extension on that machine, and LightControllerSystem indexes it without a check) The lights are switched
+-- "deterministically", the way level flow does it: no RPC is sent. Every machine darkens its own lights for the time the host's
+-- state gives (Effects.snapshot `blackout`); a client runs Effects.update too.
 local function restore_lights()
 	for unit, saved in pairs(lights) do
-		if alive(unit) then pcall(saved.extension.set_enabled, saved.extension, saved.enabled, false) end
+		if alive(unit) then pcall(saved.extension.set_enabled, saved.extension, saved.enabled, true) end
 	end
 	lights, blackout_until = {}, 0
 end
@@ -177,7 +183,7 @@ local function blackout(seconds)
 	for unit, extension in pairs(controller._unit_to_extension_map or {}) do
 		if alive(unit) and extension.is_enabled and extension.set_enabled then
 			if not lights[unit] then lights[unit] = { extension = extension, enabled = extension:is_enabled() } end
-			if extension:is_enabled() then extension:set_enabled(false, false) end
+			if extension:is_enabled() then extension:set_enabled(false, true) end
 			changed = true
 		end
 	end
@@ -342,28 +348,8 @@ local function apply(id, effect, list)
 	if id == "grenades" then return grenades(list, effect.value) end
 	if id == "instant_rescue" then rescues_left = math.min(4, rescues_left + effect.value); return true end
 	if id == "reveal" then reveal_until = math.max(reveal_until, clock + effect.value); return true end
+	if id == "reveal_elites" then reveal_elites_until = math.max(reveal_elites_until, clock + effect.value); return true end
 	if id == "med_station" then return recharge(list, effect.value) end
-	if id == "cooldown" then
-		local targets, spawner = {}, Managers.state.unit_spawner
-		for _, player in ipairs(list) do
-			local ability = ext(player.unit, "ability_system")
-			-- (2026-10-06, the user: "not working for client") a player's ability resource is simulated by their game AND the host's,
-			-- and the host's copy wins: like the game's own talents, it is restored on both. The host does it here for every player
-			-- (a remote player's unit is a full PlayerUnitAbilityExtension on the server); the grant tells that player's game.
-			if ability and (ability._is_local_unit or ability._is_server) and ability.restore_ability_resource_percentage then
-				local ok, err = pcall(ability.restore_ability_resource_percentage, ability, "combat_ability", effect.value / 100, true)
-				if not ok then warn(tostring(err)) end
-			end
-			if ability and not ability._is_local_unit and spawner then
-				local object = spawner:game_object_id(player.unit)
-				if object then targets[#targets + 1] = object end
-			end
-		end
-		grant_sequence = grant_sequence + 1
-		grants[#grants + 1] = { grant_sequence, effect.value, targets }
-		if #grants > 64 then table.remove(grants, 1) end
-		return #list > 0, "no living players for ability restoration"
-	end
 	local count = 0
 	for _, player in ipairs(list) do
 		local unit = player.unit
@@ -437,10 +423,22 @@ local function remove_outline(unit, record)
 	end
 	outlines[unit] = nil
 end
+-- Reveal Specialists (teal) and Reveal Elites (amber, 2026-10-06): each kind is outlined while its own time runs
+local REVEAL_COLOURS = { special = { 0.31, 0.61, 0.64 }, elite = { 0.86, 0.56, 0.16 } }
+local function reveal_kind(breed)
+	local tags = breed and breed.tags
+	if not tags then return nil end
+	if tags.special then return reveal_until > clock and "special" or nil end
+	if tags.elite then return reveal_elites_until > clock and "elite" or nil end
+	return nil
+end
 local function update_reveal()
-	if reveal_until <= clock then
+	if reveal_until <= clock and reveal_elites_until <= clock then
 		for unit, record in pairs(outlines) do remove_outline(unit, record) end
 		return
+	end
+	for unit, record in pairs(outlines) do
+		if record.kind == "special" and reveal_until <= clock or record.kind == "elite" and reveal_elites_until <= clock then remove_outline(unit, record) end
 	end
 	local outline = system("outline_system")
 	if not outline then return end
@@ -449,12 +447,13 @@ local function update_reveal()
 	for unit, extension in pairs(outline._unit_extension_data or {}) do
 		local data = ext(unit, "unit_data_system")
 		local breed = data and data:breed()
-		if alive(unit) and breed and breed.tags and breed.tags.special and not outlines[unit] and count < 600 then
+		local kind = alive(unit) and not outlines[unit] and count < 600 and reveal_kind(breed)
+		if kind then
 			local previous, owned = extension.settings, {}
 			for key, value in pairs(extension.settings) do owned[key] = value end
-			owned[REVEAL] = { priority = 3, color = { 0.31, 0.61, 0.64 }, material_layers = { "minion_outline", "minion_outline_reversed_depth" }, visibility_check = alive }
+			owned[REVEAL] = { priority = 3, color = REVEAL_COLOURS[kind], material_layers = { "minion_outline", "minion_outline_reversed_depth" }, visibility_check = alive }
 			extension.settings = owned
-			outlines[unit] = { extension = extension, owned = owned, previous = previous, system = outline }
+			outlines[unit] = { extension = extension, owned = owned, previous = previous, system = outline, kind = kind }
 			outline:add_outline(unit, REVEAL)
 			count = count + 1
 		end
@@ -487,7 +486,7 @@ Effects.update = function (dt, paused)
 		if not ok then warn("raise the fallen: " .. tostring(err)) end
 	end
 end
-Effects.snapshot = function () return { revision = revision, time = clock, reveal = math.max(0, reveal_until - clock), sequence = sequence, audio = audio, grants = grants, grant_sequence = grant_sequence, rescue = rescues_left } end
+Effects.snapshot = function () return { revision = revision, time = clock, reveal = math.max(0, reveal_until - clock), reveal_elites = math.max(0, reveal_elites_until - clock), blackout = math.max(0, blackout_until - clock), sequence = sequence, audio = audio, grants = grants, grant_sequence = grant_sequence, rescue = rescues_left } end
 Effects.receive = function (state)
 	if host() or type(state) ~= "table" then return end
 	local seq = Schema.number(state.sequence, 2147483647)
@@ -515,26 +514,16 @@ Effects.receive = function (state)
 							if not ok then warn(tostring(err)) elseif mod.info then mod:info("GrandfathersTarot card effects: brought back to the others (Raise the fallen)") end
 						end
 					end
-				elseif type(entry) == "table" and type(entry[1]) == "number" and entry[1] > grant_received and entry[1] <= grant_seq and type(entry[3]) == "table" then
-					local amount = Schema.number(entry[2], 100)
-					for _, player in ipairs(list) do
-						local ability = ext(player.unit, "ability_system")
-						if amount and ability and ability._is_local_unit and spawner then
-							for j = 1, math.min(4, #entry[3]) do
-								if entry[3][j] == spawner:game_object_id(player.unit) then
-									local ok, err = pcall(ability.restore_ability_resource_percentage, ability, "combat_ability", amount / 100, true)
-									if not ok then warn(tostring(err)) elseif mod.info then mod:info("GrandfathersTarot card effects: combat ability restored by %d percent (host grant %d)", amount, entry[1]) end
-									break
-								end
-							end
-						end
-					end
 				end
 			end
 		end
 		grant_received = math.max(grant_received or grant_seq, grant_seq)
 	end
 	reveal_until = clock + (Schema.number(state.reveal, 300) or 0)
+	reveal_elites_until = clock + (Schema.number(state.reveal_elites, 300) or 0)
+	-- the Blackout: this machine darkens its own lights (Effects.update) until the host's time is up
+	local dark = Schema.number(state.blackout, 3600) or 0
+	if dark > 0 then blackout_until = clock + dark elseif blackout_until > 0 then restore_lights() end
 	received_rescues = Schema.number(state.rescue, 4) or 0
 	if received and seq > received and type(state.audio) == "table" then
 		for i = 1, math.min(8, #state.audio) do
@@ -547,7 +536,7 @@ end
 Effects.cancel = function ()
 	revision = revision + 1
 	restore_lights()
-	reveal_until = 0
+	reveal_until, reveal_elites_until = 0, 0
 	for unit, record in pairs(outlines) do remove_outline(unit, record) end
 	for _, buff in ipairs(buffs) do if alive(buff.unit) and buff.extension:has_running_buff_with_index(buff.index, buff.component) then pcall(buff.extension.remove_externally_controlled_buff, buff.extension, buff.index, buff.component) end end
 	buffs = {}

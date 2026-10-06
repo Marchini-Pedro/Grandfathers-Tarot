@@ -491,3 +491,11 @@ Things we know are missing or unverified, each with the next concrete step.
 - A player's combat ability resource is simulated by their own game and by the host; the host's state corrects the client. The
   game's talents restore it on both (buffs run on both). Restoring it only on the client is undone at once.
 - A copy of a card's groups in the editor must carry every field of a part; a new field left out is lost on the next save.
+
+## 2026-10-06 - Level lights and the boss bar
+- `LightControllerExtension.set_enabled(enabled, false)` on the host sends `rpc_light_controller_set_enabled`, whose client handler
+  indexes the light's extension without a check: a light missing on one client crashes it. Switch level lights with
+  `is_deterministic = true` on every machine instead (no RPC).
+- The boss bar (HudElementBossHealth) needs no real BossExtension: `boss_encounter_start` with any object answering `display_name`,
+  `is_empowered` and `boss_is_depleted_interrupter`, and `boss_encounter_end` to drop it. A HUD made anew has no bars: hook its
+  `init` to give them again.

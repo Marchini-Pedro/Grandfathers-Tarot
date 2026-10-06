@@ -40,7 +40,7 @@ random selection and player voting. No Twitch service is required.
   Surface/shader methods are visibly unavailable; their requirements remain documented.
 - **Beneficial cards:** a shelf in four groups: **Healing** (party health,
   corruption cleanse, Green Stimm, Med Crates; Med Station is off for now),
-  **Buffs** (combat abilities, reveal Specialists, Yellow/Blue/Red Stimm buffs),
+  **Buffs** (reveal Specialists, reveal Elites, Yellow/Blue/Red Stimm buffs),
   **Items** (Yellow/Blue/Red Stimm items) and **Game Effects** (raise one downed and one
   hogtied player and bring them back, instant rescue of the next downed players, refill ammunition, replenish grenades,
   Ammo Crates).

@@ -19,8 +19,10 @@ Effects.ORDER = {
 	{ id = "med_station", name = "Healing: recharge nearest Med Station", short = "Med Station", max = 4, default = 1, unit = "charges", category = "Healing", disabled = true },
 	-- (2026-10-04: the three stimm buffs are Buffs, the three stimm items are Items; the id blue_stimm stays the Blue Stimm buff so saved
 	-- cards keep it)
-	{ id = "cooldown", name = "Buffs: restore combat abilities", short = "Combat abilities", max = 100, default = 100, unit = "percent", category = "Buffs" },
+	-- (2026-10-06, the user: "remove the Combat ability effect and add a Reveal Elites buff") restore combat abilities is gone (see
+	-- Effects.RETIRED); Reveal Elites outlines the Elites the way Reveal Specialists does the Specialists
 	{ id = "reveal", name = "Buffs: reveal Specialists", short = "Reveal Specialists", max = 300, default = 15, unit = "seconds", category = "Buffs" },
+	{ id = "reveal_elites", name = "Buffs: reveal Elites", short = "Reveal Elites", max = 300, default = 15, unit = "seconds", category = "Buffs" },
 	{ id = "yellow_stimm_buff", name = "Buffs: Yellow Stimm buff", short = "Yellow Stimm buff", max = 300, default = 15, unit = "seconds", category = "Buffs", targets = true },
 	{ id = "blue_stimm", name = "Buffs: Blue Stimm buff", short = "Blue Stimm buff", max = 300, default = 15, unit = "seconds", category = "Buffs", targets = true },
 	{ id = "red_stimm_buff", name = "Buffs: Red Stimm buff", short = "Red Stimm buff", max = 300, default = 15, unit = "seconds", category = "Buffs", targets = true },
@@ -36,6 +38,8 @@ Effects.ORDER = {
 	{ id = "ammo_crate", name = "Game Effects: give Ammo Crates", short = "Ammo Crates", max = 4, default = 4, unit = "players", category = "Game Effects" },
 	{ id = "blackout", name = "Blackout: power interruption", short = "Blackout", max = 300, default = 15, unit = "seconds", hostile = true },
 }
+-- effects that no longer exist: a saved card that still has one loads without it (and saves without it)
+Effects.RETIRED = { cooldown = true }
 local defs = {}
 for _, def in ipairs(Effects.ORDER) do defs[def.id] = def end
 Effects.definition = function (id) return defs[id] end
@@ -51,12 +55,14 @@ Effects.parse = function (text)
 	local result, seen = {}, {}
 	for entry in (text .. ";"):gmatch("(.-);") do
 		local id, raw, targets = entry:match("^([%w_]+)=(%d+):(%d+)$")
-		local def = defs[id]
-		local value = def and Effects.number(raw, def.max)
-		local players = Effects.number(targets, 4)
-		if not value or not players or players < 1 or seen[id] then return nil, "invalid card effect: " .. entry end
-		seen[id] = true
-		result[id] = { value = value, players = players }
+		if not Effects.RETIRED[id] then
+			local def = defs[id]
+			local value = def and Effects.number(raw, def.max)
+			local players = Effects.number(targets, 4)
+			if not value or not players or players < 1 or seen[id] then return nil, "invalid card effect: " .. entry end
+			seen[id] = true
+			result[id] = { value = value, players = players }
+		end
 	end
 	return result
 end

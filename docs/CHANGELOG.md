@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-06 - Reveal Elites, a Boss bar for any enemy, the Blackout crash (polishing)
+- New buff: Reveal Elites outlines the Elites (amber) for its time. The combat abilities effect is removed; cards that had it
+  keep their other effects.
+- New custom modifier: Boss bar shows a group's enemies with their name and health in the boss bar, like a Monster.
+- Fixed: a player who joined could crash during a Blackout.
+
 ## 2026-10-06 - 75 s between waves, the Captains' shield, the Daemonhost's kills (polishing)
 - Fixed: the Dogs, Shield and Daemonhost kills toggles did nothing when clicked.
 - Fixed: "Buffs: restore combat abilities" did not work for the players who joined (it worked for the host).

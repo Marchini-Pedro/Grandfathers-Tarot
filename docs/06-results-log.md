@@ -337,3 +337,10 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - "Restore combat abilities" did not reach clients: the host applied it only to its own unit and sent the others a grant their game
   applied alone; the host's simulation of their unit then corrected it back. The host now restores every player's resource on
   its side too (core/effects.lua), and still sends the grant.
+
+## 2026-10-06 - Reveal Elites, the Boss bar, the Blackout crash
+- Built: Reveal Elites (the combat abilities effect retired), the Boss bar custom mod, the Blackout without light RPCs.
+- Crash (a client's console log, 2026-10-06 07:28): rpc_light_controller_set_enabled for a level light with no light controller
+  extension on that client, sent by the Blackout's set_enabled(false, false); fixed by deterministic switching on every machine.
+- Tests: check_lua passes; offline: a card with cooldown=100:4 parses without it, reveal_elites round-trips, {boss=1} round-trips
+  and reads "Boss bar". The suites were not run.

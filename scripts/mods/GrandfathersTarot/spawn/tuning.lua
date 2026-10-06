@@ -500,6 +500,154 @@ Tuning.layer_boss_targets = function (element)
 	end
 end
 
+-- (2026-10-06) The Boss bar custom mod ({boss=1}). The game's boss bar (HudElementBossHealth) shows a unit when the event
+-- "boss_encounter_start" (unit, boss extension) is triggered, and drops it at "boss_encounter_end"; of the boss extension it asks
+-- display_name, is_empowered and boss_is_depleted_interrupter only. A unit with the custom mod gets a stand-in for it: its breed's
+-- own name, its health from its health extension (a client's too: the health is in the unit's game object). The host keeps the
+-- units (Tuning.mark_boss, from Tuning.apply); the clients get their game object ids with the host's state (Tuning.boss_list,
+-- Tuning.receive_bosses). Every machine starts and ends its own bars (Tuning.update_bosses). A unit the game already gives a boss
+-- extension (a Monster, a Captain) is left to the game.
+local boss_marked = setmetatable({}, { __mode = "k" }) -- host: unit -> true
+local boss_ids = {} -- a client: game object id -> true, from the host's state
+local boss_shown = {} -- every machine: unit -> its stand-in, while its bar was started here
+local boss_timer = 0
+Tuning.MAX_BOSSES = 16
+
+local function stand_in(unit)
+	local data = ScriptUnit.has_extension(unit, "unit_data_system")
+	local breed = data and data:breed()
+	local name = breed and breed.display_name
+
+	if type(name) ~= "string" or name == "" then
+		return nil
+	end
+
+	return {
+		_rw_stand_in = true,
+		display_name = function () return name end,
+		is_empowered = function () return nil end,
+		is_weakened = function () return false end,
+		boss_is_depleted_interrupter = function () return false end,
+	}
+end
+
+local function living(unit)
+	return unit and alive(unit) and (not HEALTH_ALIVE or HEALTH_ALIVE[unit] == true)
+end
+
+Tuning.mark_boss = function (unit)
+	if unit and not ScriptUnit.has_extension(unit, "boss_system") then
+		boss_marked[unit] = true
+	end
+end
+
+-- Host, for the state: the game object ids of the living marked units (16 at most)
+Tuning.boss_list = function ()
+	local spawner = Managers.state and Managers.state.unit_spawner
+	local list = {}
+
+	if not spawner then
+		return nil
+	end
+
+	for unit in pairs(boss_marked) do
+		if not living(unit) then
+			boss_marked[unit] = nil
+		elseif #list < Tuning.MAX_BOSSES then
+			local ok, id = pcall(spawner.game_object_id, spawner, unit)
+
+			if ok and id then
+				list[#list + 1] = id
+			end
+		end
+	end
+
+	return #list > 0 and list or nil
+end
+
+-- A client: the list the host sent (replaces the last one)
+Tuning.receive_bosses = function (list)
+	local map = {}
+
+	if type(list) == "table" then
+		for i = 1, math.min(#list, Tuning.MAX_BOSSES) do
+			local id = tonumber(list[i])
+
+			if id and id == id and id >= 0 and id < 1e9 then
+				map[math.floor(id)] = true
+			end
+		end
+	end
+
+	boss_ids = map
+end
+
+local function end_bar(unit, standin)
+	boss_shown[unit] = nil
+	pcall(Managers.event.trigger, Managers.event, "boss_encounter_end", unit, standin)
+end
+
+-- Every machine, four times a second: the bars of the units that are bosses here (host: marked; a client: the host's list)
+Tuning.update_bosses = function (dt, is_host)
+	boss_timer = boss_timer + (dt or 0)
+
+	if boss_timer < 0.25 or not Managers.event then
+		return
+	end
+
+	boss_timer = 0
+
+	local wanted = {}
+
+	if is_host then
+		for unit in pairs(boss_marked) do
+			if living(unit) then wanted[unit] = true else boss_marked[unit] = nil end
+		end
+	elseif next(boss_ids) ~= nil then
+		local spawner = Managers.state and Managers.state.unit_spawner
+
+		for id in pairs(boss_ids) do
+			local ok, unit = pcall(function () return spawner and spawner:unit_exists(id) and spawner:unit(id) end)
+
+			if ok and unit and living(unit) then wanted[unit] = true end
+		end
+	end
+
+	for unit, standin in pairs(boss_shown) do
+		if not wanted[unit] then end_bar(unit, standin) end
+	end
+
+	for unit in pairs(wanted) do
+		if not boss_shown[unit] and not ScriptUnit.has_extension(unit, "boss_system") then
+			local standin = stand_in(unit)
+
+			if standin then
+				boss_shown[unit] = standin
+
+				local ok, err = pcall(Managers.event.trigger, Managers.event, "boss_encounter_start", unit, standin)
+
+				if not ok then warn_once("a boss bar could not be shown: " .. tostring(err)) end
+			end
+		end
+	end
+end
+
+-- a boss bar made again (the HUD is made anew at a respawn and the like): the bars this machine shows are given to it
+Tuning.boss_hud_created = function (element)
+	for unit, standin in pairs(boss_shown) do
+		if living(unit) and element.event_boss_encounter_start then
+			pcall(element.event_boss_encounter_start, element, unit, standin)
+		end
+	end
+end
+
+Tuning.end_bosses = function ()
+	for unit, standin in pairs(boss_shown) do end_bar(unit, standin) end
+
+	boss_shown, boss_ids = {}, {}
+	boss_marked = setmetatable({}, { __mode = "k" })
+end
+
 Tuning.boss_bar_update = function (func, self, ...)
 	if not Tuning.dead then
 		local ok, err = pcall(Tuning.layer_boss_targets, self)
@@ -596,6 +744,9 @@ Tuning.apply = function (unit, tune, breed_name)
 	if Tuning.dead or not unit or not tune then
 		return
 	end
+
+	-- the Boss bar: its bar on every machine (Tuning.update_bosses)
+	if tune.boss == 1 then Tuning.mark_boss(unit) end
 
 	local label = tostring(breed_name or "enemy")
 
@@ -1340,6 +1491,9 @@ Tuning.install = function ()
 			mod:hook(HudElementBossHealth, "update", function (func, self, ...)
 				return Tuning.boss_bar_update(func, self, ...)
 			end)
+			mod:hook_safe(HudElementBossHealth, "init", function (self)
+				if not Tuning.dead then pcall(Tuning.boss_hud_created, self) end
+			end)
 		end)
 	end
 
@@ -1464,6 +1618,7 @@ Tuning.update = function (dt)
 	Tuning.update_glow(dt)
 
 	keep_summoners(dt)
+	Tuning.update_bosses(dt, true)
 
 	timer = timer + dt
 	send_timer = send_timer + dt
@@ -1558,6 +1713,7 @@ Tuning.update_client = function (dt)
 	end
 
 	Tuning.update_glow(dt)
+	Tuning.update_bosses(dt, false)
 
 	if #inbox == 0 then
 		return
@@ -1724,6 +1880,7 @@ Tuning.status = function ()
 end
 
 Tuning.reset = function ()
+	if Tuning.end_bosses then pcall(Tuning.end_bosses) end
 	tuned, scaled, outbox, inbox = {}, {}, {}, {}
 	outbox_by_id = {}
 	inbox_by_id = {}

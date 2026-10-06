@@ -24,7 +24,7 @@ TuneView.install = function (View, h)
 	local function value_of(self, id)
 		local part = part_of(self)
 
-		return part and part.tune and part.tune[id] or 100
+		return part and part.tune and part.tune[id] or groups().tune_default(id)
 	end
 
 	-- writes one value (100 removes it) and saves the card, which redraws the screen
@@ -38,7 +38,7 @@ TuneView.install = function (View, h)
 		local tune = groups().copy_tune(part.tune) or {}
 
 		value = groups().clamp_tune(id, value)
-		tune[id] = value ~= 100 and value or nil
+		tune[id] = value ~= groups().tune_default(id) and value or nil
 		part.tune = next(tune) ~= nil and tune or nil
 		self:_save()
 	end
@@ -47,7 +47,19 @@ TuneView.install = function (View, h)
 	-- the text colour of an unchanged one.
 	View._tune_row = function (self, item, content)
 		local value = value_of(self, item.id)
-		local changed = value ~= 100
+		local changed = value ~= groups().tune_default(item.id)
+
+		-- a toggle (the Boss bar): a checkbox, no number
+		if item.toggle then
+			content.row_name = mod:localize("tune_" .. item.id)
+			content.info = mod:localize("tune_" .. item.id .. "_info")
+			content.show_check, content.show_stepper, content.show_share, content.show_mods, content.show_rep = true, false, false, false, false
+			content.show_action = false
+			content.checkbox_selected = value == 1
+			content.stepper_value = ""
+
+			return changed and Components.colors.gold or Components.colors.text
+		end
 
 		content.row_name = mod:localize("tune_" .. item.id)
 		content.info = mod:localize("tune_" .. item.id .. "_info", item.min, item.max)
@@ -64,9 +76,20 @@ TuneView.install = function (View, h)
 		self:_set_tune(item.id, value_of(self, item.id) + delta * item.step)
 	end
 
+	-- a toggle row (the Boss bar): on and off
+	View._tune_toggle = function (self, item)
+		self:_set_tune(item.id, value_of(self, item.id) == 1 and 0 or 1)
+	end
+
 	-- a click on the number (or on the row's name): a number box, the value's own range
 	View._tune_value = function (self, item)
 		local part = part_of(self)
+
+		if item.toggle then
+			self:_tune_toggle(item)
+
+			return
+		end
 
 		Popup.open(self, {
 			label = mod:localize("popup_tune_title", mod:localize("tune_" .. item.id), part and groups().describe_part(part) or ""),
@@ -81,7 +104,7 @@ TuneView.install = function (View, h)
 
 	-- Reset: back to 100
 	View._tune_action = function (self, item)
-		self:_set_tune(item.id, 100)
+		self:_set_tune(item.id, groups().tune_default(item.id))
 	end
 
 	-- the "Custom" button of an enemy row in a card's own screen

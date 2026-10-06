@@ -226,6 +226,9 @@ Groups.TUNE = {
 	-- (2026-10-04) how hard it hits: its `damage` stat, which the game's damage calculation applies to every attacker (melee and
 	-- shots alike: a sniper's shot too)
 	{ id = "damage", name = "Damage dealt", min = 10, max = 500, step = 10, aliases = { "damage", "dmg", "damage dealt", "attack damage", "hits" } },
+	-- (2026-10-06, the user: "set an individual unit as a boss, so it shows its total health and name as a boss unit; a toggle for any
+	-- unit, a custom modifier") a toggle, not a percent: 1 = its health and name in the game's boss bar (spawn/tuning.lua). {boss=1}
+	{ id = "boss", name = "Boss bar", min = 0, max = 1, step = 1, default = 0, toggle = true, aliases = { "boss", "boss bar", "boss health" } },
 }
 
 -- Values kept with the custom mods but set elsewhere than the Custom mods screen (2026-10-04): the damage of the On Fire modifier's
@@ -326,7 +329,7 @@ Groups.tune_text = function (tune)
 		local value = tune and tune[def.id]
 
 		if value and value ~= (def.default or 100) then
-			fields[#fields + 1] = def.name .. " " .. value .. "%"
+			fields[#fields + 1] = def.toggle and def.name or (def.name .. " " .. value .. "%")
 		end
 	end
 

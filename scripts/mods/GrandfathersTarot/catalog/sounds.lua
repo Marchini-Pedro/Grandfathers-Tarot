@@ -64,8 +64,7 @@ Sounds.search = function (query, wave, Groups)
 		if wave.effects.ammo_crate or wave.effects.ammo then terms.ammo = true end
 		if wave.effects.med_crate then terms.heal, terms.med_crate = true, true end
 		if wave.effects.med_station then terms.healthstation = true end
-		if wave.effects.cooldown then terms.play_ability = true end
-		if wave.effects.reveal then terms.smart_tag, terms.precision_stance = true, true end
+		if wave.effects.reveal or wave.effects.reveal_elites then terms.smart_tag, terms.precision_stance = true, true end
 		if wave.effects.blackout then terms.power, terms.light = true, true end
 	end
 	for _, event in ipairs(Sounds.EVENTS) do

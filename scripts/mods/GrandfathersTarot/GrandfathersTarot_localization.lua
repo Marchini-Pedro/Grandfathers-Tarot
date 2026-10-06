@@ -305,6 +305,8 @@ local L = {
 	btn_mods = { en = "Mods" },
 	btn_dogs = { en = "Dogs" },
 	btn_shield = { en = "Shield" },
+	tune_boss = { en = "Boss bar" },
+	tune_boss_info = { en = "Shows these enemies' name and health in the boss bar at the top of the screen, like a Monster or a Captain." },
 	btn_leaves_1 = { en = "1 kill" },
 	btn_leaves_2 = { en = "2 kills" },
 	btn_leaves_3 = { en = "3 kills" },

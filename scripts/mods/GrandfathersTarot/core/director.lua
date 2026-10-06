@@ -772,6 +772,13 @@ local function snapshot()
 		snap.hl = ok and list or nil
 	end
 
+	-- the units with the Boss bar custom mod (spawn/tuning.lua): every machine shows their bars
+	if Tuning and Tuning.boss_list then
+		local ok, list = pcall(Tuning.boss_list)
+
+		snap.bb = ok and list or nil
+	end
+
 	-- the last fulfilled card (any mode): the card, how long ago it went out in played seconds, and which card it was (a number that changes)
 	if last_card then
 		local c = last_card.card
@@ -1277,6 +1284,7 @@ Director.on_state = function (sender, s)
 
 	if Director.effects then Director.effects.receive(s.fx) end
 	if Tuning and Tuning.receive_health_layers then pcall(Tuning.receive_health_layers, s.hl) end
+	if Tuning and Tuning.receive_bosses then pcall(Tuning.receive_bosses, s.bb) end
 	local cands = {}
 
 	if type(s.k) == "table" then

@@ -1713,6 +1713,17 @@ GrandfathersTarotView.cb_row_check = guarded(function (self, row)
 		return
 	end
 
+	-- the Custom screen's toggles (the Boss bar)
+	if self._screen == "tune" then
+		local item = self:_item_at(row)
+
+		if item and item.toggle then
+			self:_tune_toggle(item)
+		end
+
+		return
+	end
+
 end)
 
 -- The On Fire damage of a group (percent, 0 to 300; the default, 35, is not stored)

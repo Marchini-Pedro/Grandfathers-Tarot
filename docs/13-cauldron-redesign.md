@@ -300,6 +300,14 @@ The Lua tests were not run for this round (the user's request); the suites still
 
 The Lua tests were not run for this round; the suites still expect the built-in reset values and the old chip widths.
 
+## Reveal Elites, the Boss bar, the Blackout crash (2026-10-06)
+
+| Request | What was built |
+| --- | --- |
+| Remove the Combat ability effect, add Reveal Elites (like Reveal Specialists, for Elites) | `cooldown` is gone from catalog/effects.lua (`Effects.RETIRED`: a saved card that still has it loads and saves without it; the author's default cards lost it too) and its host and client code with it (the "teleport" grant of Raise the fallen stays). `reveal_elites` (Buffs, seconds, 15 by default): every machine outlines the Elites (breed tag `elite`, never a Specialist) in amber while its time runs, the Specialists keep the teal outline; each kind ends on its own time. The time goes to clients in the effects snapshot (`reveal_elites`). |
+| A friend crashed while a Blackout was on | The client's log: `light_controller_system.lua:155: attempt to index local 'extension' (a nil value)` in `rpc_light_controller_set_enabled`: the host switched the lights with `set_enabled(false, false)`, which sends that RPC for each light (four times a second for lights the level turned back on), and a light the host has was a unit without a light controller extension on that client; the game's handler does not check. The lights are now switched deterministically (`set_enabled(x, true)`, no RPC, as level flow does) and every machine darkens its own: the remaining time is in the effects snapshot (`blackout`), a client runs Effects.update, and it restores its lights when the host's time is over. |
+| An individual unit as a boss, with its total health and name in the boss bar; a toggle for any unit, a custom modifier | A **Boss bar** row (a checkbox) on the Custom screen: `{boss=1}` in the recipe, "Boss bar" in the row's custom line. The game's boss bar shows a unit at the event `boss_encounter_start` (unit, boss extension) and asks the extension only `display_name`, `is_empowered` and `boss_is_depleted_interrupter`; a stand-in gives the breed's own name. The host marks the units at spawn (`Tuning.mark_boss`); their game object ids go with the host's state (`bb`, 16 at most); every machine starts and ends its own bars (`Tuning.update_bosses`, `boss_encounter_end` at death) and gives them to a boss bar made anew (a hook on its `init`). A Monster or a Captain (the game's own boss extension) is left to the game. A unit whose custom health is under the normal reads "Weakened ..." as the game names a weakened boss. |
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -371,3 +379,7 @@ The Lua tests were not run for this round; the suites still expect the built-in 
     shield and it never comes back, for the host and a client alike; lit, as before (the Twins' shield raised). A Daemonhost's
     row: 1 kill, it leaves after the first player death (before this it never left); 2 kills and 3 kills; All, it stays until
     every player has died once (a rescued player's second death counts too).
+24. Reveal Elites: amber outlines on the Elites for its time, host and client; Reveal Specialists still teal; a card saved with
+    the old combat abilities effect still loads. A Blackout with a client: no crash, the client's lights go dark and come back.
+    The Boss bar custom mod on a normal enemy (The Tower's): its name and health in the boss bar for the host and a client, gone
+    when it dies; after a respawn the bar comes back.
