@@ -320,7 +320,7 @@ local function expand(parts, field, picks)
 		local amount = scaled_amount(base, percent_for(part))
 
 		for _ = 1, amount do
-			queue[#queue + 1] = { breed = breed_of(part, picks), mods = part.mods, tune = part.tune, appearance = part.appearance, nodogs = part.nodogs, noshield = part.noshield, leaves = part.leaves }
+			queue[#queue + 1] = { breed = breed_of(part, picks), mods = part.mods, tune = part.tune, appearance = part.appearance, nodogs = part.nodogs, noshield = part.noshield, leaves = part.leaves, boss_name = part.boss_name }
 		end
 	end
 
@@ -672,6 +672,8 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 	if extra.noshield and Tuning and Tuning.drop_shield then Tuning.drop_shield(unit) end
 	-- a Daemonhost: how many player deaths before it leaves (the game's 1 unless the group says otherwise)
 	if Tuning and Tuning.watch_daemonhost then Tuning.watch_daemonhost(unit, breed_name, extra.leaves) end
+	-- the group's Boss name, for its boss bar
+	if extra.boss_name and Tuning and Tuning.name_boss then Tuning.name_boss(unit, extra.boss_name) end
 
 	return true, unit
 end

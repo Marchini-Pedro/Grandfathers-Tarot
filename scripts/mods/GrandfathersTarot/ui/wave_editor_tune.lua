@@ -49,6 +49,21 @@ TuneView.install = function (View, h)
 		local value = value_of(self, item.id)
 		local changed = value ~= groups().tune_default(item.id)
 
+		-- the Boss name: its text under the row's name, Edit on the right
+		if item.text then
+			local part = part_of(self)
+			local name = part and part.boss_name
+
+			content.row_name = mod:localize("tune_boss_name")
+			content.info = name and mod:localize("tune_boss_name_set", name) or mod:localize("tune_boss_name_info")
+			content.show_check, content.show_stepper, content.show_share, content.show_mods, content.show_rep = false, false, false, false, false
+			content.show_action = true
+			content.hotspot_action_text = mod:localize("btn_boss_name_edit")
+			content.stepper_value = ""
+
+			return name and Components.colors.gold or Components.colors.text
+		end
+
 		-- a toggle (the Boss bar): a checkbox, no number
 		if item.toggle then
 			content.row_name = mod:localize("tune_" .. item.id)
@@ -73,7 +88,29 @@ TuneView.install = function (View, h)
 
 	-- - and +: one step of that value (10 for health and hit mass, 25 for the burst, 5 for the rest)
 	View._tune_step = function (self, item, delta)
+		if item.text then return end
+
 		self:_set_tune(item.id, value_of(self, item.id) + delta * item.step)
+	end
+
+	-- the Boss name: a text box (empty = the game's own name)
+	View._boss_name_popup = function (self)
+		local part = part_of(self)
+
+		if not part then
+			return
+		end
+
+		Popup.open(self, {
+			label = mod:localize("popup_boss_name_title", groups().describe_part(part)),
+			value = part.boss_name or "",
+			max_length = groups().BOSS_NAME_MAX,
+			hint = mod:localize("popup_boss_name_hint"),
+			set = function (text)
+				part.boss_name = groups().clean_boss_name(text)
+				self:_save()
+			end,
+		})
 	end
 
 	-- a toggle row (the Boss bar): on and off
@@ -91,6 +128,12 @@ TuneView.install = function (View, h)
 			return
 		end
 
+		if item.text then
+			self:_boss_name_popup()
+
+			return
+		end
+
 		Popup.open(self, {
 			label = mod:localize("popup_tune_title", mod:localize("tune_" .. item.id), part and groups().describe_part(part) or ""),
 			value = tostring(value_of(self, item.id)),
@@ -104,6 +147,12 @@ TuneView.install = function (View, h)
 
 	-- Reset: back to 100
 	View._tune_action = function (self, item)
+		if item.text then
+			self:_boss_name_popup()
+
+			return
+		end
+
 		self:_set_tune(item.id, groups().tune_default(item.id))
 	end
 

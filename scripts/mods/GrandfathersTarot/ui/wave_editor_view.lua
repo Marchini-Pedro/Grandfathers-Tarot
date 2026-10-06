@@ -157,6 +157,7 @@ local function copy_parts(parts)
 			nodogs = part.nodogs,
 			noshield = part.noshield,
 			leaves = part.leaves,
+			boss_name = part.boss_name,
 		}
 	end
 
@@ -745,7 +746,7 @@ GrandfathersTarotView._source = function (self)
 	elseif self._screen == "mods" then
 		return mod.rw.groups.MODIFIERS
 	elseif self._screen == "tune" then
-		return mod.rw.groups.TUNE
+		return mod.rw.groups.TUNE_SCREEN
 	elseif self._screen == "face" then
 		return {} -- (the Mirror has no table)
 	elseif self._screen == "sounds" then

@@ -463,6 +463,14 @@ Tuning.layer_boss_targets = function (element)
 	local size = Tuning.network_health_max()
 
 	for _, target in ipairs(element._active_targets_array or {}) do
+		-- a Boss name (the Boss bar custom mod): it replaces the breed's name once, before the bars below read it
+		local custom = target.boss_extension and target.boss_extension._rw_custom_name
+
+		if custom and not target._rw_named then
+			target._rw_named = true
+			target.localized_display_name = " " .. custom
+		end
+
 		local real = target._rw_health or target.health_extension
 		local max = real and size and Tuning.true_max_health(target.unit, real)
 
@@ -475,7 +483,7 @@ Tuning.layer_boss_targets = function (element)
 				-- a client compared the divided maximum with the normal health and called the boss "Weakened": read it again
 				local boss, breed = target.boss_extension, target.breed
 
-				if real:max_health() < max and boss and breed and not breed.ignore_weakened_boss_name then
+				if real:max_health() < max and boss and breed and not breed.ignore_weakened_boss_name and not custom then
 					pcall(function ()
 						if not (boss.is_empowered and boss:is_empowered()) and max >= Tuning.normal_health(breed.name) then
 							target._rw_name = " " .. Localize(boss:display_name())
@@ -508,12 +516,23 @@ end
 -- Tuning.receive_bosses). Every machine starts and ends its own bars (Tuning.update_bosses). A unit the game already gives a boss
 -- extension (a Monster, a Captain) is left to the game.
 local boss_marked = setmetatable({}, { __mode = "k" }) -- host: unit -> true
-local boss_ids = {} -- a client: game object id -> true, from the host's state
+local boss_names = setmetatable({}, { __mode = "k" }) -- host: unit -> its group's Boss name (2026-10-06)
+local boss_ids = {} -- a client: game object id -> its Boss name, or true, from the host's state
 local boss_shown = {} -- every machine: unit -> its stand-in, while its bar was started here
 local boss_timer = 0
 Tuning.MAX_BOSSES = 16
 
-local function stand_in(unit)
+-- a Boss name as the host may send it (the same rule as Groups.clean_boss_name): nil for none
+local function clean_name(text)
+	if type(text) ~= "string" then return nil end
+
+	text = text:gsub("[^%w '%-%.!?]", ""):gsub("%s+", " ")
+	text = text:match("^%s*(.-)%s*$"):sub(1, 30)
+
+	return text ~= "" and text or nil
+end
+
+local function stand_in(unit, custom_name)
 	local data = ScriptUnit.has_extension(unit, "unit_data_system")
 	local breed = data and data:breed()
 	local name = breed and breed.display_name
@@ -524,6 +543,7 @@ local function stand_in(unit)
 
 	return {
 		_rw_stand_in = true,
+		_rw_custom_name = clean_name(custom_name), -- written over the bar's name (Tuning.layer_boss_targets)
 		display_name = function () return name end,
 		is_empowered = function () return nil end,
 		is_weakened = function () return false end,
@@ -533,6 +553,10 @@ end
 
 local function living(unit)
 	return unit and alive(unit) and (not HEALTH_ALIVE or HEALTH_ALIVE[unit] == true)
+end
+
+Tuning.name_boss = function (unit, name)
+	if unit then boss_names[unit] = clean_name(name) end
 end
 
 Tuning.mark_boss = function (unit)
@@ -557,7 +581,8 @@ Tuning.boss_list = function ()
 			local ok, id = pcall(spawner.game_object_id, spawner, unit)
 
 			if ok and id then
-				list[#list + 1] = id
+				-- { id, name } for a named one, the id alone otherwise
+				list[#list + 1] = boss_names[unit] and { id, boss_names[unit] } or id
 			end
 		end
 	end
@@ -571,10 +596,12 @@ Tuning.receive_bosses = function (list)
 
 	if type(list) == "table" then
 		for i = 1, math.min(#list, Tuning.MAX_BOSSES) do
-			local id = tonumber(list[i])
+			local item = list[i]
+			local id = tonumber(type(item) == "table" and item[1] or item)
+			local name = type(item) == "table" and clean_name(item[2]) or nil
 
 			if id and id == id and id >= 0 and id < 1e9 then
-				map[math.floor(id)] = true
+				map[math.floor(id)] = name or true
 			end
 		end
 	end
@@ -601,15 +628,15 @@ Tuning.update_bosses = function (dt, is_host)
 
 	if is_host then
 		for unit in pairs(boss_marked) do
-			if living(unit) then wanted[unit] = true else boss_marked[unit] = nil end
+			if living(unit) then wanted[unit] = boss_names[unit] or true else boss_marked[unit] = nil end
 		end
 	elseif next(boss_ids) ~= nil then
 		local spawner = Managers.state and Managers.state.unit_spawner
 
-		for id in pairs(boss_ids) do
+		for id, name in pairs(boss_ids) do
 			local ok, unit = pcall(function () return spawner and spawner:unit_exists(id) and spawner:unit(id) end)
 
-			if ok and unit and living(unit) then wanted[unit] = true end
+			if ok and unit and living(unit) then wanted[unit] = name end
 		end
 	end
 
@@ -617,9 +644,9 @@ Tuning.update_bosses = function (dt, is_host)
 		if not wanted[unit] then end_bar(unit, standin) end
 	end
 
-	for unit in pairs(wanted) do
+	for unit, name in pairs(wanted) do
 		if not boss_shown[unit] and not ScriptUnit.has_extension(unit, "boss_system") then
-			local standin = stand_in(unit)
+			local standin = stand_in(unit, type(name) == "string" and name or nil)
 
 			if standin then
 				boss_shown[unit] = standin
@@ -646,6 +673,7 @@ Tuning.end_bosses = function ()
 
 	boss_shown, boss_ids = {}, {}
 	boss_marked = setmetatable({}, { __mode = "k" })
+	boss_names = setmetatable({}, { __mode = "k" })
 end
 
 Tuning.boss_bar_update = function (func, self, ...)

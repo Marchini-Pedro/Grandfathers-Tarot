@@ -239,6 +239,29 @@ Groups.TUNE_EXTRA = {
 }
 Groups.TUNE_ALL = {}
 
+-- (2026-10-06, the user: "edit what the boss bar name will be, per card/unit") the rows of the Custom screen: the custom mods, then
+-- the group's Boss name (a text, kept in part.boss_name, not in part.tune; "(name The Warden)" in the recipe)
+Groups.TUNE_SCREEN = {}
+
+for _, def in ipairs(Groups.TUNE) do
+	Groups.TUNE_SCREEN[#Groups.TUNE_SCREEN + 1] = def
+end
+
+Groups.TUNE_SCREEN[#Groups.TUNE_SCREEN + 1] = { id = "boss_name", name = "Boss name", text = true }
+
+-- A Boss name as the recipe can hold it: letters, digits, spaces and ' - . ! ? only, 30 characters at most; nil for nothing
+Groups.BOSS_NAME_MAX = 30
+Groups.clean_boss_name = function (text)
+	if type(text) ~= "string" then
+		return nil
+	end
+
+	text = text:gsub("[^%w '%-%.!?]", ""):gsub("%s+", " ")
+	text = text:match("^%s*(.-)%s*$"):sub(1, Groups.BOSS_NAME_MAX):match("^(.-)%s*$")
+
+	return text ~= "" and text or nil
+end
+
 for _, list in ipairs({ Groups.TUNE, Groups.TUNE_EXTRA }) do
 	for _, def in ipairs(list) do
 		Groups.TUNE_ALL[#Groups.TUNE_ALL + 1] = def
@@ -794,6 +817,7 @@ Groups.extra_recipe = function (part)
 	if part.nodogs and Groups.calls_dogs(part) then text = text .. Groups.NO_DOGS end
 	if part.noshield and Groups.has_shield(part) then text = text .. Groups.NO_SHIELD end
 	if part.leaves and Groups.can_leave(part) then text = text .. "(leaves " .. tostring(part.leaves) .. ")" end
+	if part.boss_name then text = text .. "(name " .. part.boss_name .. ")" end
 
 	return text
 end
@@ -848,6 +872,14 @@ Groups.parse = function (recipe)
 
 	local text = " " .. recipe .. " "
 	local appearances = {}
+	-- a Boss name "(name Lord and Master)" may hold words the separators below would cut ("and"): kept aside first
+	local boss_names = {}
+
+	text = text:gsub("%(%s*[nN][aA][mM][eE]%s+([^()]-)%s*%)", function (inner)
+		boss_names[#boss_names + 1] = inner
+
+		return "(bossname " .. #boss_names .. ")"
+	end)
 	-- Appearance flags contain '+', which is also an enemy separator. Keep each
 	-- suffix intact until its part is parsed, just like modifier/custom-mod lists.
 	text = text:gsub("<(.-)>", function (inner)
@@ -909,7 +941,7 @@ Groups.parse = function (recipe)
 			end
 
 			-- the row's toggle, in any order at the end: "(no dogs)", "(no shield)", "(leaves 2)"
-			local nodogs, noshield, leaves
+			local nodogs, noshield, leaves, boss_name
 
 			while true do
 				local before, marker = name:match("^(.-)%s*%(([^()]*)%)%s*$")
@@ -921,6 +953,8 @@ Groups.parse = function (recipe)
 					noshield = true
 				elseif marker and marker:match("^leaves ") then
 					leaves = Groups.leaves_value(marker:sub(8))
+				elseif marker and marker:match("^bossname %d+$") then
+					boss_name = Groups.clean_boss_name(boss_names[tonumber(marker:match("%d+"))])
 				else
 					break
 				end
@@ -1005,6 +1039,7 @@ Groups.parse = function (recipe)
 				new_part.nodogs = nodogs and Groups.calls_dogs(new_part) or nil
 				new_part.noshield = noshield and Groups.has_shield(new_part) or nil
 				new_part.leaves = leaves and Groups.can_leave(new_part) and leaves or nil
+				new_part.boss_name = boss_name
 
 				local key = part_key(new_part)
 				local part = by_key[key]

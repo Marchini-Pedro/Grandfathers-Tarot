@@ -344,3 +344,8 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   extension on that client, sent by the Blackout's set_enabled(false, false); fixed by deterministic switching on every machine.
 - Tests: check_lua passes; offline: a card with cooldown=100:4 parses without it, reveal_elites round-trips, {boss=1} round-trips
   and reads "Boss bar". The suites were not run.
+
+## 2026-10-06 - The Boss name
+- Built: a per-group Boss name for the boss bar ("(name ...)" in the recipe, sent with the host's boss list).
+- Tests: check_lua passes; offline, names with "and", separators and too many characters parse, clean and round-trip. The suites
+  were not run.
