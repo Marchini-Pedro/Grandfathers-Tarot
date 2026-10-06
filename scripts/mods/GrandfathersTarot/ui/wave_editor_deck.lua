@@ -499,7 +499,7 @@ DeckView.install = function (View, h)
 		fx.full_name = card.name
 
 		-- a Murmur card of threat 5 or 6: every letter on it murmurs (ui/murmur_text.lua; _tick_living_tile writes them)
-		fx.murmur = Murmur.on(card.suit, card.threat) and Murmur.new({ content.name, content.comp, content.mods, content.whisper }) or nil
+		fx.murmur = Murmur.on(card.suit, card.threat) and Murmur.new({ content.name, content.comp, content.mods, content.whisper }, card.threat) or nil
 		paint(style.whisper, 255, tone(card.suit == "murmur" and Cards.BASE.whisper or Cards.BASE.muted))
 
 		-- the stage card: its name and its line are click areas, underlined under the pointer (blueprints.tile, `interactive`)

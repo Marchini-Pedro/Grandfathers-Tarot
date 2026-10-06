@@ -306,3 +306,12 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   Heresy's rain, bolt and flash; Prayer's candles without blue; Entrapment's second chain; the murmur's cut, timeline and
   order; the Dream slider; the last card's Heresy storm), editor (the Deck's option and the HUD's apart, the Murmur card's
   letters on the Deck and the option giving them back, Entrapment). Not tested in game yet.
+
+## 2026-10-05 - Rage's anger, quieter Heresy and Prayer, a slower murmur (polishing 4)
+
+- Built: Rage's red veil, edges and throb that grow with the threat (its flames removed); Heresy's rain removed (lightning kept);
+  Prayer's candles, smoke and halo removed (beams kept, 2 to 6); the murmur at 11 letters a second at threat 5 and 7 at 6, held
+  2.5 s, wiped, again; 8 triangles a card.
+- Tests: hud (Rage only red rects, its veil and edges deeper at 6, its throb faster, its glow stronger; Heresy without rain;
+  Prayer only beams, 2 to 6; the murmur's speeds, its timeline and five repeats; the last card's Rage and Heresy), editor (the
+  Murmur card on the Deck at the new speed). Not tested in game yet.

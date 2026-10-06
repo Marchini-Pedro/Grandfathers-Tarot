@@ -674,13 +674,14 @@ do
   local full_name, full_comp, full_whisper = mc.name, mc.comp, mc.whisper
   local m = mc.fx.murmur
   local phase = #mc.fx.key * 0.37
-  local write = m.total / Murmur.SPEED
-  view:_tick_living_tile(tile(1), write * 0.1 - phase + 100 * (write + Murmur.HOLD + Murmur.ERASE + Murmur.GAP))
+  local write = m.total / m.speed
+  local period = Murmur.period(m.total, m.speed)
+  view:_tick_living_tile(tile(1), write * 0.1 - phase + 100 * period)
   local partial = mc.name ~= full_name and #mc.name < #full_name and mc.whisper == ""
-  view:_tick_living_tile(tile(1), write + 1 - phase + 100 * (write + Murmur.HOLD + Murmur.ERASE + Murmur.GAP))
+  view:_tick_living_tile(tile(1), write + 1 - phase + 100 * period)
   local whole = mc.name == full_name and mc.comp == full_comp and mc.whisper == full_whisper
   check("murmur letters: a threat 6 Murmur card on the Deck writes its letters one by one (the name first, the whisper last), then holds them whole", m ~= nil and m.total > 20 and partial and whole, tostring(mc.name))
-  view:_tick_living_tile(tile(1), write * 0.1 - phase + 100 * (write + Murmur.HOLD + Murmur.ERASE + Murmur.GAP))
+  view:_tick_living_tile(tile(1), write * 0.1 - phase + 100 * period)
   settings.deck_card_effects = false
   view:_tick_living_tile(tile(1), 3)
   check("murmur letters: the option 'Card effects in the Deck' off gives the card its whole letters back", mc.name == full_name and mc.whisper == full_whisper)

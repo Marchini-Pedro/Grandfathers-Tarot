@@ -2,13 +2,20 @@
 -- murmur effect"): the murmur is the way a threat 5 or 6 card's whisper is written letter by letter when it is drawn (the Spread's
 -- banner). On a Murmur card of threat 5 or 6 every text of the card does it, over and over: its name, its enemies, its modifiers and
 -- its whisper are written one letter after another, in that order, held, wiped away from the end, and after a breath written again.
+-- Slow, and slower the higher the threat (2026-10-05, the user: "it needs to repeat and be slower, the higher the difficulty the
+-- slower"): 11 letters a second at threat 5, 7 at 6; held 2.5 s, wiped three times as fast as it was written.
 -- Each text may carry the game's markup ({#color(...)}): a tag never counts as a letter and is never cut. Pure, tested offline.
 local Murmur = {}
 
 local floor, max, min = math.floor, math.max, math.min
 
-Murmur.SPEED = 26 -- letters a second
-Murmur.HOLD, Murmur.ERASE, Murmur.GAP = 5, 0.7, 0.6 -- seconds: written and held, wiped, nothing
+Murmur.HOLD, Murmur.GAP = 2.5, 0.8 -- seconds: held whole, then nothing before it starts again
+Murmur.WIPE = 3 -- the wipe runs this many times faster than the writing
+
+-- letters written a second on a card of this threat
+Murmur.speed = function (threat)
+	return (tonumber(threat) or 5) >= 6 and 7 or 11
+end
 
 Murmur.on = function (suit, threat)
 	return suit == "murmur" and (tonumber(threat) or 0) >= 5
@@ -52,12 +59,19 @@ Murmur.length = function (text)
 	return n
 end
 
--- the letters written at time t of a murmur over `total` letters
-Murmur.letters = function (t, total)
-	local write = total / Murmur.SPEED
-	local u = (tonumber(t) or 0) % (write + Murmur.HOLD + Murmur.ERASE + Murmur.GAP)
+-- one whole murmur of `total` letters at `speed`: written, held, wiped, a breath
+Murmur.period = function (total, speed)
+	return total / speed + Murmur.HOLD + total / (speed * Murmur.WIPE) + Murmur.GAP
+end
 
-	if u < write then return floor(u * Murmur.SPEED) end
+-- the letters written at time t of a murmur over `total` letters, `speed` letters a second (threat 5's when not given)
+Murmur.letters = function (t, total, speed)
+	speed = speed or Murmur.speed(5)
+
+	local write, wipe = total / speed, total / (speed * Murmur.WIPE)
+	local u = (tonumber(t) or 0) % Murmur.period(total, speed)
+
+	if u < write then return floor(u * speed) end
 
 	u = u - write
 
@@ -65,15 +79,15 @@ Murmur.letters = function (t, total)
 
 	u = u - Murmur.HOLD
 
-	if u < Murmur.ERASE then return floor(total * (1 - u / Murmur.ERASE)) end
+	if u < wipe then return max(0, total - floor(u * speed * Murmur.WIPE + 1)) end
 
 	return 0
 end
 
--- A murmur over several texts (written in their order): Murmur.new({ name, comp, ... }) then Murmur.tick(m, t) returns true when the
--- letters written changed, with m.shown[j] the text j as it is to be shown now
-Murmur.new = function (texts)
-	local m = { texts = texts, lengths = {}, shown = {}, total = 0, n = -1 }
+-- A murmur over several texts (written in their order) on a card of `threat`: Murmur.new({ name, comp, ... }, threat) then
+-- Murmur.tick(m, t) returns true when the letters written changed, with m.shown[j] the text j as it is to be shown now
+Murmur.new = function (texts, threat)
+	local m = { texts = texts, lengths = {}, shown = {}, total = 0, n = -1, speed = Murmur.speed(threat) }
 
 	for j = 1, #texts do
 		m.lengths[j] = Murmur.length(texts[j])
@@ -85,7 +99,7 @@ Murmur.new = function (texts)
 end
 
 Murmur.tick = function (m, t)
-	local n = Murmur.letters(t, m.total)
+	local n = Murmur.letters(t, m.total, m.speed)
 
 	if n == m.n then return false end
 

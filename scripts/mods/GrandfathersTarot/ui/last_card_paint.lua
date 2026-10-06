@@ -293,7 +293,7 @@ Paint.setup = function (self, card, font)
 	end
 
 	-- a Murmur card of threat 5 or 6: its name and its whisper murmur, over and over (Paint.tick_aura)
-	self._murmur = Murmur.on(card.suit, threat) and Murmur.new({ content.name, content.whisper }) or nil
+	self._murmur = Murmur.on(card.suit, threat) and Murmur.new({ content.name, content.whisper }, threat) or nil
 
 	-- Nightmare's fog is animated every frame (HudElementGrandfathersTarotLast._tick_fog)
 	self._fog_box = suit.fog and { x, y, cw, ch } or nil

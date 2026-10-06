@@ -270,6 +270,17 @@ Old peers: a Dream card synced to a peer without it is shown as Plague there (an
 | A toggle for all the card effects in the Deck | "Card effects in the Deck": every living effect of the editor's cards (the Deck, the card being edited, the Face tab's previews: auras, Heresy's heartbeat, Nightmare's fog, the sixth diamond's shine, the murmur of the letters). Off, the cards stand still. "Living card effects" is now "Card effects on the HUD" (the hand and the last card window). |
 | Hover descriptions for every option | Every option and group of the mod's menu has a description (DMF shows `<setting_id>_description` on hover): 57 new ones. |
 
+## Polishing 4: Rage's anger, quieter Heresy and Prayer, a slower murmur (2026-10-05)
+
+| Request | What was built |
+| --- | --- |
+| Remove the rain from Heresy, keep the lightning | Heresy of threat 5 and 6 keeps only its lightning (six slivers and a branch) and the card's flash. |
+| Remove Prayer's candles and its circles, keep the beams | Prayer is only soft beams of light falling from above and swaying slowly: 2 at threat 1, 6 at threat 6. |
+| Remove Rage's animation; the whole card turns more red, more angry, the higher the difficulty | No flames, balls of fire or embers any more. A red veil over the whole face (faint at threat 1, deep at 6), redder edges in three bands that widen with the threat, and a throb like a pulse (`Aura.anger`: from 0.8 a second at 1 to 1.9 at 6); the glow throbs with it, redder and stronger as the threat grows. |
+| The murmur must repeat and be slower, slower with the threat | 11 letters a second at threat 5, 7 at 6 (was 26); held 2.5 s, wiped from the end three times as fast as it was written, a breath of 0.8 s, and again, forever. |
+
+Triangles: 8 a card now (only Heresy's lightning uses them).
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -331,3 +342,6 @@ Old peers: a Dream card synced to a peer without it is shown as Plague there (an
     of triangles; Blight's pool and splashes; the Murmur card of threat 5 or 6 writing its letters (Deck, Spread, last card);
     Heresy's storm at 5 and 6; Prayer's candles; the Dream sky slider at 0, 50 and 150; Entrapment's name; the option "Card
     effects in the Deck" off; the hover text of every option in the mod menu.
+21. Polishing 4: Rage cards of threat 1, 3 and 6 side by side (the red deepening, the throb quickening, the text still readable);
+    Heresy 5 and 6 with lightning and no rain; Prayer's beams alone; a Murmur card of threat 5 and one of 6 writing slowly and
+    starting again (on the Deck, the Spread and the last card).

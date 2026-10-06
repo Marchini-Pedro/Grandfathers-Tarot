@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-05 - Rage's anger, quieter Heresy and Prayer, a slower murmur (polishing)
+- Rage cards no longer burn: the whole card turns red with anger, deeper and throbbing faster the higher its threat.
+- Heresy keeps its lightning without the rain; Prayer keeps only its beams of light.
+- A Murmur card's letters are written more slowly (slower still at threat 6) and start again after a short pause.
+
 ## 2026-10-05 - Effects that follow the threat, new looks, options (polishing)
 - Every card's effect grows with its threat: more, larger and brighter at 5 and 6, quieter at 1 and 2.
 - Rage burns as a blaze of flames (balls of fire only on the fiercest cards); Blight drips into a pool of pus; Prayer burns candles

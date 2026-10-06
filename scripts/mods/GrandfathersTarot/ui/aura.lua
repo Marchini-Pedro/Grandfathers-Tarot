@@ -1,8 +1,8 @@
 -- The aura of a card (2026-10-05, the user: "a fire like effect on Rage, a plague like effect on Plague, a thematic effect for every
 -- suit, both in the Deck and in the HUD / last card; a new suit, Dream, cloudy and heavenly"; then "all the effects should
 -- increase / decrease with the card's difficulty"): small shapes that live on the face of a card, one animation per suit, drawn
--- under its text, growing with the card's threat (1 to 6): more shapes, larger, brighter, and at 5 and 6 more of their own (Rage's
--- fireballs, Fateful's falling star, Entrapment's second chain, Heresy's storm, Prayer's halo...). Pure arithmetic with no engine
+-- under its text, growing with the card's threat (1 to 6): more shapes, larger, brighter, and at 5 and 6 more of their own (Swarm's
+-- second cloud, Fateful's falling star, Entrapment's second chain, Heresy's lightning...). Pure arithmetic with no engine
 -- calls, so it is tested offline (tools/hud_test.py); the Deck's tiles (ui/wave_editor_deck.lua), the Spread
 -- (ui/hud_element_waves.lua) and the last card (ui/last_card_paint.lua) each have Aura.COUNT circle passes, Aura.COUNT rect passes
 -- and Aura.TRIS triangle passes for it, and draw it with Aura.draw.
@@ -11,13 +11,13 @@
 -- into `out` (Aura.new()): each one { on, round, x, y, w, h, a, rgb }, and out.tri[i] { on, x1, y1, x2, y2, x3, y3, a, rgb }, the
 -- coordinates from the card's top left, a the opacity 0..255. `s` is the size of the shapes (1 on the Deck's tile; the HUD's smaller
 -- cards use less), `level` the card's threat (Aura.LEVEL when not given). Every shape stays inside the card (the UI cannot clip).
--- Nothing is allocated while it runs. Nightmare has its own fog and no aura; Heresy its blood, and a storm at threat 5 and 6.
+-- Nothing is allocated while it runs. Nightmare has its own fog and no aura; Heresy its blood, and lightning at threat 5 and 6.
 local Aura = {}
 
 local floor, sin, cos, abs, max, min, pi = math.floor, math.sin, math.cos, math.abs, math.max, math.min, math.pi
 
 Aura.COUNT = 28 -- circles and rects
-Aura.TRIS = 12 -- triangles: Rage's tongues of flame, Prayer's candle flames, Heresy's lightning
+Aura.TRIS = 8 -- triangles: Heresy's lightning
 Aura.LEVEL = 4 -- the threat used when none is given
 
 Aura.new = function ()
@@ -126,7 +126,7 @@ local function life(t, i, period, salt)
 end
 
 -- ------------------------------------------------------------------------------------------------- colours
-local FIRE_HOT, FIRE_MID, FIRE_LOW, EMBER = { 255, 230, 130 }, { 255, 140, 40 }, { 175, 40, 20 }, { 255, 200, 100 }
+local ANGER, ANGER_DEEP, ANGER_GLOW_LOW, ANGER_GLOW_HIGH = { 214, 28, 18 }, { 110, 6, 6 }, { 120, 16, 10 }, { 255, 52, 30 }
 local BILE, BILE_DARK, FLY = { 183, 194, 58 }, { 120, 140, 40 }, { 150, 160, 90 }
 local MURMUR_A, MURMUR_B = { 207, 202, 176 }, { 157, 176, 127 }
 local PUS, PUS_DARK = { 227, 207, 74 }, { 150, 132, 40 }
@@ -136,12 +136,12 @@ local TRACER, TRACER_HOT, SPARK = { 127, 178, 194 }, { 220, 244, 252 }, { 255, 2
 local LINK_A, LINK_B = { 95, 191, 165 }, { 60, 120, 105 }
 local BRICK, BRICK_DARK, DUST, BRICK_FLASH, CRACK = { 207, 92, 69 }, { 130, 60, 48 }, { 190, 160, 140 }, { 255, 170, 140 }, { 40, 18, 14 }
 local WARP, WARP_LIT = { 177, 132, 224 }, { 234, 214, 255 }
-local WAX, CANDLE, CANDLE_GLOW, SMOKE, RAY = { 232, 222, 196 }, { 255, 214, 120 }, { 255, 190, 90 }, { 182, 178, 170 }, { 255, 236, 190 }
+local RAY = { 255, 236, 190 }
 local GOLD, GOLD_LIT = { 216, 180, 90 }, { 255, 242, 207 }
 local WHITE, SILVER = { 248, 250, 252 }, { 200, 214, 228 }
 local ROSE, ROSE_DEEP, ROSE_PALE = { 240, 140, 184 }, { 194, 90, 140 }, { 255, 205, 226 }
 local CLOUD_HEART = { 255, 250, 255 }
-local RAIN, BOLT, FLASH = { 150, 160, 185 }, { 236, 236, 255 }, { 220, 222, 255 }
+local BOLT, FLASH = { 236, 236, 255 }, { 220, 222, 255 }
 
 -- the warp's crackle at time t (as Cards.warp_pulse: about one beat in eight at 14 a second)
 local function crackle(t)
@@ -164,65 +164,36 @@ end
 -- Every effect is (out, t, W, H, s, lv): s already holds the threat's size, lv is the threat 1..6
 local EFFECTS = {}
 
--- RAGE: a blaze. Tongues of flame lick up from the foot in three layers (deep red behind, orange, a yellow heart), flickering and
--- swaying, over a breathing bed of fire, with embers rising; the higher the threat the taller and the more. Balls of fire only from
--- threat 3 (three small faint ones), a storm of them at 5 and 6.
-local FLAME_LAYERS = { { 3, 5, FIRE_LOW, 0.34, 190 }, { 2, 4, FIRE_MID, 0.25, 215 }, { 1, 3, FIRE_HOT, 0.15, 235 } }
+-- RAGE (2026-10-05, the user: "remove the rage animation; the whole card turns more red, more angry, the higher the difficulty"): a
+-- red heat floods the card's face, darker and deeper at its edges, and it throbs like blood in the temples. The higher the threat
+-- the redder the face, the deeper the edges and the faster the throb (Aura.anger).
+Aura.anger = function (t, lv)
+	local rate = 0.6 + 0.22 * lv -- throbs a second
+	local throb = (0.5 + 0.5 * sin(t * 2 * pi * rate)) ^ 2
+
+	return (lv - 1) / 5, throb
+end
 
 EFFECTS.rage = function (out, t, W, H, s, lv)
-	local k, reach = 0, 0.55 + 0.09 * lv
+	local heat, throb = Aura.anger(t, lv)
 
-	for L = 1, 3 do
-		local layer = FLAME_LAYERS[L]
-		local n = amount(lv, layer[1], layer[2])
+	rgb_into(out[1].rgb, ANGER)
+	put(out[1], false, 0, 0, W, H, (28 + 100 * heat) * (0.75 + 0.25 * throb), W, H)
 
-		for j = 1, n do
-			k = k + 1
+	-- the edges: three bands a side, each wider than the one before, so the red deepens towards the frame
+	for band = 1, 3 do
+		local depth = band * (3 + 2.4 * lv) * s
+		local alpha = (14 + 30 * heat) * (0.65 + 0.35 * throb)
+		local first = 2 + (band - 1) * 4
 
-			local seed = L * 10 + j
-			local half = W / n * 0.62
-			local cx = W * (j - 0.5) / n + (L - 2) * W * 0.03 + sin(t * 1.3 + seed) * W * 0.03
-			local flick = 0.72 + 0.18 * sin(t * 9 + seed * 2.3) + 0.1 * sin(t * 23 + seed)
-			local q = out.tri[k]
-
-			rgb_into(q.rgb, layer[3])
-			put_tri(q, cx - half, H, cx + half, H, cx + sin(t * 5 + seed) * half * 0.6, H - H * layer[4] * reach * flick, layer[5], W, H)
-		end
-	end
-
-	local balls = lv >= 6 and 14 or lv == 5 and 9 or lv >= 3 and 3 or 0
-	local faint = lv >= 5 and 1 or 0.5
-
-	for i = 1, balls do
-		local u = life(t, i, 0.55 + 0.45 * hash(i, 1))
-		local d = s * (20 * (1 - u) + 5) * (0.85 + 0.15 * sin(t * 23 + i * 5)) * faint
-		local x = W * (0.02 + 0.96 * hash(i, 7)) - d / 2 + sin(t * 5 + i * 1.7) * 4 * s
-		local p = out[i]
-
-		if u < 0.3 then
-			lerp_into(p.rgb, FIRE_HOT, FIRE_MID, u / 0.3)
-		else
-			lerp_into(p.rgb, FIRE_MID, FIRE_LOW, (u - 0.3) / 0.7)
+		for k = 0, 3 do
+			rgb_into(out[first + k].rgb, ANGER_DEEP)
 		end
 
-		put(p, true, x, H - d - H * 0.42 * u, d, d, 235 * faint * min(1, u / 0.1) * (1 - u * u), W, H)
-	end
-
-	-- the bed of fire: a glowing band at the foot, breathing
-	local breath = 0.75 + 0.25 * sin(t * 7) * sin(t * 2.3)
-
-	rgb_into(out[15].rgb, FIRE_MID)
-	put(out[15], false, 0, H - (6 + lv) * s, W, (6 + lv) * s, 150 * breath, W, H)
-	rgb_into(out[16].rgb, FIRE_HOT)
-	put(out[16], false, 0, H - 4 * s, W, 4 * s, 200 * breath, W, H)
-
-	for i = 1, amount(lv, 2, 10) do
-		local u = life(t, 16 + i, 1.1 + 0.6 * hash(i, 1))
-		local x = W * hash(i + floor(t / 1.7 + hash(i, 2)) * 5, 3) + sin(t * 3 + i) * 8 * s
-		local p = out[16 + i]
-
-		rgb_into(p.rgb, EMBER)
-		put(p, false, x, (H - 8 * s) * (1 - u), 2.6 * s, 2.6 * s, 250 * (1 - u) * (0.6 + 0.4 * sin(t * 21 + i)), W, H)
+		put(out[first], false, 0, 0, W, depth, alpha, W, H)
+		put(out[first + 1], false, 0, H - depth, W, depth, alpha, W, H)
+		put(out[first + 2], false, 0, depth, depth, H - 2 * depth, alpha, W, H)
+		put(out[first + 3], false, W - depth, depth, depth, H - 2 * depth, alpha, W, H)
 	end
 end
 
@@ -526,20 +497,8 @@ EFFECTS.warp = function (out, t, W, H, s, lv)
 	end
 end
 
--- HERESY, at threat 5 and 6 only: a storm. Rain lashes down the card, and lightning strikes now and then (more often at 6, with a
--- second flicker), lighting the whole card
+-- HERESY, at threat 5 and 6 only: lightning strikes now and then (more often at 6, with a second flicker), lighting the whole card
 EFFECTS.heresy = function (out, t, W, H, s, lv)
-	for i = 1, lv >= 6 and 22 or 14 do
-		local length = (9 + 6 * hash(i, 1)) * s
-		local fall = t * (1.5 + 0.5 * hash(i, 2)) + hash(i, 3)
-		local y = (fall % 1) * (H + length) - length
-		local x = W * (0.06 + 1.0 * hash(i + floor(fall) * 13, 4)) - (y + length) * 0.12
-		local p = out[i]
-
-		rgb_into(p.rgb, RAIN)
-		put(p, false, x, y, 1.1 * s, length, 120, W, H)
-	end
-
 	local cycle = t / (lv >= 6 and 2.1 or 3.3)
 	local u, n = cycle % 1, floor(cycle)
 	local window = 0.07
@@ -547,8 +506,8 @@ EFFECTS.heresy = function (out, t, W, H, s, lv)
 	local fade = on and (u < window and 1 - u / window or 0.8) or 0
 
 	-- the flash over the whole card
-	rgb_into(out[23].rgb, FLASH)
-	put(out[23], false, 0, 0, W, H, 95 * fade, W, H)
+	rgb_into(out[1].rgb, FLASH)
+	put(out[1], false, 0, 0, W, H, 95 * fade, W, H)
 
 	-- the bolt: six slivers from the top down to a point in the lower half, and a short branch from its middle
 	local x, y = W * (0.25 + 0.5 * hash(n, 1)), 0
@@ -576,55 +535,15 @@ EFFECTS.heresy = function (out, t, W, H, s, lv)
 	end
 end
 
--- PRAYER: candles burn along the foot of the card, their flames trembling in a glow; incense smoke rises from them and light falls
--- from above in long soft rays; at 5 and 6 a halo of light shines over it all
+-- PRAYER (2026-10-05, the user: "remove the candles and the circles, keep the beams"): soft beams of light fall from above and sway
+-- slowly, more of them as the threat grows
 EFFECTS.prayer = function (out, t, W, H, s, lv)
-	local candles = amount(lv, 2, 5)
-
-	for j = 1, candles do
-		local tall = (14 + 8 * hash(j, 1)) * s
-		local cw = 5 * s
-		local cx = W * (j - 0.5) / candles + (hash(j, 2) - 0.5) * W * 0.06
-		local top = H - 2 * s - tall
-		local flick = 0.85 + 0.15 * sin(t * 11 + j * 3) + 0.08 * sin(t * 27 + j)
-		local sway = sin(t * 3.1 + j * 1.7) * 1.4 * s
-		local body, glow, flame = out[j], out[5 + j], out.tri[j]
-		local d = (16 + 4 * flick) * s
-
-		rgb_into(body.rgb, WAX)
-		put(body, false, cx - cw / 2, top, cw, tall, 215, W, H)
-		rgb_into(flame.rgb, CANDLE)
-		put_tri(flame, cx - 2.2 * s, top - 1 * s, cx + 2.2 * s, top - 1 * s, cx + sway, top - (10 * flick) * s, 245, W, H)
-		rgb_into(glow.rgb, CANDLE_GLOW)
-		put(glow, true, cx - d / 2 + sway / 2, top - 6 * s - d / 2, d, d, 70 * flick, W, H)
-	end
-
-	-- the incense, rising from the candles and spreading as it thins
-	for i = 1, amount(lv, 3, 9) do
-		local j = (i - 1) % candles + 1
-		local u = life(t, 10 + i, 3.5 + 1.5 * hash(i, 1))
-		local d = (3 + 10 * u) * s
-		local x = W * (j - 0.5) / candles + sin(t * 1.2 + u * 5 + i) * W * 0.06 * u
-		local p = out[10 + i]
-
-		rgb_into(p.rgb, SMOKE)
-		put(p, true, x - d / 2, (H - 30 * s) * (1 - u) - d / 2, d, d, 70 * bell(u), W, H)
-	end
-
-	-- light from above
-	for i = 1, amount(lv, 1, 4) do
-		local p = out[19 + i]
-		local w = (3 + 4 * hash(i, 4)) * s
+	for i = 1, amount(lv, 2, 6) do
+		local p = out[i]
+		local w = (3 + 5 * hash(i, 4)) * s
 
 		rgb_into(p.rgb, RAY)
-		put(p, false, W * (0.15 + 0.7 * hash(i, 3)) + sin(t * 0.2 + i) * W * 0.04, 0, w, H * (0.5 + 0.25 * hash(i, 5)), 34 + 22 * sin(t * 0.8 + i * 1.9), W, H)
-	end
-
-	if lv >= 5 then
-		local d = W * (0.4 + 0.04 * sin(t * 1.1))
-
-		rgb_into(out[24].rgb, GOLD_LIT)
-		put(out[24], true, (W - d) / 2, -d * 0.35, d, d, 50 + 20 * sin(t * 1.1) + (lv - 5) * 20, W, H)
+		put(p, false, W * (0.1 + 0.8 * hash(i, 3)) + sin(t * 0.2 + i) * W * 0.05, 0, w, H * (0.55 + 0.3 * hash(i, 5)), 40 + 26 * sin(t * 0.8 + i * 1.9), W, H)
 	end
 end
 
@@ -734,7 +653,7 @@ EFFECTS.dream = function (out, t, W, H, s, lv)
 	end
 end
 
--- True when a card of this suit and threat has an aura (Heresy only from threat 5, its storm; Nightmare never)
+-- True when a card of this suit and threat has an aura (Heresy only from threat 5, its lightning; Nightmare never)
 Aura.has = function (suit, level)
 	if suit == "heresy" then
 		return (tonumber(level) or Aura.LEVEL) >= 5
@@ -825,7 +744,7 @@ Aura.draw = function (out, style, C, R, T, ox, oy, alive, dim, paint)
 end
 
 -- The glow of a suit whose glow lives with its aura (nil for the others): Dream's slowly turns through the colours of a rainbow
--- (pastel), Brute's flares with every blow, Rage's flickers like a fire; all of them stronger as the threat grows. Returns the glow's
+-- (pastel), Brute's flares with every blow, Rage's throbs with its anger; all of them stronger as the threat grows. Returns the glow's
 -- opacity 0..1 and writes its colour into `rgb`.
 Aura.glow = function (suit, t, rgb, level)
 	t = tonumber(t) or 0
@@ -845,11 +764,12 @@ Aura.glow = function (suit, t, rgb, level)
 
 		return (0.35 + 0.65 * flash) * k
 	elseif suit == "rage" then
-		local flicker = 0.5 + 0.25 * sin(t * 13) + 0.25 * sin(t * 7.7 + 1.3)
+		-- the glow throbs with the card's anger, redder and stronger as the threat grows
+		local heat, throb = Aura.anger(t, lv)
 
-		lerp_into(rgb, FIRE_LOW, FIRE_MID, flicker)
+		lerp_into(rgb, ANGER_GLOW_LOW, ANGER_GLOW_HIGH, 0.4 * heat + 0.6 * throb)
 
-		return (0.45 + 0.4 * flicker) * k
+		return (0.35 + 0.25 * heat + 0.4 * throb) * k
 	end
 
 	return nil

@@ -721,7 +721,7 @@ HudElementGrandfathersTarotPanel._setup_card = function (self, index, card)
 
 	widget.content.name = card.name
 	-- a Murmur card of threat 5 or 6: its name murmurs, written letter by letter, over and over (_tick_living)
-	rec.murmur = Murmur.on(card.suit, card.threat) and Murmur.new({ card.name }) or nil
+	rec.murmur = Murmur.on(card.suit, card.threat) and Murmur.new({ card.name }, card.threat) or nil
 	box(style.name, rec.x + Spread.ACCENT_WIDTH + Spread.PAD_X, rec.y + Spread.PAD_Y, layout.name_w, layout.lines * Spread.NAME_LINE)
 	style.name.visible = true
 

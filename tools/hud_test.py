@@ -1107,16 +1107,18 @@ do
   check("aura: every suit but Nightmare (its fog) has one, Heresy only from threat 5 (its storm), and every one draws something", every and all_shown)
   check("aura: every shape (and every corner of a triangle) of every suit at every threat stays inside its card at every size, its opacity a whole 1..255", inside)
   local first = out[1]
-  Aura.update(out, "rage", 1, 228, 270, 1)
+  Aura.update(out, "swarm", 1, 228, 270, 1)
   local x1, y1 = out[1].x, out[1].y
-  Aura.update(out, "rage", 1.3, 228, 270, 1)
+  Aura.update(out, "swarm", 1.3, 228, 270, 1)
   check("aura: it moves with time and is written in place (no new tables while it runs)", out[1] == first and (out[1].x ~= x1 or out[1].y ~= y1))
-  local warm, low = true, true
+  -- (2026-10-05, the user: "remove the rage animation; the whole card turns more red, more angry, the higher the difficulty")
+  local red, still, shapes = true, true, 0
   for step = 0, 40 do
-    Aura.update(out, "rage", step * 0.21, 228, 270, 1)
-    for i = 1, 14 do if out[i].on then if out[i].rgb[1] <= out[i].rgb[3] then warm = false end if out[i].y < 270 * 0.5 then low = false end end end
+    Aura.update(out, "rage", step * 0.21, 228, 270, 1, 6)
+    for i = 1, Aura.COUNT do if out[i].on then shapes = math.max(shapes, i); if out[i].round or out[i].rgb[1] < out[i].rgb[2] * 4 then red = false end end end
+    for i = 1, Aura.TRIS do if out.tri[i].on then still = false end end
   end
-  check("aura: Rage's flames are warm (more red than blue) and lick up from the lower half of the card", warm and low)
+  check("aura: Rage has no animation of flames any more: only red rects (no circle, no triangle), at most thirteen", red and still and shapes == 13, shapes)
   local green = true
   Aura.update(out, "plague", 3, 228, 270, 1)
   for i = 1, 8 do if out[i].on and not (out[i].rgb[2] > out[i].rgb[3]) then green = false end end
@@ -1145,7 +1147,7 @@ do
   check("aura layers: Dream's sky draws its clouds and their hearts on whole layers too", whole)
 
   -- twenty shapes a card (2026-10-05, the user: "more intense"); a suit leaves the ones it does not use off
-  check("aura: twenty-eight shapes and twelve triangles a card", Aura.COUNT == 28 and Aura.TRIS == 12)
+  check("aura: twenty-eight shapes and eight triangles a card", Aura.COUNT == 28 and Aura.TRIS == 8)
   Aura.update(out, "rage", 2, 228, 270, 1, 6)
   Aura.update(out, "murmur", 2, 228, 270, 1, 1)
   local left_on = false
@@ -1161,7 +1163,7 @@ do
       most[suit] = math.max(most[suit], n)
     end
   end
-  check("aura: Rage, Brute and Dream are intense: at their height more than fifteen shapes live on the card", most.rage > 15 and most.brute > 15 and most.dream > 15, most.rage .. " " .. most.brute .. " " .. most.dream)
+  check("aura: Brute and Dream are intense: at their height more than fifteen shapes live on the card (Rage is a red veil now)", most.brute > 15 and most.dream > 15, most.rage .. " " .. most.brute .. " " .. most.dream)
   Aura.update(out, "dream", 3, 228, 270, 1, 6)
   local big = 0
   for i = 1, 8 do if out[i].on and out[i].round and out[i].w >= 228 * 0.25 then big = big + 1 end end
@@ -1213,25 +1215,21 @@ do
   local V6, v6l = busiest("volley", 6)
   local F6, f6l = busiest("fateful", 6)
   check("aura: Swarm, Volley and Fateful are much busier at a high threat (more shapes, half again as much light)", S6 > s4 and V6 > v4 and F6 > f4 and s6l > s6 * 1.5 and v6l > v6 * 1.5 and f6l > f6 * 1.5, s4 .. ">" .. S6 .. " " .. v4 .. ">" .. V6 .. " " .. f4 .. ">" .. F6)
-  -- Rage: a blaze of tongues of flame; its balls of fire toned down (none at 1 and 2, three faint ones at 3 and 4), many at 5 and 6
-  local function rage_shapes(lv)
-    local balls, faint_max, tongues = 0, 0, 0
-    for step = 0, 60 do
-      Aura.update(out, "rage", step * 0.083, 228, 270, 1, lv)
-      local b = 0
-      for i = 1, 14 do if out[i].on and out[i].round then b = b + 1; faint_max = math.max(faint_max, out[i].a) end end
-      balls = math.max(balls, b)
-      local tn = 0
-      for i = 1, Aura.TRIS do local q = out.tri[i]; if q.on and q.y3 < q.y1 and q.y1 == 270 then tn = tn + 1 end end
-      tongues = math.max(tongues, tn)
+  -- Rage: the whole card turns red with anger, redder and deeper at a higher threat, throbbing faster
+  local function anger(lv)
+    local veil, edge = 0, 0
+    for step = 0, 40 do
+      Aura.update(out, "rage", step * 0.05, 228, 270, 1, lv)
+      if out[1].w == 228 and out[1].h == 270 then veil = math.max(veil, out[1].a) end
+      edge = math.max(edge, out[2].h)
     end
-    return balls, faint_max, tongues
+    return veil, edge
   end
-  local b1, _, t1 = rage_shapes(1)
-  local b3, f3 = rage_shapes(3)
-  local b6, f6, t6 = rage_shapes(6)
-  check("aura: Rage is a blaze of tongues of flame (triangles from the foot up), more at 6", t1 >= 6 and t6 == 12 and t6 > t1, t1 .. " " .. t6)
-  check("aura: Rage's balls of fire: none at 1, three faint ones at 3, a storm at 6", b1 == 0 and b3 <= 3 and b3 > 0 and f3 < 130 and b6 >= 9 and f6 > 150, b1 .. " " .. b3 .. " " .. f3 .. " " .. b6)
+  local veil1, edge1 = anger(1)
+  local veil6, edge6 = anger(6)
+  check("aura: Rage's red floods the whole card, much redder and deeper at its edges at threat 6 than at 1", veil6 > veil1 * 3 and edge6 > edge1 * 2 and veil1 > 0, veil1 .. " " .. veil6)
+  local _, throb_a = Aura.anger(0.3, 6)
+  check("aura: Rage's throb is faster at a higher threat, its glow redder and stronger", Aura.anger(0, 6) == 1 and select(2, Aura.anger(1 / (4 * (0.6 + 0.22 * 6)), 6)) > 0.99 and Aura.glow("rage", 0.4, rgb_r, 6) > Aura.glow("rage", 0.4, rgb_r, 1) and throb_a >= 0)
   -- Blight: no big gas clouds any more; a pool of pus at the foot, drops splash into it
   local big_round, pool, splash = false, false, false
   for step = 0, 80 do
@@ -1245,20 +1243,29 @@ do
   end
   check("aura: Blight has no big gas circles; a pool of pus lies along the foot and the drops splash into it", not big_round and pool and splash)
   -- Heresy at 5 and 6: rain, lightning slivers and the card's flash
+  -- (2026-10-05, the user: "remove the rain from Heresy, keep the lightning")
   local rain, bolt, flash = false, false, false
   for step = 0, 300 do
     Aura.update(out, "heresy", step * 0.013, 228, 270, 1, 6)
-    if out[1].on and out[1].w < 2 and out[1].h > 8 then rain = true end
+    for i = 2, Aura.COUNT do if out[i].on then rain = true end end
+    if out[1].on and out[1].w < 228 then rain = true end
     if out.tri[1].on and out.tri[6].on then bolt = true end
-    if out[23].on and out[23].w == 228 and out[23].h == 270 then flash = true end
+    if out[1].on and out[1].w == 228 and out[1].h == 270 then flash = true end
   end
-  check("aura: Heresy at threat 6: a storm, rain streaks, lightning down the card and its flash", rain and bolt and flash)
+  check("aura: Heresy at threat 6: lightning down the card and its flash, and no rain", bolt and flash and not rain)
   -- Prayer: candles with trembling flames and incense, light from above (no water: no teal)
-  Aura.update(out, "prayer", 2.2, 228, 270, 1, 5)
-  local wax, flames, teal = 0, 0, false
-  for i = 1, Aura.COUNT do local q = out[i]; if q.on then if not q.round and q.h > 10 and q.y > 270 * 0.75 then wax = wax + 1 end if q.rgb[3] > q.rgb[1] + 20 then teal = true end end end
-  for i = 1, Aura.TRIS do local q = out.tri[i]; if q.on and q.rgb[1] == 255 and q.y3 < q.y1 then flames = flames + 1 end end
-  check("aura: Prayer burns candles (wax at the foot, a flame on each), with smoke and light; nothing blue like water", wax >= 3 and flames == wax and not teal, wax .. " " .. flames)
+  -- (2026-10-05, the user: "remove the candles effect from Prayer and its circles, keep the beams")
+  local beams, other, teal = { [1] = 0, [6] = 0 }, false, false
+  for _, lv in ipairs({ 1, 6 }) do
+    for step = 0, 30 do
+      Aura.update(out, "prayer", step * 0.17, 228, 270, 1, lv)
+      local n = 0
+      for i = 1, Aura.COUNT do local q = out[i]; if q.on then if q.round or q.y ~= 0 or q.h < 270 * 0.5 then other = true else n = n + 1 end if q.rgb[3] > q.rgb[1] + 20 then teal = true end end end
+      for i = 1, Aura.TRIS do if out.tri[i].on then other = true end end
+      beams[lv] = math.max(beams[lv], n)
+    end
+  end
+  check("aura: Prayer is only beams of light from above (no candles, no circles, nothing blue), more of them at a higher threat", not other and not teal and beams[1] == 2 and beams[6] == 6, beams[1] .. " " .. beams[6])
   -- Entrapment: a second chain inside at 5 and 6
   local _, n_snare4 = nil, select(1, busiest("snare", 4))
   check("aura: Entrapment closes a second chain inside at 5 and 6", select(1, busiest("snare", 6)) >= n_snare4 + 8 and Cards.SUITS.snare.name == "Entrapment")
@@ -1268,12 +1275,19 @@ do
   check("murmur letters: only a Murmur card of threat 5 or 6", Murmur.on("murmur", 5) and Murmur.on("murmur", 6) and not Murmur.on("murmur", 4) and not Murmur.on("rage", 6))
   local marked = "{#color(1,2,3)}3{#reset()} Poxw\195\169lker"
   check("murmur letters: a tag is no letter and is never cut; a two byte letter is never cut in half; a colour left open is closed", Murmur.length(marked) == 11 and Murmur.cut(marked, 1) == "{#color(1,2,3)}3{#reset()}{#reset()}" and Murmur.cut(marked, 7) == "{#color(1,2,3)}3{#reset()} Poxw\195\169{#reset()}" and Murmur.cut(marked, 99) == marked and Murmur.cut("abc", 2) == "ab", Murmur.cut(marked, 7))
-  local total = 52
-  local write = total / Murmur.SPEED
-  check("murmur letters: written letter by letter, held whole, wiped from the end, a breath of nothing, again", Murmur.letters(0, total) == 0 and Murmur.letters(write / 2, total) == 26 and Murmur.letters(write + 1, total) == total and Murmur.letters(write + Murmur.HOLD + Murmur.ERASE / 2, total) == 26 and Murmur.letters(write + Murmur.HOLD + Murmur.ERASE + 0.1, total) == 0 and Murmur.letters(write + Murmur.HOLD + Murmur.ERASE + Murmur.GAP + write / 2, total) == 26)
-  local m = Murmur.new({ "Moon", "2 Sniper", "\"Hush\"" })
-  Murmur.tick(m, 6 / Murmur.SPEED + 0.001)
-  local changed_again = Murmur.tick(m, 6 / Murmur.SPEED + 0.002)
+  -- (2026-10-05, the user: "the murmur needs to repeat and be slower, the higher the difficulty the slower")
+  local total = 44
+  local speed = Murmur.speed(5)
+  local write, wipe = total / speed, total / (speed * Murmur.WIPE)
+  local period = Murmur.period(total, speed)
+  check("murmur letters: slow, and slower at threat 6 than at 5", speed <= 12 and Murmur.speed(6) < speed and Murmur.period(total, Murmur.speed(6)) > period)
+  check("murmur letters: written letter by letter, held whole, wiped from the end, a breath of nothing", Murmur.letters(0, total, speed) == 0 and Murmur.letters(write / 2, total, speed) == 22 and Murmur.letters(write + 1, total, speed) == total and Murmur.letters(write + Murmur.HOLD + wipe / 2, total, speed) < total and Murmur.letters(write + Murmur.HOLD + wipe / 2, total, speed) > 0 and Murmur.letters(write + Murmur.HOLD + wipe + 0.1, total, speed) == 0)
+  local again = true
+  for k = 1, 5 do if Murmur.letters(k * period + write / 2 + 0.01, total, speed) ~= 22 or Murmur.letters(k * period + write + 1, total, speed) ~= total then again = false end end
+  check("murmur letters: and again, over and over (five more times the same)", again)
+  local m = Murmur.new({ "Moon", "2 Sniper", "\"Hush\"" }, 5)
+  Murmur.tick(m, 6 / m.speed + 0.001)
+  local changed_again = Murmur.tick(m, 6 / m.speed + 0.002)
   check("murmur letters: the texts are written in their order (the name first, then the next), rebuilt only when a letter changes", m.shown[1] == "Moon" and m.shown[2] == "2 " and m.shown[3] == "" and not changed_again, m.shown[1] .. "|" .. m.shown[2] .. "|" .. m.shown[3])
   -- the HUD's last card and the editor's preview of it are painted by one painter
   local Paint = dofile(BASE .. "/ui/last_card_paint.lua")
@@ -1565,9 +1579,9 @@ do
     check("last card: a Dream card lives: its aura's clouds and stars on its face (inside the card), its glow on",clouds>0 and w.style.glow.visible and inside(el))
     local rage=lc("rage-w","The Chariot","rage",3,{"renegade_executor"},"Faster. Faster.")
     current_view=last_view(rage,75,1);last_frame(el);last_frame(el)
-    local flames=0
-    for i=1,12 do if w.style["aura_c"..i].visible then flames=flames+1 end end
-    check("last card: a Rage card burns (its flames inside the card)",flames>0 and inside(el))
+    local anger=0
+    for i=1,28 do if w.style["aura_r"..i].visible then anger=anger+1 end end
+    check("last card: a Rage card turns red with anger (its red over the card, inside it)",anger>0 and inside(el))
     local heresy=lc("heresy-w","The Hanged Man","heresy",4,{},"He does not answer.")
     current_view=last_view(heresy,76,1);last_frame(el)
     local none=true
@@ -1577,7 +1591,7 @@ do
     current_view=last_view(storm,77,1);last_frame(el)
     local rain=0
     for i=1,28 do if w.style["aura_r"..i].visible then rain=rain+1 end end
-    check("last card: a threat 6 Heresy card is in a storm (rain over it)",rain>=10 and inside(el),rain)
+    check("last card: a threat 6 Heresy card has its lightning (no rain)",el._aura_suit=="heresy" and rain<=1 and inside(el),rain)
   end
   do
     local card=lc("faith-w","The Magician","faith",3,{},"Believe, and endure.")
