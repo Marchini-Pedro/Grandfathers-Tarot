@@ -765,8 +765,8 @@ local SETTINGS_ROWS = {
 	-- id, kind, then the numbers for a "number" row. Labels/infos are localized as set_<id> / set_<id>_info.
 	{ id = "mode", kind = "mode" },
 	{ id = "interval_random", kind = "toggle", default = true },
-	{ id = "interval_min", kind = "number", default = 150, min = 5, max = 1800, step = 5 },
-	{ id = "interval_max", kind = "number", default = 300, min = 5, max = 1800, step = 5, needs = "interval_random" },
+	{ id = "interval_min", kind = "number", default = 75, min = 5, max = 1800, step = 5 },
+	{ id = "interval_max", kind = "number", default = 75, min = 5, max = 1800, step = 5, needs = "interval_random" },
 	{ id = "initial_delay", kind = "number", default = 45, min = 0, max = 600, step = 5 },
 	{ id = "vote_duration", kind = "number", default = 25, min = 5, max = 120, step = 5 },
 	{ id = "ballot_size", kind = "number", default = 3, min = 2, max = 5, step = 1 },
@@ -988,10 +988,10 @@ GrandfathersTarotView._apply_screen = function (self, keep_offset)
 		local tmin, tmax = widgets.stepper_tmin.content, widgets.stepper_tmax.content
 
 		tmin.label = mod:localize(random_on and "set_interval_min" or "set_interval_fixed")
-		tmin.stepper_value = tostring(math.floor(tonumber(mod:get("interval_min")) or 150))
+		tmin.stepper_value = tostring(math.floor(tonumber(mod:get("interval_min")) or 75))
 		tmin.extra = mod:localize("extra_seconds")
 		tmax.label = mod:localize("set_interval_max")
-		tmax.stepper_value = tostring(math.floor(tonumber(mod:get("interval_max")) or 300))
+		tmax.stepper_value = tostring(math.floor(tonumber(mod:get("interval_max")) or 75))
 		tmax.extra = mod:localize(random_on and "extra_seconds" or "extra_not_random")
 	elseif screen == "detail" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_detail", self._wave.name)
@@ -1926,15 +1926,23 @@ GrandfathersTarotView.cb_row_same = guarded(function (self, row)
 	self:_save()
 end)
 
--- (2026-10-06) the Dogs toggle of a Packmaster's group: he calls his hounds (the game's way) or comes alone ("(no dogs)" in the recipe)
-GrandfathersTarotView.cb_row_dogs = guarded(function (self, row)
+-- (2026-10-06) the row's own toggle (catalog/groups.lua): a Packmaster's Dogs ("(no dogs)"), a Captain's or a Twin's Shield
+-- ("(no shield)"), a Daemonhost's kills before it leaves (1 > 2 > 3 > all, "(leaves 2)")
+GrandfathersTarotView.cb_row_extra = guarded(function (self, row)
 	local item = self._screen == "detail" and self:_item_at(row)
+	local groups = mod.rw.groups
+	local toggle = item and groups.row_toggle(item)
 
-	if not item or not mod.rw.groups.calls_dogs(item) then
+	if toggle == "dogs" then
+		item.nodogs = not item.nodogs or nil
+	elseif toggle == "shield" then
+		item.noshield = not item.noshield or nil
+	elseif toggle == "leave" then
+		item.leaves = groups.next_leaves(item.leaves)
+	else
 		return
 	end
 
-	item.nodogs = not item.nodogs or nil
 	self:_save()
 end)
 
@@ -2826,8 +2834,8 @@ GrandfathersTarotView._set_time = function (self, id, value)
 	set_setting(id, value)
 
 	-- the maximum never ends up below the minimum
-	local low = tonumber(mod:get("interval_min")) or 150
-	local high = tonumber(mod:get("interval_max")) or 300
+	local low = tonumber(mod:get("interval_min")) or 75
+	local high = tonumber(mod:get("interval_max")) or 75
 
 	if id == "interval_min" and value > high then
 		set_setting("interval_max", value)

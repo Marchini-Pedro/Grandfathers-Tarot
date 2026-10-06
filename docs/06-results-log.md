@@ -322,3 +322,11 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   written back by every reset; the options' defaults and the last card window's place set to the author's; the Packmaster's Dogs
   toggle ("(no dogs)" in the recipe, the summon refused for such a unit).
 - Tests: not run this round (the user's request). Expected to need updates: the reset values, the row chips' widths.
+
+## 2026-10-06 - 75 s between waves, the Captains' shield, the Daemonhost's kills
+- Built: the waves' default interval 75 s; the row's toggle for Captains and Twins ("(no shield)", destroy_shield on the host) and
+  for Daemonhosts ("(leaves 2|3|all)", a per-unit death counter through PacingManager.set_minion_listening_for_player_deaths).
+- Found: a wave's Daemonhost spawns aggroed and so was never registered for player deaths: it never left. It now leaves after
+  one death unless its row says otherwise.
+- Tests: check_lua passes; recipes with the new markers round-trip through Groups.parse and to_recipe (an offline script). The
+  suites were not run.

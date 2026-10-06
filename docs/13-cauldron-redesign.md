@@ -290,6 +290,16 @@ Triangles: 8 a card now (only Heresy's lightning uses them).
 
 The Lua tests were not run for this round (the user's request); the suites still expect the built-in reset values and the old chip widths.
 
+## 75 s between waves, the Captains' shield, the Daemonhost's kills (2026-10-06)
+
+| Request | What was built |
+| --- | --- |
+| The default time between waves: 75 s | `interval_min` and `interval_max` default to 75 (the mod menu, the editor's settings and every fallback in the code). A player who already set a time keeps it. |
+| Captains and Twins: spawn with their shield or not, like the Packmaster | The Dogs chip became the row's own toggle (`hotspot_extra`, 76 wide; Custom 92 and Remove 80 to make room). On a Captain's (Dreg or Scab) or a Twin's row it reads **Shield**: dark, `(no shield)` in the recipe. On the host a Twin of such a group is spawned without `optional_init_toughness`, and every one gets `MinionToughnessExtension.destroy_shield()`: the shield is down, `_update_toughness` stops while it is not active (no regeneration), and the game object's `toughness_damage` tells the clients. |
+| Daemonhosts: how many players they kill before they leave (1, 2, 3 or all) | On a Daemonhost's row the toggle steps **1 kill > 2 kills > 3 kills > All** (`(leaves 2)`, `(leaves 3)`, `(leaves all)`; 1 is the game's own and writes no marker). The game's Daemonhost leaves (`death_leave`, condition `daemonhost_wants_to_leave`) once its blackboard's `statistics.player_deaths` reaches `num_player_kills_for_despawn` (1 on every difficulty), but the deaths are counted only for a Daemonhost that went through its passive stage (`BtChaosDaemonhostPassiveAction.leave` registers it with `PacingManager.set_minion_listening_for_player_deaths`). A wave's Daemonhost comes aggroed, never passive, so it never counted: it never left. Now `Tuning.watch_daemonhost` registers every Daemonhost a wave spawns, and for 2, 3 or all the hook of that PacingManager function gives it a counter of its own (`Tuning.death_counter`) that writes the death to the game only once the number is reached ("all": every player in the game, bots included). Any player's death counts, as in the game. |
+
+The Lua tests were not run for this round; the suites still expect the built-in reset values and the old chip widths.
+
 ## In-game checks before merge
 
 1. Heresy at 1080p, 1440p and 4K: the heartbeat is visible but not distracting,
@@ -357,3 +367,7 @@ The Lua tests were not run for this round (the user's request); the suites still
 22. The defaults: a card's Reset and Restore defaults give the author's cards back; the mod menu's options reset to the author's
     values; the last card window at 1680, 550 on a fresh profile. The Dogs chip on a Packmaster's row: dark, the Packmaster of
     that card never calls his hounds (host); lit, he does; the chip absent on other rows; Mods, Custom and Remove still readable.
+23. A fresh profile waits 75 s between waves. A Captain's (both factions) and a Twin's row: Shield dark, the enemy has no void
+    shield and it never comes back, for the host and a client alike; lit, as before (the Twins' shield raised). A Daemonhost's
+    row: 1 kill, it leaves after the first player death (before this it never left); 2 kills and 3 kills; All, it stays until
+    every player has died once (a rescued player's second death counts too).

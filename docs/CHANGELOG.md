@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-06 - 75 s between waves, the Captains' shield, the Daemonhost's kills (polishing)
+- Waves come every 75 seconds by default.
+- A Captain's or a Twin's row has a Shield toggle: turned off, it comes without its void shield.
+- A Daemonhost's row chooses how many players must die before it leaves: 1, 2, 3 or all. Daemonhosts of a card used to never
+  leave; they now leave after one death unless the card says otherwise.
+
 ## 2026-10-06 - The author's deck as the default, the Packmaster's dogs (polishing)
 - A new player starts with the author's deck, options and last card window position; Restore defaults and a card's Reset give
   those cards back.

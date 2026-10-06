@@ -63,8 +63,8 @@ return {
 					{ setting_id = "pool_all_players", type = "checkbox", default_value = false },
 					{ setting_id = "anti_snowball", type = "checkbox", default_value = false },
 					numeric("anti_snowball_delay", 5, 5, 120, "unit_seconds"),
-					numeric("interval_min", 600, 5, 1800, "unit_seconds"),
-					numeric("interval_max", 600, 5, 1800, "unit_seconds"),
+					numeric("interval_min", 75, 5, 1800, "unit_seconds"),
+					numeric("interval_max", 75, 5, 1800, "unit_seconds"),
 					numeric("vote_duration", 5, 5, 120, "unit_seconds"),
 					numeric("ballot_size", 3, 2, 5),
 					{

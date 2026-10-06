@@ -320,8 +320,8 @@ local function round1(value)
 end
 
 local function random_interval(first)
-	local low = math.max(5, number_setting("interval_min", 150))
-	local high = math.max(low, number_setting("interval_max", 300))
+	local low = math.max(5, number_setting("interval_min", 75))
+	local high = math.max(low, number_setting("interval_max", 75))
 	-- random: anywhere between the minimum and the maximum; otherwise always the minimum (a fixed time)
 	local interval = mod:get("interval_random") == false and low or low + math.random() * (high - low)
 

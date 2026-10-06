@@ -1153,6 +1153,87 @@ Tuning.can_summon = function (func, self, ...)
 	return func(self, ...)
 end
 
+-- (2026-10-06) a Captain or a Twin of a "(no shield)" group: MinionToughnessExtension.destroy_shield (the shield is down and never
+-- regenerates: _update_toughness stops while it is not active; the game object's toughness tells the other machines)
+Tuning.drop_shield = function (unit)
+	local toughness = unit and ScriptUnit.has_extension(unit, "toughness_system")
+
+	if toughness and toughness.destroy_shield then
+		toughness:destroy_shield()
+	end
+end
+
+-- (2026-10-06) A Daemonhost leaves (its "death_leave") once its blackboard's statistics.player_deaths reaches the game's number (1
+-- on every difficulty). The game counts deaths only for a Daemonhost that went through its passive stage, and a wave's comes
+-- aggroed, so it is registered here; the PacingManager hook gives it a counter of its own that tells the game a death only once
+-- the group's number (2, 3, or "all": every player in the game) is reached.
+Tuning.LEAVERS = { chaos_daemonhost = true }
+local leave_after = setmetatable({}, { __mode = "k" })
+
+local function team_size()
+	local n = 0
+	local players = Managers.player and Managers.player:players()
+
+	for _ in pairs(players or {}) do n = n + 1 end
+
+	return math.max(n, 1)
+end
+
+Tuning.death_counter = function (real, leaves)
+	local deaths = 0
+
+	return setmetatable({}, {
+		__index = function (_, key)
+			if key == "player_deaths" then return deaths end
+
+			return real[key]
+		end,
+		__newindex = function (_, key, value)
+			if key ~= "player_deaths" then
+				real[key] = value
+
+				return
+			end
+
+			deaths = value
+
+			local needed = leaves == "all" and team_size() or tonumber(leaves) or 1
+
+			real.player_deaths = deaths >= needed and math.max(deaths, 99) or 0
+		end,
+	})
+end
+
+Tuning.watch_daemonhost = function (unit, breed_name, leaves)
+	if not unit or not Tuning.LEAVERS[breed_name] then
+		return
+	end
+
+	leave_after[unit] = leaves or 1
+
+	local blackboard = BLACKBOARDS and BLACKBOARDS[unit]
+	local pacing = Managers.state and Managers.state.pacing
+
+	if blackboard and pacing and pacing.set_minion_listening_for_player_deaths then
+		local ok, Blackboard = pcall(require, "scripts/extension_systems/blackboard/utilities/blackboard")
+		local statistics = ok and Blackboard.write_component(blackboard, "statistics") or blackboard.statistics
+
+		if statistics then
+			pacing:set_minion_listening_for_player_deaths(unit, statistics, true)
+		end
+	end
+end
+
+Tuning.listen_deaths = function (func, self, unit, statistics_component, set)
+	local leaves = leave_after[unit]
+
+	if set and statistics_component and leaves and leaves ~= 1 then
+		statistics_component = Tuning.death_counter(statistics_component, leaves)
+	end
+
+	return func(self, unit, statistics_component, set)
+end
+
 Tuning.summoner_count = function ()
 	local n = 0
 
@@ -1202,6 +1283,9 @@ Tuning.install = function ()
 		end)
 		mod:hook("SummonedMinionsExtension", "can_summon_minions", function (...)
 			return Tuning.can_summon(...)
+		end)
+		mod:hook("PacingManager", "set_minion_listening_for_player_deaths", function (...)
+			return Tuning.listen_deaths(...)
 		end)
 	end
 

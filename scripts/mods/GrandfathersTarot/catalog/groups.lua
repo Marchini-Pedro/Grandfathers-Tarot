@@ -716,28 +716,83 @@ local function part_key(part)
 	end
 	key = key .. Groups.Appearance.recipe(part.appearance)
 
-	if part.nodogs then
-		key = key .. Groups.NO_DOGS
-	end
+	key = key .. Groups.extra_recipe(part)
 
 	return key
 end
 Groups.part_key = part_key
 
--- (2026-10-06) A Packmaster's group can come without his hounds: "1 packmaster(no dogs)" (part.nodogs; spawn/tuning.lua stops his
--- summoning). True when the group can have a Packmaster in it (the toggle is shown on its row).
+-- (2026-10-06) The row's own toggle, at the right end of a row, for three kinds of enemy (spawn/tuning.lua does the rest):
+--   a Packmaster can come without his hounds:  "1 packmaster(no dogs)"   (part.nodogs)
+--   a Captain or a Twin without its void shield: "1 captain(no shield)"  (part.noshield)
+--   a Daemonhost leaves after 1 (the game's way, no marker), 2 or 3 player deaths, or only once every player has died:
+--   "1 daemonhost(leaves 2)", "(leaves all)"                             (part.leaves: nil, 2, 3 or "all")
 Groups.NO_DOGS = "(no dogs)"
+Groups.NO_SHIELD = "(no shield)"
 Groups.DOG_CALLERS = { chaos_ogryn_houndmaster = true }
+Groups.SHIELD_BEARERS = { renegade_captain = true, cultist_captain = true, renegade_twin_captain = true, renegade_twin_captain_two = true }
+Groups.LEAVERS = { chaos_daemonhost = true }
+Groups.LEAVES = { 2, 3, "all" } -- the steps after the game's own 1
 
-Groups.calls_dogs = function (part)
+-- true when the group can have one of `set` in it
+local function has_breed(part, set)
 	if not part then return false end
-	if part.breed then return Groups.DOG_CALLERS[part.breed] == true end
+	if part.breed then return set[part.breed] == true end
 
 	for i = 1, #(part.one_of or {}) do
-		if Groups.DOG_CALLERS[part.one_of[i]] then return true end
+		if set[part.one_of[i]] then return true end
 	end
 
 	return false
+end
+
+Groups.calls_dogs = function (part) return has_breed(part, Groups.DOG_CALLERS) end
+Groups.has_shield = function (part) return has_breed(part, Groups.SHIELD_BEARERS) end
+Groups.can_leave = function (part) return has_breed(part, Groups.LEAVERS) end
+
+-- which toggle a row shows: "dogs", "shield", "leave" or nil
+Groups.row_toggle = function (part)
+	if Groups.calls_dogs(part) then return "dogs" end
+	if Groups.has_shield(part) then return "shield" end
+	if Groups.can_leave(part) then return "leave" end
+
+	return nil
+end
+
+-- 2, 3, "all" or nil (1) from what a recipe says ("2", "all"); anything else is the game's 1
+Groups.leaves_value = function (value)
+	if type(value) == "string" then
+		value = value:lower():match("^%s*(.-)%s*$")
+		value = value == "all" and "all" or tonumber(value)
+	end
+
+	for i = 1, #Groups.LEAVES do
+		if Groups.LEAVES[i] == value then return value end
+	end
+
+	return nil
+end
+
+-- the next step of a Daemonhost's toggle: 1 > 2 > 3 > all > 1
+Groups.next_leaves = function (leaves)
+	if leaves == nil then return Groups.LEAVES[1] end
+
+	for i = 1, #Groups.LEAVES do
+		if Groups.LEAVES[i] == leaves then return Groups.LEAVES[i + 1] end
+	end
+
+	return nil
+end
+
+-- the markers of a part in a recipe; a flag its enemy cannot use (left over from a changed enemy) is not written
+Groups.extra_recipe = function (part)
+	local text = ""
+
+	if part.nodogs and Groups.calls_dogs(part) then text = text .. Groups.NO_DOGS end
+	if part.noshield and Groups.has_shield(part) then text = text .. Groups.NO_SHIELD end
+	if part.leaves and Groups.can_leave(part) then text = text .. "(leaves " .. tostring(part.leaves) .. ")" end
+
+	return text
 end
 
 -- Splits "enraged|garden" into canonical, de-duplicated modifier ids (in catalog order).
@@ -850,12 +905,24 @@ Groups.parse = function (recipe)
 				end
 			end
 
-			-- "(no dogs)": a Packmaster comes without his hounds
-			local nodogs
-			local without_dogs = name:match("^(.-)%s*%(%s*[nN][oO]%s+[dD][oO][gG][sS]%s*%)%s*$")
+			-- the row's toggle, in any order at the end: "(no dogs)", "(no shield)", "(leaves 2)"
+			local nodogs, noshield, leaves
 
-			if without_dogs then
-				name, nodogs = without_dogs, true
+			while true do
+				local before, marker = name:match("^(.-)%s*%(([^()]*)%)%s*$")
+				marker = marker and marker:lower():gsub("%s+", " "):match("^%s*(.-)%s*$")
+
+				if marker == "no dogs" then
+					nodogs = true
+				elseif marker == "no shield" then
+					noshield = true
+				elseif marker and marker:match("^leaves ") then
+					leaves = Groups.leaves_value(marker:sub(8))
+				else
+					break
+				end
+
+				name = before
 			end
 
 			local appearance
@@ -933,6 +1000,8 @@ Groups.parse = function (recipe)
 				new_part.tune = tune
 				new_part.appearance = appearance
 				new_part.nodogs = nodogs and Groups.calls_dogs(new_part) or nil
+				new_part.noshield = noshield and Groups.has_shield(new_part) or nil
+				new_part.leaves = leaves and Groups.can_leave(new_part) and leaves or nil
 
 				local key = part_key(new_part)
 				local part = by_key[key]
@@ -1010,9 +1079,7 @@ Groups.to_recipe = function (parts)
 		end
 
 		field = field .. Groups.Appearance.recipe(part.appearance)
-		if part.nodogs then
-			field = field .. Groups.NO_DOGS
-		end
+		field = field .. Groups.extra_recipe(part)
 		if part.rep_same then
 			field = field .. "@="
 		elseif (part.rep or 0) > 0 then

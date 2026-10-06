@@ -132,9 +132,10 @@ WB.enemy_row = function (node_id)
 	Components.button(passes, "hotspot_mods", { C.mods, cy, 2 }, { C.mods_w, 30 }, { font_size = 17, role = "chip", pip = true })
 	Components.button(passes, "hotspot_tune", { C.tune, cy, 2 }, { C.tune_w, 30 }, { font_size = 17, role = "chip", pip = true })
 	Components.button(passes, "hotspot_action", { C.remove, cy, 2 }, { C.remove_w, 30 }, { font_size = 17, role = "danger", brackets = false })
-	-- (2026-10-06, the user: "when spawning a packmaster let me decide if he spawns dogs or not, a toggle at the right of his line")
-	-- shown on a Packmaster's row only (content.show_dogs); its pip is lit while he calls his hounds
-	Components.button(passes, "hotspot_dogs", { C.dogs, cy, 2 }, { C.dogs_w, 30 }, { font_size = 17, flag = "show_dogs", role = "chip", pip = true })
+	-- (2026-10-06, the user: "when spawning a packmaster let me decide if he spawns dogs or not, a toggle at the right of his line";
+	-- then the same for a Captain's or a Twin's shield, and a Daemonhost's kills before it leaves) shown on those rows only
+	-- (content.show_extra); its pip is lit while the enemy is as the game makes it
+	Components.button(passes, "hotspot_extra", { C.extra, cy, 2 }, { C.extra_w, 30 }, { font_size = 17, flag = "show_extra", role = "chip", pip = true })
 
 	return UIWidget.create_definition(passes, node_id, {
 		row_name = "",

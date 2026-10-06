@@ -478,3 +478,11 @@ Things we know are missing or unverified, each with the next concrete step.
 - **Triangles make flames**: a tongue of flame is one triangle (a wide base on the card's foot, a swaying apex); three layers of
   them read as a blaze where circles read as bubbles. Triangle corners are relative to the pass's offset, so an aura's triangles
   take the card's top left as offset and their corners in card space.
+
+## 2026-10-06 - Captains' shields and the Daemonhost's leaving
+- A captain's void shield goes for good with `MinionToughnessExtension.destroy_shield()` (host): it sets the shield inactive, and
+  `_update_toughness` returns early while it is, so neither regeneration nor the full regeneration delay brings it back. The Twins'
+  template starts depleted; without `optional_init_toughness` it is never raised.
+- A Daemonhost counts player deaths only after `BtChaosDaemonhostPassiveAction.leave` registers it with the PacingManager;
+  `PlayerDeath.die` adds one to every registered `statistics` component. One spawned with `optional_aggro_state = "aggroed"`
+  skips the passive stage and never leaves unless registered by hand.
