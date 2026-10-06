@@ -794,8 +794,10 @@ Tuning.colour_boss_bars = function (element)
 		local style = widget and widget.style
 		local bar = style and style.bar
 
-		if bar and bar.color then
-			bar._rw_default = bar._rw_default or bar.color
+		-- (2026-10-06, still white in game) Recolor writes nil as the colour of a non-boss unit's bar: a bar with no colour is
+		-- coloured too (it was skipped), and its default is the game's red
+		if bar then
+			bar._rw_default = bar._rw_default or bar.color or GAME_RED
 
 			local colour = wanted[index]
 

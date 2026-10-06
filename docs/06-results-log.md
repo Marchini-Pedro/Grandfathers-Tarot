@@ -373,3 +373,10 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   kept the old colour.
 - Built: the panel hook asks for the redraw whenever the gold decision changes.
 - Tests: check_lua passes. The suites were not run.
+
+## 2026-10-06 - Boss bar colours, second fix
+- Found (in game, still white): RecolorBossHealthBars writes nil as a non-boss unit's bar colour, and the colouring skipped a bar
+  with no colour.
+- Built: a bar with no colour is coloured too (its default the game's red).
+- Tests: check_lua passes; offline, a fake boss bar: a named colour on bar and name, a custom bar left at nil takes Recolor's
+  "others" colour. The suites were not run.
