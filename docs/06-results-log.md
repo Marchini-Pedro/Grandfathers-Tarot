@@ -392,3 +392,10 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Built: a percent custom mod; each single-hit melee attack has that chance to end 0.15 s before its hit.
 - Tests: check_lua passes; offline, {cancel=30 combo=1} round-trips and 291 of 1000 single attacks were cancelled at 30 percent.
   The suites were not run.
+
+## 2026-10-06 - Spray cut chance, Net feint chance
+- Found: the game's net action marks the net used on any exit, so an interrupted aim means a reload.
+- Built: Spray cut chance (a hook on BtShootLiquidBeamAction.run) and Net feint chance (BtShootNetAction.run, and its leave
+  gives the net back with a 1.5 s cooldown).
+- Tests: check_lua passes; offline, {spray=40} and {net=40} round-trip; 395 of 1000 sprays cut, 404 of 1000 aims feinted and each
+  kept its net. The suites were not run.

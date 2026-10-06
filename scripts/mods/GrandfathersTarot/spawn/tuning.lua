@@ -55,6 +55,8 @@ local INVERSE = { gap = true }
 local ATTACK_END_OFFSET = 0.26666666666666666 -- the game's ATTACK_SPEED_THRESHOLD_FRAME_OFFSET (bt_melee_attack_action.lua:118)
 local combo_cut = setmetatable({}, { __mode = "k" }) -- (2026-10-06) units with Random combo end ({combo=1}): unit -> true
 local cancel_chance = setmetatable({}, { __mode = "k" }) -- (2026-10-06) units with an Attack cancel chance ({cancel=30}): unit -> percent
+local spray_cut = setmetatable({}, { __mode = "k" }) -- (2026-10-06) Spray cut chance ({spray=30}): unit -> percent
+local net_feint = setmetatable({}, { __mode = "k" }) -- (2026-10-06) Net feint chance ({net=30}): unit -> percent
 -- stats where the written value is a share of the damage taken (the game adds `value - 1` to the damage modifiers)
 local DAMAGE_STAT = { explosion = true, dot = true }
 
@@ -948,6 +950,9 @@ Tuning.apply = function (unit, tune, breed_name)
 	if tune.combo == 1 then combo_cut[unit] = true end
 	-- Attack cancel chance: Tuning.fix_attack_end stops an attack of one hit before it lands, that often
 	if (tonumber(tune.cancel) or 0) > 0 then cancel_chance[unit] = tonumber(tune.cancel) end
+	-- Spray cut and Net feint: Tuning.spray_run and Tuning.net_run
+	if (tonumber(tune.spray) or 0) > 0 then spray_cut[unit] = tonumber(tune.spray) end
+	if (tonumber(tune.net) or 0) > 0 then net_feint[unit] = tonumber(tune.net) end
 
 	local label = tostring(breed_name or "enemy")
 
@@ -1208,6 +1213,87 @@ Tuning.fix_attack_end = function (self, unit, breed, target_unit, t, spawn_compo
 
 	if not ok then
 		warn_once(string.format("the end of a melee attack could not be corrected: %s", tostring(err)))
+	end
+end
+
+-- Spray cut chance (2026-10-06). BtShootLiquidBeamAction (the Beast of Nurgle's vomit, the Flamers) starts each spray at
+-- `shot_start_t` and sweeps it for `attack_duration` (1.2 s, 1.8 s). At each new spray the unit rolls its chance; a cut one ends
+-- the action between a quarter and three quarters through: its leave stops the beam, its effects and its puddle, as when the game
+-- ends it for range. Host only.
+local function spray_length(action_data)
+	local length = action_data and action_data.attack_duration
+
+	if type(length) == "table" and Managers.state and Managers.state.difficulty then
+		length = Managers.state.difficulty:get_table_entry_by_challenge(length)
+	end
+
+	return tonumber(length) or 1.5
+end
+
+Tuning.spray_run = function (func, self, unit, breed, blackboard, scratchpad, action_data, dt, t)
+	local chance = not Tuning.dead and spray_cut[unit]
+
+	if chance and type(scratchpad) == "table" and type(t) == "number" then
+		local start = scratchpad.shot_start_t
+
+		if start and start ~= scratchpad._rw_spray_start then
+			scratchpad._rw_spray_start = start
+			scratchpad._rw_spray_cut = math.random(1, 100) <= chance and start + spray_length(action_data) * (0.25 + 0.5 * math.random()) or nil
+		end
+
+		if scratchpad._rw_spray_cut and t >= scratchpad._rw_spray_cut and scratchpad.shooting_liquid_beam then
+			scratchpad._rw_spray_cut = nil
+
+			return "done"
+		end
+	end
+
+	return func(self, unit, breed, blackboard, scratchpad, action_data, dt, t)
+end
+
+-- Net feint chance (2026-10-06, the user: "would the trapper lose the net and need to reload if he cancels it?"). In the game, yes:
+-- BtShootNetAction.leave marks the net used (net_is_ready = false) and starts the net cooldown whatever happened, so an aim the
+-- game interrupts costs a run away and a reload. A feint here keeps the net: at each aim (a new `shoot_t`) the unit rolls its
+-- chance; a feinting one stops 30 to 80 percent into the aim (its leave plays the game's "aim interrupted" sound), and after that
+-- leave its net is ready again and its cooldown is NET_FEINT_PAUSE. Only before the first net of the action: one already fired
+-- is used. Host only.
+local NET_FEINT_PAUSE = 1.5
+
+Tuning.net_run = function (func, self, unit, breed, blackboard, scratchpad, action_data, dt, t)
+	local chance = not Tuning.dead and net_feint[unit]
+
+	if chance and type(scratchpad) == "table" and type(t) == "number" and scratchpad.internal_state == "aiming" and scratchpad.shoot_t then
+		if scratchpad.shoot_t ~= scratchpad._rw_aim then
+			scratchpad._rw_aim = scratchpad.shoot_t
+
+			local aim = tonumber(action_data and action_data.aim_duration) or 0.83
+
+			scratchpad._rw_feint_t = (scratchpad.num_shots_fired or 0) == 0 and math.random(1, 100) <= chance and scratchpad.shoot_t - aim * (0.2 + 0.5 * math.random()) or nil
+		end
+
+		if scratchpad._rw_feint_t and t >= scratchpad._rw_feint_t then
+			scratchpad._rw_feint_t = nil
+			scratchpad._rw_feinted = true
+
+			return "done"
+		end
+	end
+
+	return func(self, unit, breed, blackboard, scratchpad, action_data, dt, t)
+end
+
+Tuning.net_leave = function (self, unit, breed, blackboard, scratchpad, action_data, t, reason, destroy)
+	if type(scratchpad) ~= "table" or not scratchpad._rw_feinted then
+		return
+	end
+
+	scratchpad._rw_feinted = nil
+
+	local behavior = scratchpad.behavior_component
+
+	if behavior and (scratchpad.num_shots_fired or 0) == 0 and type(t) == "number" then
+		behavior.net_is_ready = true
+		behavior.shoot_net_cooldown = t + NET_FEINT_PAUSE
 	end
 end
 
@@ -1778,6 +1864,16 @@ Tuning.install = function ()
 
 	mod:hook_safe("BtMeleeAttackAction", "_start_attack_anim", function (...)
 		Tuning.fix_attack_end(...)
+	end)
+
+	-- Spray cut chance and Net feint chance (2026-10-06)
+	if mod.hook then
+		mod:hook("BtShootLiquidBeamAction", "run", function (...) return Tuning.spray_run(...) end)
+		mod:hook("BtShootNetAction", "run", function (...) return Tuning.net_run(...) end)
+	end
+
+	mod:hook_safe("BtShootNetAction", "leave", function (...)
+		Tuning.net_leave(...)
 	end)
 
 	-- the unit's own class is the one that matters: the game's class() copies the methods of the parent into the subclass

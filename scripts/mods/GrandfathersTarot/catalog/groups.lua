@@ -231,6 +231,11 @@ Groups.TUNE = {
 	-- (2026-10-06, the user: "another toggle for randomly cancelling any non-combo attack with a chance") a percent, 0 = off: each
 	-- attack of one hit has that chance to stop before its hit lands (a feint; spawn/tuning.lua)
 	{ id = "cancel", name = "Attack cancel chance", min = 0, max = 100, step = 5, default = 0, aliases = { "cancel", "attack cancel", "cancel chance", "attack cancel chance", "feint" } },
+	-- (2026-10-06, the user: "one for beams/sprays and one for the trapper") percents, 0 = off. Spray cut: a spray (the Beast of
+	-- Nurgle's vomit, a Flamer's fire) stops part way. Net feint: a Trapper stops aiming before he fires, keeps his net (no reload)
+	-- and may aim again after a moment. Their ids have no "_" (the recipe's names are letters and spaces).
+	{ id = "spray", name = "Spray cut chance", min = 0, max = 100, step = 5, default = 0, aliases = { "spray", "spray cut", "spray cut chance", "beam", "beam cut", "vomit cut" } },
+	{ id = "net", name = "Net feint chance", min = 0, max = 100, step = 5, default = 0, aliases = { "net", "net feint", "net feint chance", "net cancel" } },
 	{ id = "combo", name = "Random combo end", min = 0, max = 1, step = 1, default = 0, toggle = true, aliases = { "combo", "random combo", "combo end", "combo cut", "random combo end" } },
 	-- (2026-10-06, the user: "set an individual unit as a boss, so it shows its total health and name as a boss unit; a toggle for any
 	-- unit, a custom modifier") a toggle, not a percent: 1 = its health and name in the game's boss bar (spawn/tuning.lua). {boss=1}

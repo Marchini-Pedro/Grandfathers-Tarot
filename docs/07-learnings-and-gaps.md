@@ -514,3 +514,9 @@ Things we know are missing or unverified, each with the next concrete step.
 ## 2026-10-06 - The player panels' health bar is retained
 - HudElementPlayerPanelBase._draw_health_bar runs every frame but draws (and colours) the segments only when
   `_draw_health_segments` is set, by a change of a health value. A colour decided elsewhere must set it when its decision changes.
+
+## 2026-10-06 - The Trapper's net and the sprays
+- `BtShootNetAction.leave` always sets `net_is_ready = false` and the net cooldown (not only after a shot): ending the action while
+  aiming costs the Trapper his net. Give it back after the leave to make a feint.
+- The Beast of Nurgle's vomit and both Flamers use BtShootLiquidBeamAction (`attack_duration` 1.2 s and 1.8 s per spray, a new
+  `shot_start_t` for each); returning "done" from its run is a clean stop (the leave stops the beam, effects and puddle).
