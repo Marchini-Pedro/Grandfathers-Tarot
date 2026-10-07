@@ -19,6 +19,20 @@
 - Fixed: Delete and "Clear this card" did nothing on a card of the default deck (it came straight back).
 - Faster: the Mutant's charge no longer hooks every enemy's movement; the dark skins are held ten times a second instead of every
   frame; the HUD draws nothing while it is hidden; the boss bar and golden health hooks return at once when they have no work.
+- The Deck: a card's chance text ("not drawn", "timer card") no longer runs into COOLDOWN; it wraps in its own column.
+- The default deck and options are the author's of 2026-10-07: anti-snowballing on (25 s), no vote picks a card at random, 100
+  enemies per card and 200 alive at most, no ping on the Draw, the HUD at 65 percent while a boss is up, the Dream's sky at 50
+  percent; every card as in the author's deck.
+- Wording: the options and messages speak of cards, not waves. "Use everyone's waves" is now "Draw cards from all players in
+  the lobby", the Spread is "The Draw", "Candidates on a ballot" / "Waves on a vote ballot" are "Cards drawn for a vote", "First
+  wave delay" is "First card draw delay", the time between waves is the time between card draws, the wave editor is the Deck.
+- Faster still: no work once a second that read every card of the deck (the fixed timers, the cooldowns sent to the players), no
+  hook on every enemy's stat recompute (only enemies with custom mods are watched), the cards HUD hands the game only the widgets
+  it shows, the boss bar no longer allocates every frame, and coloured enemies that are settled are checked every 2 s.
+- Entrapment's card effect is a Trapper's net thrown over the card, its knots crackling, with a Pox Hound's claws at threat 5 and 6.
+- Fixed: the game crashed when an enemy with a custom boss bar (a Hunt dog) died on the host.
+- Attack cancel chance now also feints a Pox Hound's pounce (it winds up and stops short); Net feint pause became Feint pause, the
+  wait after a Trapper's or a Pox Hound's feint.
 
 ## 2026-10-06 - Reveal Elites, a Boss bar for any enemy, the Blackout crash (polishing)
 - New buff: Reveal Elites outlines the Elites (amber) for its time. The combat abilities effect is removed; cards that had it

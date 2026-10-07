@@ -84,7 +84,7 @@ authority; a client in an ordinary online mission cannot spawn them.
 Install the same development revision on participating players' machines for
 the shared HUD, voting, enemy-size and enemy-colour replication.
 
-Optional integrations: Custom HUD can reposition the wave panel; Spidey Sense
+Optional integrations: Custom HUD can reposition the Draw (the hand of cards); Spidey Sense
 and Improved Havoc Tags supply enemy/modifier colours when installed; optional
 No new dependency is required.
 
@@ -101,7 +101,7 @@ No new dependency is required.
 
 | Command | Effect |
 | --- | --- |
-| `/gt_editor` | Open or close the wave editor |
+| `/gt_editor` | Open or close the Deck (card editor) |
 | `/gt_status` | Show director state and spawn counters |
 | `/gt_test <wave key or name>` | Spawn a test wave immediately, out of sight (host) |
 | `/gt_test_close <wave key or name>` | Spawn the wave right in front of you, facing you (host) |

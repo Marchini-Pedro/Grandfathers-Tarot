@@ -535,3 +535,19 @@ Things we know are missing or unverified, each with the next concrete step.
   extension table) for the length of the call instead.
 - `Unit.set_vector3_for_materials` walks every mesh of a unit: per enemy per frame it adds up. Hold a look at a few Hz instead.
 - The Mod Performance Monitor's "calls" counts hooked calls: a number near the enemy count points at a per-unit hook.
+
+## 2026-10-06 - Where the frame time went
+- MinionBuffExtension.update calls `_update_stat_buffs_and_keywords` (and through it `_reset_stat_buffs`) for every enemy every
+  frame: never hook them on the class.
+- HudElementBase._draw_widgets hands every widget to UIWidget.draw, which walks every pass, hidden or not. An element with many
+  hidden widgets or passes should hand over only the visible ones.
+- Variance in the monitor means spikes: look for work done "once a second" that walks the whole deck (Events.get parses a recipe).
+
+## 2026-10-06 - Destroyed extensions raise on READ
+- The engine raises "Cannot access property X on destroyed object" when a field of a destroyed extension is read, not only when a
+  method is called: `local f = ext.method` must be inside the pcall too. Keep a named function for it to avoid a closure per frame.
+
+## 2026-10-07 - Text passes do not wrap
+- A text pass without `word_wrap = true` runs past its size on one line: a trailing text next to another column needs a size that
+  ends at the column and wrapping on.
+- A generator that writes a whole Lua file carries its own copy of the code in it: change one, change the other.

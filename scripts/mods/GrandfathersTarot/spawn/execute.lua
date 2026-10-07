@@ -242,7 +242,7 @@ local function over_heap_guard()
 	if not heap_paused then
 		heap_paused = true
 
-		mod:warning("GrandfathersTarot: wave spawning paused, the Lua heap is %.0f MB (guard %d MB, hard limit 1024 MB). It resumes when memory drops; raise or lower the guard in the mod options.", mb, limit)
+		mod:warning("GrandfathersTarot: card spawning paused, the Lua heap is %.0f MB (guard %d MB, hard limit 1024 MB). It resumes when memory drops; raise or lower the guard in the mod options.", mb, limit)
 	end
 
 	return true
@@ -312,7 +312,7 @@ end
 -- so 0 removes that type from the wave and 500 gives five times as many.
 local function expand(parts, field, picks)
 	local queue = {}
-	local cap = number_setting("max_per_wave", 80)
+	local cap = number_setting("max_per_wave", 100)
 
 	for i = 1, #parts do
 		local part = parts[i]
@@ -352,16 +352,16 @@ Execute.start_wave = function (def)
 		needed = needed + scaled_amount(part.count or 0, percent_for(part))
 	end
 
-	needed = math.min(needed, number_setting("max_per_wave", 80))
+	needed = math.min(needed, number_setting("max_per_wave", 100))
 
 	-- Refuse the whole new wave before allocating its queue. Repeat-only jobs
 	-- also need a job slot and some aggregate capacity to make eventual progress.
 	if #jobs >= MAX_JOBS or room <= 0 or needed > room then
-		return false, "pending-wave budget is full (64 jobs / 8000 units); wave skipped"
+		return false, "pending-card budget is full (64 jobs / 8000 units); card skipped"
 	end
 
 	if over_heap_guard() then
-		return false, string.format("the Lua memory guard refused this wave (heap %.0f MB is above the %d MB guard)", heap_mb(), number_setting("heap_guard_mb", 800))
+		return false, string.format("the Lua memory guard refused this card (heap %.0f MB is above the %d MB guard)", heap_mb(), number_setting("heap_guard_mb", 800))
 	end
 
 	-- a card keeps the first roll of its random groups unless it says not to (def.keep_pick == false)
@@ -372,7 +372,7 @@ Execute.start_wave = function (def)
 	local has_repeat = Groups.has_repeat(def.parts) and every > 0 and rep_for > 0
 
 	if #queue == 0 and not has_repeat and Groups.Effects.encode(def.effects) == "" then
-		return false, (#(def.parts or {}) > 0) and "the enemy type multipliers (mod options) removed every enemy of this wave" or "empty wave"
+		return false, (#(def.parts or {}) > 0) and "the enemy type multipliers (mod options) removed every enemy of this card" or "empty card"
 	end
 
 	-- Repeat ticks happen at every, 2*every, ... up to and including rep_for seconds.
@@ -460,7 +460,7 @@ local NOTIFY_AFTER = 4 -- seconds a wave may wait for a spawn position before th
 -- Plain-language reason for a failed position search (shown to the user).
 local function explain(reason)
 	if NO_MAIN_PATH[reason] then
-		return "this level has no spawn points (hub, Psykhanium...). Waves need a mission"
+		return "this level has no spawn points (hub, Psykhanium...). Cards need a mission"
 	elseif reason == "no hidden points near players" then
 		return "no spot hidden from every player was found near the squad (open ground? try moving, or lower the minimum spawn distance in the options)"
 	elseif reason == "hidden points exist but none within distance limits" then
@@ -569,9 +569,9 @@ local function notify_stuck(job, text)
 	job.notified = true
 
 	if job.test then
-		mod:echo("GrandfathersTarot: wave \"%s\" is not spawning: %s", tostring(job.name), text)
+		mod:echo("GrandfathersTarot: card \"%s\" is not spawning: %s", tostring(job.name), text)
 	else
-		mod:warning("GrandfathersTarot: wave \"%s\" is not spawning: %s", tostring(job.name), text)
+		mod:warning("GrandfathersTarot: card \"%s\" is not spawning: %s", tostring(job.name), text)
 	end
 end
 
@@ -736,7 +736,7 @@ Execute.update = function (dt, paused)
 		return
 	end
 
-	local room = number_setting("max_alive", 120) - Bypass.count()
+	local room = number_setting("max_alive", 200) - Bypass.count()
 
 	if room <= 0 then
 		return

@@ -212,11 +212,19 @@ end
 -- the boss bar of the clients, who read the unit's maximum from the game object's "health" field). The game itself caps one hit's
 -- damage at NetworkConstants.health_large.max (damage_taken_calculation.lua), the type of that field; a larger value does not
 -- reach the clients intact.
+local network_max = nil
+
 Tuning.network_health_max = function ()
+	if network_max then
+		return network_max
+	end
+
 	local ok, constants = pcall(require, "scripts/network_lookup/network_constants")
 	local info = ok and type(constants) == "table" and constants.health_large
 
-	return info and tonumber(info.max) or nil
+	network_max = info and tonumber(info.max) or nil
+
+	return network_max
 end
 
 -- The health the player asked for is NOT what the game builds from the spawn parameter: MinionSpawnManager.spawn_minion adds the
@@ -447,13 +455,18 @@ local function layered_proxy(target, real)
 			return target._rw_max or real:max_health()
 		end,
 	}, {
-		__index = function (_, key)
+		-- a method of the real extension, bound to it once (2026-10-06, a performance pass: the bar calls them every frame)
+		__index = function (proxy, key)
 			local value = real[key]
 
 			if type(value) == "function" then
-				return function (_, ...)
+				local bound = function (_, ...)
 					return value(real, ...)
 				end
+
+				rawset(proxy, key, bound)
+
+				return bound
 			end
 
 			return value
@@ -485,7 +498,18 @@ Tuning.layer_boss_targets = function (element)
 		end
 
 		local real = target._rw_health or target.health_extension
-		local max = real and size and Tuning.true_max_health(target.unit, real)
+		local max = target._rw_max
+
+		-- not divided (as far as is known): looked up again every 30 frames, not every frame (a client learns it from the host)
+		if not max and real and size then
+			local wait = (target._rw_max_wait or 0) - 1
+
+			if wait <= 0 then
+				max, wait = Tuning.true_max_health(target.unit, real), 30
+			end
+
+			target._rw_max_wait = wait
+		end
 
 		-- a divided unit: from 98 percent of the network's limit (Tuning.fit_network), so also one under the limit itself, whose
 		-- numbers a client read halved (2026-10-06); the "xN" layers only above the limit (health_layers gives one bar below it)
@@ -731,6 +755,10 @@ end
 -- BossExtension is destroyed, in the same frame as the health extension; a stand-in's bar was ended only by the quarter-second
 -- check. Every frame, right before the game's update, a stand-in's bar whose unit is dead or whose health can no longer be read
 -- is ended.
+local function read_health(health)
+	return health:current_health_percent()
+end
+
 Tuning.drop_dead_bosses = function (element)
 	local targets = element._active_targets_array
 
@@ -744,7 +772,9 @@ Tuning.drop_dead_bosses = function (element)
 
 		if standin and standin._rw_stand_in then
 			local health = target._rw_health or target.health_extension
-			local readable = living(target.unit) and health and pcall(function () return health:current_health_percent() end)
+			-- (2026-10-06, a host crashed when a Hunt dog with a boss bar died) even READING a method of a destroyed extension
+			-- raises, so the whole call is inside the pcall (a function made once, not a closure per frame)
+			local readable = living(target.unit) and health ~= nil and pcall(read_health, health)
 
 			if not readable then
 				end_bar(target.unit, standin)
@@ -1050,6 +1080,7 @@ Tuning.apply = function (unit, tune, breed_name)
 				end
 
 				tuned_by_extension[buffs] = record
+				Tuning.watch_recompute(buffs) -- (defined further down)
 			end)
 
 			if not ok then
@@ -1121,6 +1152,67 @@ end
 -- modifier, Enraged, a debuff of a player): every recompute drops our factor, and the attack that starts in between
 -- would read the plain value. So the factor is put back right after each recompute, by a hook (once per game start).
 local installed = false
+
+-- After every recompute of a tuned unit's stats (the buff system does it every frame, for every enemy: MinionBuffExtension.update)
+-- our factor is put back. (2026-10-06, a performance pass) Only a tuned unit's own buff extension is watched: its two methods are
+-- shadowed on the instance (the game calls them as self:...), where class hooks ran twice per enemy per frame for every enemy.
+local function after_recompute(self)
+	if Tuning.dead then
+		return
+	end
+
+	local record = tuned_by_extension[self]
+
+	if record then
+		reassert_record(record, self)
+	end
+end
+
+local watched = setmetatable({}, { __mode = "k" }) -- buff extension -> what its instance held before ({ update, reset })
+
+local function watch_recompute(buffs)
+	if type(buffs) ~= "table" or watched[buffs] then
+		return
+	end
+
+	local update, reset = buffs._update_stat_buffs_and_keywords, buffs._reset_stat_buffs
+
+	watched[buffs] = { rawget(buffs, "_update_stat_buffs_and_keywords"), rawget(buffs, "_reset_stat_buffs") }
+
+	if type(update) == "function" then
+		buffs._update_stat_buffs_and_keywords = function (self, ...)
+			update(self, ...)
+			after_recompute(self)
+		end
+	end
+
+	if type(reset) == "function" then
+		buffs._reset_stat_buffs = function (self, ...)
+			reset(self, ...)
+
+			local record = not Tuning.dead and tuned_by_extension[self]
+
+			-- A fresh engine value may equal the last tuned value numerically. It still needs our factor once.
+			if record then record.recomputed = true end
+		end
+	end
+end
+
+-- the class's own methods again, or what the instance held (a unit no longer tuned, the end of the game)
+local function unwatch_recompute(buffs)
+	local own = buffs and watched[buffs]
+
+	if own then
+		watched[buffs] = nil
+		buffs._update_stat_buffs_and_keywords, buffs._reset_stat_buffs = own[1], own[2]
+	end
+end
+
+Tuning.is_watched = function (buffs)
+	return watched[buffs] ~= nil
+end
+
+Tuning.watch_recompute = watch_recompute
 
 -- The record of a tuned unit (nil for every other unit).
 local function record_of(unit)
@@ -1310,6 +1402,42 @@ Tuning.net_leave = function (self, unit, breed, blackboard, scratchpad, action_d
 		behavior.net_is_ready = true
 		-- the group's own Net feint pause, or the default
 		behavior.shoot_net_cooldown = t + (net_pause[unit] or NET_FEINT_PAUSE)
+	end
+end
+
+-- A Pox Hound's pounce as a feint (2026-10-06, the user: "the fake attack does not work for the dog pounce"). The pounce is not a
+-- melee attack (BtChaosHoundLeapAction): the hound winds up ("attack_leap_start", 0.67 to 0.8 s) and then leaps (_leap). With the
+-- group's Attack cancel chance it rolls at the moment it would leave the ground; a feinting hound takes the game's own way out of a
+-- leap with no path (_stop: "run_to_stop", 0.5 s), and after it the pounce comes back after the group's Feint pause instead of the
+-- whole pounce cooldown (4 to 10 s). Host only.
+Tuning.pounce_leap = function (func, self, unit, scratchpad, action_data, ...)
+	local chance = not Tuning.dead and cancel_chance[unit]
+
+	if chance and type(scratchpad) == "table" and self and self._stop and math.random(1, 100) <= chance then
+		local now = Managers.time and Managers.time.has_timer and Managers.time:has_timer("gameplay") and Managers.time:time("gameplay")
+
+		if type(now) == "number" then
+			scratchpad._rw_feinted = true
+			self:_stop(scratchpad, action_data, now)
+
+			return
+		end
+	end
+
+	return func(self, unit, scratchpad, action_data, ...)
+end
+
+Tuning.pounce_leave = function (self, unit, breed, blackboard, scratchpad, action_data, t, reason, destroy)
+	if type(scratchpad) ~= "table" or not scratchpad._rw_feinted then
+		return
+	end
+
+	scratchpad._rw_feinted = nil
+
+	local pounce = scratchpad.pounce_component
+
+	if pounce and type(t) == "number" and not destroy then
+		pounce.pounce_cooldown = t + (net_pause[unit] or NET_FEINT_PAUSE)
 	end
 end
 
@@ -1891,32 +2019,16 @@ Tuning.install = function ()
 		Tuning.net_leave(...)
 	end)
 
-	-- the unit's own class is the one that matters: the game's class() copies the methods of the parent into the subclass
-	-- when it is created, so MinionBuffExtension keeps calling its own copy and the hook on BuffExtensionBase may never
-	-- see a minion (the console log of 2026-10-02 showed exactly that: the factor was gone at every burst under Havoc).
-	-- Both are hooked; putting the factor back is idempotent, so a unit that reaches both is not touched twice.
-	local function after_recompute(self)
-		if Tuning.dead then
-			return
-		end
-
-		local record = tuned_by_extension[self]
-
-		if record then
-			reassert_record(record, self)
-		end
+	-- a Pox Hound's pounce as a feint (Tuning.pounce_leap)
+	if mod.hook then
+		mod:hook("BtChaosHoundLeapAction", "_leap", function (...) return Tuning.pounce_leap(...) end)
 	end
 
-	mod:hook_safe("BuffExtensionBase", "_update_stat_buffs_and_keywords", after_recompute)
-	mod:hook_safe("MinionBuffExtension", "_update_stat_buffs_and_keywords", after_recompute)
-	mod:hook_safe("MinionBuffExtension", "_reset_stat_buffs", function (self)
-		local record = not Tuning.dead and tuned_by_extension[self]
-
-		if record then
-			-- A fresh engine value may equal the last tuned value numerically. It still needs our factor once.
-			record.recomputed = true
-		end
+	mod:hook_safe("BtChaosHoundLeapAction", "leave", function (...)
+		Tuning.pounce_leave(...)
 	end)
+
+	-- the stat recompute: watched on the tuned units' own buff extensions (watch_recompute), no class hook
 end
 
 Tuning.retire = function ()
@@ -1932,6 +2044,7 @@ local function reassert()
 
 		if not alive(record.unit) then
 			tuned_by_extension[record.ext] = nil
+			unwatch_recompute(record.ext)
 			tuned[i] = tuned[#tuned]
 			tuned[#tuned] = nil
 		else
@@ -2208,7 +2321,7 @@ Tuning.probe = function (units)
 	if not can_look then
 		lines[#lines + 1] = "This game has no Unit.animation_find_variable, so the variables of a unit cannot be looked at."
 	elseif breeds == 0 then
-		lines[#lines + 1] = "No wave unit is alive to look at: spawn one first (/gt_test <wave>) and run this again close to it."
+		lines[#lines + 1] = "No card enemy is alive to look at: spawn one first (/gt_test <card>) and run this again close to it."
 	end
 
 	return lines
@@ -2260,6 +2373,7 @@ Tuning.reset = function ()
 	outbox_by_id = {}
 	inbox_by_id = {}
 	sized = {}
+	for buffs in pairs(tuned_by_extension) do unwatch_recompute(buffs) end
 	tuned_by_extension = {}
 	timer, send_timer = 0, 0
 	true_max_by_id = {}

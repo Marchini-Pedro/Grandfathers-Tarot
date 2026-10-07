@@ -351,6 +351,13 @@ check("Reveal Elites: both reveals at once, each in its colour", se.settings.rw_
 E.update(1)
 check("Reveal Elites: the outlines go when the time is up", ee.settings==original and not se.settings.rw_guidance)
 outline._unit_extension_data[elite]=nil;E.reset()
+-- (2026-10-06, a performance pass) a unit's breed is read once, not at every scan of a reveal
+local calls=0
+local counted={id=53,alive=true,extensions={unit_data_system={breed=function() calls=calls+1; return {tags={}} end}}}
+outline._unit_extension_data[counted]={settings=original}
+start(effect("reveal",5));for _=1,8 do E.update(0.25) end
+check("reveal: a unit's breed is read once, not four times a second", calls==1, calls)
+outline._unit_extension_data[counted]=nil;E.reset()
 -- the card's sound is an ALERT at the draw (2026-10-04): no completion ticket, no sound when the wave ends
 E.reset()
 local ok,ticket=start(effect("heal",100),nil,event)

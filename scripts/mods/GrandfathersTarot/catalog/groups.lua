@@ -238,7 +238,8 @@ Groups.TUNE = {
 	{ id = "net", name = "Net feint chance", min = 0, max = 100, step = 5, default = 0, aliases = { "net", "net feint", "net feint chance", "net cancel" } },
 	-- (2026-10-06, the user: "let me decide the number for after the feint too") how long a feinting Trapper waits before he may aim
 	-- again, in TENTHS of a second (`tenths`: shown as seconds, 15 = 1.5 s, the default)
-	{ id = "pause", name = "Net feint pause", min = 0, max = 150, step = 5, default = 15, tenths = true, aliases = { "pause", "net pause", "feint pause", "net feint pause" } },
+	-- (2026-10-06) also a Pox Hound's after a feinted pounce (the Attack cancel chance): "Feint pause" since then
+	{ id = "pause", name = "Feint pause", min = 0, max = 150, step = 5, default = 15, tenths = true, aliases = { "pause", "net pause", "feint pause", "net feint pause", "pounce pause" } },
 	{ id = "combo", name = "Random combo end", min = 0, max = 1, step = 1, default = 0, toggle = true, aliases = { "combo", "random combo", "combo end", "combo cut", "random combo end" } },
 	-- (2026-10-06, the user: "set an individual unit as a boss, so it shows its total health and name as a boss unit; a toggle for any
 	-- unit, a custom modifier") a toggle, not a percent: 1 = its health and name in the game's boss bar (spawn/tuning.lua). {boss=1}

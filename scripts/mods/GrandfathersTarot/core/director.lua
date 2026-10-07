@@ -214,16 +214,32 @@ Director.cooldown_map = function ()
 
 	cool_map, cool_map_at = {}, cd_clock
 
-	local pool = Events.build_pool(get_setting, Groups, Director.extra_waves())
+	-- (2026-10-06, a performance pass) only the cards that went out, each read on its own with the draw's rules (enabled, a
+	-- chance, something in it, no fixed timer): building the whole draw parsed every card's recipe once a second
+	local extra_by_key = nil
 
-	for i = 1, #pool do
-		local since = last_fired[pool[i].key]
+	for key, since in pairs(last_fired) do
+		local wave = nil
 
-		if since then
-			local left = since + pool[i].cooldown - cd_clock
+		if type(key) == "string" and key:find(":", 1, true) then
+			if not extra_by_key then
+				extra_by_key = {}
+
+				for _, extra in ipairs(Director.extra_waves() or {}) do
+					extra_by_key[extra.key] = extra
+				end
+			end
+
+			wave = extra_by_key[key]
+		elseif not Events.is_empty_slot(key, get_setting) then
+			wave = Events.get(key, get_setting, Groups)
+		end
+
+		if wave and wave.enabled and Events.has_content(wave) and (wave.pct or 0) > 0 and not ((wave.timer or 0) > 0) then
+			local left = since + (wave.cooldown or 0) - cd_clock
 
 			if left > 0 then
-				cool_map[pool[i].key] = math.ceil(left)
+				cool_map[key] = math.ceil(left)
 			end
 		end
 	end
@@ -497,7 +513,7 @@ local function release_held(dt, halted)
 			local ok, err = Execute.start_wave(wave.def)
 
 			if not ok then
-				mod:warning("GrandfathersTarot: wave %s not started after its sound: %s", tostring(wave.key), tostring(err))
+				mod:warning("GrandfathersTarot: card %s not started after its sound: %s", tostring(wave.key), tostring(err))
 			end
 		else
 			wave.age = wave.age + dt
@@ -685,7 +701,7 @@ local function fire(cand)
 	local ok, err = launch(cand.def, cand.key)
 
 	if not ok then
-		mod:warning("GrandfathersTarot: wave %s not started: %s", tostring(cand.key), tostring(err))
+		mod:warning("GrandfathersTarot: card %s not started: %s", tostring(cand.key), tostring(err))
 	else
 		local described, card = pcall(card_of, cand)
 
@@ -869,7 +885,7 @@ local function fire_timed(wave)
 
 	if not ok and clock - timed_warning_at >= 5 then
 		timed_warning_at = clock
-		mod:warning("GrandfathersTarot: timed wave %s not started: %s", tostring(wave.key), tostring(err))
+		mod:warning("GrandfathersTarot: timed card %s not started: %s", tostring(wave.key), tostring(err))
 	end
 end
 
@@ -1126,7 +1142,7 @@ end
 -- already on the map stay). Clients see the panel disappear. /gt_start (or Director.force_start) starts again.
 Director.stop = function ()
 	if not Director.is_host() then
-		return false, "only the host can stop the waves"
+		return false, "only the host can stop the draws"
 	end
 
 	stopped, paused = true, false
@@ -1162,11 +1178,11 @@ end
 -- the vote window and the fixed timers. Returns the new state.
 Director.pause = function (on)
 	if not Director.is_host() then
-		return nil, "only the host can pause the waves"
+		return nil, "only the host can pause the draws"
 	end
 
 	if stopped then
-		return nil, "the waves are stopped (use /gt_start first)"
+		return nil, "the draws are stopped (use /gt_start first)"
 	end
 
 	if on == nil then
@@ -1183,11 +1199,11 @@ end
 -- a new ballot and a full new timer. Also leaves the pause.
 Director.next_wave = function ()
 	if not Director.is_host() then
-		return false, "only the host can change the wave"
+		return false, "only the host can change the card"
 	end
 
 	if stopped then
-		return false, "the waves are stopped (use /gt_start first)"
+		return false, "the draws are stopped (use /gt_start first)"
 	end
 
 	if not started then
@@ -1208,7 +1224,7 @@ Director.on_player_died = function ()
 		return false
 	end
 
-	local delay = math.max(0, number_setting("anti_snowball_delay", 30))
+	local delay = math.max(0, number_setting("anti_snowball_delay", 25))
 
 	if delay <= 0 then
 		return false
@@ -1531,7 +1547,7 @@ end
 -- `options.close`: the wave appears right in front of the local player (/gt_test_close) instead of hidden near the squad
 Director.fire_now = function (key, options)
 	if not Director.is_host() then
-		return false, "only the host can start waves"
+		return false, "only the host can draw cards"
 	end
 
 	-- `key` may be a key ("custom_1") or a wave name ("Mutants Everywhere", "mutants_everywhere")
@@ -1542,7 +1558,7 @@ Director.fire_now = function (key, options)
 	end
 
 	if not Events.has_content(wave) then
-		return false, "that wave has no enemies yet (edit it in the wave editor or with /gt_custom)"
+		return false, "that card has no enemies yet (edit it in the Deck or with /gt_custom)"
 	end
 
 	local def = Events.spawn_def(wave)
@@ -1576,11 +1592,11 @@ Director.stage_draw = function (key, full)
 	end
 
 	if stopped or not started or not host_state then
-		return false, "the waves are not running (use /gt_start in a mission)"
+		return false, "the draws are not running (use /gt_start in a mission)"
 	end
 
 	if paused then
-		return false, "the waves are paused (/gt_pause off first)"
+		return false, "the draws are paused (/gt_pause off first)"
 	end
 
 	if host_state.staged then

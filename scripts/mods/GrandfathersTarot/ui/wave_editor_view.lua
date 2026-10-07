@@ -617,7 +617,7 @@ GrandfathersTarotView._create_editor_widgets = function (self)
 		widget.content.hotspot.pressed_callback = callback(self, entry.cb, entry.arg)
 	end
 
-	local chance = self:_create_dynamic_widget("stepper_chance", blueprints.workshop_stepper("stepper_chance", 290, Workshop.ROW_LABEL_W, 15, Components.colors.muted))
+	local chance = self:_create_dynamic_widget("stepper_chance", blueprints.workshop_stepper("stepper_chance", 290, Workshop.ROW_LABEL_W, 15, Components.colors.muted, 0, 15))
 	-- the card's cooldown beside its chance (the Mirror's callbacks: 30 s steps, the value opens a number box)
 	local qcd = self:_create_dynamic_widget("stepper_qcd", blueprints.workshop_stepper("stepper_qcd", Workshop.RIGHT_W - 290, 98, 15, Components.colors.muted))
 

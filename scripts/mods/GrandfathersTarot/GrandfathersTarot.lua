@@ -590,7 +590,7 @@ mod:command("gt_status", "GrandfathersTarot: print director state and spawn coun
 end)
 
 -- /gt_anim: what the engine and the nearby wave units offer for the speed of an animation (see Tuning.probe)
-mod:command("gt_anim", "GrandfathersTarot: report what the game offers to change an enemy's animation speed (spawn a wave first, then run this near it); the text is also in the console log", function ()
+mod:command("gt_anim", "GrandfathersTarot: report what the game offers to change an enemy's animation speed (spawn a card first, then run this near it); the text is also in the console log", function ()
 	local units = RW.bypass and RW.bypass.units(40) or {}
 	local ok, lines = pcall(RW.tuning.probe, units)
 
@@ -610,7 +610,7 @@ mod:command("gt_anim", "GrandfathersTarot: report what the game offers to change
 end)
 
 -- /gt_tune: what the custom stats of the living wave units are right now (for finding out why one does nothing)
-mod:command("gt_tune", "GrandfathersTarot: report the custom stats (time between attacks, fire rate, burst...) of the wave units alive: what was written, what the stat says now, what the last shot read; also in the console log", function ()
+mod:command("gt_tune", "GrandfathersTarot: report the custom stats (time between attacks, fire rate, burst...) of the card enemies alive: what was written, what the stat says now, what the last shot read; also in the console log", function ()
 	local ok, lines = pcall(RW.tuning.describe)
 
 	if not ok then
@@ -628,17 +628,17 @@ mod:command("gt_tune", "GrandfathersTarot: report the custom stats (time between
 	end
 end)
 
-mod:command("gt_start", "GrandfathersTarot: (host) start the wave cycle now (also after /gt_stop), e.g. after a hot reload", function ()
+mod:command("gt_start", "GrandfathersTarot: (host) start the card draws now (also after /gt_stop), e.g. after a hot reload", function ()
 	mod:echo("GrandfathersTarot: %s", RW.director.force_start() and "cycle started" or "not started (host in a mission only)")
 end)
 
-mod:command("gt_stop", "GrandfathersTarot: (host) stop the mod: no countdown, vote or timed waves until /gt_start (units already spawned stay)", function ()
+mod:command("gt_stop", "GrandfathersTarot: (host) stop the mod: no countdown, vote or timed cards until /gt_start (units already spawned stay)", function ()
 	local ok, why = RW.director.stop()
 
 	mod:echo("GrandfathersTarot: %s", ok and "stopped. Use /gt_start to start again" or tostring(why))
 end)
 
-mod:command("gt_pause", "GrandfathersTarot: (host) freeze / release every wave timer: /gt_pause [on|off]", function (arg)
+mod:command("gt_pause", "GrandfathersTarot: (host) freeze / release every card timer: /gt_pause [on|off]", function (arg)
 	local on
 
 	if arg == "on" then
@@ -649,16 +649,16 @@ mod:command("gt_pause", "GrandfathersTarot: (host) freeze / release every wave t
 
 	local state, why = RW.director.pause(on)
 
-	mod:echo("GrandfathersTarot: %s", state == nil and tostring(why) or (state and "paused: all wave timers are frozen" or "released: the timers run again"))
+	mod:echo("GrandfathersTarot: %s", state == nil and tostring(why) or (state and "paused: all card timers are frozen" or "released: the timers run again"))
 end)
 
-mod:command("gt_next", "GrandfathersTarot: (host) drop the current wave WITHOUT spawning it and start a new one (new draw, full timer)", function ()
+mod:command("gt_next", "GrandfathersTarot: (host) drop the current card WITHOUT spawning it and draw a new one (new draw, full timer)", function ()
 	local ok, why = RW.director.next_wave()
 
-	mod:echo("GrandfathersTarot: %s", ok and "new wave drawn" or tostring(why))
+	mod:echo("GrandfathersTarot: %s", ok and "new card drawn" or tostring(why))
 end)
 
-mod:command("gt_skip", "GrandfathersTarot: (host) skip the countdown and resolve the current wave now", function ()
+mod:command("gt_skip", "GrandfathersTarot: (host) skip the countdown and resolve the current card now", function ()
 	RW.director.skip()
 end)
 
@@ -679,7 +679,7 @@ local function test_command(close, ...)
 			end
 		end
 
-		mod:echo("GrandfathersTarot: usage /%s <wave name or key>. Waves: %s", command, table.concat(names, ", "))
+		mod:echo("GrandfathersTarot: usage /%s <card name or key>. Cards: %s", command, table.concat(names, ", "))
 
 		return
 	end
@@ -687,17 +687,17 @@ local function test_command(close, ...)
 	local ok, note = RW.director.fire_now(query, { close = close })
 
 	if ok then
-		mod:echo("GrandfathersTarot: wave \"%s\" queued%s", query, note and (" - " .. note) or "")
+		mod:echo("GrandfathersTarot: card \"%s\" queued%s", query, note and (" - " .. note) or "")
 	else
 		mod:echo("GrandfathersTarot: %s", tostring(note))
 	end
 end
 
-mod:command("gt_test", "GrandfathersTarot: (host) a wave now (its sound first, then the enemies): /gt_test <wave key or wave name>, e.g. /gt_test mutants_everywhere", function (...)
+mod:command("gt_test", "GrandfathersTarot: (host) a card now (its sound first, then the enemies): /gt_test <card key or card name>, e.g. /gt_test mutants_everywhere", function (...)
 	test_command(false, ...)
 end)
 
-mod:command("gt_test_close", "GrandfathersTarot: (host) spawn a wave right in front of you, facing you: /gt_test_close <wave key or wave name>, e.g. /gt_test_close the_devil", function (...)
+mod:command("gt_test_close", "GrandfathersTarot: (host) spawn a card's enemies right in front of you, facing you: /gt_test_close <card key or card name>, e.g. /gt_test_close the_devil", function (...)
 	test_command(true, ...)
 end)
 
@@ -715,7 +715,7 @@ local function stage_command(full, ...)
 	local ok, note = RW.director.stage_draw(query, full)
 
 	if ok then
-		mod:echo("GrandfathersTarot: staged draw: \"%s\" is picked in 3 s%s", tostring(note), full and " (its sound plays, then its wave spawns)" or " (no sound, no enemies)")
+		mod:echo("GrandfathersTarot: staged draw: \"%s\" is picked in 3 s%s", tostring(note), full and " (its sound plays, then its enemies spawn)" or " (no sound, no enemies)")
 	else
 		mod:echo("GrandfathersTarot: %s", tostring(note))
 	end
@@ -725,7 +725,7 @@ mod:command("gt_drawtest", "GrandfathersTarot: (host) a fake draw of three cards
 	stage_command(false, ...)
 end)
 
-mod:command("gt_fulltest", "GrandfathersTarot: (host) the same fake draw, then the card's sound and its wave, as in play: /gt_fulltest <card name or key>", function (...)
+mod:command("gt_fulltest", "GrandfathersTarot: (host) the same fake draw, then the card's sound and its enemies, as in play: /gt_fulltest <card name or key>", function (...)
 	stage_command(true, ...)
 end)
 
@@ -751,7 +751,7 @@ mod:command("gt_roll", "GrandfathersTarot: simulate N weighted rolls to check th
 	end
 end)
 
-mod:command("gt_custom", "GrandfathersTarot: set a custom wave: /gt_custom <slot number of a custom card, 1 to 88> <recipe, e.g. 5 trappers, 5 mutants, 10 hounds>", function (slot, ...)
+mod:command("gt_custom", "GrandfathersTarot: set a custom card: /gt_custom <slot number of a custom card, 1 to 88> <recipe, e.g. 5 trappers, 5 mutants, 10 hounds>", function (slot, ...)
 	slot = tonumber(slot)
 
 	if not slot or slot < 1 or slot > RW.events.CUSTOM_SLOTS or slot ~= math.floor(slot) then
@@ -780,9 +780,9 @@ mod:command("gt_custom", "GrandfathersTarot: set a custom wave: /gt_custom <slot
 
 	RW.events.set_def(function (id, value) mod:set(id, value) end, key, wave.name, parts, RW.groups)
 	mod:set("on_" .. key, true)
-	mod:echo("GrandfathersTarot: %s saved and enabled: %s (chance %s; change name, chance and more in the wave editor, /gt_editor)", key, RW.groups.summary(parts), tostring(wave.pct))
+	mod:echo("GrandfathersTarot: %s saved and enabled: %s (chance %s; change name, chance and more in the Deck, /gt_editor)", key, RW.groups.summary(parts), tostring(wave.pct))
 end)
 
-mod:command("gt_editor", "GrandfathersTarot: open the wave editor (same as the editor keybind)", function ()
+mod:command("gt_editor", "GrandfathersTarot: open the Deck (same as the editor keybind)", function ()
 	mod.open_editor()
 end)

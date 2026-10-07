@@ -115,6 +115,9 @@ A.apply(treated,slots,treated.breed); A.update(0.25)
 check("explicit slots and attachments written", child.colour[3]==1 and attachment.colour[3]==1)
 treated.extensions.visual_loadout_system.slots.body.attachments={}
 A.update(0.25)
+-- (2026-10-06, a performance pass) a written colour that stays the same is looked at again every 2 s, not every quarter second
+check("a stable colour is not looked at again within 2 s", attachment.colour[3]==1)
+A.update(2)
 check("detached attachment is restored", attachment.colour[3]==0.4)
 treated.alive=false; A.update(0.25)
 check("death prunes ownership and restores surviving children", A.status().selected==0 and child.colour[3]==0)

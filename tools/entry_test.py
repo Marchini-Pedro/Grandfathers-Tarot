@@ -136,7 +136,7 @@ do
   RW.director.force_start=original_start
   local original_next=RW.director.next_wave
   RW.director.next_wave=function() return true end;echoed={};commands.gt_next()
-  check("next command: successful redraw is reported", echoed[1]:find("new wave drawn",1,true)~=nil)
+  check("next command: successful redraw is reported", echoed[1]:find("new card drawn",1,true)~=nil)
   RW.director.next_wave=original_next
   echoed={};commands.gt_test()
   check("test command: empty input lists usage and existing waves", #echoed==1 and echoed[1]:find("hound_frenzy",1,true)~=nil)
@@ -216,7 +216,7 @@ check("unload: captured objective, death and update callbacks are inert", obsole
 local names = {}
 for _, h in ipairs(hooks) do if type(h.obj) == "string" then names[#names + 1] = h.obj .. "." .. h.method end end
 table.sort(names)
-check("entry: the four budget-bypass hooks and the custom-mods hooks (stat recompute on both buff classes, melee attack start, burster explosion, the summoners: no summon while destroyed, no patrol, aggroed summons; the On Fire burn per player and its look, the divided health of strong enemies; since 2026-10-06 the spray cut, the net feint, the Daemonhost's kills and the Packmaster without dogs) are installed", table.concat(names, ",") == "BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BtMutantChargerChargeAction._update_charged_past,BtMutantChargerChargeAction._update_charging,BtMutantChargerChargeAction._update_grabbed_target,BtShootLiquidBeamAction.run,BtShootNetAction.leave,BtShootNetAction.run,BtSummonMinionsAction._patrol_setup,BtSummonMinionsAction._summon_minions,BtSummonMinionsAction.leave,BuffExtensionBase._update_stat_buffs_and_keywords,HealthExtension.add_damage,HealthExtension.add_heal,HealthExtension.set_health_instant,HudElementPersonalPlayerPanel._draw_health_bar,HudElementPlayerPanelBase._draw_health_bar,HudElementTeamPlayerPanel._draw_health_bar,MinionBuffExtension._reset_stat_buffs,MinionBuffExtension._start_fx,MinionBuffExtension._stop_fx,MinionBuffExtension._update_stat_buffs_and_keywords,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion,PacingManager.set_minion_listening_for_player_deaths,PlayerUnitBuffExtension.add_internally_controlled_buff,PlayerUnitMoodExtension._remove_mood,SummonedMinionsExtension.can_summon_minions", table.concat(names, ","))
+check("entry: the four budget-bypass hooks and the custom-mods hooks (melee attack start, burster explosion, the summoners: no summon while destroyed, no patrol, aggroed summons; the On Fire burn per player and its look, the divided health of strong enemies; since 2026-10-06 the spray cut, the net feint, the Daemonhost's kills and the Packmaster without dogs) are installed", table.concat(names, ",") == "BtChaosHoundLeapAction._leap,BtChaosHoundLeapAction.leave,BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BtMutantChargerChargeAction._update_charged_past,BtMutantChargerChargeAction._update_charging,BtMutantChargerChargeAction._update_grabbed_target,BtShootLiquidBeamAction.run,BtShootNetAction.leave,BtShootNetAction.run,BtSummonMinionsAction._patrol_setup,BtSummonMinionsAction._summon_minions,BtSummonMinionsAction.leave,HealthExtension.add_damage,HealthExtension.add_heal,HealthExtension.set_health_instant,HudElementPersonalPlayerPanel._draw_health_bar,HudElementPlayerPanelBase._draw_health_bar,HudElementTeamPlayerPanel._draw_health_bar,MinionBuffExtension._start_fx,MinionBuffExtension._stop_fx,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion,PacingManager.set_minion_listening_for_player_deaths,PlayerUnitBuffExtension.add_internally_controlled_buff,PlayerUnitMoodExtension._remove_mood,SummonedMinionsExtension.can_summon_minions", table.concat(names, ","))
 check("entry: MinionAttack is hooked through hook_require (it may load after the mod)", #hook_requires == 4 and (function() local seen = {} for _, p in ipairs(hook_requires) do seen[p] = true end return seen["scripts/utilities/minion_attack"] and seen["scripts/extension_systems/buff/minion_buff_extension"] and seen["scripts/settings/buff/buff_templates"] and seen["scripts/ui/hud/elements/boss_health/hud_element_boss_health"] end)(), table.concat(hook_requires, ","))
 do
   -- (2026-10-04: "Attempting to rehook active hook [start_shooting]" at every game start) DMF runs a hook_require callback again
@@ -535,7 +535,7 @@ Managers.state = {
   extension={system=function() return {get_side_from_name=function() return {side_id=2} end} end},
   unit_spawner={game_object_id=function(self,unit) return unit.id end},
   minion_spawn={request_param_table=function() return {} end,spawn_minion=function()
-    local stats={melee_attack_speed=1};local unit={id=#spawned+1,buffs={stat_buffs=function() return stats end},stats=stats}
+    local stats={melee_attack_speed=1};local unit={id=#spawned+1,buffs={stat_buffs=function() return stats end,_update_stat_buffs_and_keywords=function() end,_reset_stat_buffs=function() end},stats=stats}
     spawned[#spawned+1]=unit;return unit
   end},
 }
@@ -558,8 +558,8 @@ RW.tuning.apply(living,{gap=50,size=130},"chaos_hound")
 RW.director.stop()
 check("stop: cancel jobs but retain live accounting, tuning and size snapshot", RW.execute.status().jobs==0 and RW.bypass.count()==4 and RW.tuning.status().tuned==1 and RW.tuning.status().sizes_known==1)
 living.stats.melee_attack_speed=1
-for _,h in ipairs(hooks) do if h.obj=="MinionBuffExtension" and h.method=="_reset_stat_buffs" then h.fn(living.buffs) end end
-for _,h in ipairs(hooks) do if h.obj=="MinionBuffExtension" and h.method=="_update_stat_buffs_and_keywords" then h.fn(living.buffs) end end
+-- (2026-10-06) the recompute is watched on the tuned unit's own buff extension, as the game calls it (self:...)
+living.buffs:_reset_stat_buffs(); living.buffs:_update_stat_buffs_and_keywords()
 check("stop: native buff recompute still reasserts the factor", living.stats.melee_attack_speed==2)
 RW.director.force_start();RW.execute.start_wave({name="cap",parts=RW.groups.parse("60 hounds")})
 for i=1,20 do mod.update(0.2) end

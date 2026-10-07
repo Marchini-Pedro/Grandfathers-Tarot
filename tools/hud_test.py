@@ -637,7 +637,7 @@ settings.mode = nil
 custom_hud.is_customizing = false
 settings.hud_enabled = false
 frame(el); current_view = view_of({ remaining = 9, hand_seq = 12 }); frame(el)
-check("option: 'Show wave panel' off hides it", visible_cards(el) == 0)
+check("option: 'Show the Draw' off hides it", visible_cards(el) == 0)
 settings.hud_enabled = nil
 
 -- the player's own timeline options
@@ -819,11 +819,11 @@ do
   check("boss fade: without a boss the Draw HUD is fully opaque", e._boss_fade == 1)
   boss._active_targets_array = { { unit = "beast" } }
   frame(e, 0.1)
-  check("boss fade: with a boss it fades (not at once) toward the option's 50 percent", e._boss_fade < 1 and e._boss_fade > 0.5, e._boss_fade)
+  check("boss fade: with a boss it fades (not at once) toward the option's 65 percent", e._boss_fade < 1 and e._boss_fade > 0.65, e._boss_fade)
   for _ = 1, 10 do frame(e, 0.1) end
   for k in pairs(draws) do draws[k] = nil end
   Element.draw(e, 0.016, 0, nil, rs, nil)
-  check("boss fade: ...to 50 percent, drawn so", e._boss_fade == 0.5 and near(draws[1].a, 0.5))
+  check("boss fade: ...to 65 percent, drawn so", e._boss_fade == 0.65 and near(draws[1].a, 0.65))
   settings.hud_boss_opacity = 80; for _ = 1, 10 do frame(e, 0.1) end
   check("boss fade: the option sets how see-through", near(e._boss_fade, 0.8))
   settings.hud_boss_opacity = nil
@@ -891,6 +891,21 @@ do
   for k in pairs(draws) do draws[k] = nil end
   Element.draw(hidden, 0.016, 0, nil, rs, nil)
   check("draw: a hidden HUD is not drawn at all (no render pass; 2026-10-06, a performance pass)", #draws == 0)
+  -- only the widgets shown are handed to the game's _draw_widgets (it walks every pass of every widget it is given)
+  do
+    local handed, saved = nil, HudElementBase._draw_widgets
+    HudElementBase._draw_widgets = function(self) handed = #self._widgets end
+    local shown = new_element()
+    current_view = view_of({ hand = hand4(), win = nil }); frame(shown)
+    local all = #shown._widgets
+    local visible = 0; for _, w in ipairs(shown._widgets) do if w.visible then visible = visible + 1 end end
+    Element._draw_widgets(shown, 0.016, 0, nil, nil, {})
+    check("draw: the game's widget loop gets only the widgets shown, and the element keeps all of them", handed == visible and visible < all and #shown._widgets == all, tostring(handed) .. "/" .. visible .. "/" .. all)
+    HudElementBase._draw_widgets = function() error("draw failed") end
+    local failed = not pcall(Element._draw_widgets, shown, 0.016, 0, nil, nil, {})
+    check("draw: an error in the game's loop is passed on and the element still has all its widgets", failed and #shown._widgets == all)
+    HudElementBase._draw_widgets = saved
+  end
   settings.tarot_scale = nil
 end
 
@@ -1266,9 +1281,32 @@ do
     end
   end
   check("aura: Prayer is only beams of light from above (no candles, no circles, nothing blue), more of them at a higher threat", not other and not teal and beams[1] == 2 and beams[6] == 6, beams[1] .. " " .. beams[6])
-  -- Entrapment: a second chain inside at 5 and 6
-  local _, n_snare4 = nil, select(1, busiest("snare", 4))
-  check("aura: Entrapment closes a second chain inside at 5 and 6", select(1, busiest("snare", 6)) >= n_snare4 + 8 and Cards.SUITS.snare.name == "Entrapment")
+  -- Entrapment (2026-10-06, the user: "something more related to Disablers"): a Trapper's net thrown over the card, its knots
+  -- crackling with the shock; a Pox Hound's claws at 5 and 6
+  local function snare_seen(lv)
+    local cords, sparks, claws, cable = 0, 0, 0, false
+    local period = Aura.net_period(lv)
+    for step = 0, 80 do
+      Aura.update(out, "snare", period * step / 80, 228, 270, 1, lv)
+      local c, sp, cl = 0, 0, 0
+      for i = 1, Aura.COUNT do
+        local q = out[i]
+        if q.on then
+          if q.round then sp = sp + 1 elseif q.w >= 228 * 0.6 or q.h >= 270 * 0.6 then c = c + 1 elseif q.y == 0 and q.w < 3 then cable = true end
+        end
+      end
+      for i = 1, Aura.TRIS do if out.tri[i].on then cl = cl + 1 end end
+      cords, sparks, claws = math.max(cords, c), math.max(sparks, sp), math.max(claws, cl)
+    end
+    return cords, sparks, claws, cable
+  end
+  local c1, s1, k1, cable1 = snare_seen(1)
+  local c4, s4, k4 = snare_seen(4)
+  local c5, s5, k5 = snare_seen(5)
+  local c6, s6, k6 = snare_seen(6)
+  check("aura: Entrapment throws a net over the card on its cable (cords across it, a finer mesh at a higher threat) and its knots spark", c1 == 5 and c6 == 10 and cable1 and s1 >= 1 and s6 > s1 and Cards.SUITS.snare.name == "Entrapment", c1 .. " " .. c6 .. " " .. s1 .. " " .. s6 .. " " .. tostring(cable1))
+  check("aura: ...a Pox Hound's claws rake it at 5 (three slashes) and 6 (six), never below", k1 == 0 and k4 == 0 and k5 == 3 and k6 == 6, k4 .. " " .. k5 .. " " .. k6)
+  check("aura: ...and it is thrown more often at a higher threat", Aura.net_period(6) < Aura.net_period(1))
 
   -- the murmur of the letters (ui/murmur_text.lua): a Murmur card of threat 5 or 6 writes all its texts letter by letter, over and over
   local Murmur = dofile(BASE .. "/ui/murmur_text.lua")
@@ -1403,7 +1441,7 @@ do
   local dim = w.style.veil.color[1]
   check("dream sky: a slider (0 to 150 percent) scales its light", w.visible and bright > dim * 2.5 and Dream.option() == 0.5, bright .. " " .. dim)
   settings.dream_sky_strength = nil
-  check("dream sky: the slider's default is 100 percent", Dream.option() == 1)
+  check("dream sky: the slider's default is 50 percent", Dream.option() == 0.5)
   check("dream sky: rises, holds, fades", Dream.envelope(0.25) == 0.5 and Dream.envelope(3) == 1 and Dream.envelope(Dream.DURATION) == 0 and Dream.envelope(-1) == 0)
 end
 
@@ -1684,7 +1722,7 @@ do
   check("last card: ...and back on shows it again", w.visible == true and w.content.name == "The Tower")
   settings.hud_enabled = false
   last_frame(el)
-  check("last card: the master option 'Show wave panel' off hides it too", w.visible == false)
+  check("last card: the master option 'Show the Draw' off hides it too", w.visible == false)
   settings.hud_enabled = nil
 
   -- custom_hud's edit mode: a sample card, even with the option off

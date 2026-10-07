@@ -425,13 +425,13 @@ local function remove_outline(unit, record)
 end
 -- Reveal Specialists (teal) and Reveal Elites (amber, 2026-10-06): each kind is outlined while its own time runs
 local REVEAL_COLOURS = { special = { 0.31, 0.61, 0.64 }, elite = { 0.86, 0.56, 0.16 } }
-local function reveal_kind(breed)
-	local tags = breed and breed.tags
+local function reveal_kind(tags)
 	if not tags then return nil end
 	if tags.special then return reveal_until > clock and "special" or nil end
 	if tags.elite then return reveal_elites_until > clock and "elite" or nil end
 	return nil
 end
+local breed_tags = setmetatable({}, { __mode = "k" }) -- unit -> its breed's tags (false: none), read once
 local function update_reveal()
 	if reveal_until <= clock and reveal_elites_until <= clock then
 		for unit, record in pairs(outlines) do remove_outline(unit, record) end
@@ -445,9 +445,20 @@ local function update_reveal()
 	local count = 0
 	for _ in pairs(outlines) do count = count + 1 end
 	for unit, extension in pairs(outline._unit_extension_data or {}) do
-		local data = ext(unit, "unit_data_system")
-		local breed = data and data:breed()
-		local kind = alive(unit) and not outlines[unit] and count < 600 and reveal_kind(breed)
+		-- (2026-10-06, a performance pass) a unit's breed never changes: its tags are read once (this runs four times a second
+		-- over every enemy while a reveal lasts), and an outlined one is skipped before anything is read
+		local kind = nil
+		if not outlines[unit] and count < 600 and alive(unit) then
+			local tags = breed_tags[unit]
+			if tags == nil then
+				local data = ext(unit, "unit_data_system")
+				local breed = data and data:breed()
+				tags = breed and breed.tags or false
+				-- (only once its breed could be read: a unit whose data is not there yet is asked again)
+				if data then breed_tags[unit] = tags end
+			end
+			kind = reveal_kind(tags)
+		end
 		if kind then
 			local previous, owned = extension.settings, {}
 			for key, value in pairs(extension.settings) do owned[key] = value end

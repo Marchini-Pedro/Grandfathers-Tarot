@@ -284,7 +284,9 @@ Appearance.install = function ()
 	if not mod.hook_require then return end
 	local function refresh(self)
 		local record = records[self._unit]
-		if retired or not record or not record.config.protect then return end
+		if retired or not record then return end
+		-- an unprotected colour follows the stimm's: looked at on the next quarter second, not after STABLE_CHECK
+		if not record.config.protect then record.next_check = 0; return end
 		record.stamp = nil
 		local ok, err = pcall(apply_record, record)
 		if not ok then warn("protected colour update failed: " .. tostring(err)) end
@@ -348,6 +350,14 @@ Appearance.receive = function (entries)
 	end
 end
 
+local STABLE_CHECK = 2
+
+local function count_of(list)
+	local n = 0
+	for _ in pairs(list or {}) do n = n + 1 end
+	return n
+end
+
 Appearance.update = function (dt)
 	if retired then return end
 	clock, cadence, renewal = clock + dt, cadence + dt, renewal + dt
@@ -384,9 +394,14 @@ Appearance.update = function (dt)
 	for unit, record in pairs(records) do
 		if not alive(unit) or (record.expires and record.expires <= clock) then
 			remove(unit)
-		else
+		elseif (record.next_check or 0) <= clock then
+			-- (2026-10-06, a performance pass) a colour written and unchanged since the last look is looked at again every
+			-- STABLE_CHECK seconds, not four times a second (a stimm's colour change comes at once through the hook below)
+			local stamp, written = record.stamp, count_of(record.written)
 			local ok, err = pcall(apply_record, record)
 			if not ok then warn("application failed: " .. tostring(err)) end
+			local stable = ok and written > 0 and record.stamp == stamp and count_of(record.written) == written
+			record.next_check = stable and clock + STABLE_CHECK or 0
 		end
 	end
 	if is_host() and renewal >= 5 then renewal = 0; Appearance.send_all() end

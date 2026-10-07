@@ -133,7 +133,6 @@ local PUS, PUS_DARK = { 227, 207, 74 }, { 150, 132, 40 }
 local SWARM_A, SWARM_B = { 175, 182, 140 }, { 110, 116, 88 }
 local BONE, BRASS = { 239, 230, 201 }, { 205, 178, 100 }
 local TRACER, TRACER_HOT, SPARK = { 127, 178, 194 }, { 220, 244, 252 }, { 255, 226, 160 }
-local LINK_A, LINK_B = { 95, 191, 165 }, { 60, 120, 105 }
 local BRICK, BRICK_DARK, DUST, BRICK_FLASH, CRACK = { 207, 92, 69 }, { 130, 60, 48 }, { 190, 160, 140 }, { 255, 170, 140 }, { 40, 18, 14 }
 local WARP, WARP_LIT = { 177, 132, 224 }, { 234, 214, 255 }
 local RAY = { 255, 236, 190 }
@@ -379,39 +378,116 @@ EFFECTS.volley = function (out, t, W, H, s, lv)
 	end
 end
 
--- ENTRAPMENT (the suit "snare"): a chain of links creeps round the card's edge, the loop tightening and loosening; more links as the
--- threat grows, and at 5 and 6 a second chain closes inside it the other way
-local function chain(out, first, n, t, W, H, s, inset, speed)
-	local w, h = W - 2 * inset, H - 2 * inset
-	local around = 2 * (w + h)
+-- ENTRAPMENT (the suit "snare"; 2026-10-06, the user: "something more related to Disablers"): a Trapper's net is thrown over the
+-- card. It flies in from the top and opens, holds the card with its cords pulled tight (they tremble) while the shock crackles on
+-- its knots and its weights hang at its corners, then lets go and fades. The higher the threat the finer the mesh, the more sparks and the quicker the throws; at 5 and 6
+-- a Pox Hound's claws rake the card while it is caught (three slashes; at 6 a second set the other way).
+local NET, NET_LIT, SHOCK = { 95, 191, 165 }, { 150, 230, 210 }, { 220, 244, 252 }
+local CLAW = { 200, 60, 50 }
 
-	for i = 1, n do
-		local d = (t * speed * s + (i - 1) * around / n) % around
-		local x, y
+Aura.net_period = function (lv)
+	return 3.4 - 0.15 * clamp(tonumber(lv) or Aura.LEVEL, 1, 6)
+end
 
-		if d < w then
-			x, y = inset + d, inset
-		elseif d < w + h then
-			x, y = inset + w, inset + d - w
-		elseif d < 2 * w + h then
-			x, y = inset + w - (d - w - h), inset + h
-		else
-			x, y = inset, inset + h - (d - 2 * w - h)
-		end
+-- the claw marks: three thin slivers side by side, slanted, drawn in (k 0..1) and fading (alpha)
+local function claws(out, first, cx, cy, length, slant, k, alpha, s, W, H)
+	for i = 0, 2 do
+		local q = out.tri[first + i]
+		local x, y = cx + (i - 1) * 6 * s, cy + (i - 1) * 1.5 * s
+		local reach = length * (0.8 + 0.1 * i) * k
 
-		local size = 4.5 * s
-		local p = out[first + i - 1]
-
-		rgb_into(p.rgb, i % 2 == 0 and LINK_A or LINK_B)
-		put(p, true, x - size / 2, y - size / 2, size, size, 160, W, H)
+		rgb_into(q.rgb, CLAW)
+		put_tri(q, x, y, x + slant * reach, y + reach, x + 1.8 * s, y, alpha, W, H)
 	end
 end
 
 EFFECTS.snare = function (out, t, W, H, s, lv)
-	chain(out, 1, amount(lv, 8, 18), t, W, H, s, (6 + 2 * sin(t * 1.4)) * s, 18 + 2 * lv)
+	local period = Aura.net_period(lv)
+	local cycle = t / period
+	local u = cycle % 1
+	local throw = floor(cycle)
+	local open, fade
 
-	if lv >= 5 then
-		chain(out, 19, lv >= 6 and 10 or 8, t, W, H, s, (18 + 4 * sin(t * 1.9)) * s, -(16 + 2 * lv))
+	if u < 0.22 then
+		open, fade = (u / 0.22) ^ 0.6, min(1, u / 0.08)
+	elseif u < 0.8 then
+		open, fade = 1, 1
+	else
+		open, fade = 1, max(0, 1 - (u - 0.8) / 0.2)
+	end
+
+	-- the net's extent: from a small knot near the top (where it is thrown from) to the whole card, pulled in a little while held
+	local pull = u >= 0.22 and u < 0.8 and (2 + 1.5 * sin(t * 9)) * s or 0
+	local ox = W * (0.3 + 0.4 * hash(throw, 9))
+	local ex, ey = ox * (1 - open) + (3 * s + pull) * open, 2 * s * (1 - open) + (3 * s + pull) * open
+	local ew, eh = (W - 6 * s - 2 * pull) * open + 6 * s * (1 - open), (H - 6 * s - 2 * pull) * open + 6 * s * (1 - open)
+	local alpha = (150 + 12 * lv) * fade
+	local nv, nh = amount(lv, 3, 6), amount(lv, 2, 4)
+	local cord = 1.2 * s
+
+	for i = 1, nv do
+		local p = out[i]
+		local x = ex + ew * (i - 0.5) / nv
+
+		lerp_into(p.rgb, NET, NET_LIT, 0.5 + 0.5 * sin(t * 6 + i))
+		put(p, false, x - cord / 2, ey, cord, eh, alpha, W, H)
+	end
+
+	for j = 1, nh do
+		local p = out[6 + j]
+		local y = ey + eh * (j - 0.5) / nh
+
+		lerp_into(p.rgb, NET, NET_LIT, 0.5 + 0.5 * sin(t * 6 + j * 2))
+		put(p, false, ex, y - cord / 2, ew, cord, alpha, W, H)
+	end
+
+	-- the shock: sparks jump between the knots while the card is caught (a new knot about eight times a second)
+	local held = u >= 0.22 and u < 0.8
+
+	for i = 1, amount(lv, 2, 10) do
+		local p = out[10 + i]
+		local tick = floor(t * 8 + hash(i, 3) * 8)
+		local kx = floor(hash(tick, i) * nv) + 1
+		local ky = floor(hash(tick, i + 20) * nh) + 1
+		local x, y = ex + ew * (kx - 0.5) / nv, ey + eh * (ky - 0.5) / nh
+		local d = (3 + 3 * hash(tick, i + 40)) * s
+
+		rgb_into(p.rgb, SHOCK)
+		put(p, true, x - d / 2, y - d / 2, d, d, held and 240 * hash(tick, i + 60) or 0, W, H)
+	end
+
+	-- the cable it was thrown on, while it flies
+	local cable = out[21]
+
+	rgb_into(cable.rgb, NET)
+	put(cable, false, ox - cord / 2, 0, cord, ey + 1, u < 0.22 and 140 * (1 - u / 0.22) or 0, W, H)
+
+	-- the weights at its four corners (the Trapper's net is thrown open by them)
+	local weight = (4 + 0.4 * lv) * s
+
+	for c = 0, 3 do
+		local p = out[22 + c]
+		local x = c % 2 == 0 and ex or ex + ew
+		local y = c < 2 and ey or ey + eh
+
+		rgb_into(p.rgb, NET_LIT)
+		put(p, true, x - weight / 2, y - weight / 2, weight, weight, alpha, W, H)
+	end
+
+	-- a Pox Hound's claws while the card is caught
+	for set = 1, 2 do
+		if lv >= 4 + set and held then
+			local k = min(1, (u - 0.22) / 0.12)
+			-- the first set on one half of the card, the second on the other
+			local left = (set == 1) == (hash(throw, 14) < 0.5)
+			local cx, cy = W * ((left and 0.12 or 0.58) + 0.25 * hash(throw, 10 + set)), H * (0.12 + 0.3 * hash(throw, 12 + set))
+
+			claws(out, (set - 1) * 3 + 1, cx, cy, H * 0.45, set == 1 and 0.45 or -0.45, k, 220 * fade, s, W, H)
+		else
+			for i = 0, 2 do
+				out.tri[(set - 1) * 3 + 1 + i].on = false
+			end
+		end
 	end
 end
 

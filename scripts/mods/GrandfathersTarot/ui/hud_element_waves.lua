@@ -1420,6 +1420,36 @@ end
 -- shapes and textures all follow it) and their opacity multiplied by the opacity option. To keep the node's top-left
 -- corner where custom_hud put it, every widget is shifted by node * (1/size - 1) for the duration of the draw; all
 -- changes are undone afterwards (the widgets and the shared render settings are left as they were).
+-- (2026-10-06, a performance pass) the game's _draw_widgets walks every pass of every widget, hidden ones too: the Spread has 768
+-- passes (five card slots of 142), of which a hand of three shows about 150. Only the widgets shown are handed to it.
+HudElementGrandfathersTarotPanel._draw_widgets = function (self, dt, t, input_service, ui_renderer, render_settings)
+	local all, shown = self._widgets, self._shown_widgets or {}
+	local n = 0
+
+	self._shown_widgets = shown
+
+	for i = 1, #all do
+		if all[i].visible then
+		n = n + 1
+		shown[n] = all[i]
+		end
+	end
+
+	for i = #shown, n + 1, -1 do
+		shown[i] = nil
+	end
+
+	self._widgets = shown
+
+	local ok, err = pcall(HudElementGrandfathersTarotPanel.super._draw_widgets, self, dt, t, input_service, ui_renderer, render_settings)
+
+	self._widgets = all
+
+	if not ok then
+		error(err)
+	end
+end
+
 HudElementGrandfathersTarotPanel.draw = function (self, dt, t, ui_renderer, render_settings, input_service)
 	local o = self._o
 	local size, opacity = o.scale, o.opacity * (self._boss_fade or 1)
@@ -1560,7 +1590,7 @@ HudElementGrandfathersTarotPanel._update_boss_push = function (self, dt)
 	self._boss_push = slide(self._boss_push or 0, ok2 and target or 0, BOSS_SLIDE * dt)
 
 	-- see-through while a boss is up
-	local opacity = math.max(10, math.min(100, tonumber(mod:get("hud_boss_opacity")) or 50)) / 100
+	local opacity = math.max(10, math.min(100, tonumber(mod:get("hud_boss_opacity")) or 65)) / 100
 
 	self._boss_fade = slide(self._boss_fade or 1, up and opacity or 1, BOSS_FADE * dt)
 

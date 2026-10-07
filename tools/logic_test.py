@@ -1540,9 +1540,9 @@ do
   local amb2_key, amb2_err = found("the")
   check("find: a substring shared by two waves (The Fool, The Pilgrims: 'the_p' is no prefix of both, 'the' is) is ambiguous", amb2_key == nil and amb2_err:find("The Fool") ~= nil and amb2_err:find("The Pilgrims") ~= nil, amb2_err)
   local amb_key, amb_err = found("mutant")
-  check("find: ambiguous text is refused and lists the candidates", amb_key == nil and amb_err:find("several waves match") and amb_err:find("Mutants Everywhere") and amb_err:find("Mutant Ambush"), amb_err)
+  check("find: ambiguous text is refused and lists the candidates", amb_key == nil and amb_err:find("several cards match") and amb_err:find("Mutants Everywhere") and amb_err:find("Mutant Ambush"), amb_err)
   local unk_key, unk_err = found("no_such_wave")
-  check("find: unknown name gives a helpful message", unk_key == nil and unk_err:find("no wave named") ~= nil, unk_err)
+  check("find: unknown name gives a helpful message", unk_key == nil and unk_err:find("no card named") ~= nil, unk_err)
   check("find: empty query is refused", found("   ") == nil and select(2, found("")) ~= nil)
   check("find: an empty custom slot is found by key or exact name but never guessed", found("custom_9") == "custom_9" and found("Custom 9") == "custom_9" and found("cust") == nil)
   -- renaming: the old default name stops matching, the new one matches
@@ -1567,7 +1567,7 @@ do
   Director.fire_now("dog party")
   check("director.fire_now without options is not close", started_defs[#started_defs].close == nil)
   local fok2, ferr2 = Director.fire_now("nope")
-  check("director.fire_now reports an unknown name", fok2 == false and ferr2:find("no wave named") ~= nil, ferr2)
+  check("director.fire_now reports an unknown name", fok2 == false and ferr2:find("no card named") ~= nil, ferr2)
   Events.reset(set, "custom_2"); Events.reset(set, "custom_5")
   for _, k in ipairs({ "wave_def_custom_2", "wave_def_custom_5", "on_custom_2", "on_custom_5" }) do settings[k] = nil end
 end
@@ -1909,8 +1909,9 @@ do
 
   -- the buff system recomputes the stats every frame while a buff touches them: a hook puts the factor back at once
   Tuning.install()
-  local stat_hook = hooks["BuffExtensionBase._update_stat_buffs_and_keywords!"]
-  check("tuning: a hook on the buff system's stat recompute is installed", stat_hook ~= nil)
+  -- (2026-10-06, a performance pass) no class hook: a tuned unit's own buff extension is watched (its methods on the instance)
+  local function stat_hook(ext, t) if ext._update_stat_buffs_and_keywords then return ext:_update_stat_buffs_and_keywords(t) end end
+  check("tuning: no class hook on the stat recompute (it ran for every enemy every frame); a tuned unit's buff extension is watched", hooks["BuffExtensionBase._update_stat_buffs_and_keywords!"] == nil and hooks["MinionBuffExtension._update_stat_buffs_and_keywords!"] == nil and Tuning.is_watched(c.buffs) and not Tuning.is_watched(plain.buffs))
   c.buffs.stats.melee_attack_speed = 1.2 -- a recompute dropped our factor (a mission-wide modifier did it)
   stat_hook(c.buffs, 5)
   check("tuning: right after a recompute the factor is back on top (1.2 x 2.5), once", math.abs(c.buffs.stats.melee_attack_speed - 3.0) < 1e-9)
@@ -1928,12 +1929,13 @@ do
     local ext = { buff_list = buff_list, recomputes = 0 }
     local stats = setmetatable({ _modified_stats = {} }, { __index = function(s, k) local v = BASE_STAT[k]; s[k] = v; return v end })
     ext.stat_buffs = function(self) return stats end
+    ext._update_stat_buffs_and_keywords = function(self) end -- the game's update (the recompute itself is `recompute` below)
+    ext._reset_stat_buffs = function(self) end
     ext.recompute = function(self)
       self.recomputes = self.recomputes + 1
       for key in pairs(stats._modified_stats) do stats[key] = BASE_STAT[key] end
       for key in pairs(stats._modified_stats) do stats._modified_stats[key] = nil end
-      local reset_hook=hooks["MinionBuffExtension._reset_stat_buffs!"]
-      if reset_hook then reset_hook(self) end
+      self:_reset_stat_buffs()
       for _, buff in ipairs(self.buff_list) do
         for key, value in pairs(buff) do
           if MULTIPLICATIVE[key] then stats[key] = stats[key] * value else stats[key] = stats[key] + value end
@@ -1944,8 +1946,7 @@ do
     return { buffs = ext }, ext, stats
   end
   local HAVOC_RANGED = { ranged_attack_speed = 0.3, minion_num_shots_modifier = 2.25 } -- havoc_ranged_attack_speed_05
-  local minion_hook = hooks["MinionBuffExtension._update_stat_buffs_and_keywords!"]
-  check("recompute: the subclass MinionBuffExtension is hooked too (the game's class() copies the parent's methods into it)", minion_hook ~= nil)
+  local minion_hook = stat_hook
 
   local g_unit, g_ext, g_stats = sim_unit({ HAVOC_RANGED })
   g_ext:recompute()
@@ -2443,6 +2444,7 @@ do
     gone.buffs.stats.melee_attack_speed = 1.2
     stat_hook(gone.buffs, 5)
     check("leave: a dead unit's record is dropped, the stat hook leaves its stats alone (and nothing leaks)", gone.buffs.stats.melee_attack_speed == 1.2)
+    check("leave: a dead unit's buff extension is no longer watched (its own methods back)", not Tuning.is_watched(gone.buffs))
     check("leave: the mission restarting (Tuning.reset) forgets everything the host knew", (function() Tuning.reset(); local s = Tuning.status(); return s.tuned == 0 and s.sizes_known == 0 and s.unsent == 0 and s.pending == 0 end)())
   end
 
@@ -2682,11 +2684,18 @@ do
   element._active_targets_array[1].health_extension = { current_health_percent = function() error("destroyed object of type HuskHealthExtension") end }
   T.drop_dead_bosses(element); T.drop_dead_bosses({})
   check("boss bars: one whose health can no longer be read ends in that frame (a client crashed when the Tower died)", events_for(tower, "boss_encounter_end") == 1 and events_for(ogryn, "boss_encounter_end") == 0)
+  -- (2026-10-06, a host crashed when a Hunt dog with a boss bar died) the engine raises when a destroyed extension's method is
+  -- even READ, not only called
+  T.update_bosses(0.3, true)
+  local destroyed = setmetatable({}, { __index = function(_, key) error('Cannot access property "' .. tostring(key) .. '" on destroyed object of type HealthExtension') end })
+  local dog_target = { unit = tower, boss_extension = fired[#fired].ext, health_extension = destroyed }
+  local ok_drop = pcall(T.drop_dead_bosses, { _active_targets_array = { dog_target } })
+  check("boss bars: a destroyed health extension that raises when read ends the bar too, without an error", ok_drop and events_for(tower, "boss_encounter_end") == 2)
   dead[tower] = true; T.update_bosses(0.3, true)
   check("boss bars: a dead unit leaves the list", by_id(T.boss_list(), 7) == nil and by_id(T.boss_list(), 8) ~= nil)
   dead[tower] = nil; T.mark_boss(tower); T.update_bosses(0.3, true)
   T.end_bosses()
-  check("boss bars: the end of the game ends every bar and forgets the list", events_for(tower, "boss_encounter_end") == 2 and T.boss_list() == nil)
+  check("boss bars: the end of the game ends every bar and forgets the list", events_for(tower, "boss_encounter_end") == 3 and T.boss_list() == nil)
   -- a client
   fired = {}
   T.receive_bosses({ { 7, "  Tower{}", "ZZZ" }, 8, "junk", { -1 }, { 1e12 }, { 9, "", "00ff00" } })
@@ -2821,6 +2830,39 @@ do
   local none = { attack_type = "oobb", attack_event = "nothing", attack_duration = 11 }
   T.fix_attack_end(nil, feinter, nil, nil, 10, nil, none, cad); T.fix_attack_end(nil, feinter, nil, nil, 10, nil, nil, cad)
   check("cancel: an attack of no known timing is left alone", none.attack_duration == 11)
+  -- (2026-10-06) a Pox Hound's pounce as a feint: the Attack cancel chance stops it at take-off (the game's own _stop), and the
+  -- pounce comes back after the group's Feint pause
+  local saved_time = Managers.time
+  Managers.time = { has_timer = function() return true end, time = function() return 30 end }
+  local hound = { gid = 70 }
+  T.apply(hound, { cancel = 100, pause = 20 }, "chaos_hound")
+  local stops, leaps = {}, 0
+  local leap_action = { _stop = function(self, pad, data, t) stops[#stops + 1] = t; pad.state = "stopping" end }
+  local function leap(self, unit, pad) leaps = leaps + 1; pad.state = "leaping" end
+  local hp = { pounce_component = { pounce_cooldown = 0 } }
+  roll = 1
+  T.pounce_leap(leap, leap_action, hound, hp, {}, "start", "velocity")
+  check("pounce: a feinting hound takes the game's stop at take-off instead of leaping", leaps == 0 and stops[1] == 30 and hp.state == "stopping" and hp._rw_feinted)
+  hp.pounce_component.pounce_cooldown = 38 -- the game's own pounce cooldown, set by its stopping state
+  T.pounce_leave(leap_action, hound, nil, nil, hp, {}, 30.5, "done")
+  check("pounce: after the feint the pounce comes back after the Feint pause (2 s), not the whole cooldown", hp.pounce_component.pounce_cooldown == 32.5 and not hp._rw_feinted)
+  roll = 100
+  local hp2 = { pounce_component = { pounce_cooldown = 0 } }
+  T.apply(hound, { cancel = 30 }, "chaos_hound")
+  T.pounce_leap(leap, leap_action, hound, hp2, {})
+  T.pounce_leave(leap_action, hound, nil, nil, hp2, {}, 31, "done")
+  check("pounce: a roll above the chance leaps as the game does, its cooldown left alone", leaps == 1 and hp2.state == "leaping" and hp2.pounce_component.pounce_cooldown == 0)
+  local calm_hound = { gid = 71 }
+  roll = 1
+  T.pounce_leap(leap, leap_action, calm_hound, { pounce_component = {} }, {})
+  check("pounce: a hound without the chance always leaps", leaps == 2)
+  local default_hound = { gid = 72 }
+  T.apply(default_hound, { cancel = 100 }, "chaos_hound")
+  local hp3 = { pounce_component = { pounce_cooldown = 0 } }
+  T.pounce_leap(leap, leap_action, default_hound, hp3, {})
+  T.pounce_leave(leap_action, default_hound, nil, nil, hp3, {}, 40, "done"); T.pounce_leave(leap_action, default_hound, nil, nil, "junk", {}, 40, "done")
+  check("pounce: without a pause of its own the pounce comes back 1.5 s later", hp3.pounce_component.pounce_cooldown == 41.5)
+  Managers.time = saved_time
   T.retire()
   check("retired: the hooks do nothing (the game's own runs)", T.spray_run(run, nil, flamer, nil, nil, { shot_start_t = 99, shooting_liquid_beam = true }, ad, 0.1, 99.9) == "running" and T.net_run(run, nil, trapper, nil, nil, { internal_state = "aiming", shoot_t = 99, num_shots_fired = 0 }, nd, 0.1, 99) == "running")
   ScriptUnit, Unit, Managers.state.unit_spawner, Managers.event, HEALTH_ALIVE = saved.su, saved.unit, saved.spawner, saved.event, saved.alive
@@ -3445,7 +3487,7 @@ do
   run_wave({ name = "drawn", parts = Groups.parse("3 hounds") }); for _ = 1, 30 do Execute.update(0.2) end
   check("psykhanium: a director-drawn wave never uses the ring", #spawned == 0 and ring_calls == 0)
   local warn = recent("not spawning")
-  check("psykhanium: a stuck director wave logs a plain-language warning (once)", warn ~= nil and warn:find("WARN") == 1 and warn:find("Waves need a mission", 1, true) ~= nil, tostring(warn))
+  check("psykhanium: a stuck director wave logs a plain-language warning (once)", warn ~= nil and warn:find("WARN") == 1 and warn:find("Cards need a mission", 1, true) ~= nil, tostring(warn))
   local count = 0; for _, e in ipairs(echoes) do if e:find("not spawning", 1, true) then count = count + 1 end end
   check("psykhanium: the warning is only shown once per wave", count == 1, count)
 
@@ -3774,7 +3816,7 @@ do
   check("guard: status reports heap and pause", Execute.status().heap_paused == true and math.abs(Execute.status().heap_mb - 900) < 0.5 and Execute.status().heap_guard_mb == 800)
   local ok_new, err_new = Execute.start_wave({ name = "t2", parts = Groups.parse("2 hounds") })
   check("guard: a NEW wave is refused with a clear message while over the guard", not ok_new and err_new:find("memory guard") ~= nil, err_new)
-  local warned_pause = 0; for _, e in ipairs(echoes) do if e:find("wave spawning paused") then warned_pause = warned_pause + 1 end end
+  local warned_pause = 0; for _, e in ipairs(echoes) do if e:find("card spawning paused") then warned_pause = warned_pause + 1 end end
   check("guard: the pause is logged once, not every tick", warned_pause == 1, warned_pause)
   fake_mb, after_gc_mb = 600, 600
   for _ = 1, 30 do Execute.update(0.2) end
@@ -3833,7 +3875,7 @@ do
   local all = data.options.widgets
   local mp, ma = find("max_per_wave", all), find("max_alive", all)
   check("options: max enemies per wave 1-500, max alive 10-1000", mp.range[1] == 1 and mp.range[2] == 500 and ma.range[1] == 10 and ma.range[2] == 1000, mp.range[2] .. "/" .. ma.range[2])
-  check("options: defaults are the author's (395 per wave, 500 alive)", mp.default_value == 395 and ma.default_value == 500)
+  check("options: defaults are the author's (100 per card, 200 alive; 2026-10-07)", mp.default_value == 100 and ma.default_value == 200)
   local ok = true
   for _, id in ipairs({ "mult_normal", "mult_boss", "mult_special" }) do
     local w = find(id, all)
@@ -3889,7 +3931,7 @@ do
   local spread_group = find("group_spread", all)
   local spread_ids = {}
   for _, w in ipairs(spread_group and spread_group.sub_widgets or {}) do spread_ids[w.setting_id] = true end
-  check("options: the look options sit in the group 'The Spread (your screen)'", spread_ids.tarot_scale and spread_ids.tarot_opacity and spread_ids.tarot_timer_below and spread_ids.tarot_hide_icon and spread_ids.tarot_ping and spread_ids.tarot_font and spread_ids.tarot_roulette)
+  check("options: the look options sit in the group 'The Draw (your screen)'", spread_ids.tarot_scale and spread_ids.tarot_opacity and spread_ids.tarot_timer_below and spread_ids.tarot_hide_icon and spread_ids.tarot_ping and spread_ids.tarot_font and spread_ids.tarot_roulette)
   -- the window of the last card
   do
     local hl, hud_group = find("hud_last_card", all), find("group_hud", all)
@@ -3934,7 +3976,7 @@ do
     Events.reset(function(id, value) settings[id] = value end, "wave_small", true)
     check("default cooldown: resetting a standard card restores its own cooldown", settings.cd_wave_small == 120)
     Events.reset(function(id, value) settings[id] = value end, "wave_small")
-    check("default cooldown: a plain reset gives the mod's default deck's cooldown (The Wheel 60 s)", settings.cd_wave_small == 60)
+    check("default cooldown: a plain reset gives the mod's default deck's cooldown (The Wheel 240 s)", settings.cd_wave_small == 240)
     settings.tarot_default_cooldown = nil; settings.wave_def_custom_5 = nil; settings.cd_custom_5 = nil; settings.cd_wave_small = nil
   end
   -- text next to the detail-screen steppers: node width minus 440 px, about 10 px per character

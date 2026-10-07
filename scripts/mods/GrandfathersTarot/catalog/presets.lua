@@ -388,7 +388,7 @@ local function parse_wave(text, Groups)
 	parts[1] = unescape(parts[1]) -- (the key: custom%5F6 since 2026-10-04, custom_6 before)
 
 	if #parts ~= 9 and #parts ~= 11 and #parts ~= 12 and #parts ~= 13 and #parts ~= 17 and #parts ~= 18 and #parts ~= 20 then
-		return nil, "a wave in the text is damaged"
+		return nil, "a card in the text is damaged"
 	end
 
 	local effects = unescape(parts[19] or "")
@@ -404,7 +404,7 @@ local function parse_wave(text, Groups)
 		local parsed, err = Groups.parse(recipe)
 
 		if not parsed then
-			return nil, string.format("wave %s: %s", label, tostring(err))
+			return nil, string.format("card %s: %s", label, tostring(err))
 		end
 	end
 
@@ -419,7 +419,7 @@ local function parse_wave(text, Groups)
 		local value = tonumber(parts[field[2]])
 
 		if not value or value ~= value or math.abs(value) == math.huge then
-			return nil, string.format("wave %s has a bad %s value", label, id)
+			return nil, string.format("card %s has a bad %s value", label, id)
 		end
 
 		numbers[id] = clamp(whole(value), RANGES[id])
@@ -428,7 +428,7 @@ local function parse_wave(text, Groups)
 	local threat = tonumber(parts[15] and parts[15] ~= "" and parts[15] or "0")
 
 	if not threat or threat ~= threat or math.abs(threat) == math.huge then
-		return nil, string.format("wave %s has a bad threat value", label)
+		return nil, string.format("card %s has a bad threat value", label)
 	end
 
 	return {
@@ -507,7 +507,7 @@ Presets.decode = function (text, Events, Groups)
 	local expected = tonumber(fields[3])
 
 	if #fields < 3 or not expected or expected < 0 or expected % 1 ~= 0 or #fields - 3 ~= expected then
-		return nil, "the preset text is damaged (wave count does not match)"
+		return nil, "the preset text is damaged (card count does not match)"
 	end
 
 	local preset = { name = Presets.clean_name(unescape(fields[2]), "Preset"), waves = {}, skipped = 0 }
@@ -542,7 +542,7 @@ end
 -- Returns the wave (its `key` is the exporter's; the caller decides where it goes) or nil and a message.
 Presets.decode_wave = function (text, Events, Groups)
 	if trim(text):sub(1, #Presets.PREFIX + 1) == Presets.PREFIX .. "|" then
-		return nil, "this is a whole preset, not a single wave: import it on the Presets screen"
+		return nil, "this is a whole preset, not a single card: import it on the Presets screen"
 	end
 
 	local fields, problem = open_text(text, Presets.WAVE_PREFIX, "wave")
@@ -552,7 +552,7 @@ Presets.decode_wave = function (text, Events, Groups)
 	end
 
 	if #fields ~= 2 then
-		return nil, "the wave text is damaged"
+		return nil, "the card text is damaged"
 	end
 
 	return parse_wave(fields[2], Groups)

@@ -422,3 +422,38 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   custom card emptied by the built-in reset.
 - Tests: all suites with new checks (the charge on the instance, the skin step, a hidden HUD not drawn, Delete and Clear with the
   default deck).
+
+## 2026-10-06 - Performance pass 2: per-enemy hooks, once-a-second deck reads
+- Found: two class hooks on every enemy's per-frame stat recompute (the 134 calls); the Spread handing all 768 passes to the
+  game's widget loop; the boss bar allocating every frame; once a second every card's recipe parsed twice (fixed timers,
+  cooldowns); every coloured enemy re-applied four times a second.
+- Built: the recompute watched on tuned units' own buff extensions; only shown widgets drawn; the boss bar's lookups cached; the
+  deck reads limited to the cards concerned; settled colours checked every 2 s.
+- Tests: every suite, with checks for each.
+
+## 2026-10-06 - Entrapment, the Hunt dog crash, performance again
+- Built: Entrapment as a Trapper's net (cords, corner weights, sparks on its knots, the cable it is thrown on; a Pox Hound's claws
+  at 5 and 6). Fixed: the dead-bar check read a destroyed extension outside its pcall (from the first performance pass).
+  Reveal scans read each unit's breed once.
+- Tests: hud_test (the net, its mesh by threat, the claws only at 5 and 6), logic_test (an extension that raises when read),
+  effects_test (one breed read per unit); every suite.
+
+## 2026-10-06 - The hound's feint; the Beast's colour
+- Built: the Attack cancel chance feints a Pox Hound's pounce at take-off (the game's _stop), then the Feint pause (renamed from
+  Net feint pause, shared with the Trapper).
+- Found: every enemy colour is `stimmed_color` (Enraged included); the Beast's colour needs an in-game check of the explicit body
+  write before anything else is built.
+- Tests: logic_test (feint, pause, a roll above the chance, no chance, the default pause), entry_test (the two hooks).
+
+## 2026-10-06 - Wording: cards, not waves
+- Every user-visible text (options, Deck settings, HUD lines, chat messages, command help) renamed from waves to cards;
+  the Spread is the Draw. Setting ids are unchanged, so saved options keep their values.
+- Tests: the four checks that matched the old messages updated; every suite.
+
+## 2026-10-07 - The chance text, the author's defaults again
+- The Deck's "not drawn" ran into COOLDOWN (its text could run 20 units past its node, and the COOLDOWN label starts right
+  there): the chance's trailing text stays in its node and wraps (an editor check).
+- The default deck and options regenerated from the author's settings (8 options changed); the code fallbacks of those options
+  follow. The generator had an old copy of user_defaults.lua's card cache (without the rebuild when `cards` is replaced): fixed in
+  both. The author's presets 2 and 3 emptied in their settings (a backup kept).
+- Tests: the checks pinned to the old values (395/500, The Wheel 60 s, 50 percent fade, sky 100) moved; every suite.

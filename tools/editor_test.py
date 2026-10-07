@@ -1221,6 +1221,14 @@ check("detail: composition rows (a Scab enemy whose name does not say so gets th
 check("detail: the enemy rows are the Cauldron's own (rw_erow_1..5): visible, with a weight, a repeat and the three chips", row(1).visible and row(1) == view._widgets_by_name.rw_erow_1 and row(1).content.stepper_value == "8" and row(1).content.rep_value == "0" and row(1).content.hotspot_action_text == "btn_remove" and not view._widgets_by_name.rw_row_1.visible)
 check("detail: buttons visible (the cooldown stepper is not: the cooldown is set on the card face screen)", view._widgets_by_name.btn_rename.visible and view._widgets_by_name.btn_add.visible and not view._widgets_by_name.stepper_cooldown.visible and view._widgets_by_name.stepper_chance.visible and view._widgets_by_name.btn_delete.visible)
 check("detail: the chance stepper shows its value (the cooldown is on the Mirror)", view._widgets_by_name.stepper_chance.content.stepper_value == "4" and not view._widgets_by_name.stepper_cooldown.visible)
+do
+  -- (2026-10-07) "not drawn" ran into COOLDOWN: the chance's trailing text stays in its own node and wraps
+  local w = view._widgets_by_name.stepper_chance
+  local extra
+  for _, pass in ipairs(w.passes or {}) do if pass.style_id == "extra" then extra = pass.style end end
+  extra = extra or w.style.extra
+  check("detail: the chance's trailing text ends at its node and wraps (COOLDOWN follows at once)", extra and extra.offset[1] + extra.size[1] <= 290 and extra.word_wrap == true, extra and (extra.offset[1] + extra.size[1]))
+end
 check("detail: the Deck's widgets are hidden", not tile(1).visible and not blank_tile().visible and not D.rw_strip.visible and not D.deck_count.visible and not D.list_panel.visible and not D.list_header.visible and not D.bottom_panel.visible and D.shelf_panel.visible and D.rw_stage_card.visible and D.stage_plate.visible and view._sg.scroll_up[1] == 1148 and view._sg.scroll_up[2] == 479)
 
 -- count stepper writes an override

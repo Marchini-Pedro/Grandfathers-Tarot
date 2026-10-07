@@ -128,7 +128,9 @@ end
 -- The compact stepper of the Workshop (the spawn block and the chance): a label, the plate (Workshop.STEPPER: minus, value, plus,
 -- 40 + 56 + 40 wide) after `label_width`, and a trailing text. The names are the ones of setting_stepper (label, stepper_value,
 -- extra, hotspot_minus / value / plus), content.stepper_value_dim = true dims the plate.
-blueprints.workshop_stepper = function (node_id, width, label_width, font_size, label_color)
+-- `extra_room`: how far the trailing text may run past the node (20 by default; the chance's 0: COOLDOWN follows it at once),
+-- `extra_font` its size (17)
+blueprints.workshop_stepper = function (node_id, width, label_width, font_size, label_color, extra_room, extra_font)
 	local passes = {}
 	local S = Workshop.STEPPER
 	local x0 = label_width
@@ -146,8 +148,12 @@ blueprints.workshop_stepper = function (node_id, width, label_width, font_size, 
 		font_size = S.font,
 		sign = S.sign,
 	})
-	-- the trailing text may run a little past the node (the next column starts 26 units later)
-	Components.text_pass(passes, "extra", "extra", { after, 0, 2 }, { width - after + 20, 48 }, 17, colors.muted)
+	-- the trailing text may run a little past the node (the next column starts 26 units later); a longer one wraps
+	Components.text_pass(passes, "extra", "extra", { after, 0, 2 }, { width - after + (extra_room or 20), 48 }, extra_font or 17, colors.muted)
+
+	if extra_room == 0 then
+		passes[#passes].style.word_wrap = true
+	end
 
 	return UIWidget.create_definition(passes, node_id, { label = "", stepper_value = "", extra = "" }, { width, 48 })
 end

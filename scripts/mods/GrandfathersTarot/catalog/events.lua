@@ -422,7 +422,7 @@ Events.find = function (query, get_setting, Groups)
 	local q = Events.normalize_name(query)
 
 	if q == "" then
-		return nil, "no wave name given"
+		return nil, "no card name given"
 	end
 
 	local waves = {}
@@ -455,7 +455,7 @@ Events.find = function (query, get_setting, Groups)
 		if #matches == 1 then
 			return matches[1]
 		elseif #matches > 1 then
-			return nil, string.format("several waves match %q: %s. Use the full name or the key.", tostring(query), describe(matches))
+			return nil, string.format("several cards match %q: %s. Use the full name or the key.", tostring(query), describe(matches))
 		end
 	end
 
@@ -493,7 +493,7 @@ Events.find = function (query, get_setting, Groups)
 		end
 	end
 
-	return nil, string.format("no wave named %q (use its name from the wave editor, or a key like custom_1)", tostring(query))
+	return nil, string.format("no card named %q (use its name from the Deck, or a key like custom_1)", tostring(query))
 end
 
 -- Writes a wave's name and composition. `parts` may be nil/empty for a custom slot.
@@ -581,7 +581,10 @@ Events.timed_waves = function (get_setting, Groups)
 	local keys = Events.keys()
 
 	for i = 1, #keys do
-		local wave = not Events.is_empty_slot(keys[i], get_setting) and Events.get(keys[i], get_setting, Groups) or nil
+		-- (2026-10-06, a performance pass: this runs once a second while playing) a card without a timer is not read at all;
+		-- reading one parses its whole recipe, and a deck of 50 cards did that every second
+		local timed = (tonumber(get_setting("ev_" .. keys[i])) or 0) > 0
+		local wave = timed and not Events.is_empty_slot(keys[i], get_setting) and Events.get(keys[i], get_setting, Groups) or nil
 
 		if wave and wave.enabled and Effects.has_content(wave) and wave.timer > 0 then
 			list[#list + 1] = { key = wave.key, name = wave.name, def = Events.spawn_def(wave), every = wave.timer }

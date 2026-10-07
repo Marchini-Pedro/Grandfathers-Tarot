@@ -47,7 +47,7 @@ end
 HudElementGrandfathersTarotDream.option = function ()
 	local value = tonumber(mod:get("dream_sky_strength"))
 
-	return value and math.max(0, math.min(150, value)) / 100 or 1
+	return value and math.max(0, math.min(150, value)) / 100 or 0.5
 end
 
 HudElementGrandfathersTarotDream.envelope = function (age)
