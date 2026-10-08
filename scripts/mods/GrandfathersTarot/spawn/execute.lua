@@ -13,7 +13,7 @@ local FixedFrame = require("scripts/utilities/fixed_frame")
 
 local Execute = {}
 
-local Positions, Bypass, Groups, Tuning, Appearance, Effects
+local Positions, Bypass, Groups, Tuning, Appearance, Effects, Twins
 
 local FEED_INTERVAL = 0.15
 local FEED_BATCH = 2
@@ -27,6 +27,7 @@ local MAX_PENDING = 8000 -- aggregate entries; independent of the alive-unit cap
 local PURGE_INTERVAL = 5
 
 local jobs = {}
+local spawning = false
 local feed_timer = 0
 local purge_timer = 0
 local clock = 0
@@ -74,6 +75,7 @@ Execute.init = function (deps)
 	Tuning = deps.tuning
 	Appearance = deps.appearance
 	Effects = deps.effects
+	Twins = deps.twins
 end
 
 local warned = {}
@@ -312,7 +314,7 @@ end
 -- so 0 removes that type from the wave and 500 gives five times as many.
 local function expand(parts, field, picks)
 	local queue = {}
-	local cap = number_setting("max_per_wave", 100)
+	local cap = number_setting("max_per_wave", 200)
 
 	for i = 1, #parts do
 		local part = parts[i]
@@ -320,7 +322,7 @@ local function expand(parts, field, picks)
 		local amount = scaled_amount(base, percent_for(part))
 
 		for _ = 1, amount do
-			queue[#queue + 1] = { breed = breed_of(part, picks), mods = part.mods, tune = part.tune, appearance = part.appearance, nodogs = part.nodogs, noshield = part.noshield, leaves = part.leaves, boss_name = part.boss_name, boss_colour = part.boss_colour }
+			queue[#queue + 1] = { breed = breed_of(part, picks), mods = part.mods, tune = part.tune, appearance = part.appearance, nodogs = part.nodogs, noshield = part.noshield, leaves = part.leaves, boss_name = part.boss_name, boss_colour = part.boss_colour, twins = part.twins }
 		end
 	end
 
@@ -352,7 +354,7 @@ Execute.start_wave = function (def)
 		needed = needed + scaled_amount(part.count or 0, percent_for(part))
 	end
 
-	needed = math.min(needed, number_setting("max_per_wave", 100))
+	needed = math.min(needed, number_setting("max_per_wave", 200))
 
 	-- Refuse the whole new wave before allocating its queue. Repeat-only jobs
 	-- also need a job slot and some aggregate capacity to make eventual progress.
@@ -631,6 +633,7 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 	end
 
 	Bypass.begin_spawn()
+	spawning = true
 
 	local ok, unit = pcall(function ()
 		local rotation = face_target and Positions and Positions.rotation_towards and Positions.rotation_towards(position, target_unit) or nil
@@ -638,6 +641,7 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 		return spawn_manager:spawn_minion(breed_name, position, rotation or Unit.world_rotation(target_unit, 1), villains.side_id, param)
 	end)
 
+	spawning = false
 	Bypass.end_spawn(ok and unit or nil)
 
 	if not ok then
@@ -655,6 +659,11 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 		for i = 1, #mod_ids do
 			if mod_ids[i] == "fire" and Tuning and Tuning.mark_fire then
 				Tuning.mark_fire(unit, tune)
+			end
+
+			-- Twins: the enemy splits into its row's own twins when it dies (twins/twins.lua)
+			if mod_ids[i] == "purple_stimm" and Twins and Twins.claim then
+				Twins.claim(unit, breed_name, { mods = mod_ids, tune = tune, appearance = appearance, nodogs = extra.nodogs, noshield = extra.noshield, leaves = extra.leaves, boss_name = extra.boss_name, boss_colour = extra.boss_colour, twins = extra.twins, twin_gen = extra.twin_gen })
 			end
 		end
 	end
@@ -678,6 +687,25 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 	return true, unit
 end
 
+-- true while spawn_one is inside the game's spawn_minion (a card's enemy: the Twins condition leaves it alone)
+Execute.is_spawning = function ()
+	return spawning
+end
+
+-- One twin of a card row's enemy (twins/twins.lua): at `position`, going for `target`, with the entry's settings. Returns true, or
+-- false and "full" while the card enemies are at their limit (Max card enemies alive), or false and a reason.
+Execute.spawn_twin = function (entry, position, target)
+	if not Execute.has_authority() then
+		return false, "no spawn authority"
+	end
+
+	if number_setting("max_alive", 400) - Bypass.count() <= 0 or over_heap_guard() then
+		return false, "full"
+	end
+
+	return spawn_one(entry.breed, position, target, entry.mods, entry.tune, entry.appearance, false, entry)
+end
+
 Execute.update = function (dt, paused)
 	if mod.is_enabled and not mod:is_enabled() then
 		Execute.cancel()
@@ -699,6 +727,11 @@ Execute.update = function (dt, paused)
 		purge_timer = 0
 
 		Bypass.purge()
+	end
+
+	-- the twins of the card rows' enemies that died (twins/twins.lua)
+	if Twins and not paused then
+		Twins.update(dt)
 	end
 
 	if #jobs == 0 or paused then
@@ -736,7 +769,7 @@ Execute.update = function (dt, paused)
 		return
 	end
 
-	local room = number_setting("max_alive", 200) - Bypass.count()
+	local room = number_setting("max_alive", 400) - Bypass.count()
 
 	if room <= 0 then
 		return
@@ -827,6 +860,10 @@ Execute.reset = function ()
 
 	if Tuning then
 		Tuning.reset()
+	end
+
+	if Twins then
+		Twins.reset()
 	end
 end
 

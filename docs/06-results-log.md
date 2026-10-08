@@ -457,3 +457,53 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   follow. The generator had an old copy of user_defaults.lua's card cache (without the rebuild when `cards` is replaced): fixed in
   both. The author's presets 2 and 3 emptied in their settings (a backup kept).
 - Tests: the checks pinned to the old values (395/500, The Wheel 60 s, 50 percent fade, sky 100) moved; every suite.
+
+## 2026-10-07 - Asleep in official games
+- Report: in an official Havoc game GrandfathersTarot 0.103 ms / 124 calls, Realms 0.447 ms (spikes 1.5 ms).
+- Found: Tarot never knew it was in a game it cannot play in (an official game: a client with no Realms session) and ran all its
+  hooks. The monitor bills a mod for the whole of its wrapping hooks, the game's own work inside included: Tarot's keybind
+  guard wraps DMF's check of every mod's keybinds each frame, the golden health hook the player panels' health bar draw, the
+  boss bar hooks the boss bar. Realms (deluxghost's, not ours) wraps PlayerUnitBuffExtension.fixed_update in every game
+  (private outlines): the game's player buff update is billed to it.
+- Built: core/dormancy.lua: at a game's start (and 2, 10, 30 s in, for hooks DMF creates late) the mod checks whether this
+  machine hosts the game or is a Realms server's client; if not, DMF's disable_all_hooks, no HUD elements (validation_function),
+  the update only ticks the editor's sounds. Back to the menu it wakes. The keybind guard is switched on only while a text box
+  is open. Realms not changed.
+- Tests: the entry suite (an official game sleeps and re-applies, a hosted game and a Realms client stay awake, DMF's own
+  enable/disable respected, the guard, unload holds nothing); every suite.
+
+## 2026-10-07 - Empty presets, Delete all, Nightmare repeat, the cooldown reset
+- An empty preset slot loads an empty deck (Presets.clear_all: custom cards emptied, built-in ones deleted), not the defaults.
+- Delete all on the Deck (right of the time steppers: the other screens' Back sits where the left spot was, a click on Back
+  would have landed on it): two warnings in the button and the chat, the deletion on the third click; an undo is kept.
+- Options: Nightmare can repeat (once_suit returns nothing while on); Reset cooldowns at, 80 percent by default: the tarot
+  draw ends every cooldown of its pool when that share is resting (the vote and random modes already fall back to resting
+  cards). 80: a hand of 3 to 4 cards stays possible in a deck of 15 to 20 before the reset.
+- Tests: logic (the reset at 100, 50, the default 80 and 0; the rule alone; Nightmare repeating), editor (Delete all's three
+  clicks and expiry, the empty slot, no overlap); every suite.
+
+## 2026-10-07 - Twins: SoloPlayPurpleStimms merged, a card row's own twins
+- twins/ (catalog.lua as it was; cosmetics.lua and twins.lua adapted): settings under tw_, copied once from the old mod
+  (RW.migrate_twins_settings); installed at load; refuses to install while SoloPlayPurpleStimms is loaded; removed from
+  mod_load_order.txt (backup in the session scratchpad).
+- The condition's random purple stimm only while the condition loaded the purple mutator (__tw_condition on the mutator
+  manager): a card's Twins row also creates that mutator, which with the old mod turned every enemy of the mission purple by
+  the per-breed chances.
+- A card row's twins: part.twins, "(twins <a> <b> <sa ka sb kb> <gen>)"; Execute claims a Twins enemy on spawn; the purple
+  buff's death effect splits a claimed enemy into its row's twins, queued and spawned by Execute.spawn_twin (counted as card
+  enemies, waiting up to 10 s for room). Target: the dying enemy's while alive and not invisible/unperceivable, else the nearest
+  visible player, else the nearest player.
+- The crash guard of _stop_material_vector_effect moved into Appearance's hook (one hook per mod per method in DMF).
+- Tests: skipped at the user's request; a parse/recipe/twin-rule check run by hand.
+
+## 2026-10-08 - The author's defaults again, the Twins tests
+- Defaults written from the author's settings (the scratchpad's gen_defaults.py, now skipping table settings): 99 cards on,
+  12 of them empty (custom_77 to 88), so 87 in the draw; options interval_max 195, max_per_wave 200, max_alive 400,
+  cooldown_reset_pct 90, nightmare_repeat on, and the code's fallbacks to match. The three tw_cfg_ tables became catalog
+  defaults (twin1/twin2/twins_buff on a catalog entry): Daemonhost on at 30, Poxburster into two Poxbursters, Never stimmed;
+  tw_guest_safe off, tw_no_restim on.
+- Tests: new twins_test.py (104 checks: refusals, the condition through SoloPlay and the mutator manager, the options menu and
+  its loop warnings, reset, the rows' twins and their target, the queue, the boss fix in die, the stim action, the spawn roll,
+  colour and smoke); editor (22 checks: the Twins rows of Custom, the popup, the recipe round trip); appearance (the wrapping
+  stop hook and its crash guard); the description of Twins under 138 characters; tw_popup_unknown without %q. Floors for
+  twins/: catalog 95, cosmetics 88, twins 77. Every suite: 3,037 checks, coverage 83.30%.

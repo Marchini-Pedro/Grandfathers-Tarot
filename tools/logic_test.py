@@ -611,8 +611,16 @@ do
   Director.update(150)
   check("nightmare: ...and finds nothing else to send", #started_waves == 1)
   settings.mode = nil
+  -- (2026-10-07) the option "Nightmare can repeat": its cards come back like any other, after their cooldown
+  settings.nightmare_repeat = true; settings.cooldown_reset_pct = 100
+  start(); skip()
+  check("nightmare repeat: drawn, and not spent for the game", started_waves[1] ~= nil and Director.spent_once("nightmare") == false)
+  for _ = 1, 3 do Director.update(31); skip() end
+  check("nightmare repeat: drawn again in the same game", #started_waves >= 2, #started_waves)
+  settings.nightmare_repeat = nil
   for _, k in ipairs(keys) do settings["on_" .. k] = nil; settings["pct_" .. k] = nil; settings["cd_" .. k] = nil end
   settings.su_wave_medium, settings.su_wave_small = nil, nil
+  settings.cooldown_reset_pct = nil
   settings.tarot_cards, settings.tarot_seconds, settings.interval_min, settings.interval_max, settings.interval_random, settings.initial_delay = nil, nil, nil, nil, nil, nil
   Director.effects = nil
   Director.on_exit_gameplay(); started_waves = {}; started_defs = {}
@@ -1358,7 +1366,8 @@ do
   check("tarot: but it wins only about half the time, not 83 percent (the pick among the hand is uniform)", wins.wave_small / hands > 0.40 and wins.wave_small / hands < 0.58, wins.wave_small / hands)
   check("tarot: the light cards win too, roughly equally", wins.wave_medium > 0.1 * hands and wins.wave_large > 0.1 * hands and math.abs(wins.wave_medium - wins.wave_large) < 0.12 * hands, wins.wave_medium .. "/" .. wins.wave_large)
 
-  -- cooldown: a drawn card is out of EVERY draw for its full cooldown
+  -- cooldown: a drawn card is out of EVERY draw for its full cooldown (the reset of every cooldown off: 0)
+  settings.cooldown_reset_pct = 0
   settings.tarot_cards = 5; settings.tarot_seconds = 10; settings.interval_min = 100; settings.interval_max = 100
   only({ { "wave_small", 5, 1000 }, { "wave_medium", 5, 1000 } })
   v = start(); Director.update(95)
@@ -1380,6 +1389,33 @@ do
   Director.update(95)
   check("cooldown: after the full cooldown the cards are dealt again", Director.view().hand ~= nil and #Director.view().hand >= 1, Director.view().hand and #Director.view().hand)
   check("cooldown: the host can read how long is left", (function() local ok = Director.cooldown_remaining("wave_small", 1000); return type(ok) == "number" end)())
+  -- (2026-10-07) "Reset cooldowns at": when that percent of the draw is resting, every cooldown ends at once
+  settings.cooldown_reset_pct = 100
+  only({ { "wave_small", 5, 1000 }, { "wave_medium", 5, 1000 } })
+  v = start(); Director.update(95); Director.update(6)
+  Director.update(95)
+  check("cooldown reset 100: one card of two resting is not enough (a hand of one)", Director.view().phase == "hand" and #Director.view().hand == 1)
+  Director.update(11); Director.update(95)
+  v = Director.view()
+  check("cooldown reset 100: every card resting -> every cooldown ends and both are dealt", v.phase == "hand" and #v.hand == 2 and (Director.cooldown_map().wave_small or 0) == 0 and (Director.cooldown_map().wave_medium or 0) == 0, v.phase .. " " .. tostring(v.hand and #v.hand))
+  settings.cooldown_reset_pct = 50
+  v = start(); Director.update(95); Director.update(6)
+  Director.update(95)
+  check("cooldown reset 50: one card of two resting (50 percent) -> reset, a hand of two again", Director.view().phase == "hand" and #Director.view().hand == 2)
+  settings.cooldown_reset_pct = nil
+  v = start(); Director.update(95); Director.update(6)
+  Director.update(95)
+  check("cooldown reset: the default (80 percent) keeps one card of two resting (a hand of one)", Director.view().phase == "hand" and #Director.view().hand == 1)
+  check("cooldown reset: the pure rule (Director.refresh_cooldowns): 4 of 5 resting at 80 -> yes, 3 of 5 -> no, 0 = never", (function()
+    local pool = { { key = "a" }, { key = "b" }, { key = "c" }, { key = "d" }, { key = "e" } }
+    settings.cooldown_reset_pct = 80
+    local yes, no = Director.refresh_cooldowns(pool, 4), Director.refresh_cooldowns(pool, 3)
+    settings.cooldown_reset_pct = 0
+    local never = Director.refresh_cooldowns(pool, 5)
+    settings.cooldown_reset_pct = nil
+    return yes == true and no == false and never == false
+  end)())
+  settings.cooldown_reset_pct = 0
   -- /gt_pause freezes the cooldown clock too
   only({ { "wave_small", 5, 100 } })
   v = start(); Director.update(95); Director.update(6)
@@ -3875,7 +3911,7 @@ do
   local all = data.options.widgets
   local mp, ma = find("max_per_wave", all), find("max_alive", all)
   check("options: max enemies per wave 1-500, max alive 10-1000", mp.range[1] == 1 and mp.range[2] == 500 and ma.range[1] == 10 and ma.range[2] == 1000, mp.range[2] .. "/" .. ma.range[2])
-  check("options: defaults are the author's (100 per card, 200 alive; 2026-10-07)", mp.default_value == 100 and ma.default_value == 200)
+  check("options: defaults are the author's (200 per card, 400 alive; 2026-10-08)", mp.default_value == 200 and ma.default_value == 400)
   local ok = true
   for _, id in ipairs({ "mult_normal", "mult_boss", "mult_special" }) do
     local w = find(id, all)

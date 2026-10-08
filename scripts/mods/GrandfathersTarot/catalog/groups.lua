@@ -130,7 +130,7 @@ Groups.MODIFIERS = {
 		-- (2026-10-05, the user: "rename the Purple stimm buff to Twins": every split makes twins; the id and the old names stay valid)
 		id = "purple_stimm", name = "Twins", buffs = { "mutator_stimmed_minion_purple" }, prepare = "purple_stimm",
 		aliases = { "twins", "twin", "purple stimm", "purple stimmed", "purple stim", "stimmed purple", "purple split", "splitting" },
-		description = "Purple stimmed: when it dies it bursts and splits into two weaker enemies, which can split again. The split enemies are extra units.",
+		description = "When it dies it bursts and splits into two enemies. Which two, if they split again and keep the mods: Twins rows at the top of Custom.",
 	},
 	{
 		-- buff mutator_rotten_armor (havoc_buff_templates.lua:684-772, thresholds/armor overrides in
@@ -893,6 +893,70 @@ Groups.next_leaves = function (leaves)
 	return nil
 end
 
+-- (2026-10-07) The row's own Twins (twins/twins.lua): with the Twins modifier, what the row's enemies split into when they die.
+-- part.twins = { a, b = the two enemies (nil: the game's own split of the dying enemy, "none": nothing, or a breed),
+--   sa, sb = that twin splits again (it has Twins too, with these settings, one generation on), ka, kb = that twin keeps the row's
+--   modifiers, custom stats and colour (off: a plain enemy), gen = generations, 1 to 5 (1: only the card's own enemy splits) }.
+-- In a recipe: "(twins <a> <b> <sa ka sb kb as 0/1> <gen>)", e.g. "1 poxburster[twins](twins chaos_poxwalker_bomber none 1000 3)".
+Groups.TWINS_MOD = "purple_stimm"
+Groups.TWINS_MAX_GEN = 5
+
+Groups.has_twins_mod = function (part)
+	for i = 1, #((part and part.mods) or {}) do
+		if part.mods[i] == Groups.TWINS_MOD then return true end
+	end
+
+	return false
+end
+
+-- a clean copy (nil when every value is the default)
+Groups.clean_twins = function (twins)
+	if type(twins) ~= "table" then
+		return nil
+	end
+
+	local function slot(value)
+		if value == "none" then return "none" end
+		if type(value) == "string" and value:match("^[%w_]+$") and value ~= "default" then return value end
+
+		return nil
+	end
+
+	local gen = math.floor(tonumber(twins.gen) or 1)
+	local clean = {
+		a = slot(twins.a), b = slot(twins.b),
+		sa = twins.sa == true or nil, ka = twins.ka == true or nil, sb = twins.sb == true or nil, kb = twins.kb == true or nil,
+		gen = math.max(1, math.min(Groups.TWINS_MAX_GEN, gen)),
+	}
+
+	if clean.gen == 1 then clean.gen = nil end
+
+	return next(clean) ~= nil and clean or nil
+end
+
+Groups.twins_recipe = function (twins)
+	local t = Groups.clean_twins(twins)
+
+	if not t then
+		return ""
+	end
+
+	local function bit(value) return value and "1" or "0" end
+
+	return string.format("(twins %s %s %s%s%s%s %d)", t.a or "default", t.b or "default", bit(t.sa), bit(t.ka), bit(t.sb), bit(t.kb), t.gen or 1)
+end
+
+-- "twins a b 1010 3" (the marker, lower case) -> part.twins (nil when it is all defaults or does not read)
+Groups.parse_twins = function (marker)
+	local a, b, flags, gen = tostring(marker):match("^twins%s+([%w_]+)%s+([%w_]+)%s+([01][01][01][01])%s+(%d+)$")
+
+	if not a then
+		return nil
+	end
+
+	return Groups.clean_twins({ a = a, b = b, sa = flags:sub(1, 1) == "1", ka = flags:sub(2, 2) == "1", sb = flags:sub(3, 3) == "1", kb = flags:sub(4, 4) == "1", gen = tonumber(gen) })
+end
+
 -- the markers of a part in a recipe; a flag its enemy cannot use (left over from a changed enemy) is not written
 Groups.extra_recipe = function (part)
 	local text = ""
@@ -902,6 +966,7 @@ Groups.extra_recipe = function (part)
 	if part.leaves and Groups.can_leave(part) then text = text .. "(leaves " .. tostring(part.leaves) .. ")" end
 	if part.boss_name then text = text .. "(name " .. part.boss_name .. ")" end
 	if part.boss_colour then text = text .. "(colour " .. part.boss_colour .. ")" end
+	if part.twins and Groups.has_twins_mod(part) then text = text .. Groups.twins_recipe(part.twins) end
 
 	return text
 end
@@ -1025,7 +1090,7 @@ Groups.parse = function (recipe)
 			end
 
 			-- the row's toggle, in any order at the end: "(no dogs)", "(no shield)", "(leaves 2)"
-			local nodogs, noshield, leaves, boss_name, boss_colour
+			local nodogs, noshield, leaves, boss_name, boss_colour, twins
 
 			while true do
 				local before, marker = name:match("^(.-)%s*%(([^()]*)%)%s*$")
@@ -1039,6 +1104,8 @@ Groups.parse = function (recipe)
 					leaves = Groups.leaves_value(marker:sub(8))
 				elseif marker and (marker:match("^colour ") or marker:match("^color ")) then
 					boss_colour = Groups.clean_hex(marker:match("^%a+ (.*)$"))
+				elseif marker and marker:match("^twins ") then
+					twins = Groups.parse_twins(marker)
 				elseif marker and marker:match("^bossname %d+$") then
 					boss_name = Groups.clean_boss_name(boss_names[tonumber(marker:match("%d+"))])
 				else
@@ -1127,6 +1194,7 @@ Groups.parse = function (recipe)
 				new_part.leaves = leaves and Groups.can_leave(new_part) and leaves or nil
 				new_part.boss_name = boss_name
 				new_part.boss_colour = boss_colour
+				new_part.twins = twins and Groups.has_twins_mod(new_part) and twins or nil
 
 				local key = part_key(new_part)
 				local part = by_key[key]

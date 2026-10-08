@@ -84,6 +84,71 @@ do
 	end
 end
 
+-- Twins (2026-10-07): SoloPlayPurpleStimms is part of the mod now. Its saved settings are copied once, under the "tw_" prefix (its
+-- per-breed tables included), and the old ones are left as they were. Returns how many were copied.
+RW.migrate_twins_settings = function ()
+	if mod:get("tw_settings_migrated") == true then
+		return 0
+	end
+
+	local ok, all = pcall(function () return Application.user_setting("mods_settings") end)
+	local old = ok and type(all) == "table" and all.SoloPlayPurpleStimms
+	local copied = 0
+
+	if type(old) == "table" then
+		for key, value in pairs(old) do
+			if type(key) == "string" then
+				mod:set("tw_" .. key, value)
+				copied = copied + 1
+			end
+		end
+	end
+
+	mod:set("tw_settings_migrated", true)
+
+	return copied
+end
+
+do
+	local ok, err = pcall(RW.migrate_twins_settings)
+
+	if not ok then
+		mod:error("GrandfathersTarot: the settings of SoloPlayPurpleStimms could not be copied: %s", tostring(err))
+	end
+
+	-- the condition, the buff's death effect and the hooks are installed at load (the condition must exist before SoloPlay builds
+	-- its dropdowns, and SoloPlay's mission-context functions are wrapped here)
+	local loaded, Twins = pcall(mod.io_dofile, mod, BASE .. "/twins/twins")
+
+	if loaded and type(Twins) == "table" then
+		RW.twins = Twins
+
+		local installed, ready, why = pcall(Twins.install)
+
+		if not installed then
+			mod:error("GrandfathersTarot: Twins could not be installed: %s", tostring(ready))
+		elseif not ready then
+			mod:warning("GrandfathersTarot: Twins is off: %s", tostring(why))
+		end
+	else
+		mod:error("GrandfathersTarot: twins/twins.lua failed to load: %s", tostring(Twins))
+	end
+end
+
+-- every change of a mod option: Twins' own (tw_) are handled there
+mod.on_setting_changed = function (setting_id)
+	if RW.twins and not RW.dead then
+		local ok, err = pcall(RW.twins.on_setting_changed, setting_id)
+
+		if not ok then mod:error("[twins] %s", tostring(err)) end
+	end
+end
+
+-- Options > Twins > Reset everything to default (a held button)
+mod.tw_reset_to_defaults = function ()
+	if RW.twins then RW.twins.reset_to_defaults() end
+end
+
 local function release_events()
 	if RW.event_manager then
 		pcall(RW.event_manager.unregister, RW.event_manager, mod, "event_mission_objective_start")
@@ -103,6 +168,15 @@ local function register_events()
 	end
 end
 
+-- Not created in a game the cards cannot play in (core/dormancy.lua: Fatshark's servers). Looked up when the HUD is built: DMF keeps
+-- the element's settings across reloads, and this must not hold an old generation of the mod.
+local function hud_wanted()
+	local current = get_mod("GrandfathersTarot")
+	local dormancy = current and current.rw and current.rw.dormancy
+
+	return not dormancy or dormancy.playable()
+end
+
 -- Registered at load so DMF injects it whenever the HUD is built.
 pcall(function ()
 	mod:register_hud_element({
@@ -110,6 +184,7 @@ pcall(function ()
 		filename = BASE .. "/ui/hud_element_waves",
 		use_hud_scale = true,
 		visibility_groups = { "alive", "dead", "communication_wheel", "tactical_overlay" },
+		validation_function = hud_wanted,
 	})
 end)
 
@@ -121,6 +196,7 @@ pcall(function ()
 		filename = BASE .. "/ui/hud_element_dread",
 		use_hud_scale = false,
 		visibility_groups = { "alive", "dead", "communication_wheel", "tactical_overlay" },
+		validation_function = hud_wanted,
 	})
 end)
 
@@ -131,6 +207,7 @@ pcall(function ()
 		filename = BASE .. "/ui/hud_element_dream",
 		use_hud_scale = false,
 		visibility_groups = { "alive", "dead", "communication_wheel", "tactical_overlay" },
+		validation_function = hud_wanted,
 	})
 end)
 
@@ -141,6 +218,7 @@ pcall(function ()
 		filename = BASE .. "/ui/hud_element_last_card",
 		use_hud_scale = true,
 		visibility_groups = { "alive", "dead", "communication_wheel", "tactical_overlay" },
+		validation_function = hud_wanted,
 	})
 end)
 
@@ -299,7 +377,12 @@ mod.on_all_mods_loaded = function ()
 	RW.tuning.install()
 	RW.appearance.init({ schema = RW.groups.Appearance, protocol = RW.protocol })
 	RW.appearance.install()
-	RW.execute.init({ positions = RW.positions, bypass = RW.bypass, groups = RW.groups, tuning = RW.tuning, appearance = RW.appearance, effects = RW.effects })
+	RW.execute.init({ positions = RW.positions, bypass = RW.bypass, groups = RW.groups, tuning = RW.tuning, appearance = RW.appearance, effects = RW.effects, twins = RW.twins })
+
+	if RW.twins then
+		RW.twins.init({ execute = RW.execute, positions = RW.positions })
+		pcall(RW.twins.on_all_mods_loaded)
+	end
 	RW.director.init({
 		events = RW.events,
 		groups = RW.groups,
@@ -321,6 +404,8 @@ mod.on_all_mods_loaded = function ()
 	-- input, so skip that call while one of the editor's popups is open (flag set by the popup).
 	local dmf_mod = get_mod("DMF")
 
+	local guarded = false
+
 	if dmf_mod and type(dmf_mod.check_keybinds) == "function" then
 		mod:hook(dmf_mod, "check_keybinds", function (func, ...)
 			if RW.text_input_active and not RW.dead then
@@ -329,7 +414,12 @@ mod.on_all_mods_loaded = function ()
 
 			return func(...)
 		end)
+		guarded = true
 	end
+
+	-- asleep in the games the cards cannot play in; the keybind guard on only while a text box is open (core/dormancy.lua)
+	RW.dormancy = mod:io_dofile(BASE .. "/core/dormancy")
+	RW.dormancy.init({ mod = mod, get_mod = get_mod, keybind_guard = guarded and dmf_mod or nil })
 
 	local Director = RW.director
 
@@ -404,6 +494,11 @@ mod.on_unload = function ()
 	RW.dead = true
 	RW.text_input_active = false
 
+	if RW.dormancy then
+		RW.dormancy.retire()
+		RW.dormancy = nil
+	end
+
 	release_events()
 
 	if RW.bypass then
@@ -448,12 +543,14 @@ mod.on_game_state_changed = function (status, state_name)
 		if RW.appearance then RW.appearance.reset() end
 		if RW.protocol then RW.protocol.clear_appearance_session() end
 		register_events()
+		if RW.dormancy then RW.dormancy.on_enter_gameplay() end
 		RW.director.on_enter_gameplay()
 		if RW.director.is_host() then RW.protocol.request_appearance_sync() end
 	else
 		if RW.appearance then RW.appearance.reset() end
 		if RW.protocol then RW.protocol.clear_appearance_session() end
 		RW.director.on_exit_gameplay()
+		if RW.dormancy then RW.dormancy.on_exit_gameplay() end
 	end
 end
 
@@ -494,6 +591,8 @@ mod.on_enabled = function (initial_call)
 	local was_disabled = RW.disabled
 	RW.disabled = false
 
+	if RW.dormancy then RW.dormancy.on_enabled() end
+
 	if not initial_call and was_disabled and RW.director then
 		if RW.director.is_host() then
 			RW.director.stop()
@@ -526,6 +625,22 @@ mod.update = function (...)
 
 		if RW.bypass then
 			RW.bypass.purge()
+		end
+
+		return
+	end
+
+	-- asleep (a game the cards cannot play in): only the editor's sounds (its preview plays in the hub too)
+	local dormancy = RW.dormancy
+	local asleep = dormancy and dormancy.update(dt)
+
+	if dormancy then
+		dormancy.sync_keybind_guard(RW.text_input_active and not RW.dead)
+	end
+
+	if asleep then
+		if RW.effects and RW.effects.tick_audio and dt then
+			pcall(RW.effects.tick_audio, dt)
 		end
 
 		return

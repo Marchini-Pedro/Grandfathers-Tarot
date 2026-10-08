@@ -80,6 +80,7 @@ local scenegraph_definition = {
 	help_text = node(1816 - Help.WIDTH + Help.PAD, 90 + Help.BODY_Y, Help.WIDTH - 2 * Help.PAD, 280, 72),
 	btn_wimport = node(645, 800, 300, 44, 2), -- list screen: import a shared wave into the first free custom slot
 	btn_default = node(965, 800, 320, 44, 2), -- list screen: restore every wave to the defaults
+	btn_delete_all = node(1600, 860, 213, 44, 2), -- list screen: delete every card (two warnings first); right of the time steppers, clear of the other screens' Back (125, 800)
 	-- list screen: sort the cards by threat, rarity, number of enemies or face (the label is a text, then four buttons)
 	sort_label = node(1305, 800, 80, 44, 2),
 	btn_sort_threat = node(1385, 800, 96, 44, 2),

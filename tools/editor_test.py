@@ -1696,6 +1696,66 @@ do
   scroll(0)
   click("btn_back")
 
+  -- (2026-10-07) Twins: a row with the Twins modifier gets its own twins first on the Custom screen (part.twins, "(twins a b flags gen)")
+  do
+    local saved_twins = mod.rw.twins
+    local twins_catalog = dofile(BASE .. "/twins/catalog.lua")
+    mod.rw.twins = { is_installed = function() return true end, catalog = function() return twins_catalog end }
+    view._parts[1].mods = { "purple_stimm" }; view:_save()
+    click_row(1, "hotspot_tune")
+    local src = view:_source()
+    check("twins: with the Twins modifier the Custom screen starts with Twin 1, its two toggles, Twin 2, its two toggles, Generations", #src == 25 and src[1].id == "tw_a" and src[2].id == "tw_sa" and src[3].id == "tw_ka" and src[4].id == "tw_b" and src[7].id == "tw_gen" and src[8].id == "health", #src)
+    check("twins: Twin 1 is the game's own split until one is chosen (a stepper, no Reset), the toggles are off, Generations 1",
+      row(1).content.row_name == "tw_a" and row(1).content.info:find("^tw_row_default") ~= nil and row(1).content.show_stepper and not row(1).content.show_action
+      and row(2).content.show_check and not row(2).content.checkbox_selected and row(7).content.stepper_value == "1" and not row(7).content.show_action, row(1).content.info)
+    click_row(1, "hotspot_plus")
+    check("twins: + steps to None, saved in the recipe, with Reset", view._parts[1].twins.a == "none" and row(1).content.info == "tw_twin_none" and row(1).content.show_action and settings.wave_def_wave_small:find("(twins none default 0000 1)", 1, true) ~= nil, settings.wave_def_wave_small)
+    click_row(1, "hotspot_plus")
+    check("twins: + again steps to the first enemy", view._parts[1].twins.a == twins_catalog.twin_choices[3])
+    click_row(1, "hotspot_minus"); click_row(1, "hotspot_minus"); click_row(1, "hotspot_minus")
+    check("twins: - from the game's split wraps round to the last enemy", view._parts[1].twins.a == twins_catalog.twin_choices[#twins_catalog.twin_choices])
+    click_row(1, "hotspot_action")
+    check("twins: Reset gives the game's split back, and with every value the default the marker leaves the recipe", view._parts[1].twins == nil and settings.wave_def_wave_small:find("(twins", 1, true) == nil)
+    click_row(2, "hotspot_check")
+    check("twins: 'Twin 1 splits again' is a checkbox, saved as the first flag", view._parts[1].twins.sa == true and row(2).content.checkbox_selected and settings.wave_def_wave_small:find("(twins default default 1000 1)", 1, true) ~= nil, settings.wave_def_wave_small)
+    click_row(3, "hotspot_name")
+    check("twins: a click on a toggle's name toggles it too ('keeps this row's mods')", view._parts[1].twins.ka == true)
+    click_row(3, "hotspot_check"); click_row(2, "hotspot_check")
+    check("twins: ...and off again", view._parts[1].twins == nil)
+    click_row(7, "hotspot_plus"); click_row(7, "hotspot_plus")
+    check("twins: Generations steps up, with Reset", view._parts[1].twins.gen == 3 and row(7).content.stepper_value == "3" and row(7).content.show_action)
+    for _ = 1, 10 do click_row(7, "hotspot_plus") end
+    check("twins: never more than 5 generations", view._parts[1].twins.gen == 5)
+    click_row(7, "hotspot_value")
+    check("twins: a click on Generations opens a whole-number box, 1 to 5", view._popup ~= nil and view._popup.spec.min == 1 and view._popup.spec.max == 5 and view._popup.spec.integer == true)
+    type_in("2"); PPt.Popup.commit(view)
+    check("twins: 2 typed is 2 generations", view._popup == nil and view._parts[1].twins.gen == 2)
+    click_row(7, "hotspot_action")
+    check("twins: Reset gives 1 generation back", view._parts[1].twins == nil)
+    click_row(4, "hotspot_value")
+    check("twins: a click on Twin 2's name opens a text box for an enemy", view._popup ~= nil and view._popup.spec.label:find("^tw_popup_title") ~= nil and view._popup.spec.value == "")
+    type_in("not an enemy at all"); PPt.Popup.commit(view)
+    check("twins: a name that is no enemy Twins can spawn is refused, the box stays open", view._popup ~= nil and view._popup.error ~= nil and view._parts[1].twins == nil)
+    type_in("poxburster"); PPt.Popup.commit(view)
+    check("twins: 'poxburster' typed is the Poxburster", view._popup == nil and view._parts[1].twins.b == "chaos_poxwalker_bomber")
+    click_row(4, "hotspot_value")
+    check("twins: the box opens with the enemy's name in it", view._popup ~= nil and view._popup.spec.value ~= "")
+    type_in(" NONE "); PPt.Popup.commit(view)
+    check("twins: 'none' typed is nothing", view._parts[1].twins.b == "none")
+    click_row(4, "hotspot_value"); type_in(""); PPt.Popup.commit(view)
+    check("twins: an empty box is the game's split again", view._parts[1].twins == nil)
+    view._parts[1].twins = { a = "chaos_poxwalker_bomber", sa = true, kb = true, gen = 3 }; view:_save()
+    local parsed = mod.rw.groups.parse(settings.wave_def_wave_small:match("\t(.*)$") or settings.wave_def_wave_small)
+    check("twins: the row's twins survive the recipe", parsed and parsed[1].twins and parsed[1].twins.a == "chaos_poxwalker_bomber" and parsed[1].twins.sa == true and parsed[1].twins.kb == true and parsed[1].twins.gen == 3, settings.wave_def_wave_small)
+    click("btn_back")
+    view._parts[1].mods = nil; view:_save()
+    click_row(1, "hotspot_tune")
+    check("twins: without the modifier the Twins rows are gone and the recipe has no marker", #view:_source() == 18 and settings.wave_def_wave_small:find("(twins", 1, true) == nil)
+    click("btn_back")
+    view._parts[1].twins = nil
+    mod.rw.twins = saved_twins
+  end
+
   -- clear everything
   click_row(1, "hotspot_tune"); click_row(1, "hotspot_action"); click_row(6, "hotspot_action"); click("btn_back")
   check("custom: with every value back to 100 the recipe has no braces", view._parts[1].tune == nil and settings.wave_def_wave_small:find("{", 1, true) == nil, settings.wave_def_wave_small)
@@ -1933,11 +1993,34 @@ do
   settings.preset_undo = nil
   click("btn_default"); view:update(0.01, 500, input_stub3)
   check("delete: an unconfirmed Restore defaults expires", view._widgets_by_name.btn_default.content.hotspot_text == "btn_default" and view._confirm == nil)
+  -- (2026-10-07) Delete all: two warnings, the deletion on the third click; a pause between clicks starts over
+  do
+    local W = view._widgets_by_name
+    settings["wave_def_custom_1"] = "Custom 1\t3 hounds"; settings["on_custom_1"] = true; view:_reload(); view:_apply_screen(true)
+    local echoes_before = #echoes
+    check("delete all: the button is on the Deck", W.btn_delete_all.visible and W.btn_delete_all.content.hotspot_text == "btn_delete_all")
+    click("btn_delete_all")
+    check("delete all: first click: a warning (button and chat), nothing deleted", W.btn_delete_all.content.hotspot_text == "btn_delete_all_sure" and settings.del_wave_small ~= true and #echoes == echoes_before + 1 and echoes[#echoes]:find("msg_delete_all_warn", 1, true) ~= nil, echoes[#echoes])
+    click("btn_delete_all")
+    check("delete all: second click: the last warning, still nothing deleted", W.btn_delete_all.content.hotspot_text == "btn_delete_all_last" and settings.del_wave_small ~= true and echoes[#echoes]:find("msg_delete_all_last", 1, true) ~= nil)
+    view:update(0.01, view._t + 5, input_stub3)
+    click("btn_delete_all")
+    check("delete all: after a pause it starts over at the first warning", W.btn_delete_all.content.hotspot_text == "btn_delete_all_sure" and settings.del_wave_small ~= true)
+    click("btn_delete_all"); click("btn_delete_all")
+    local custom_left = 0
+    for i = 1, 88 do if (settings["wave_def_custom_" .. i] or "") ~= "" then custom_left = custom_left + 1 end end
+    check("delete all: third click: every default card deleted, every custom card emptied, the Deck empty", settings.del_wave_small == true and settings.del_boss_ambush == true and custom_left == 0 and view._deleted_count > 0 and echoes[#echoes]:find("msg_delete_all_done", 1, true) ~= nil, custom_left)
+    check("delete all: the deck it replaced is kept for Undo last load", settings.preset_undo ~= nil and settings.preset_undo ~= "")
+    check("delete all: the button is back to its name", W.btn_delete_all.content.hotspot_text == "btn_delete_all" and view._confirm == nil)
+    click("btn_default"); click("btn_default")
+    check("delete all: Restore defaults brings the deck back", settings.del_wave_small == false)
+    settings.preset_undo = nil
+  end
   settings["wave_def_custom_1"] = "Custom 1\t3 hounds"; settings["on_custom_1"] = true; view:_reload(); view:_apply_screen(true)
 
   -- time between waves on the list screen
   local W2 = view._widgets_by_name
-  check("time: two steppers at the bottom of the list (the fixed time, the maximum), label says what they are; 75 s by default", W2.stepper_tmin.visible and W2.stepper_tmax.visible and W2.stepper_tmin.content.label == "set_interval_fixed" and W2.stepper_tmin.content.stepper_value == "75" and W2.stepper_tmax.content.stepper_value == "75" and W2.stepper_tmax.content.extra == "extra_not_random" and not W2.stepper_chance.visible)
+  check("time: two steppers at the bottom of the list (the fixed time, the maximum), label says what they are; 75 s fixed and 195 s maximum by default (the author's, 2026-10-08)", W2.stepper_tmin.visible and W2.stepper_tmax.visible and W2.stepper_tmin.content.label == "set_interval_fixed" and W2.stepper_tmin.content.stepper_value == "75" and W2.stepper_tmax.content.stepper_value == "195" and W2.stepper_tmax.content.extra == "extra_not_random" and not W2.stepper_chance.visible)
   click("stepper_tmin", "hotspot_plus")
   check("time: + adds 15 s from the 75 s it shows and writes interval_min", settings.interval_min == 90 and W2.stepper_tmin.content.stepper_value == "90", tostring(settings.interval_min))
   settings.interval_min, settings.interval_max, settings.interval_random = 150, 300, true; view:_apply_screen(true)
@@ -2219,6 +2302,7 @@ do
   check("corner: 'More options' and '?' sit top right, clear of the title, the description and each other", not hit("btn_settings", "title_text") and not hit("btn_settings", "description_text") and not hit("btn_help", "title_text") and not hit("btn_help", "description_text") and not hit("btn_settings", "btn_help") and sg.btn_help.position[1] + sg.btn_help.size[1] <= 1920)
   check("corner: the help tooltip lies inside the screen and below the corner buttons", sg.help_panel.position[2] > sg.btn_help.position[2] + sg.btn_help.size[2] and sg.help_panel.position[1] + sg.help_panel.size[1] <= 1920 and sg.help_panel.position[2] + sg.help_panel.size[2] <= 1080)
   check("corner: the Back button does not overlap the Restore defaults / Import / Deck presets buttons (no click-through)", not hit("btn_back", "btn_default") and not hit("btn_back", "btn_wimport") and not hit("btn_back", "btn_presets"))
+  check("deck: Delete all overlaps nothing of the Deck (the time steppers, the draw buttons, Restore defaults) nor the other screens' Back", not hit("btn_delete_all", "stepper_tmin") and not hit("btn_delete_all", "stepper_tmax") and not hit("btn_delete_all", "btn_draw_foe_off") and not hit("btn_delete_all", "btn_default") and not hit("btn_delete_all", "btn_back") and not hit("btn_delete_all", "btn_sort_face"))
   check("deck: the bottom row (Import card, Restore defaults) does not overlap, nor do the header's Deck presets, More options, help, count and title", not hit("btn_wimport", "btn_default") and not hit("btn_presets", "btn_settings") and not hit("btn_presets", "btn_help") and not hit("btn_presets", "deck_count") and not hit("deck_count", "title_text") and not hit("btn_settings", "deck_count") and not hit("btn_presets", "title_text"))
   check("deck: the strip and its captions do not overlap the tiles or the header", not hit("deck_strip", "deck_caption") and not hit("deck_caption", "rw_tile_1") and not hit("deck_strip", "rw_tile_1") and not hit("deck_hover", "rw_tile_1") and not hit("deck_caption", "deck_hover") and not hit("deck_strip", "btn_presets") and not hit("deck_strip", "description_text"))
 end
@@ -2366,7 +2450,7 @@ do
   click_row(2, "hotspot_action")
   check("presets: opening a slot shows its screen and buttons", view._screen == "preset_view" and view._preset_index == 2 and view._widgets_by_name.btn_psave.visible and view._widgets_by_name.btn_pload.visible and view._widgets_by_name.btn_pexport.visible and view._widgets_by_name.btn_pimport.visible)
   check("presets: empty slot has no Clear and no Undo button", not view._widgets_by_name.btn_pclear.visible and not view._widgets_by_name.btn_pundo.visible and note() == "preset_slot_empty_long")
-  click("btn_pload"); check("presets: loading an empty slot loads the default waves (a blank preset) and keeps an undo", note() == "preset_loaded_blank:2" and settings.preset_undo ~= nil and settings.preset_undo ~= "")
+  click("btn_pload"); check("presets: loading an empty slot loads an empty deck (every card deleted, 2026-10-07) and keeps an undo", note() == "preset_loaded_blank:2" and settings.preset_undo ~= nil and settings.preset_undo ~= "" and settings.del_wave_small == true and (settings.wave_def_custom_1 or "") == "")
   click("btn_pundo")
   check("presets: Undo last load after loading a blank slot brings the previous waves back", settings.wave_def_custom_1 ~= "" and settings.on_custom_1 == true and settings.preset_undo == "", tostring(settings.wave_def_custom_1))
   click("btn_pexport"); check("presets: exporting an empty slot only says so", view._popup == nil and note() == "preset_nothing_to_export")

@@ -296,7 +296,19 @@ Appearance.install = function ()
 	mod:hook_require("scripts/extension_systems/buff/minion_buff_extension", function (class)
 		if retired or hooked[class] then return end
 		hooked[class] = true
-		for _, name in ipairs({ "_start_material_vector_effect", "_stop_material_vector_effect" }) do mod:hook_safe(class, name, refresh) end
+		mod:hook_safe(class, "_start_material_vector_effect", refresh)
+		-- (2026-10-07, Twins merged from SoloPlayPurpleStimms) one hook per mod per method: the stop is a wrapping hook that also
+		-- never lets a stop without its start index a nil entry (a second purple stimm on one enemy crashed the game there)
+		mod:hook(class, "_stop_material_vector_effect", function (func, self, unit, material_vector, ...)
+			local active = self._active_material_vector_effects
+
+			if active and material_vector and not active[material_vector.name] then
+				return
+			end
+
+			func(self, unit, material_vector, ...)
+			refresh(self)
+		end)
 	end)
 end
 Appearance.epoch = function () return salt .. ":" .. generation end

@@ -130,8 +130,11 @@ A.reset()
 check("outline removal preserves another mod's addition", outlines[treated]==0 and treated.extensions.outline_system.settings.other_mod and not treated.extensions.outline_system.settings.rw_selected_colour)
 local safe_hooks={}
 local require_hooks=0
-function mod:hook_require(path,fn) check("native tint hook path",path=="scripts/extension_systems/buff/minion_buff_extension");local class={};local h=mod.hook_safe;mod.hook_safe=function(...) require_hooks=require_hooks+1;return h(...) end;fn(class);fn(class);mod.hook_safe=h;check("the buff class loaded twice is hooked once (no DMF rehook warning)",require_hooks==2);fn({}) end
+function mod:hook_require(path,fn) check("native tint hook path",path=="scripts/extension_systems/buff/minion_buff_extension");local class={};local h,w=mod.hook_safe,mod.hook;mod.hook_safe=function(...) require_hooks=require_hooks+1;return h(...) end;mod.hook=function(...) require_hooks=require_hooks+1;return w(...) end;fn(class);fn(class);mod.hook_safe,mod.hook=h,w;check("the buff class loaded twice is hooked once (no DMF rehook warning)",require_hooks==2);fn({}) end
 function mod:hook_safe(class,name,fn) safe_hooks[name]=fn end
+-- (2026-10-07) the stop is a wrapping hook (one hook per mod per method: it also carries the Twins crash guard)
+local stop_calls=0
+function mod:hook(class,name,fn) safe_hooks[name]=function(self,unit,mv) return fn(function() stop_calls=stop_calls+1 end,self,unit,mv) end end
 A.install()
 local combined=Schema.copy(purple);combined.outline=true;combined.protect=true
 local encoded=Schema.recipe(combined)
@@ -196,7 +199,11 @@ A.update(0.25);check("protected tint survives native buff colour",treated.colour
 treated.colour={0,0,0};safe_hooks._start_material_vector_effect({_unit=treated})
 check("native buff start reapplies protected tint",treated.colour[3]==1)
 treated.colour={0,0,0};safe_hooks._stop_material_vector_effect({_unit=treated})
-check("native buff stop reapplies protected tint",treated.colour[3]==1)
+check("native buff stop reapplies protected tint",treated.colour[3]==1 and stop_calls==1)
+stop_calls=0;safe_hooks._stop_material_vector_effect({_unit=treated,_active_material_vector_effects={}},treated,{name="stimmed_purple"})
+check("a stop without its start (a second purple stimm) is not passed to the game, which would index a nil entry",stop_calls==0)
+safe_hooks._stop_material_vector_effect({_unit=treated,_active_material_vector_effects={stimmed_purple={}}},treated,{name="stimmed_purple"})
+check("a stop with its start goes through",stop_calls==1)
 
 A.reset();combined.protect=false;A.apply(treated,combined,treated.breed);treated.extensions.buff_system._current_material_vector_effect.value={0.2,0.3,0.8};A.update(0.25)
 check("unprotected tint yields to native buff",treated.colour[3]==0.8 and outlines[treated]==1)

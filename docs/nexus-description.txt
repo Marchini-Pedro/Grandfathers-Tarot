@@ -1,0 +1,119 @@
+[size=6][b]The Grandfather's Tarot[/b][/size]
+[i]Draw a card. Face what it brings.[/i]
+
+The Grandfather's Tarot turns your hosted Darktide missions into a card game. Every so often a hand of tarot cards is dealt across the top of the screen. One of them is drawn, and whatever is written on it arrives: a pack of Pox Hounds, a Daemonhost wrapped in a Trapper's net, thirty Poxwalkers, or, if the Emperor is kind, a Green Stimm for the whole team.
+
+You build the deck yourself. Every card is a recipe of enemies, modifiers and effects, with its own art, whisper, sound and cooldown. The mod ships with a ready-made deck of [b]87 cards[/b] that you can play straight away, tear apart or replace.
+
+[size=4][b]Requirements[/b][/size]
+[list]
+[*]Darktide Mod Loader
+[*]Darktide Mod Framework
+[*]SoloPlay
+[*]Realms Server (and its own requirements)
+[/list]
+Cards can only be played in a game [b]you host[/b]: a SoloPlay mission or a Realms server. Players who join a Realms server see the Draw, the last card and the effects if they also have the mod (the [b]same version[/b] as the host).
+In ordinary online games on Fatshark's servers the mod goes to sleep: no hooks, no HUD, no work every frame. The Deck still opens, so you can build cards anywhere.
+
+[size=4][b]How it plays[/b][/size]
+[list]
+[*][b]Tarot draw[/b] (default): a hand of cards is dealt, one is drawn, its enemies come. Drawn cards cool down before they can come back.
+[*][b]Random countdown[/b]: a weighted random card at every interval.
+[*][b]Votes[/b]: the players vote on the next card with F1 to F3.
+[/list]
+Time between draws, the first draw delay, spawn distances, enemies per card and alive at once, and enemy multipliers by kind (Specialists, Elites, Monsters...) are all in the mod options.
+
+[size=4][b]The Deck[/b][/size]
+Press [b]Numpad -[/b] (or type [b]/gt_editor[/b]) to open the Deck.
+[list]
+[*]Up to 100 cards. Create, enable, delete, sort by threat, rarity, enemy count or face, and drag to swap.
+[*]A card's chance (the pips) and cooldown are set right on its tile.
+[*][b]Five Deck presets[/b], [b]Undo last load[/b], [b]Restore defaults[/b] and [b]Delete all[/b] (after two warnings).
+[*][b]Share Card[/b] gives you a text to paste on Discord, and a deck preset can be shared the same way; your friends import it in one click.
+[*][b]Search cards[/b], and a [b]?[/b] on every screen that explains it.
+[/list]
+
+[size=4][b]The Cauldron: what a card brings[/b][/size]
+[list]
+[*][b]Enemies[/b]: any enemy of the game, Dregs or Scabs, from Poxwalkers to the Beast of Nurgle, Captains and Twins, with a searchable catalog.
+[*][b]Modifiers[/b]: Enraged, On Fire (with its own burn damage), Twins, the Havoc mutations and more, stacked as you like.
+[*][b]Custom stats[/b] per group: health, size, speed, damage, time between attacks, mass, shots per burst, and finer controls such as attack-cancel chance, a random combo end, a Flamer's spray cut, a Trapper's or a Pox Hound's feint.
+[*][b]Per-enemy toggles[/b]: a Packmaster without his dogs, a Captain without his void shield, how many deaths it takes a Daemonhost to leave.
+[*][b]Boss bar[/b] for any enemy, with a name and a bar colour of your own.
+[*][b]Enemy colours[/b] (experimental): tint a group with its own colour and outline.
+[/list]
+
+[size=4][b]Twins[/b][/size]
+Give a group the [b]Twins[/b] modifier and its enemies are purple-stimmed: when one dies it bursts and splits in two. In [b]Custom[/b] you choose, for that group only:
+[list]
+[*]which two enemies come out (any enemy, none, or the game's own split);
+[*]whether each twin splits again and keeps the group's modifiers and stats;
+[*]how many generations: 1 to 5.
+[/list]
+Your Poxburster can split into two Poxbursters, three times over. The twins hunt the dying enemy's target. If that player has gone invisible (Zealot, Psyker), they go for the nearest player they can see.
+With SoloPlay, Twins is also a [b]mission condition[/b] (Havoc and normal missions), with a chance per boss and per enemy, a spawn-loop check, a stimm colour and the split smoke, all in the mod options.
+[i]Twins replaces the SoloPlayPurpleStimms mod. Remove that mod from your load order; Twins stays off while it is loaded.[/i]
+
+[size=4][b]The Mirror: what a card looks like[/b][/size]
+[list]
+[*][b]Seventeen suits[/b]: twelve hostile (Rage, Plague, Volley, Entrapment, Warp, Heresy, Nightmare and more) and five beneficial (Prayer, Miracle, Grace, Faith, Dream), each with its own frame, sigil and living effect: flames of anger, flies and bubbles, tracers, feathers, a Trapper's net.
+[*][b]Six threat levels[/b]. Level 6 is Despair, or Apotheosis on a blessing, and it shines.
+[*]A whisper that murmurs letter by letter when a dangerous card is drawn.
+[*][b]Heresy[/b] bleeds across the HUD. [b]Nightmare[/b] drops a black fog over everyone's screen and greys the world (once per game, or again after its cooldown if you allow it). [b]Dream[/b] opens a sky of light.
+[/list]
+
+[size=4][b]Beneficial cards[/b][/size]
+Not every card wants you dead:
+[list]
+[*][b]Healing[/b]: party health, corruption cleanse, Green Stimm, Med Crates.
+[*][b]Buffs[/b]: reveal Specialists or Elites through walls, Yellow, Blue and Red Stimm buffs.
+[*][b]Items[/b]: stimms in your pocket.
+[*][b]Game effects[/b]: raise a downed and a hogtied player, instant rescues, ammunition, grenades, Ammo Crates.
+[/list]
+Hostile cards can bring a timed [b]Blackout[/b] too.
+
+[size=4][b]Sounds[/b][/size]
+A card can play game sounds or enemy and player voice lines when it is drawn: up to two, with a volume and a preview. The enemies come when the sound ends.
+
+[size=4][b]HUD[/b][/size]
+[list]
+[*][b]The Draw[/b]: the hand of cards, movable with Custom HUD, see-through while a boss is up.
+[*][b]Last card[/b]: a small card face with the last card drawn, for every player.
+[*]Boss health bars that show huge health pools in bars ("x3" still to go).
+[/list]
+
+[size=4][b]Commands[/b][/size]
+[code]
+/gt_editor               open or close the Deck
+/gt_status               the cycle and spawn counters
+/gt_start  /gt_stop      start or stop the card cycle (host)
+/gt_pause [on|off]       freeze or resume the clocks (host)
+/gt_next                 discard the current card and draw a new one (host)
+/gt_test <card>          spawn a card's enemies now, out of sight (host)
+/gt_test_close <card>    spawn them right in front of you (host)
+/gt_drawtest <card>      stage a draw that picks that card (HUD only)
+/gt_fulltest <card>      the same, with its sound and enemies
+/gt_twins_smoke          play the Twins split smoke in front of you
+[/code]
+
+[size=4][b]Installation[/b][/size]
+[list=1]
+[*]Install the requirements above.
+[*]Extract the archive into [b]Warhammer 40,000 Darktide/mods/[/b], so that you have [b]mods/GrandfathersTarot/GrandfathersTarot.mod[/b].
+[*]Add [b]GrandfathersTarot[/b] on its own line in [b]mods/mod_load_order.txt[/b], after Realms and its requirements.
+[*]Remove [b]SoloPlayPurpleStimms[/b] from the load order if you had it.
+[*]Start the game, open [b]Mod Options > The Grandfather's Tarot[/b], then host a SoloPlay mission or a Realms server.
+[/list]
+Don't run it at the same time as another mod that spawns waves of enemies; two wave systems at once will fight over the enemy limits.
+
+[size=4][b]Good to know[/b][/size]
+[list]
+[*]Start with moderate enemy counts. A memory guard pauses card spawns if the game's Lua memory climbs too high, and resumes when it drops.
+[*]Enemy colour experiments and some card effects are still marked experimental in the options.
+[*]A sound volume below 100 is an approximation: the game has no per-sound volume.
+[/list]
+
+[size=4][b]Inspiration[/b][/size]
+The Grandfather's Tarot was inspired by [b]RealmsEvent[/b] and [b]TwitchVersus[/b].
+
+[i]The deck is yours. Shuffle well.[/i]

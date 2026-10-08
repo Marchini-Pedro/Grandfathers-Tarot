@@ -12,6 +12,7 @@
     "catalog/user_defaults.lua": 95,
     "catalog/version.lua": 100,
     "core/director.lua": 70,
+    "core/dormancy.lua": 72,
     "core/protocol.lua": 72,
     "core/votes.lua": 71,
     "spawn/budget_bypass.lua": 69,
@@ -48,6 +49,9 @@
     "catalog/effects.lua": 78,
     "catalog/sounds.lua": 80,
     "core/effects.lua": 75,
-    "ui/wave_editor_effects.lua": 80
+    "ui/wave_editor_effects.lua": 80,
+    "twins/catalog.lua": 95,
+    "twins/cosmetics.lua": 88,
+    "twins/twins.lua": 77
   }
 }

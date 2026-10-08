@@ -19,6 +19,23 @@
 - Fixed: Delete and "Clear this card" did nothing on a card of the default deck (it came straight back).
 - Faster: the Mutant's charge no longer hooks every enemy's movement; the dark skins are held ten times a second instead of every
   frame; the HUD draws nothing while it is hidden; the boss bar and golden health hooks return at once when they have no work.
+- Twins: the SoloPlayPurpleStimms mod is part of the mod now, renamed Twins. The SoloPlay condition (Havoc and normal
+  mission conditions), the per-boss and per-enemy chances and splits, the loop check, Don't re-stim, Hide from guests, the stimm
+  colour and the split smoke are in the mod options (groups Twins, Twins: bosses, Twins: enemies, Twins: reset); its saved
+  settings are copied once. /purple_smoke is /gt_twins_smoke. Remove SoloPlayPurpleStimms from mod_load_order.txt (Twins stays
+  off while it is loaded).
+- A card row with the Twins modifier has its own twins (the Twins rows at the top of Custom): Twin 1 and Twin 2 (any enemy, none,
+  or the game's own split), whether each splits again and keeps the row's mods and custom stats, and Generations (1 to 5, 1 by
+  default). The twins go for the dying enemy's target, or the nearest player who is not invisible.
+- Loading an empty preset slot loads an empty deck (every card deleted), not the default deck.
+- The Deck: Delete all deletes every card of the deck, after two warnings (three clicks, each within 4 seconds). Undo last
+  load brings the deck back, Restore defaults gives the default deck.
+- New option Nightmare can repeat (on by default): on, Nightmare cards come back after their cooldown instead of once a game.
+- New option Reset cooldowns at (90 percent by default, 0 = never): when that share of the cards in the draw are cooling down,
+  every cooldown ends at once, so a very short time between draws never leaves too few cards to deal.
+- Asleep in an online game: in a game on Fatshark's servers (missions, Havoc, the hub) every hook of the mod is off, its HUD
+  is not created and its update does nothing. It plays in a game this machine hosts (SoloPlay, a Realms server) or as a Realms
+  server's client. The editor still opens everywhere, and its keybind guard is on only while a text box is open.
 - The Deck: a card's chance text ("not drawn", "timer card") no longer runs into COOLDOWN; it wraps in its own column.
 - The default deck and options are the author's of 2026-10-07: anti-snowballing on (25 s), no vote picks a card at random, 100
   enemies per card and 200 alive at most, no ping on the Draw, the HUD at 65 percent while a boss is up, the Dream's sky at 50
@@ -31,6 +48,10 @@
   it shows, the boss bar no longer allocates every frame, and coloured enemies that are settled are checked every 2 s.
 - Entrapment's card effect is a Trapper's net thrown over the card, its knots crackling, with a Pox Hound's claws at threat 5 and 6.
 - Fixed: the game crashed when an enemy with a custom boss bar (a Hunt dog) died on the host.
+- The default deck and options are the author's of 2026-10-08: 87 cards in the draw, 75 s between draws (195 s at most when
+  random), 200 enemies per card and 400 alive at most, cooldowns reset at 90 percent, Nightmare can repeat. Twins: Hide from
+  guests off, Don't re-stim on, the Daemonhost stimmed at 30 percent, the Poxburster splitting into two Poxbursters that are
+  never stimmed again.
 - Attack cancel chance now also feints a Pox Hound's pounce (it winds up and stops short); Net feint pause became Feint pause, the
   wait after a Trapper's or a Pox Hound's feint.
 
