@@ -572,3 +572,5 @@ Things we know are missing or unverified, each with the next concrete step.
   values must skip it, and the table's values become defaults elsewhere (here the Twins catalog).
 - "Cards in the draw" is not "cards on": an enabled custom card with an empty recipe is never drawn. Count both before
   promising a number.
+- Run the gate on both runtimes before setting a floor: LuaJIT counts a table literal as one line and skips function header
+  lines, so a floor taken from Lua 5.5 alone can be out of LuaJIT's reach. Generated data is written one assignment per line.

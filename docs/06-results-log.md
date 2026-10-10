@@ -505,5 +505,13 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Tests: new twins_test.py (104 checks: refusals, the condition through SoloPlay and the mutator manager, the options menu and
   its loop warnings, reset, the rows' twins and their target, the queue, the boss fix in die, the stim action, the spawn roll,
   colour and smoke); editor (22 checks: the Twins rows of Custom, the popup, the recipe round trip); appearance (the wrapping
-  stop hook and its crash guard); the description of Twins under 138 characters; tw_popup_unknown without %q. Floors for
-  twins/: catalog 95, cosmetics 88, twins 77. Every suite: 3,037 checks, coverage 83.30%.
+  stop hook and its crash guard); the description of Twins under 138 characters; tw_popup_unknown without %q. Every suite:
+  3,037 checks, coverage 83.30% (Lua 5.5).
+
+## 2026-10-10 - The LuaJIT coverage gate, green again
+- Found: the LuaJIT gate was already red on main (71ecc05: user_defaults 2.49%, wave_editor_view 82.56%, overall 76.36%).
+  LuaJIT reports a whole table literal as one line, so the 1,800 settings of user_defaults.lua read as uncovered.
+- Fixed: gen_defaults.py writes one assignment per line (cards.on_custom_1 = true); the floors of twins/ are the lower of the
+  two runtimes (catalog 70, cosmetics 85, twins 75: LuaJIT does not count function header lines the way Lua 5.5 does); an
+  editor check for set_kind_in_draw (every enemy card or blessing in or out of the draw).
+- Tests: both runtimes, every suite.

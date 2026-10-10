@@ -50,8 +50,8 @@
     "catalog/sounds.lua": 80,
     "core/effects.lua": 75,
     "ui/wave_editor_effects.lua": 80,
-    "twins/catalog.lua": 95,
-    "twins/cosmetics.lua": 88,
-    "twins/twins.lua": 77
+    "twins/catalog.lua": 70,
+    "twins/cosmetics.lua": 85,
+    "twins/twins.lua": 75
   }
 }

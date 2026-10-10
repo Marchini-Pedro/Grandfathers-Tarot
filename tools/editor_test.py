@@ -1756,6 +1756,29 @@ do
     mod.rw.twins = saved_twins
   end
 
+  -- (2026-10-05) every enemy card or every blessing in or out of the draw at once (GrandfathersTarotView.set_kind_in_draw)
+  do
+    local saved_on = {}
+    local UNSET = {}
+    for _, wave in ipairs(view._waves or {}) do local v = settings["on_" .. wave.key]; if v == nil then v = UNSET end; saved_on[wave.key] = v end
+    local function count(beneficial, on)
+      local n = 0
+      for _, wave in ipairs(view._waves) do
+        local suit = mod.rw.cards.suit(wave.suit)
+        if ((suit ~= nil and suit.beneficial == true) == beneficial) and wave.enabled == on then n = n + 1 end
+      end
+      return n
+    end
+    view:cb_draw_kind("enemy_off")
+    check("draw kind: every enemy card out of the draw, the blessings untouched", count(false, true) == 0 and #view._waves > 0)
+    local again = view:set_kind_in_draw(false, false)
+    check("draw kind: a second time changes nothing", again == 0)
+    view:cb_draw_kind("ben_on")
+    check("draw kind: every blessing into the draw", count(true, false) == 0)
+    for key, value in pairs(saved_on) do if value == UNSET then value = nil end; settings["on_" .. key] = value end
+    view:_reload(); view:_apply_screen(true)
+  end
+
   -- clear everything
   click_row(1, "hotspot_tune"); click_row(1, "hotspot_action"); click_row(6, "hotspot_action"); click("btn_back")
   check("custom: with every value back to 100 the recipe has no braces", view._parts[1].tune == nil and settings.wave_def_wave_small:find("{", 1, true) == nil, settings.wave_def_wave_small)
