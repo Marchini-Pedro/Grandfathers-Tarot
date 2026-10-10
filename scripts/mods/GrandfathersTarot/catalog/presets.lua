@@ -275,6 +275,22 @@ Presets.restore_defaults = function (set_setting, Events)
 	end
 end
 
+-- Every card deleted (2026-10-07: Delete all cards on the Deck, an empty preset slot): the custom cards emptied, the built-in ones
+-- deleted (del_, hidden and never drawn; Restore defaults brings them back). Returns how many cards were touched.
+Presets.clear_all = function (set_setting, Events)
+	local keys = Events.keys()
+
+	for _, key in ipairs(keys) do
+		Events.reset(set_setting, key, true)
+
+		if Events.get_standard(key) then
+			set_setting("del_" .. key, true)
+		end
+	end
+
+	return #keys
+end
+
 -- The current state of ONE wave (for sharing it on its own).
 Presets.capture_wave = function (get_setting, key, Events, Groups)
 	local current = Events.get(key, get_setting, Groups)

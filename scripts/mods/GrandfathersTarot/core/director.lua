@@ -337,7 +337,7 @@ end
 
 local function random_interval(first)
 	local low = math.max(5, number_setting("interval_min", 75))
-	local high = math.max(low, number_setting("interval_max", 75))
+	local high = math.max(low, number_setting("interval_max", 195))
 	-- random: anywhere between the minimum and the maximum; otherwise always the minimum (a fixed time)
 	local interval = mod:get("interval_random") ~= true and low or low + math.random() * (high - low)
 
@@ -360,6 +360,11 @@ local start_tarot_cycle
 local spent_once = {}
 
 local function once_suit(def)
+	-- (2026-10-07) the option "Nightmare can repeat": no suit is limited to one card a game
+	if mod:get("nightmare_repeat") == true then
+		return nil
+	end
+
 	local suit = Cards.normalize_suit(def and def.suit)
 
 	return Cards.suit(suit).once == true and suit or nil
@@ -386,6 +391,27 @@ local function drawable_pool()
 	return kept
 end
 
+-- (2026-10-07, the user: "with a really low timer most cards will be in cooldown") When the option's percent of the cards in the draw
+-- (or more) are resting, every cooldown ends at once. 0 = never. Returns true when it did.
+local function refresh_cooldowns(pool, cooling)
+	local percent = number_setting("cooldown_reset_pct", 90)
+
+	if percent <= 0 or cooling <= 0 or cooling * 100 < percent * #pool then
+		return false
+	end
+
+	for i = 1, #pool do
+		last_fired[pool[i].key] = nil
+	end
+
+	cool_map_at = -math.huge
+	mark_changed()
+
+	return true
+end
+
+Director.refresh_cooldowns = refresh_cooldowns
+
 local function eligible_cards()
 	local pool = drawable_pool()
 	local ready, cooling = {}, 0
@@ -398,6 +424,14 @@ local function eligible_cards()
 			ready[#ready + 1] = entry
 		else
 			cooling = cooling + 1
+		end
+	end
+
+	if refresh_cooldowns(pool, cooling) then
+		ready, cooling = {}, 0
+
+		for i = 1, #pool do
+			ready[i] = pool[i]
 		end
 	end
 

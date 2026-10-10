@@ -451,6 +451,16 @@ The suites had not been run since the author's deck became the default. Run with
     with the Boss bar: kill the dogs one by one (no crash, each bar ends), host and client.
 27. Pox Hounds with Attack cancel chance 50: about half the pounces wind up and stop short, the next comes after the Feint pause;
     a Beast of Nurgle with Explicit body / equipment stimm (does it take the colour?) and with a skin.
+28. An official online mission (Havoc): the monitor shows GrandfathersTarot near 1 call (its update) and no Tarot HUD; the hub
+    too, where the editor still opens and typing in it triggers no keybind. Then a SoloPlay game and a Realms game (host and
+    client): the cards play as before.
+29. Deck presets: load an empty slot (every card deleted; Undo last load brings them back). The Deck: Delete all warns twice
+    and deletes on the third click; Restore defaults after it. Nightmare can repeat on: a second Nightmare card in one mission.
+    A short time between draws (5 to 10 s) with a small deck: when most cards rest, every cooldown ends and full hands come.
+30. Twins: the options show the four Twins groups with the old settings carried over; SoloPlay offers the Twins condition and
+    it splits as set; /gt_twins_smoke. A card: 1 Poxburster with Twins, Twin 1 = Poxburster splitting again, Twin 2 = None,
+    Generations 3: kill it, then its twin, then that one's (three splits, no fourth); keep mods on and off; a Zealot invisible
+    when it dies (the twins go for another player). A Realms client sees the purple and the smoke.
 24. Reveal Elites: amber outlines on the Elites for its time, host and client; Reveal Specialists still teal; a card saved with
     the old combat abilities effect still loads. A Blackout with a client: no crash, the client's lights go dark and come back.
     The Boss bar custom mod on a normal enemy (The Tower's): its name and health in the boss bar for the host and a client, gone

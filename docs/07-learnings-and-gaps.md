@@ -551,3 +551,26 @@ Things we know are missing or unverified, each with the next concrete step.
 - A text pass without `word_wrap = true` runs past its size on one line: a trailing text next to another column needs a size that
   ends at the column and wrapping on.
 - A generator that writes a whole Lua file carries its own copy of the code in it: change one, change the other.
+
+## 2026-10-07 - What the performance monitor counts
+- ModPerformanceMonitor wraps each hook handler and HUD element: a mod's "self" time includes the original function a normal
+  (wrapping) hook calls. A hook on a busy game function looks expensive even when the hook adds nothing; hook_safe does not
+  have this. Switched-off DMF hooks (disable_all_hooks, hook_disable) never call the handler: no calls, no time.
+- DMF creates a delayed hook (its class not loaded yet) with active = mod:is_enabled(): a mod switched off by hand gets the
+  hooks made later switched on; apply the switch-off again after the game has loaded its classes.
+- A HUD element's validation_function decides at HUD build whether the element exists at all; DMF keeps the element settings
+  across reloads, so the function must not hold the old mod (look it up with get_mod).
+
+## 2026-10-07 - Merging another mod's hooks
+- DMF keeps one hook per mod per method: a second hook on the same method (any type) only warns and is ignored. Merging a mod
+  means folding its hooks into the ones already there.
+- A mutator's presence is not a condition: the purple mutator is created both by the condition and by a card's Twins row, so
+  "is the condition on" needs its own flag.
+
+## 2026-10-08 - Defaults from the settings file
+- DMF stores a table setting (Twins' tw_cfg_<breed>) as a nested block in user_settings.config: a generator that reads flat
+  values must skip it, and the table's values become defaults elsewhere (here the Twins catalog).
+- "Cards in the draw" is not "cards on": an enabled custom card with an empty recipe is never drawn. Count both before
+  promising a number.
+- Run the gate on both runtimes before setting a floor: LuaJIT counts a table literal as one line and skips function header
+  lines, so a floor taken from Lua 5.5 alone can be out of LuaJIT's reach. Generated data is written one assignment per line.

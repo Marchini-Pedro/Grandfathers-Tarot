@@ -43,7 +43,7 @@ mod.localize = function(self, id) return id end
 mod.io_dofile = function(self, path) return dofile(MODROOT .. "/" .. path:gsub("^GrandfathersTarot/", "") .. ".lua") end
 get_mod = function(name)
   if name == "DMF" then return dmf_mod end
-  if name == "Realms" then return nil end
+  if name == "Realms" then return REALMS_STUB end
   return mod
 end
 local registered_events = {}
@@ -628,6 +628,90 @@ local installed_hooks=#hooks
 require_callbacks[#require_callbacks]({})
 check("retire: delayed hook-require callback cannot install new hooks after unload", #hooks==installed_hooks)
 check("retire: captured executor cannot admit work after unload", not RW.execute.start_wave({parts=RW.groups.parse("1 hound")}) and RW.execute.status().jobs==0)
+
+-- (2026-10-07) asleep in a game the cards cannot play in (core/dormancy.lua: "Tarot should be disabled in a normal online game")
+do
+  mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
+  local toggles, guard = {}, {}
+  local on = true
+  local saved_state, saved_event, saved_mod = Managers.state, Managers.event, mod
+  mod.is_enabled = function() return on end
+  mod.disable_all_hooks = function() toggles[#toggles + 1] = "off" end
+  mod.enable_all_hooks = function() toggles[#toggles + 1] = "on" end
+  mod.hook_enable = function(self, obj, method) guard[#guard + 1] = (obj == dmf_mod and method or "?") .. ":on" end
+  mod.hook_disable = function(self, obj, method) guard[#guard + 1] = (obj == dmf_mod and method or "?") .. ":off" end
+  hooks, views, commands, hook_requires, require_callbacks, require_by_path, hud_elements = {}, {}, {}, {}, {}, {}, {}
+  Managers.event = event_manager()
+  local server = false
+  Managers.state = { game_session = { is_server = function() return server end } }
+  dofile(BASE .. "/GrandfathersTarot.lua"); mod.on_all_mods_loaded()
+  local RW = mod.rw
+  local D = RW.dormancy
+  local valid = 0
+  for _, spec in ipairs(hud_elements) do if type(spec.validation_function) == "function" then valid = valid + 1 end end
+  check("sleep: every HUD element of the mod has a validation function", #hud_elements == 4 and valid == 4, #hud_elements .. "/" .. valid)
+  local director_updates = 0
+  local real_update = RW.director.update
+  RW.director.update = function(...) director_updates = director_updates + 1 end
+  local audio = 0
+  local real_audio = RW.effects.tick_audio
+  RW.effects.tick_audio = function() audio = audio + 1 end
+
+  -- an official game (Fatshark's server: not ours to host, no Realms session)
+  mod.update(0.016)
+  check("sleep: the keybind guard is off while no text box is open", guard[#guard] == "check_keybinds:off" and #guard == 1, table.concat(guard, ","))
+  mod.on_game_state_changed("enter", "GameplayStateRun")
+  mod.update(0.016)
+  check("sleep: an official game puts every hook to sleep", D.is_asleep() and toggles[#toggles] == "off" and #toggles == 1, table.concat(toggles, ","))
+  check("sleep: the HUD elements are not created there", hud_elements[1].validation_function() == false and hud_elements[4].validation_function() == false)
+  local before = director_updates
+  for _ = 1, 20 do mod.update(0.1) end
+  check("sleep: the director does not run, the editor's sounds still do", director_updates == before and audio >= 20, director_updates .. " " .. audio)
+  check("sleep: the switch-off is applied again a few seconds in (hooks DMF creates late)", #toggles == 2 and toggles[2] == "off", table.concat(toggles, ","))
+  for _ = 1, 400 do mod.update(0.1) end
+  check("sleep: ...at 2, 10 and 30 s, then never again", #toggles == 4, #toggles)
+  RW.text_input_active = true; mod.update(0.016)
+  check("sleep: a text box of the editor turns the keybind guard on, even asleep", guard[#guard] == "check_keybinds:on", table.concat(guard, ","))
+  RW.text_input_active = false; mod.update(0.016)
+  check("sleep: ...and off again when it closes", guard[#guard] == "check_keybinds:off")
+
+  -- back to the menu: awake; a SoloPlay or Realms game this machine hosts stays awake
+  mod.on_game_state_changed("exit", "GameplayStateRun")
+  check("sleep: leaving the game wakes the hooks", not D.is_asleep() and toggles[#toggles] == "on")
+  server = true
+  local n = #toggles
+  mod.on_game_state_changed("enter", "GameplayStateRun"); for _ = 1, 400 do mod.update(0.1) end
+  check("sleep: a game this machine hosts stays awake (no toggle), the director runs", not D.is_asleep() and #toggles == n and director_updates > before and hud_elements[1].validation_function() == true)
+
+  -- the client of a Realms server stays awake; Realms there but no session of its own: asleep
+  server = false
+  REALMS_STUB = { _session = { is_active_client = function() return true end } }
+  check("sleep: a Realms server's client can play", D.playable() == true)
+  REALMS_STUB = { _session = { is_active_client = function() return false end } }
+  check("sleep: Realms installed, an official game: cannot", D.playable() == false)
+  REALMS_STUB = { _session = { is_active_client = function() error("boom") end } }
+  check("sleep: a failing Realms answer counts as no", D.playable() == false)
+  REALMS_STUB = nil
+  Managers.state = {}
+  check("sleep: no session yet: awake (unknown)", D.playable() == true)
+  Managers.state = { game_session = { is_server = function() return false end } }
+
+  -- the mod switched off in DMF's options: never woken from here; switched on again: asleep again
+  mod.on_game_state_changed("enter", "GameplayStateRun"); mod.update(0.016)
+  check("sleep: asleep again in the next official game", D.is_asleep())
+  on = false; n = #toggles
+  D.on_exit_gameplay()
+  check("sleep: leaving while the mod is off in DMF does not switch its hooks on", #toggles == n and not D.is_asleep())
+  on = true
+  mod.on_game_state_changed("enter", "GameplayStateRun"); mod.update(0.016)
+  n = #toggles
+  mod.on_disabled(); mod.on_enabled(false)
+  check("sleep: DMF enabling the mod again (all hooks on) is followed by the switch-off", D.is_asleep() and #toggles == n + 1 and toggles[#toggles] == "off", table.concat(toggles, ","))
+  RW.director.update, RW.effects.tick_audio = real_update, real_audio
+  mod.on_unload()
+  check("sleep: unload releases the module (nothing of the mod held)", RW.dormancy == nil and D.is_asleep() ~= nil)
+  Managers.state, Managers.event, REALMS_STUB, mod = saved_state, saved_event, nil, saved_mod
+end
 
 return table.concat(results, "\n")
 '''

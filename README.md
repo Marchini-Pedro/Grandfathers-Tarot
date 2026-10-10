@@ -91,7 +91,7 @@ No new dependency is required.
 ## Getting started
 
 1. Open **Mod Options > The Grandfather's Tarot** to choose a mode, timing and spawn limits.
-2. Press **F6** or use `/gt_editor` to open the Deck. Select a card to edit its
+2. Press **Numpad -** or use `/gt_editor` to open the Deck. Select a card to edit its
    enemies/effects in the Cauldron or its appearance in the Mirror. Share through
    **Share Card** or the small per-card glyph (toggleable in Mod Options). Shared texts
    survive Discord and other Markdown chats; texts from older versions still import.

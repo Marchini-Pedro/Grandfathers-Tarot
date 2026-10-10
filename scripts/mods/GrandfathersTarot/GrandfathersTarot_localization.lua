@@ -19,6 +19,8 @@ local L = {
 	tarot_cards = { en = "Cards drawn" },
 	tarot_seconds = { en = "Seconds before the pick" },
 	tarot_default_cooldown = { en = "Default card cooldown" },
+	cooldown_reset_pct = { en = "Reset cooldowns at" },
+	nightmare_repeat = { en = "Nightmare can repeat" },
 
 	group_timing = { en = "Timing and voting" },
 	initial_delay = { en = "First card draw delay" },
@@ -72,6 +74,8 @@ local L = {
 	tarot_cards_description = { en = "How many cards are dealt into each hand (1 to 5). Host setting." },
 	tarot_seconds_description = { en = "How long a hand stays on the table before one of its cards is picked. Host setting." },
 	tarot_default_cooldown_description = { en = "How long a card rests after it is drawn, when it has no cooldown of its own. Host setting." },
+	cooldown_reset_pct_description = { en = "When this percent of the cards in the draw (or more) are cooling down, every card's cooldown ends at once, so a short time between draws never leaves too few cards to deal. 0 = never. Host setting." },
+	nightmare_repeat_description = { en = "Off: once one Nightmare card is drawn, no other Nightmare card is drawn until the next mission. On: Nightmare cards come back like any other card, after their cooldown. Host setting." },
 	initial_delay_description = { en = "Seconds added to the wait before the first card draw of a mission. Host setting." },
 	interval_random_description = { en = "On: the time between card draws is random, between the minimum and the maximum. Off: always the minimum. Host setting." },
 	pool_all_players_description = { en = "On: the cards in the draw of every player who has the mod join the draw, not only the host's. Identical cards count once. Host setting." },
@@ -298,7 +302,7 @@ local L = {
 	help_title = { en = "How this screen works" },
 	help_footer = { en = "Click the ? to keep this open" },
 	help_footer_pinned = { en = "Click the ? again to close" },
-	hint_list = { en = "# The Deck\nEvery card that can be dealt. Start typing to search it.\n## Cards\n- *Click* a card to put it in or out of the draw (a card out of the draw is dimmed).\n- *Edit*, in a card's corner, opens it: its enemies, chance, cooldown and face.\n- The ten pips are its chance, 1 to 10. Hold the *-* or *+* of its cooldown to keep stepping.\n- The strip at the top shows how likely each card is to be dealt, among the cards that are not resting.\n- The blank card makes a card of your own.\n## The whole deck\n- *Deck presets* keeps whole decks in five slots.\n- *Delete* (inside a card) hides any card, the default ones too. *Restore defaults* brings them back and undoes every other change.\n- The two numbers at the bottom are the time between cards. *More options* has the rest of the timing and display settings." },
+	hint_list = { en = "# The Deck\nEvery card that can be dealt. Start typing to search it.\n## Cards\n- *Click* a card to put it in or out of the draw (a card out of the draw is dimmed).\n- *Edit*, in a card's corner, opens it: its enemies, chance, cooldown and face.\n- The ten pips are its chance, 1 to 10. Hold the *-* or *+* of its cooldown to keep stepping.\n- The strip at the top shows how likely each card is to be dealt, among the cards that are not resting.\n- The blank card makes a card of your own.\n## The whole deck\n- *Deck presets* keeps whole decks in five slots.\n- *Delete* (inside a card) hides any card, the default ones too. *Restore defaults* brings them back and undoes every other change. *Delete all* deletes every card (it warns twice).\n- The two numbers at the bottom are the time between cards. *More options* has the rest of the timing and display settings." },
 	view_desc_mods = { en = "Modifiers for: %s" },
 	col_modifier = { en = "Modifier" },
 	col_effect = { en = "What it does" },
@@ -337,12 +341,18 @@ local L = {
 	-- Settings screen (timing, voting, display)
 	btn_settings = { en = "More options" },
 	btn_default = { en = "Restore defaults" },
+	btn_delete_all = { en = "Delete all" },
+	btn_delete_all_sure = { en = "Delete all?" },
+	btn_delete_all_last = { en = "Last warning!" },
+	msg_delete_all_warn = { en = "GrandfathersTarot: Delete all removes EVERY card of your deck, the default ones and your own. Click it again to go on." },
+	msg_delete_all_last = { en = "GrandfathersTarot: last warning. One more click deletes every card. Undo last load on the Deck presets screen brings them back." },
+	msg_delete_all_done = { en = "GrandfathersTarot: every card is deleted. Undo last load (Deck presets) brings them back, Restore defaults gives the default deck." },
 	bottom_list_deleted = { en = "%s default cards are deleted. Restore defaults brings them back." },
 	extra_not_random = { en = "(not used: random is off)" },
 	msg_defaults_restored = { en = "GrandfathersTarot: every card is back to the defaults (Undo last load on the Deck presets screen restores your previous cards)." },
 	help_detail = { en = "# Editing a card\nThe card on the right follows every change.\n## Enemies\n- *Click* an enemy on the shelf to add it. The *Dreg / Scab* switch chooses which kind.\n- A row's *-* and *+* change its brood: how many of that enemy.\n- *Right click* a row to change its enemy and keep its count and modifiers.\n- Some rows have a toggle at their right. *Dogs* (a Packmaster): dark, he comes alone. *Shield* (a Captain or a Twin): dark, no void shield. A Daemonhost's *kills*: how many players die before it leaves (1, 2, 3 or All).\n- *Mods* adds Havoc-style conditions. *Custom* changes health, size, speed, attack speed, fire rate, burst and hit mass.\n- A small diamond beside a name: its group has a colour experiment.\n## The card\n- Under the card: its suit, its threat and its chance. The whisper and the cooldown are on the *Face* tab.\n- Hold a cooldown's *-* or *+* to keep stepping.\n## How it spawns\n- Spread, repeats, and its own minimum and maximum spawn distance.\n- A *fixed timer* ignores the chance: the card spawns every N seconds.\n## Sharing\n- *Share Card* gives you its text. Paste a friend's card over it to take theirs." },
 	help_picker = { en = "# Adding an enemy\n- *Click* an enemy to add it. Just start typing to search.\n- The button beside Search chooses whether you stay here after adding, to add several in a row, or go back to the card.\n- *Random group* gathers several enemies into one group: each spawn takes one of them.\n- Opened with a *right click* on a row: the enemy you pick replaces that row's enemy and keeps the rest." },
-	help_preset_view = { en = "# A preset slot\n- *Load this setup* replaces *all* your cards with the ones stored here (an empty slot loads the default deck).\n- *Save current cards here* stores what you have now.\n- *Export* gives you text to send to a friend. *Import* pastes theirs into this slot.\n- *Undo last load* brings your previous cards back, once." },
+	help_preset_view = { en = "# A preset slot\n- *Load this setup* replaces *all* your cards with the ones stored here (an empty slot loads an empty deck: every card deleted).\n- *Save current cards here* stores what you have now.\n- *Export* gives you text to send to a friend. *Import* pastes theirs into this slot.\n- *Undo last load* brings your previous cards back, once." },
 	btn_delete = { en = "Delete" },
 	btn_create = { en = "Create" },
 	btn_reset = { en = "Reset" },
@@ -506,7 +516,7 @@ local L = {
 	preset_undone = { en = "Your previous cards are back." },
 	preset_cleared = { en = "Slot cleared." },
 	preset_nothing_to_load = { en = "This slot is damaged, nothing to load. Clear it or import again." },
-	preset_loaded_blank = { en = "Slot %s is empty: loaded the default cards. Save current cards here to store a deck in it. Undo last load restores your previous cards." },
+	preset_loaded_blank = { en = "Slot %s is empty: loaded an empty deck (every card deleted). Save current cards here to store a deck in it. Undo last load restores your previous cards." },
 	preset_nothing_to_export = { en = "This slot is empty, nothing to export." },
 	preset_nothing_to_undo = { en = "Nothing to undo." },
 	preset_save_first = { en = "Save your current cards into this slot first, then you can rename it." },
@@ -611,6 +621,84 @@ local L = {
 	btn_draw_foe_off = { en = "Remove enemy cards from the draw" },
 	msg_draw_kind = { en = "%d cards changed." },
 	popup_cancel = { en = "Cancel" },
+	-- Twins (2026-10-07, merged from SoloPlayPurpleStimms)
+	group_twins = { en = "Twins" },
+	group_twins_bosses = { en = "Twins: bosses" },
+	group_twins_enemies = { en = "Twins: enemies" },
+	group_twins_reset = { en = "Twins: reset" },
+	tw_reset_defaults = { en = "Reset Twins to default" },
+	tw_reset_defaults_button = { en = "Hold to reset" },
+	tw_reset_defaults_tooltip = { en = "Hold the button to put every Twins setting back to the game's own defaults: the chance, the split enemies and the spawned-enemy rule of every boss and enemy, the stimm colour, the smoke, Hide from guests, Don't re-stim, the loop check and the boss switches. Nothing else of the mod is touched (the cards' own Twins rows neither)." },
+	tw_reset_done = { en = "Twins: every setting is back to the game's defaults." },
+	tw_guest_safe = { en = "Hide from guests" },
+	tw_guest_safe_tooltip = { en = "On: players who join your game without this mod see the game's own \"Contaminated Stimms\" condition instead of Twins, so nothing errors for them (your own HUD shows that name too). Off: the condition keeps its real name everywhere, but players without this mod get an error on the Havoc conditions text and icon. Applies to missions started after you change it." },
+	tw_no_restim = { en = "Don't re-stim when purple" },
+	tw_no_restim_tooltip = { en = "On: an enemy that already carries the purple stimm (a twin that spawned with it) does not use a stim again: no second stim animation. Off: like the game, it may stim again (the buff does not stack, so nothing changes except the animation)." },
+	tw_loop_check = { en = "Check infinite spawn loops" },
+	tw_loop_check_tooltip = { en = "On: a split rule that would make an endless chain (an enemy that splits into something that eventually splits back into it) is detected: you get a warning when you edit it, and the enemy that would close the loop is spawned without the purple stimm, so the chain ends. Off: nothing is checked and such a chain spawns forever (a queue limit still stops it flooding the game). The cards' own Twins rows have their own limit: Generations." },
+	tw_color_custom = { en = "Custom stimm colour" },
+	tw_color_custom_tooltip = { en = "Recolour the purple glow of stimmed enemies with the red, green and blue sliders below (0-255). Off keeps the game's purple (191, 0, 191). Applies to enemies stimmed from now on. Every player sets this for themselves; it only changes what you see. The split smoke can only be switched on or off, not recoloured." },
+	tw_color_r = { en = "Stimm red" },
+	tw_color_g = { en = "Stimm green" },
+	tw_color_b = { en = "Stimm blue" },
+	tw_color_channel_tooltip = { en = "0-255. Only used while Custom stimm colour is on." },
+	tw_smoke_enabled = { en = "Split smoke" },
+	tw_smoke_enabled_tooltip = { en = "The purple smoke burst when a stimmed enemy splits. Off: no smoke (the split itself still happens). Every player sets this for themselves. Try it with /gt_twins_smoke." },
+	tw_smoke_sound = { en = "Split smoke sound" },
+	tw_smoke_sound_tooltip = { en = "The gas sound that plays with the smoke burst. Off: the split is silent. Every player sets this for themselves." },
+	tw_smoke_command = { en = "GrandfathersTarot: play the Twins split burst in front of you with your smoke settings (to try them)" },
+	tw_bosses_enabled = { en = "Affect bosses" },
+	tw_bosses_enabled_tooltip = { en = "Master switch of the Twins condition. Off: no boss ever gets the purple stimm, whatever the per-boss settings below say." },
+	tw_bosses_chance = { en = "Boss stimm chance" },
+	tw_bosses_chance_tooltip = { en = "Chance that a spawned boss gets the purple stimm under the Twins condition. It is multiplied with the per-boss chance below (50%% here and 50%% there = 25%%)." },
+	tw_boss_selector = { en = "Boss" },
+	tw_boss_selector_tooltip = { en = "Pick a boss; the settings below apply to that boss only (under the Twins condition)." },
+	tw_enemy_selector = { en = "Enemy" },
+	tw_enemy_selector_tooltip = { en = "Pick an enemy; the settings below apply to that enemy only (under the Twins condition). Enemies marked [!] have no stim animation." },
+	tw_boss_enabled = { en = "Gets the purple stimm" },
+	tw_enemy_enabled = { en = "Gets the purple stimm" },
+	tw_enabled_tooltip = { en = "Under the Twins condition, whether this one gets the purple stimm at all." },
+	tw_boss_chance = { en = "Chance" },
+	tw_boss_chance_tooltip = { en = "Chance this boss gets the purple stimm when it spawns. Captains have a stim animation and use it instead, with this chance." },
+	tw_enemy_chance = { en = "Chance" },
+	tw_enemy_chance_tooltip = { en = "Enemies with a stim animation: the chance that they use the stim when they aggro. Enemies marked [!] have none: the chance that they spawn with the purple stimm already applied." },
+	tw_boss_twin1 = { en = "Twin 1 (spawned on death)" },
+	tw_boss_twin2 = { en = "Twin 2 (spawned on death)" },
+	tw_enemy_twin1 = { en = "Twin 1 (spawned on death)" },
+	tw_enemy_twin2 = { en = "Twin 2 (spawned on death)" },
+	tw_boss_twin_tooltip = { en = "Enemy spawned when this boss dies with the purple stimm. \"Default\" uses the game's own split rule, \"None\" spawns nothing. Spawning monsters is not something the game normally does here, so expect the odd oddity." },
+	tw_enemy_twin_tooltip = { en = "Enemy spawned when this enemy dies with the purple stimm. \"Default\" uses the game's own split rule, \"None\" spawns nothing." },
+	tw_boss_twins_buff = { en = "Twins get the stimm" },
+	tw_enemy_twins_buff = { en = "Twins get the stimm" },
+	tw_twins_buff_tooltip = { en = "Default: like the game, a spawned twin only carries the purple stimm if it can split again. Always: every twin carries it. Never: none does." },
+	tw_twin_default = { en = "Default" },
+	tw_twin_none = { en = "None" },
+	tw_twins_buff_default = { en = "Default (only if they split again)" },
+	tw_twins_buff_always = { en = "Always" },
+	tw_twins_buff_never = { en = "Never" },
+	tw_warning_spawn_loop_prevented = { en = "Twins spawn loop: %s. The enemy that would close the loop is spawned without the purple stimm, so the chain ends." },
+	tw_warning_spawn_loop_unchecked = { en = "Twins spawn loop: %s. Check infinite spawn loops is off, so this spawns enemies forever." },
+	tw_warning_self_split_one_prevented = { en = "Twins spawn loop: %s splits into %s. The twin is spawned without the purple stimm, so it stops there." },
+	tw_warning_self_split_one_unchecked = { en = "Twins spawn loop: %s splits into %s. Check infinite spawn loops is off, so it keeps splitting forever." },
+	tw_warning_self_split_two_prevented = { en = "Twins spawn loop: %s splits into 2 x %s. The twins are spawned without the purple stimm, so it stops there." },
+	tw_warning_self_split_two_unchecked = { en = "Twins spawn loop: %s splits into 2 x %s. Check infinite spawn loops is off, so the number of enemies doubles with every generation, forever." },
+	tw_warning_no_stim_animation = { en = "%s has no stim animation: the purple stimm is applied directly when it spawns, using the chance below." },
+	tw_a = { en = "Twin 1" },
+	tw_b = { en = "Twin 2" },
+	tw_row_default = { en = "The game's split: %s" },
+	tw_sa = { en = "Twin 1 splits again" },
+	tw_sb = { en = "Twin 2 splits again" },
+	tw_sa_info = { en = "It has Twins too, with these same settings, while Generations allow." },
+	tw_sb_info = { en = "It has Twins too, with these same settings, while Generations allow." },
+	tw_ka = { en = "Twin 1 keeps this row's mods" },
+	tw_kb = { en = "Twin 2 keeps this row's mods" },
+	tw_ka_info = { en = "Its modifiers, custom stats, colour and boss bar. Off: a plain enemy." },
+	tw_kb_info = { en = "Its modifiers, custom stats, colour and boss bar. Off: a plain enemy." },
+	tw_gen = { en = "Generations" },
+	tw_gen_info = { en = "How many times a chain splits, 1 to %s. 1: only this row's enemies split; their twins never do." },
+	tw_popup_title = { en = "%s: type an enemy" },
+	tw_popup_hint = { en = "An enemy (\"poxburster\", \"crusher\"), \"none\", or empty for the game's own split." },
+	tw_popup_unknown = { en = "\"%s\" is not an enemy Twins can spawn." },
 }
 
 -- The mod's menu in the Nurgle palette (2026-10-05, the user): the title in rot green and pus yellow, every section header in
@@ -636,5 +724,38 @@ tint("group_multipliers", "150,118,62")
 tint("group_controls", "104,150,96")
 tint("group_hud", "176,140,48")
 tint("group_spread", "140,170,80")
+tint("group_twins", "150,60,160")
+tint("group_twins_bosses", "150,60,160")
+tint("group_twins_enemies", "150,60,160")
+tint("group_twins_reset", "150,60,160")
+
+-- Twins: the names of the bosses and enemies in its dropdowns (the game's own localized name when it resolves)
+do
+	local ok, catalog = pcall(function ()
+		return get_mod("GrandfathersTarot"):io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/twins/catalog")
+	end)
+
+	local function display_name(entry)
+		local resolved, text = pcall(Localize, entry.loc)
+
+		if resolved and type(text) == "string" and text ~= "" and string.sub(text, 1, 1) ~= "<" then
+			return text
+		end
+
+		return entry.name
+	end
+
+	if ok and type(catalog) == "table" then
+		for _, list in ipairs({ catalog.bosses, catalog.enemies, catalog.extra_spawnable }) do
+			for _, entry in ipairs(list) do
+				local name = display_name(entry)
+
+				L["tw_twin_" .. entry.id] = { en = name }
+				L["tw_boss_" .. entry.id] = { en = name }
+				L["tw_enemy_" .. entry.id] = { en = entry.stim and name or (name .. " [!]") }
+			end
+		end
+	end
+end
 
 return L

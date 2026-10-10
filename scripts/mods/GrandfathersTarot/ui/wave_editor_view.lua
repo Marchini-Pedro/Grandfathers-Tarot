@@ -77,6 +77,7 @@ local BUTTONS = {
 	{ name = "btn_settings", width = 270, cb = "cb_settings" },
 	{ name = "btn_wimport", width = 300, cb = "cb_wave_import", role = "primary" },
 	{ name = "btn_default", width = 320, cb = "cb_defaults", role = "danger" },
+	{ name = "btn_delete_all", width = 213, font = 18, cb = "cb_delete_all", role = "danger" },
 	-- the Deck: every beneficial / enemy card into or out of the draw
 	{ name = "btn_draw_ben_on", width = 410, font = 19, cb = "cb_draw_kind", arg = "ben_on" },
 	{ name = "btn_draw_ben_off", width = 410, font = 19, cb = "cb_draw_kind", arg = "ben_off", role = "danger" },
@@ -159,6 +160,7 @@ local function copy_parts(parts)
 			leaves = part.leaves,
 			boss_name = part.boss_name,
 			boss_colour = part.boss_colour,
+			twins = mod.rw.groups.clean_twins(part.twins),
 		}
 	end
 
@@ -747,7 +749,7 @@ GrandfathersTarotView._source = function (self)
 	elseif self._screen == "mods" then
 		return mod.rw.groups.MODIFIERS
 	elseif self._screen == "tune" then
-		return mod.rw.groups.TUNE_SCREEN
+		return self:_tune_rows()
 	elseif self._screen == "face" then
 		return {} -- (the Mirror has no table)
 	elseif self._screen == "sounds" then
@@ -772,7 +774,7 @@ local SETTINGS_ROWS = {
 	{ id = "mode", kind = "mode" },
 	{ id = "interval_random", kind = "toggle", default = false },
 	{ id = "interval_min", kind = "number", default = 75, min = 5, max = 1800, step = 5 },
-	{ id = "interval_max", kind = "number", default = 75, min = 5, max = 1800, step = 5, needs = "interval_random" },
+	{ id = "interval_max", kind = "number", default = 195, min = 5, max = 1800, step = 5, needs = "interval_random" },
 	{ id = "initial_delay", kind = "number", default = 0, min = 0, max = 600, step = 5 },
 	{ id = "vote_duration", kind = "number", default = 5, min = 5, max = 120, step = 5 },
 	{ id = "ballot_size", kind = "number", default = 3, min = 2, max = 5, step = 1 },
@@ -997,7 +999,7 @@ GrandfathersTarotView._apply_screen = function (self, keep_offset)
 		tmin.stepper_value = tostring(math.floor(tonumber(mod:get("interval_min")) or 75))
 		tmin.extra = mod:localize("extra_seconds")
 		tmax.label = mod:localize("set_interval_max")
-		tmax.stepper_value = tostring(math.floor(tonumber(mod:get("interval_max")) or 75))
+		tmax.stepper_value = tostring(math.floor(tonumber(mod:get("interval_max")) or 195))
 		tmax.extra = mod:localize(random_on and "extra_seconds" or "extra_not_random")
 	elseif screen == "detail" then
 		widgets.description_text.content.description_text = mod:localize("view_desc_detail", self._wave.name)
@@ -1138,6 +1140,13 @@ GrandfathersTarotView._apply_screen = function (self, keep_offset)
 		self:_set_scenegraph_position("bottom_title", 125, 758, 2)
 	end
 	widgets.btn_default.visible = screen == "list"
+	widgets.btn_delete_all.visible = screen == "list"
+
+	-- Delete all cards: two warnings, the deletion on the third click
+	local delete_stage = self._confirm and self._confirm.key == "__delete_all" and self._confirm.stage or 0
+
+	widgets.btn_delete_all.content.hotspot_text = mod:localize(delete_stage == 2 and "btn_delete_all_last" or delete_stage == 1 and "btn_delete_all_sure" or "btn_delete_all")
+	widgets.btn_delete_all.content.hotspot_on = delete_stage > 0
 
 	for _, name in ipairs({ "btn_draw_ben_on", "btn_draw_ben_off", "btn_draw_foe_on", "btn_draw_foe_off" }) do
 		widgets[name].visible = screen == "list"
@@ -2537,7 +2546,7 @@ GrandfathersTarotView.cb_preset_load = guarded(function (self)
 	local rw = mod.rw
 	local slot = self:_current_preset_slot()
 
-	-- a damaged slot cannot be loaded; an EMPTY slot is a blank preset: loading it gives the default waves
+	-- a damaged slot cannot be loaded; an EMPTY slot loads an empty deck (2026-10-07, the user: "let me load it empty")
 	if not slot.preset and slot.problem then
 		self:_refresh_preset(mod:localize("preset_nothing_to_load"))
 
@@ -2553,7 +2562,7 @@ GrandfathersTarotView.cb_preset_load = guarded(function (self)
 	local written = 0
 
 	if blank then
-		rw.presets.restore_defaults(set_setting, rw.events)
+		rw.presets.clear_all(set_setting, rw.events)
 	else
 		written = rw.presets.apply(slot.preset, set_setting, rw.events, rw.groups)
 	end
@@ -2842,6 +2851,33 @@ GrandfathersTarotView.cb_defaults = guarded(function (self)
 	self:_apply_screen(true)
 end)
 
+-- Delete all cards (list screen, 2026-10-07): every card of the deck deleted, after two warnings (each click within 4 s of the
+-- last). The deck being replaced is kept for "Undo last load" on the Presets screen.
+GrandfathersTarotView.cb_delete_all = guarded(function (self)
+	local rw = mod.rw
+	local confirm = self._confirm
+	local stage = confirm and confirm.key == "__delete_all" and (self._t or 0) <= confirm.expires and confirm.stage or 0
+
+	if stage < 2 then
+		self._confirm = { key = "__delete_all", stage = stage + 1, expires = (self._t or 0) + 4 }
+		mod:echo("%s", mod:localize(stage == 0 and "msg_delete_all_warn" or "msg_delete_all_last"))
+		self:_apply_screen(true)
+
+		return
+	end
+
+	self._confirm = nil
+
+	local backup = rw.presets.capture(get_setting, rw.events, rw.groups)
+
+	backup.name = mod:localize("preset_undo_name")
+	rw.presets.write(set_setting, rw.presets.UNDO_ID, backup)
+	rw.presets.clear_all(set_setting, rw.events)
+	self:_reload()
+	self:_apply_screen()
+	mod:echo("%s", mod:localize("msg_delete_all_done"))
+end)
+
 -- time between waves (list screen): 5 s steps below a minute, 15 s up to 5 minutes, then a minute
 local function next_time(value, delta)
 	local step
@@ -2861,7 +2897,7 @@ GrandfathersTarotView._set_time = function (self, id, value)
 
 	-- the maximum never ends up below the minimum
 	local low = tonumber(mod:get("interval_min")) or 75
-	local high = tonumber(mod:get("interval_max")) or 75
+	local high = tonumber(mod:get("interval_max")) or 195
 
 	if id == "interval_min" and value > high then
 		set_setting("interval_max", value)
@@ -2877,7 +2913,7 @@ GrandfathersTarotView.cb_tmin_step = guarded(function (self, delta)
 end)
 
 GrandfathersTarotView.cb_tmax_step = guarded(function (self, delta)
-	self:_set_time("interval_max", next_time(tonumber(mod:get("interval_max")) or 75, delta))
+	self:_set_time("interval_max", next_time(tonumber(mod:get("interval_max")) or 195, delta))
 end)
 
 local function time_popup(self, id, label_key, default)
@@ -2896,7 +2932,7 @@ GrandfathersTarotView.cb_tmin_input = guarded(function (self)
 end)
 
 GrandfathersTarotView.cb_tmax_input = guarded(function (self)
-	time_popup(self, "interval_max", "set_interval_max", 75)
+	time_popup(self, "interval_max", "set_interval_max", 195)
 end)
 -- popup ------------------------------------------------------------------------
 
