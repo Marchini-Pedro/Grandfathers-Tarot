@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-11 - Performance: hooks asleep when not needed (polishing)
+- Faster: the mod's hooks on functions the game calls for every enemy (spawns, deaths, hits, attacks, the flamers', trappers',
+  hounds' and mutants' actions, the boss bar, the player panels) are switched off while nothing of the mod needs them, and come
+  back on by themselves when a card's enemy, the Twins condition, a divided health, an armed Instant rescue or the dread needs them.
+  With /gt_stop in a Realms game the Mod Performance Monitor no longer bills the game's own hordes to the mod.
+- Smoother: a card's enemies spawn one every 0.075 s instead of two every 0.15 s (same speed, half the work in one frame).
+
 ## 2026-10-06 - Version 2.2.0: boss bar colours, fixes for clients (polishing)
 - The mod options show the version (2.2.0). Host and players must have the same version.
 - A Boss bar colour of your own per enemy group. The Boss name and colour also work on Monsters and Captains.

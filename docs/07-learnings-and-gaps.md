@@ -574,3 +574,18 @@ Things we know are missing or unverified, each with the next concrete step.
   promising a number.
 - Run the gate on both runtimes before setting a floor: LuaJIT counts a table literal as one line and skips function header
   lines, so a floor taken from Lua 5.5 alone can be out of LuaJIT's reach. Generated data is written one assignment per line.
+
+## 2026-10-11 - Hooks that wait for work
+- The monitor's calls column under /gt_stop counted hooks on functions the game calls per enemy (spawn, die, hits, attacks): a
+  normal hook's time includes the game's function, so every horde showed as a Tarot spike. DMF's `hook_disable(obj, method)` is
+  cheap and leaves the chain intact: gate such hooks on a question ("is there work?") with a linger before switching off.
+- `x = all and on or nil` turns a false `on` into nil: a "switched off" state was forgotten and re-applied every tick. Write the
+  if/else when the value can be false.
+- DMF's toggle looks the hook up by `obj[method]`: toggle a class that is not loaded yet and it queues a delayed toggle (and logs);
+  resolve the class first and skip it, a periodic re-apply catches it later. A `hook_require` callback runs again at every game
+  start: whatever it registers must be idempotent.
+- Spreading spawns (one per 0.075 s rather than two per 0.15 s) keeps a slow frame's catch-up (`1 + floor(-timer / interval)`,
+  capped) or the rate halves at a low frame rate; a suite that ran one 0.2 s update caught it.
+- Culling faint aura shapes was measured first (Aura.update over 10 s per suit): almost no shape is drawn below alpha 16, so it
+  would save nothing. Measure before cutting visuals.
+
