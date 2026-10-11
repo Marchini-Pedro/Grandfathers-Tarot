@@ -683,6 +683,10 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 	if Tuning and Tuning.watch_daemonhost then Tuning.watch_daemonhost(unit, breed_name, extra.leaves) end
 	-- the group's Boss name, for its boss bar
 	if (extra.boss_name or extra.boss_colour) and Tuning and Tuning.name_boss then Tuning.name_boss(unit, extra.boss_name, extra.boss_colour) end
+	-- the hooks this enemy needs (a custom health, a feint, a boss bar) on now, not at the next tick (core/hook_gate.lua)
+	local gate = mod.rw and mod.rw.hook_gate
+
+	if gate then pcall(gate.refresh) end
 
 	return true, unit
 end

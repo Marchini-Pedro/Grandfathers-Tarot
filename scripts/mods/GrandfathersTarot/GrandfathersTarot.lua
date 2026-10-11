@@ -10,6 +10,10 @@ mod.rw = {}
 
 local RW = mod.rw
 
+-- the hooks on busy game functions are on only while their feature has work (core/hook_gate.lua, 2026-10-11)
+RW.hook_gate = mod:io_dofile(BASE .. "/core/hook_gate")
+RW.hook_gate.init({ mod = mod })
+
 -- The mod was called "RealmsWaves" until 2026-10-05 and DMF keeps a mod's settings under its name: the first time The
 -- Grandfather's Tarot loads, every saved setting of the old name (the decks, cards, presets and options) is copied over, and the
 -- old ones are left as they were. Keys are the same in both. Custom keybinds take effect from the next start of the game.
@@ -232,6 +236,9 @@ pcall(function ()
 
 		return func(self, t, mood_type, ...)
 	end)
+	RW.hook_gate.add("dread", "PlayerUnitMoodExtension", "_remove_mood", function ()
+		return RW.dread_active == true
+	end)
 end)
 
 -- Instant rescue's golden health (2026-10-05, the user: "while the team has a charge of Instant rescue and a player more than one
@@ -298,6 +305,12 @@ end
 for _, name in ipairs({ "HudElementPlayerPanelBase", "HudElementPersonalPlayerPanel", "HudElementTeamPlayerPanel" }) do
 	pcall(function ()
 		mod:hook(name, "_draw_health_bar", golden_draw)
+		-- on while a charge is armed (and LINGER seconds after, for the panels to lose the gold)
+		RW.hook_gate.add("golden", name, "_draw_health_bar", function ()
+			local effects = RW.effects
+
+			return not RW.dead and effects ~= nil and effects.team_rescues ~= nil and (effects.team_rescues() or 0) > 0
+		end)
 	end)
 end
 
@@ -509,6 +522,10 @@ mod.on_unload = function ()
 		RW.tuning.retire()
 	end
 
+	if RW.hook_gate then
+		RW.hook_gate.retire()
+	end
+
 	if RW.protocol then
 		RW.protocol.retire()
 	end
@@ -592,6 +609,8 @@ mod.on_enabled = function (initial_call)
 	RW.disabled = false
 
 	if RW.dormancy then RW.dormancy.on_enabled() end
+	-- DMF switched every hook back on: the gates apply their answers again
+	if RW.hook_gate then RW.hook_gate.resync() end
 
 	if not initial_call and was_disabled and RW.director then
 		if RW.director.is_host() then
@@ -644,6 +663,10 @@ mod.update = function (...)
 		end
 
 		return
+	end
+
+	if RW.hook_gate and dt then
+		pcall(RW.hook_gate.update, dt)
 	end
 
 	-- the second completion sound of a card follows the first everywhere, also in the editor's preview in the hub

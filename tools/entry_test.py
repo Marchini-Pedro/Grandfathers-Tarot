@@ -713,6 +713,96 @@ do
   Managers.state, Managers.event, REALMS_STUB, mod = saved_state, saved_event, nil, saved_mod
 end
 
+-- (2026-10-11, a performance pass) the busy hooks are on only while their feature has work (core/hook_gate.lua)
+do
+  local Gate = dofile(BASE .. "/core/hook_gate.lua")
+  local log = {}
+  local fake = {
+    hook_enable = function(self, obj, method) log[#log + 1] = (obj.label or "?") .. "." .. method .. ":on" end,
+    hook_disable = function(self, obj, method) log[#log + 1] = (obj.label or "?") .. "." .. method .. ":off" end,
+  }
+  local f = function() end
+  local Health = { label = "Health", add_damage = f, add_heal = f }
+  local Death = { label = "Death", die = f }
+  local saved_class = rawget(_G, "CLASS")
+  CLASS = { HealthExtension = Health }
+  Gate.init({ mod = fake })
+  local divided, claims = false, false
+  Gate.add("health", "HealthExtension", { "add_damage", "add_heal" }, function() return divided end)
+  Gate.add("die", Death, "die", function() return claims end)
+  local Broken = { label = "Broken", run = f }
+  Gate.add("broken", Broken, "run", function() error("boom") end)
+  Gate.add("later", "NotLoadedYet", "run", function() return false end)
+  Gate.add("die", Death, "die", function() return claims end) -- a hook_require callback run again at the next game start
+  local function count(entry) local n = 0 for _, l in ipairs(log) do if l == entry then n = n + 1 end end return n end
+
+  Gate.update(0.1)
+  check("gate: nothing is switched before its first tick (0.25 s)", #log == 0, #log)
+  Gate.update(0.2)
+  check("gate: a hook with no work is NOT switched off at once (LINGER)", count("Health.add_damage:off") == 0 and count("Death.die:off") == 0, table.concat(log, ","))
+  check("gate: a failing question keeps its hook on (the safe side)", count("Broken.run:on") == 1 and Gate.state().broken == true, table.concat(log, ","))
+  for _ = 1, 10 do Gate.update(0.25) end
+  check("gate: ...switched off after 2 s with no work, each method", count("Health.add_damage:off") == 1 and count("Health.add_heal:off") == 1, table.concat(log, ","))
+  check("gate: a class not loaded yet is left alone (no toggle, state unknown)", Gate.state().later == nil and Gate.state().health == false)
+  check("gate: a target added twice is held once (one toggle)", count("Death.die:off") == 1, table.concat(log, ","))
+  local n = #log
+  for _ = 1, 4 do Gate.update(0.25) end
+  -- (a resync may fall in this second: each target once at most, never once a tick)
+  local per = {}
+  for i = n + 1, #log do per[log[i]] = (per[log[i]] or 0) + 1 end
+  local most = 0
+  for _, c in pairs(per) do most = math.max(most, c) end
+  check("gate: an answer already applied is not applied again every tick", most <= 1, most)
+  divided = true
+  Gate.refresh("health")
+  check("gate: refresh(name) switches that hook on at once (a divided unit just spawned)", log[#log] == "Health.add_heal:on" and log[#log - 1] == "Health.add_damage:on", table.concat(log, ","))
+  divided = false; claims = true
+  Gate.refresh()
+  check("gate: refresh() asks every gate", count("Death.die:on") == 1 and Gate.state().die == true, table.concat(log, ","))
+  for _ = 1, 6 do Gate.update(0.25) end
+  check("gate: work again within LINGER keeps the hook on (no flicker)", Gate.state().health == true)
+  divided = true; Gate.update(0.25)
+  for _ = 1, 4 do Gate.update(0.25) end
+  divided = false
+  n = #log
+  Gate.resync()
+  Gate.update(0.25)
+  check("gate: resync (DMF switched every hook on again) applies every answer again", #log > n, table.concat(log, ",", n + 1))
+  n = #log
+  for _ = 1, 14 do Gate.update(0.25) end
+  check("gate: and every 3 s by itself (a hook DMF created late is put right)", #log > n)
+  CLASS.NotLoadedYet = { label = "Later", run = f }
+  for _ = 1, 14 do Gate.update(0.25) end
+  check("gate: a class loaded later is switched at the next resync", Gate.state().later == false and count("Later.run:off") >= 1)
+  Gate.retire()
+  n = #log
+  Gate.refresh(); Gate.update(1)
+  check("gate: retired (an unload) it switches nothing", #log == n and next(Gate.state()) == nil)
+  local Old = { hook_enable = nil }
+  Gate.init({ mod = Old }); Gate.add("x", Death, "die", function() return true end); Gate.refresh()
+  check("gate: a DMF without hook_enable: nothing happens, nothing breaks", true)
+  CLASS = saved_class
+end
+
+-- the gates the mod sets up at load (their names; each hook's question is the module's own)
+do
+  mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
+  local saved_mod = mod
+  hooks, views, commands, hook_requires, require_callbacks, require_by_path, hud_elements = {}, {}, {}, {}, {}, {}, {}
+  dofile(BASE .. "/GrandfathersTarot.lua"); mod.on_all_mods_loaded()
+  local RW = mod.rw
+  local names = RW.hook_gate and RW.hook_gate.names() or {}
+  local have = {}
+  for _, name in ipairs(names) do have[name] = true end
+  local missing = {}
+  for _, name in ipairs({ "bypass", "dread", "golden", "health_writes", "melee_attack", "spray", "net", "leap", "charge" }) do
+    if not have[name] then missing[#missing + 1] = name end
+  end
+  check("gate: the main file loads the gate first and every busy hook is registered with it", #missing == 0, table.concat(missing, ","))
+  mod.on_unload()
+  mod = saved_mod
+end
+
 return table.concat(results, "\n")
 '''
 out = lua.execute(harness, MODROOT)
