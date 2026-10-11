@@ -15,7 +15,9 @@ local Execute = {}
 
 local Positions, Bypass, Groups, Tuning, Appearance, Effects, Twins
 
-local FEED_INTERVAL = 0.15
+-- (2026-10-11, a performance pass) one enemy every 0.075 s instead of two every 0.15 s: the same rate, half the work in one frame
+-- (a spawn is the game's heaviest call the mod makes); a slow frame (longer than FEED_INTERVAL) still gets up to FEED_BATCH
+local FEED_INTERVAL = 0.075
 local FEED_BATCH = 2
 local CLOSE_SPREAD = 2 -- a wave in front of the player (/gt_test_close) never scatters wider than this, whatever its own radius
 local CANDIDATE_TTL = 1.5
@@ -767,6 +769,9 @@ Execute.update = function (dt, paused)
 		return
 	end
 
+	-- one unit for every FEED_INTERVAL this frame covered, FEED_BATCH at most
+	local due = math.min(FEED_BATCH, 1 + math.floor(-feed_timer / FEED_INTERVAL))
+
 	feed_timer = FEED_INTERVAL
 
 	if over_heap_guard() then
@@ -814,7 +819,7 @@ Execute.update = function (dt, paused)
 		return
 	end
 
-	for _ = 1, math.min(FEED_BATCH, room, #job.queue) do
+	for _ = 1, math.min(due, room, #job.queue) do
 		local entry = job.queue[#job.queue]
 		local position = Positions.pick(list)
 

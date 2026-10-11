@@ -1722,6 +1722,19 @@ check("execute: crushers get garden + enraged buffs (catalog order)", all_buffed
 local hounds_clean = true; for _, u in ipairs(hounds) do if #u.buffs.added ~= 0 then hounds_clean = false end end
 check("execute: hounds get no buffs", hounds_clean)
 check("execute: units aggroed, villain side, tracked by bypass", spawned[1].aggro == "aggroed" and spawned[1].side == 2 and spawned[1].spawn_flag == true and Bypass.count() == 5, Bypass.count())
+-- (2026-10-11, a performance pass) the feed: one enemy in a frame at a normal frame rate (one every 0.075 s), two at most in a slow one
+do
+  Execute.cancel(); Bypass.reset(); spawned = {}
+  Execute.start_wave({ name = "pace", parts = Groups.parse("6 hounds") })
+  local most = 0
+  for _ = 1, 120 do local before = #spawned; Execute.update(1 / 60); most = math.max(most, #spawned - before) end
+  check("execute: at 60 fps never two enemies in one frame, and all six within 2 s", most == 1 and #spawned == 6, most .. " " .. #spawned)
+  Execute.cancel(); Bypass.reset(); spawned = {}
+  Execute.start_wave({ name = "pace", parts = Groups.parse("6 hounds") })
+  Execute.update(0.5)
+  check("execute: a slow frame (0.5 s) still gets two (the old rate), never more", #spawned == 2, #spawned)
+  Execute.cancel(); Bypass.reset(); spawned = {}
+end
 
 -- Havoc-only modifier is skipped outside Havoc, applied inside it
 do
