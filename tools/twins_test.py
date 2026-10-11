@@ -201,9 +201,10 @@ Twins.init({ execute = Exec, positions = Pos })
 check("install: installs with SoloPlay", Twins.install() == true and Twins.is_installed())
 load_classes()
 local catalog = Twins.catalog()
-check("install: the catalog is loaded, its defaults the author's (Daemonhost on at 30%, Poxburster splits into Poxbursters, never stimmed)",
+check("install: the catalog is loaded, its defaults the author's (Daemonhost on at 30% and splitting into nothing, Poxburster into nothing, never stimmed; 2026-10-11)",
   catalog.by_id.chaos_daemonhost.enabled == true and catalog.by_id.chaos_daemonhost.chance == 30
-  and catalog.by_id.chaos_poxwalker_bomber.twin1 == "chaos_poxwalker_bomber" and catalog.by_id.chaos_poxwalker_bomber.twins_buff == "never")
+  and catalog.by_id.chaos_daemonhost.twin1 == "none" and catalog.by_id.chaos_daemonhost.twin2 == "none" and catalog.default_twins.chaos_daemonhost == nil
+  and catalog.by_id.chaos_poxwalker_bomber.twin1 == "none" and catalog.by_id.chaos_poxwalker_bomber.twin2 == "none" and catalog.by_id.chaos_poxwalker_bomber.twins_buff == "never")
 check("install: the purple buff's death effect is Twins' and stacks once", type(purple_template.stop_func) == "function" and purple_template.max_stacks == 1 and purple_template.max_stacks_cap == 1)
 check("install: the condition is offered under its old id (SoloPlay and Havoc lists, network lookup)", circumstance_templates.rift_warp_01 ~= nil and havoc_circumstances.rift_warp_01 == circumstance_templates.rift_warp_01 and NetworkLookup.circumstance_templates.rift_warp_01 == 2)
 check("install: the condition's names are global strings", mod.global_strings.loc_purple_stimms_twins_title.en == "Twins")
@@ -256,7 +257,7 @@ check("smoke test: an engine error is reported, not thrown", #echoes == echoed +
 check("options: a setting that is not Twins' is not taken", Twins.on_setting_changed("max_alive") == false and Twins.on_setting_changed(nil) == false)
 settings.tw_boss_selector = "chaos_daemonhost"
 Twins.on_setting_changed("tw_boss_selector")
-check("options: choosing a boss shows its values (the author's Daemonhost)", settings.tw_boss_enabled == true and settings.tw_boss_chance == 30 and settings.tw_boss_twin1 == "default")
+check("options: choosing a boss shows its values (the author's Daemonhost: no twins)", settings.tw_boss_enabled == true and settings.tw_boss_chance == 30 and settings.tw_boss_twin1 == "none" and settings.tw_boss_twin2 == "none")
 settings.tw_enemy_selector = "chaos_poxwalker_bomber"
 local noted = #notes
 Twins.on_setting_changed("tw_enemy_selector")
@@ -340,7 +341,9 @@ check("rows: 'splits again' gives the twin Twins, one generation on, same settin
 claim.gen = 3
 check("rows: the last generation does not split again", Twins.twin_entry(claim, 1).twins == nil)
 claim.cfg = { a = "not_a_breed" }
-check("rows: an unknown twin falls back to the game's split", Twins.twin_entry(claim, 1).breed == "renegade_executor" and Twins.row_twin({}, 2, "chaos_daemonhost") == "chaos_spawn")
+check("rows: an unknown twin falls back to the game's split", Twins.twin_entry(claim, 1).breed == "renegade_executor" and Twins.row_twin({}, 2, "renegade_captain") == "chaos_daemonhost")
+-- (2026-10-11, the author: "a Daemonhost as a twin defaults to two Chaos Spawns; it should split into nothing")
+check("rows: a Daemonhost's Default split is nothing (a Daemonhost twin that splits again spawns no Chaos Spawns)", Twins.row_twin({}, 1, "chaos_daemonhost") == nil and Twins.row_twin({}, 2, "chaos_daemonhost") == nil and Twins.twin_entry({ breed = "chaos_daemonhost", gen = 1, cfg = {}, row = {} }, 1) == nil)
 
 -- who the twins go for
 local p_near, p_far = breed_unit("near", vec(1, 0, 0)), breed_unit("far", vec(50, 0, 0))

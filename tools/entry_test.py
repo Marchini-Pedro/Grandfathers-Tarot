@@ -148,14 +148,14 @@ do
   RW.director.fire_now=function() return false,"host only" end;echoed={};commands.gt_test("hound_frenzy")
   check("test command: rejected wave reports the director reason", echoed[1]:find("host only",1,true)~=nil)
   RW.director.fire_now=original_fire
-  -- the deck holds 100 cards: 88 custom slots (it was 20, so 21 used to be the first invalid one)
+  -- the deck holds 150 cards: 138 custom slots (20 until 2.1, 88 until 2026-10-11)
   for _,slot in ipairs({"x","0",tostring(RW.events.CUSTOM_SLOTS+1),"1.5"}) do
     local before=stored.wave_def_custom_3;echoed={};commands.gt_custom(slot,"1 hound")
     check("custom command: invalid slot "..slot.." makes no settings writes", stored.wave_def_custom_3==before and echoed[1]:find("slot must be",1,true)~=nil)
   end
   do
     local top=tostring(RW.events.CUSTOM_SLOTS);echoed={};commands.gt_custom(top,"2","hounds")
-    check("custom command: the last slot ("..top..") is valid and the message of a wrong slot names the range", RW.events.CUSTOM_SLOTS==88 and stored["wave_def_custom_"..top]~=nil and stored["on_custom_"..top]==true)
+    check("custom command: the last slot ("..top..") is valid and the message of a wrong slot names the range", RW.events.CUSTOM_SLOTS==138 and stored["wave_def_custom_"..top]~=nil and stored["on_custom_"..top]==true)
     stored["wave_def_custom_"..top],stored["on_custom_"..top]=nil,nil
     echoed={};commands.gt_custom("0","1 hound")
     check("custom command: ...which is 1-88", echoed[1]:find("1-88",1,true)~=nil, echoed[1])
@@ -711,6 +711,36 @@ do
   mod.on_unload()
   check("sleep: unload releases the module (nothing of the mod held)", RW.dormancy == nil and D.is_asleep() ~= nil)
   Managers.state, Managers.event, REALMS_STUB, mod = saved_state, saved_event, nil, saved_mod
+end
+
+-- (2026-10-11) Options > Update default cards: a held button at the very top, it rewrites the default cards and says how many
+do
+  local data = dofile(BASE .. "/GrandfathersTarot_data.lua")
+  local top = data.options.widgets[1]
+  check("update defaults: the first widget of the options is the held button 'Update default cards'", top.setting_id == "update_default_cards" and top.type == "button" and top.button_trigger == "held" and top.function_name == "update_default_cards")
+  local versioned = io.open(BASE .. "/catalog/version.lua"):read("*a")
+  check("version: the mod is v1.1", versioned:find('return "1.1"', 1, true) ~= nil)
+  mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
+  local saved_mod = mod
+  hooks, views, commands, hook_requires, require_callbacks, require_by_path, hud_elements = {}, {}, {}, {}, {}, {}, {}
+  dofile(BASE .. "/GrandfathersTarot.lua"); mod.on_all_mods_loaded()
+  local RW = mod.rw
+  local store, notes = {}, {}
+  local real_get, real_set, real_notify = mod.get, mod.set, mod.notify
+  mod.get = function(self, id) return store[id] end
+  mod.set = function(self, id, value) store[id] = value end
+  mod.notify = function(self, text) notes[#notes + 1] = text end
+  store.wave_def_custom_1 = "Mine\t2 hounds"
+  mod.update_default_cards()
+  check("update defaults: the button writes the default cards, keeps the player's own one and says so", store.wave_def_custom_1 == "Mine\t2 hounds" and type(store.gt_default_slots) == "string" and #notes == 1 and notes[1]:find("update_default_cards_done", 1, true) ~= nil and notes[1]:find("update_default_cards_moved", 1, true) ~= nil, notes[1])
+  RW.events.update_defaults = function() error("broken") end
+  local reported, real_error = 0, mod.error
+  mod.error = function() reported = reported + 1 end
+  local raised = not pcall(mod.update_default_cards)
+  check("update defaults: a failure is reported, never raised", reported == 1 and not raised and #notes == 1)
+  mod.get, mod.set, mod.notify, mod.error = real_get, real_set, real_notify, real_error
+  mod.on_unload()
+  mod = saved_mod
 end
 
 -- (2026-10-11, a performance pass) the busy hooks are on only while their feature has work (core/hook_gate.lua)

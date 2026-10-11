@@ -195,7 +195,7 @@ local function open_card(i) click_tile(i, "hotspot_edit") end
 local function blank_tile() return view._widgets_by_name.rw_tile_blank end
 local function plain(text) return (text:gsub("{#[^}]*}", "")) end
 
-check("deck: the model has 100 cards (12 standard + 88 custom slots, Events.MAX_CARDS) and the slots are the rest", #view._waves == 100 and mod.rw.events.MAX_CARDS == 100 and mod.rw.events.CUSTOM_SLOTS == 88 and #mod.rw.events.keys() == 100, #view._waves)
+check("deck: the model has 150 cards (12 standard + 138 custom slots, Events.MAX_CARDS since 2026-10-11) and the slots are the rest", #view._waves == 150 and mod.rw.events.MAX_CARDS == 150 and mod.rw.events.CUSTOM_SLOTS == 138 and #mod.rw.events.keys() == 150, #view._waves)
 check("deck: 12 cards and the blank tile (the empty custom slots are not cards)", #view._deck == 13 and view._deck[13].blank == true and view._deck_free ~= nil and view._deck_free.key == "custom_1", #view._deck)
 check("deck: page one shows 12 tiles, the blank tile in slot 13, no more", tile(1).visible and tile(12).visible and not tile(13).visible and not tile(14).visible and blank_tile().visible)
 check("deck: the old table is gone (rows, header and panel hidden)", not row(1).visible and not D.list_header.visible and not D.list_panel.visible)
@@ -211,17 +211,17 @@ check("deck: every shape has a larger faint copy under it (anti-aliasing): the s
 check("deck: the suit mark is 26 units (it was 22) and sits in the top right corner", view._tile_shape ~= nil and tile(1).style.icon_c1.size[1] > 2 * 2.4 * 26 / 24 - 0.01 and tile(1).style.icon_c1.size[1] < 2 * 2.4 * 26 / 24 + 0.01)
 check("deck: header 'N in the draw', caption, and the strip has a segment per card in the draw", D.deck_count.content.deck_count == "deck_count:12" and D.deck_caption.content.deck_caption == "deck_caption" and #view._strip_segments == 12 and D.rw_strip.style.seg_12.visible and not D.rw_strip.style.seg_13.visible)
 
--- 100 cards: the Deck pages through them all, the strip has a segment for each
+-- 150 cards: the Deck pages through them all, the strip has a segment for each
 do
   local Dk = dofile(BASE .. "/ui/deck.lua")
   for i = 1, mod.rw.events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = "Card " .. i .. "\t1 hound"; settings["on_custom_" .. i] = true end
   view._offset = 0; view:_reload(); view:_apply_screen()
-  check("100 cards: the Deck holds all of them (no blank tile: every slot is used) and the header counts the whole draw", #view._deck == 100 and not blank_tile().visible and D.deck_count.content.deck_count == "deck_count:100", #view._deck)
-  check("100 cards: the strip has a segment per card in the draw and stays inside its 1710 units", #view._strip_segments == 100 and (function() local last = D.rw_strip.style.seg_100; return last.visible ~= false and last.offset[1] + last.size[1] <= 1710.01 end)())
-  for _ = 1, 20 do click("rw_scroll_down") end
-  check("100 cards: scrolling a row at a time reaches the last page: nine cards, ending with Card 88", view._offset == Dk.max_offset(100) and tile(9).visible and plain(tile(9).content.name) == "Card 88" and not tile(10).visible, tostring(view._offset) .. " " .. tostring(tile(9).content.name))
-  for _ = 1, 20 do click("rw_scroll_up") end
-  check("100 cards: ...and back to the first page", view._offset == 0 and tile(1).content.name == "The Fool")
+  check("150 cards: the Deck holds all of them (no blank tile: every slot is used) and the header counts the whole draw", #view._deck == 150 and not blank_tile().visible and D.deck_count.content.deck_count == "deck_count:150", #view._deck)
+  check("150 cards: the strip has a segment per card in the draw and stays inside its 1710 units", #view._strip_segments == 150 and (function() local last = D.rw_strip.style.seg_150; return last.visible ~= false and last.offset[1] + last.size[1] <= 1710.01 end)())
+  for _ = 1, 30 do click("rw_scroll_down") end
+  check("150 cards: scrolling a row at a time reaches the last page: ten cards, ending with Card 138", view._offset == Dk.max_offset(150) and tile(10).visible and plain(tile(10).content.name) == "Card 138" and not tile(11).visible, tostring(view._offset) .. " " .. tostring(tile(9).content.name))
+  for _ = 1, 30 do click("rw_scroll_up") end
+  check("150 cards: ...and back to the first page", view._offset == 0 and tile(1).content.name == "The Fool")
   for i = 1, mod.rw.events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil end
   view._offset = 0; view:_reload(); view:_apply_screen()
 end
@@ -2011,7 +2011,7 @@ do
   click("btn_default")
   check("delete: first click only asks 'Sure?'", view._widgets_by_name.btn_default.content.hotspot_text == "btn_sure" and settings["del_wave_small"] == true)
   click("btn_default")
-  check("delete: second click restores every card to the defaults (deleted ones too, custom ones emptied)", settings["del_wave_small"] == false and settings["wave_def_wave_small"] == "" and settings["pct_wave_small"] == 5 and settings["pct_boss_ambush"] ~= 99 and #view._waves == 100 and tile(1).content.name == "The Fool" and view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_title", tostring(#view._waves))
+  check("delete: second click restores every card to the defaults (deleted ones too, custom ones emptied)", settings["del_wave_small"] == false and settings["wave_def_wave_small"] == "" and settings["pct_wave_small"] == 5 and settings["pct_boss_ambush"] ~= 99 and #view._waves == 150 and tile(1).content.name == "The Fool" and view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_title", tostring(#view._waves))
   check("delete: the replaced setup is kept for Undo last load", settings.preset_undo ~= nil and settings.preset_undo ~= "")
   settings.preset_undo = nil
   click("btn_default"); view:update(0.01, 500, input_stub3)

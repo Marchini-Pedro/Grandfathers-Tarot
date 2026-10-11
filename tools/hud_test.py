@@ -758,7 +758,7 @@ do
   local c1 = e._widgets_by_name.card_1.style
   local hd = e._widgets_by_name.header.style
   local bn = e._widgets_by_name.banner.style
-  check("font: the default is the bold Novarese for the card names, the countdown and the banner name", c1.name.font_type == "itc_novarese_bold" and hd.time.font_type == "itc_novarese_bold" and bn.name.font_type == "itc_novarese_bold" and hd.label.font_type == "proxima_nova_bold")
+  check("font: the default is Novarese (2026-10-11; it was the bold one) for the card names, the countdown and the banner name", c1.name.font_type == "itc_novarese_medium" and hd.time.font_type == "itc_novarese_medium" and bn.name.font_type == "itc_novarese_medium" and hd.label.font_type == "proxima_nova_bold")
   check("font: card names have no drop shadow (it muddied thin strokes on a dark card), the countdown keeps one", c1.name.drop_shadow == false and hd.time.drop_shadow == true)
   settings.tarot_font = "machine_medium"
   current_view = view_of({ remaining = 9, hand_seq = 53 }); frame(e)
@@ -767,7 +767,7 @@ do
   settings.tarot_font = "friz_quadrata"; frame(e)
   check("font: a change in the options menu applies at once", e._widgets_by_name.card_1.style.name.font_type == "friz_quadrata")
   settings.tarot_font = "comic_sans"; frame(e)
-  check("font: an unknown font name (an edited settings file) falls back to the default, never reaching the renderer", e._widgets_by_name.card_1.style.name.font_type == "itc_novarese_bold")
+  check("font: an unknown font name (an edited settings file) falls back to the default, never reaching the renderer", e._widgets_by_name.card_1.style.name.font_type == "itc_novarese_medium")
   settings.tarot_font = nil
 end
 
@@ -1162,7 +1162,31 @@ do
   check("aura layers: Dream's sky draws its clouds and their hearts on whole layers too", whole)
 
   -- twenty shapes a card (2026-10-05, the user: "more intense"); a suit leaves the ones it does not use off
-  check("aura: twenty-eight shapes and eight triangles a card", Aura.COUNT == 28 and Aura.TRIS == 8)
+  check("aura: twenty-eight shapes and sixteen triangles a card (Brute's fissure since 2026-10-11)", Aura.COUNT == 28 and Aura.TRIS == 16)
+  -- (2026-10-11) Brute: a fissure tears the card from top to foot, its sides part (the dark chasm in triangles 1 to 8, its glowing
+  -- rims in 9 to 16), then it closes before the next blow
+  do
+    local fo = Aura.new()
+    local P = Aura.brute_period(6)
+    local function tris_on(o, first, last) local n = 0 for i = first, last do if o.tri[i].on then n = n + 1 end end return n end
+    local function width(o) local lo, hi = math.huge, -math.huge for i = 1, 8 do local q = o.tri[i]; if q.on then lo = math.min(lo, q.x1, q.x2, q.x3); hi = math.max(hi, q.x1, q.x2, q.x3) end end return hi - lo end
+    Aura.update(fo, "brute", P * 3 + 0.01, 228, 270, 1, 6)
+    local early_chasm = tris_on(fo, 1, 8)
+    Aura.update(fo, "brute", P * 3 + P * 0.4, 228, 270, 1, 6)
+    local open_chasm, open_rims, deepest = tris_on(fo, 1, 8), tris_on(fo, 9, 16), 0
+    for i = 1, 8 do if fo.tri[i].on then deepest = math.max(deepest, fo.tri[i].y1, fo.tri[i].y2, fo.tri[i].y3) end end
+    local open_width = width(fo)
+    Aura.update(fo, "brute", P * 3 + P * 0.99, 228, 270, 1, 6)
+    local closed = tris_on(fo, 1, 16)
+    check("aura: Brute's fissure tears down the card (a part at first, all eight chasm pieces once open, reaching the foot)", early_chasm < 8 and open_chasm == 8 and deepest >= 269, early_chasm .. " " .. open_chasm .. " " .. deepest)
+    check("aura: ...its two lips glow (eight rim slivers) and it closes again before the next blow", open_rims == 8 and closed == 0, open_rims .. " " .. closed)
+    Aura.update(fo, "brute", P * 3 + P * 0.4, 228, 270, 1, 1)
+    check("aura: the card opens wider at a higher threat", open_width > width(fo) + 10, open_width .. " " .. width(fo))
+    Aura.update(fo, "brute", P * 4 + P * 0.4, 228, 270, 1, 6)
+    local other = fo.tri[3].x1
+    Aura.update(fo, "brute", P * 3 + P * 0.4, 228, 270, 1, 6)
+    check("aura: every blow has its own fissure (the zigzag changes)", math.abs(other - fo.tri[3].x1) > 0.5)
+  end
   Aura.update(out, "rage", 2, 228, 270, 1, 6)
   Aura.update(out, "murmur", 2, 228, 270, 1, 1)
   local left_on = false
@@ -1329,7 +1353,7 @@ do
   check("murmur letters: the texts are written in their order (the name first, then the next), rebuilt only when a letter changes", m.shown[1] == "Moon" and m.shown[2] == "2 " and m.shown[3] == "" and not changed_again, m.shown[1] .. "|" .. m.shown[2] .. "|" .. m.shown[3])
   -- the HUD's last card and the editor's preview of it are painted by one painter
   local Paint = dofile(BASE .. "/ui/last_card_paint.lua")
-  check("last card painter: shared, the same functions as the HUD element's", type(Paint.setup) == "function" and type(Paint.tick_aura) == "function" and type(Paint.new) == "function" and Paint.chosen_font() == "itc_novarese_bold")
+  check("last card painter: shared, the same functions as the HUD element's", type(Paint.setup) == "function" and type(Paint.tick_aura) == "function" and type(Paint.new) == "function" and Paint.chosen_font() == "itc_novarese_medium")
 
   local rgb = { 0, 0, 0 }
   local g1 = Aura.glow("dream", 0, rgb)
@@ -1712,7 +1736,7 @@ do
   settings.tarot_font = "machine_medium"
   current_view = last_view(tower, 6, 3)
   last_frame(el)
-  check("last card: the name takes the font chosen for the Spread; an unknown font falls back to the default", w.style.name.font_type == "machine_medium" and (function() settings.tarot_font = "no_such_font"; last_frame(el); return w.style.name.font_type == "itc_novarese_bold" end)())
+  check("last card: the name takes the font chosen for the Spread; an unknown font falls back to the default", w.style.name.font_type == "machine_medium" and (function() settings.tarot_font = "no_such_font"; last_frame(el); return w.style.name.font_type == "itc_novarese_medium" end)())
   settings.tarot_font = nil
   settings.hud_last_card = false
   last_frame(el)

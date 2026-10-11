@@ -807,16 +807,18 @@ do
   started_waves = {}; started_defs = {}
 end
 
--- 100 cards: the deck, and the message that tells the host which cards a client has ----------------------------------------------
+-- 150 cards (100 until 2026-10-11): the deck, and the message that tells the host which cards a client has --------------------------
 do
   local Presets = PresetsMod
   local keys = Events.keys()
   local function get(id) return settings[id] end
   local function w(key, name, recipe, pct) return { key = key, name = name, recipe = recipe, enabled = true, pct = pct, cd = 0, sp = 3, re = 10, rf = 60, dmin = 0, dmax = 0 } end
-  check("cards: a deck holds 100 cards: the 12 standard ones and 88 custom slots, every key valid and unique", Events.MAX_CARDS == 100 and Events.CUSTOM_SLOTS == 88 and #keys == 100 and (function() local seen = {} for _, k in ipairs(keys) do if seen[k] then return false end seen[k] = true end return seen.custom_88 == true and not seen.custom_89 end)())
-  check("cards: slot 88 is a card, slot 89 and slot 0 are not", Events.get("custom_88", get, Groups) ~= nil and Events.get("custom_89", get, Groups) == nil and Events.get("custom_0", get, Groups) == nil)
+  check("cards: a deck holds 150 cards: the 12 standard ones and 138 custom slots, every key valid and unique", Events.MAX_CARDS == 150 and Events.CUSTOM_SLOTS == 138 and #keys == 150 and (function() local seen = {} for _, k in ipairs(keys) do if seen[k] then return false end seen[k] = true end return seen.custom_88 == true and seen.custom_138 == true and not seen.custom_139 end)())
+  check("cards: slot 138 is a card, slot 139 and slot 0 are not", Events.get("custom_138", get, Groups) ~= nil and Events.get("custom_139", get, Groups) == nil and Events.get("custom_0", get, Groups) == nil)
+  check("cards: an existing deck keeps every card: the old slots keep their keys (custom_1 ... custom_88), the new ones are empty", Events.is_empty_slot("custom_89", get) and Events.is_empty_slot("custom_138", get) and keys[13] == "custom_1" and keys[100] == "custom_88" and keys[101] == "custom_89")
   check("cards: the Deck's odds strip has a segment for every card that can be in the draw", load("ui/deck").STRIP_MAX == Events.MAX_CARDS)
-  check("cards: the order of the Deck keeps all 100 (a saved order that lacks the new slots gets them in their usual place)", (function() local ordered = Events.ordered_keys(function(id) return id == "deck_order" and "custom_3,wave_small,custom_3,gone" or nil end); return #ordered == 100 and ordered[1] == "custom_3" and ordered[2] == "wave_small" and ordered[100] == "custom_88" end)())
+  check("cards: the order of the Deck keeps all 150 (a saved order that lacks the new slots gets them in their usual place)", (function() local ordered = Events.ordered_keys(function(id) return id == "deck_order" and "custom_3,wave_small,custom_3,gone" or nil end); return #ordered == 150 and ordered[1] == "custom_3" and ordered[2] == "wave_small" and ordered[150] == "custom_138" end)())
+  check("cards: a saved order of the 100-card days (custom_88 last) keeps its order and shows the 50 new slots after it", (function() local old = {} for i = 1, 100 do old[i] = keys[101 - i] end; local ordered = Events.ordered_keys(function(id) return id == "deck_order" and table.concat(old, ",") or nil end); return #ordered == 150 and ordered[1] == keys[100] and ordered[100] == keys[1] and ordered[101] == "custom_89" and ordered[150] == "custom_138" end)())
 
   -- a client with many cards: one message to the host; when they do not all fit, the first cards that do
   local big = "3 crusher[enraged+purple+blight]{health=150 size=130 speed=120 gap=40 fire=200 burst=300 mass=250}, 2 mauler[red]{health=80 size=90}, 4 rager[orange+toughened], 3 gunner[fire]{fire=120}, 2 hound, 5 poxwalker@3, 2 mutant|trapper|flamer[parasite], 1 plague ogryn, 2 sniper, 3 bomber, 2 burster, 1 chaos spawn"
@@ -828,7 +830,8 @@ do
   Director.on_exit_gameplay(); Director.on_enter_gameplay()
   Director.on_welcome("host_peer", 1, "1.0.0", true)
   local decoded = sent.waves and Presets.decode(sent.waves, Events, Groups)
-  check("cards: with room (the real limit) a client sends all of its cards, 100 of them, in one message", decoded ~= nil and #decoded.waves == 100 and #sent.waves == full and full < 90000, tostring(full) .. " " .. tostring(decoded and #decoded.waves))
+  -- (2026-10-11) 150 of the tests' heaviest cards may pass the real limit: then the first cards that fit go, never nothing
+  check("cards: with room (the real limit) a client sends all of its cards in one message, or the first ones that fit", decoded ~= nil and ((full < 90000 and #decoded.waves == 150 and #sent.waves == full) or (full >= 90000 and #decoded.waves >= 100 and #sent.waves < 90000)), tostring(full) .. " " .. tostring(decoded and #decoded.waves))
 
   Protocol.MAX_WAVES_TEXT = 20000
   local echo_mark = #echoes
@@ -837,7 +840,7 @@ do
   local ok_sent = Director.send_waves()
   local text = sent.waves
   local trimmed = text and Presets.decode(text, Events, Groups)
-  check("cards: 100 big cards do not fit in one message: the first cards that fit are sent, an intact preset under the limit, not nothing", ok_sent == true and text ~= nil and #text <= 20000 and trimmed ~= nil and #trimmed.waves >= 10 and #trimmed.waves < 100 and trimmed.waves[1].key == "wave_small" and trimmed.waves[#trimmed.waves].key == keys[#trimmed.waves], text and #text)
+  check("cards: 150 big cards do not fit in one message: the first cards that fit are sent, an intact preset under the limit, not nothing", ok_sent == true and text ~= nil and #text <= 20000 and trimmed ~= nil and #trimmed.waves >= 10 and #trimmed.waves < 150 and trimmed.waves[1].key == "wave_small" and trimmed.waves[#trimmed.waves].key == keys[#trimmed.waves], text and #text)
   Director.send_waves(); Director.send_waves()
   local said = 0; for i = echo_mark + 1, #echoes do if echoes[i]:find("enabled cards fit in one message", 1, true) then said = said + 1 end end
   check("cards: ...and it is said once, not at every send", said == 1, said)
@@ -857,23 +860,23 @@ do
     local full_text = Presets.encode(Presets.enabled_waves(get, Events, Groups))
     local sent_ok = Director.send_waves()
     local escaped_deck = sent.waves and Presets.decode(sent.waves, Events, Groups)
-    check("cards: quote-heavy decks fit after transport escaping, not just as raw text", sent_ok and Protocol.waves_text_fits(sent.waves) and escaped_deck ~= nil and #escaped_deck.waves > 0 and #escaped_deck.waves < 100 and not Protocol.waves_text_fits(full_text))
+    check("cards: quote-heavy decks fit after transport escaping, not just as raw text", sent_ok and Protocol.waves_text_fits(sent.waves) and escaped_deck ~= nil and #escaped_deck.waves > 0 and #escaped_deck.waves < 150 and not Protocol.waves_text_fits(full_text))
     Protocol.waves_text_fits = saved_fits
     for _, k in ipairs(keys) do if not k:find("^custom_") then settings["wave_def_" .. k] = nil end end
   end
 
-  -- the host takes up to 100 cards of one player
+  -- the host takes up to 150 cards of one player (Events.MAX_CARDS)
   is_server = true
   Director.on_exit_gameplay(); Director.on_enter_gameplay()
   is_server = true
   for _, k in ipairs(keys) do settings["on_" .. k] = false end
   settings.pool_all_players = true
-  local many = {}; for i = 1, 100 do many[i] = w(keys[i], "P" .. i, "1 hound", 5) end
+  local many = {}; for i = 1, 150 do many[i] = w(keys[i], "P" .. i, "1 hound", 5) end
   Director.on_waves("peer_d", Presets.encode({ name = "waves", waves = many }))
-  check("cards: the host takes all 100 cards of one player into the pool (the limit was 40)", #Director.extra_waves() == 100, #Director.extra_waves())
-  local more = {}; for i = 1, 150 do more[i] = w(keys[(i - 1) % 100 + 1], "Q" .. i, "1 hound", 5) end
+  check("cards: the host takes all 150 cards of one player into the pool (the limit was 40, then 100)", #Director.extra_waves() == 150, #Director.extra_waves())
+  local more = {}; for i = 1, 200 do more[i] = w(keys[(i - 1) % 150 + 1], "Q" .. i, "1 hound", 5) end
   Director.on_waves("peer_e", Presets.encode({ name = "waves", waves = more }))
-  check("cards: a second player never adds more than 100 of their own", #Director.extra_waves() <= 200, #Director.extra_waves())
+  check("cards: a second player never adds more than 150 of their own", #Director.extra_waves() <= 300, #Director.extra_waves())
 
   for i = 1, Events.CUSTOM_SLOTS do settings["wave_def_custom_" .. i] = nil; settings["on_custom_" .. i] = nil; settings["pct_custom_" .. i] = nil end
   for _, k in ipairs(keys) do settings["on_" .. k] = nil end
@@ -1344,6 +1347,62 @@ do
   v = start(); Director.update(95)
   check("tarot: never more than 5 cards, whatever the option says", #Director.view().hand == 5)
 
+  -- (2026-10-11) guaranteed hands: a hand of threat 6 cards, of threat 5 cards, of beneficial cards, every X to Y minutes
+  do
+    local function hands_over(seconds)
+      local list, seen = {}, {}
+      for _ = 1, seconds * 2 do
+        Director.update(0.5)
+        local now = Director.view()
+        if now.phase == "hand" and now.hand and not seen[now.hand_seq] then seen[now.hand_seq] = true; list[#list + 1] = now.hand end
+      end
+      return list
+    end
+    local function all(hand, test) for _, c in ipairs(hand) do if not test(c) then return false end end return #hand > 0 end
+    settings.tarot_cards = 2; settings.tarot_seconds = 5; settings.interval_min = 5; settings.interval_max = 5
+    only({ { "wave_small", 10, 0 }, { "wave_medium", 10, 0 }, { "wave_large", 10, 0 }, { "wave_huge", 1, 0 }, { "boss_ambush", 1, 0 } })
+    settings.th_wave_small, settings.th_wave_medium, settings.th_wave_large, settings.th_wave_huge, settings.th_boss_ambush = 1, 2, 3, 6, 6
+    -- off: no moment is planned
+    v = start(); Director.update(1)
+    check("forced: with the options off nothing is planned", Director.forced_due("forced_six") == nil and Director.forced_due("forced_blessed") == nil)
+    settings.forced_six = true; settings.forced_six_min = 1; settings.forced_six_max = 1
+    v = start()
+    local list = hands_over(250)
+    local sixes = 0
+    for _, hand in ipairs(list) do if all(hand, function(c) return c.threat == 6 end) then sixes = sixes + 1 end end
+    -- the two threat 6 cards weigh 2 of 32: by chance a hand of two of them is rare; one a minute is the option
+    check("forced: a hand of threat 6 cards comes every minute (min = max = 1), the other hands stay normal", sixes >= 3 and sixes < #list, sixes .. " of " .. #list)
+    check("forced: the next one is planned after the last (in played time)", type(Director.forced_due("forced_six")) == "number")
+    -- resting cards of the kind are dealt too: the threat 6 cards on a long cooldown still make the hand
+    settings.cd_wave_huge, settings.cd_boss_ambush = 1000, 1000
+    v = start()
+    list = hands_over(130)
+    -- the first guaranteed hand (60 s) sends one of them out (1000 s of rest); the second (120 s) still holds both
+    local full_sixes = 0
+    for _, hand in ipairs(list) do if all(hand, function(c) return c.threat == 6 end) and #hand == 2 then full_sixes = full_sixes + 1 end end
+    check("forced: resting threat 6 cards fill the guaranteed hand (it is guaranteed)", full_sixes >= 2, full_sixes)
+    settings.cd_wave_huge, settings.cd_boss_ambush = 0, 0
+    settings.forced_six = nil; settings.forced_six_min = nil; settings.forced_six_max = nil
+    -- threat 5: none in the draw: the hands stay normal, nothing stalls, the kind stays due
+    settings.forced_five = true; settings.forced_five_min = 1; settings.forced_five_max = 1
+    v = start()
+    list = hands_over(130)
+    check("forced: a kind with no card in the draw deals normal hands (no stall) and stays due", #list >= 10 and Director.forced_due("forced_five") <= 130, #list)
+    settings.forced_five = nil; settings.forced_five_min = nil; settings.forced_five_max = nil
+    -- beneficial: one Prayer card: the guaranteed hand is that one card alone
+    settings.su_wave_large = "prayer"
+    settings.forced_blessed = true; settings.forced_blessed_min = 1; settings.forced_blessed_max = 2
+    v = start()
+    list = hands_over(250)
+    local blessed = 0
+    for _, hand in ipairs(list) do if #hand == 1 and hand[1].key == "wave_large" then blessed = blessed + 1 end end
+    check("forced: a hand of beneficial cards (here the one Prayer card, alone) every 1 to 2 minutes", blessed >= 2, blessed)
+    settings.su_wave_large = nil
+    settings.forced_blessed = nil; settings.forced_blessed_min = nil; settings.forced_blessed_max = nil
+    settings.th_wave_small, settings.th_wave_medium, settings.th_wave_large, settings.th_wave_huge, settings.th_boss_ambush = nil, nil, nil, nil, nil
+    settings.tarot_cards = 9
+  end
+
   -- chance weights decide who is DEALT, the final pick among the hand is uniform
   settings.tarot_cards = 2; settings.tarot_seconds = 5; settings.interval_min = 5; settings.interval_max = 5
   only({ { "wave_small", 10, 0 }, { "wave_medium", 1, 0 }, { "wave_large", 1, 0 } })
@@ -1734,6 +1793,48 @@ do
   Execute.update(0.5)
   check("execute: a slow frame (0.5 s) still gets two (the old rate), never more", #spawned == 2, #spawned)
   Execute.cancel(); Bypass.reset(); spawned = {}
+end
+-- (2026-10-11) a card with repeats that waits for a spawn point keeps its timer; cards waiting in a row start 10 s apart
+do
+  Execute.cancel(); Bypass.reset(); spawned = {}
+  cand_fail, cand_reason = true, "no hidden point"
+  Execute.start_wave({ name = "rep", parts = Groups.parse("2 hounds"), rep_every = 5, rep_for = 20 })
+  for _ = 1, 30 do Execute.update(1) end
+  check("repeat: while no spawn point is found nothing spawns and no repeat piles up", #spawned == 0 and Execute.status().queued == 2, Execute.status().queued)
+  cand_fail = false
+  for _ = 1, 20 do Execute.update(0.1) end
+  check("repeat: once a point is found only the first spawn goes out, not every missed repeat at once", #spawned == 2, #spawned)
+  for _ = 1, 30 do Execute.update(0.1) end
+  check("repeat: no repeat before 5 s have passed since the first enemy", #spawned == 2, #spawned)
+  for _ = 1, 20 do Execute.update(0.1) end
+  check("repeat: the first repeat comes 5 s after the first enemy (the timer counts from there)", #spawned == 4, #spawned)
+  for _ = 1, 160 do Execute.update(0.1) end
+  check("repeat: and every 5 s after, four repeats in all", #spawned == 10, #spawned)
+  Execute.cancel(); Bypass.reset(); spawned = {}
+
+  -- three cards drawn in a row while no spawn point exists: once one is found they start 10 s apart
+  cand_fail = true
+  Execute.start_wave({ name = "a", parts = Groups.parse("1 hound") })
+  Execute.start_wave({ name = "b", parts = Groups.parse("1 hound") })
+  Execute.start_wave({ name = "c", parts = Groups.parse("1 hound") })
+  for _ = 1, 10 do Execute.update(1) end
+  cand_fail = false
+  -- (a failed search is remembered FAILED_SEARCH_TTL = 1.5 s: the first card starts within 2.5 s)
+  for _ = 1, 25 do Execute.update(0.1) end
+  check("gap: the first waiting card starts as soon as a point is found", #spawned == 1, #spawned)
+  for _ = 1, 70 do Execute.update(0.1) end
+  check("gap: the second waits 10 s after the first", #spawned == 1, #spawned)
+  for _ = 1, 30 do Execute.update(0.1) end
+  check("gap: ...and then starts", #spawned == 2, #spawned)
+  for _ = 1, 100 do Execute.update(0.1) end
+  check("gap: the third 10 s after the second; none of them timed out while waiting its turn", #spawned == 3 and Execute.status().jobs == 0, #spawned)
+  -- an explicit /gt_test is never held back
+  Execute.start_wave({ name = "d", parts = Groups.parse("1 hound") })
+  Execute.start_wave({ name = "t", test = true, parts = Groups.parse("1 hound") })
+  for _ = 1, 5 do Execute.update(0.1) end
+  check("gap: an explicit test wave does not wait for the gap (the card drawn with it does)", #spawned == 4, #spawned)
+  Execute.cancel(); Bypass.reset(); spawned = {}
+  cand_fail, cand_reason = false, nil
 end
 
 -- Havoc-only modifier is skipped outside Havoc, applied inside it
@@ -2967,6 +3068,69 @@ do
     return p and p[1].tune and p[1].tune.damage == 200 and q and q[1].tune and q[1].tune.damage == 150 and Groups.to_recipe(p):find("damage=200", 1, true) ~= nil
   end)())
   check("tune: a card with custom mods says 'Custom' in its modifier line", CardsMod.modifier_line(Groups.parse("2 crushers[enraged]{size=120}"), Groups) == "Enraged \194\183 Custom" and CardsMod.modifier_line(Groups.parse("2 hounds{speed=150}"), Groups) == "Custom" and CardsMod.modifier_line(Groups.parse("2 hounds"), Groups) == "")
+end
+
+-- (2026-10-11) Update default cards: the author's default cards over the player's copies, the player's own cards untouched ----------
+do
+  local UD = Events.UserDefaults
+  local keys = Events.default_card_keys()
+  local function fns(store) return function(id) return store[id] end, function(id, v) store[id] = v end end
+  local function name_in(store, key) local d = store["wave_def_" .. key]; return type(d) == "string" and d:match("^(.-)\t") or nil end
+  local function update(store) local get, set = fns(store); return Events.update_defaults(get, set) end
+  local customs = {}
+  for _, k in ipairs(keys) do if k:find("^custom_") then customs[#customs + 1] = k end end
+  local first = customs[1]
+  local def_name = UD.cards["wave_def_" .. first]:match("^(.-)\t")
+  local is_default = {}
+  for _, k in ipairs(keys) do is_default[k] = true end
+  check("update defaults: the default cards are the 12 standard ones first, then the author's filled slots (no empty slot of the default deck)", #keys == 12 + #customs and #customs > 0 and not keys[1]:find("^custom_") and keys[13] == first and (function()
+    for _, k in ipairs(customs) do if (UD.cards["wave_def_" .. k] or "") == "" and (UD.cards["fx_" .. k] or "") == "" then return false end end
+    return not is_default.custom_88
+  end)(), #customs)
+
+  local s1 = {}
+  local r = update(s1)
+  check("update defaults: a fresh deck: every default card in its own slot, nothing moved or skipped, the slots remembered", r.updated == #keys and #r.moved == 0 and #r.skipped == 0 and name_in(s1, first) == def_name and s1[Events.DEFAULTS_MAP_KEY]:find(first .. "=" .. first, 1, true) ~= nil, r.updated)
+  check("update defaults: a card gets every setting of the default card", s1["pct_" .. first] == UD.cards["pct_" .. first] and s1["wave_def_" .. first] == UD.cards["wave_def_" .. first] and s1.pct_wave_small == UD.cards.pct_wave_small)
+
+  -- the player's own card in a default card's slot stays; the default card goes to a free slot no default card needs
+  local s2 = { ["wave_def_" .. first] = "My Own\t3 hounds", ["on_" .. first] = true, ["pct_" .. first] = 7 }
+  r = update(s2)
+  local to = r.moved[1] and r.moved[1].to
+  check("update defaults: the player's own card is never touched", name_in(s2, first) == "My Own" and s2["pct_" .. first] == 7 and s2["on_" .. first] == true)
+  check("update defaults: ...the default card goes to the first free slot that no default card needs", #r.moved == 1 and r.moved[1].from == first and to ~= nil and not is_default[to] and name_in(s2, to) == def_name, tostring(to))
+  r = update(s2)
+  local copies = 0
+  for i = 1, Events.CUSTOM_SLOTS do if name_in(s2, "custom_" .. i) == def_name then copies = copies + 1 end end
+  check("update defaults: updating again finds it where it went (remembered): no second copy", r.moved[1] and r.moved[1].to == to and copies == 1, copies)
+
+  -- the player moved the default card to another slot (same name): updated there, the slot it came from is theirs
+  local s3 = { ["wave_def_custom_120"] = UD.cards["wave_def_" .. first], ["wave_def_" .. first] = "Mine\t1 hound" }
+  r = update(s3)
+  check("update defaults: a default card the player moved is found by its name and updated where it is", name_in(s3, "custom_120") == def_name and s3["pct_custom_120"] == UD.cards["pct_" .. first] and s3["wave_def_" .. first] == "Mine\t1 hound")
+
+  -- an edited default card (its name kept) gets the author's settings again
+  local s4 = { ["wave_def_" .. first] = def_name .. "\t1 poxwalker", ["pct_" .. first] = 1, ["fx_" .. first] = "heal=50" }
+  update(s4)
+  check("update defaults: an edited default card gets this version's settings, nothing of the edit left", s4["wave_def_" .. first] == UD.cards["wave_def_" .. first] and s4["pct_" .. first] == UD.cards["pct_" .. first] and s4["fx_" .. first] == (UD.cards["fx_" .. first] or ""))
+
+  -- a slot that is empty in the default deck (custom_85) and holds a card of the player's: untouched
+  local s5 = { wave_def_custom_85 = "Player 85\t2 hounds", pct_custom_85 = 9 }
+  update(s5)
+  check("update defaults: a player's card in a slot the default deck leaves empty is untouched", s5.wave_def_custom_85 == "Player 85\t2 hounds" and s5.pct_custom_85 == 9)
+
+  -- every slot holds a card of the player's: the default custom cards are skipped and counted, nothing overwritten
+  local s6 = {}
+  for i = 1, Events.CUSTOM_SLOTS do s6["wave_def_custom_" .. i] = "P" .. i .. "\t1 hound" end
+  r = update(s6)
+  local kept = true
+  for i = 1, Events.CUSTOM_SLOTS do if s6["wave_def_custom_" .. i] ~= "P" .. i .. "\t1 hound" then kept = false end end
+  check("update defaults: no free slot: the default custom cards are skipped (counted), every card of the player's kept, the standard ones updated", #r.skipped == #customs and kept and r.updated == 12, #r.skipped)
+
+  -- the Deck's order and every other setting stay as they are
+  local s7 = { deck_order = "custom_5,wave_small", tarot_cards = 4 }
+  update(s7)
+  check("update defaults: the Deck's order and the options are left alone", s7.deck_order == "custom_5,wave_small" and s7.tarot_cards == 4)
 end
 
 -- Presets: capture / encode / decode / apply / slots ---------------------------------------------------------
