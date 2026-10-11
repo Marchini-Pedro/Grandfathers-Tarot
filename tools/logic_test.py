@@ -257,7 +257,7 @@ local set = function(id, v) settings[id] = v end
 -- a custom slot is empty and disabled by default
 local w3 = Events.get("custom_3", get, Groups)
 check("custom slot default empty/disabled", w3 and w3.is_custom and w3.parts == nil and w3.enabled == false and w3.name == "Custom 3", w3 and w3.name)
-check("unknown key -> nil", Events.get("nope", get, Groups) == nil and Events.get("custom_99", get, Groups) == nil)
+check("unknown key -> nil", Events.get("nope", get, Groups) == nil and Events.get("custom_139", get, Groups) == nil)
 
 -- fill it through the same API the editor uses
 Events.set_def(set, "custom_3", "  Dog\tpack  ", Groups.parse("4 hounds, 2 mutants"), Groups)
@@ -1390,14 +1390,15 @@ do
     check("forced: a kind with no card in the draw deals normal hands (no stall) and stays due", #list >= 10 and Director.forced_due("forced_five") <= 130, #list)
     settings.forced_five = nil; settings.forced_five_min = nil; settings.forced_five_max = nil
     -- beneficial: one Prayer card: the guaranteed hand is that one card alone
-    settings.su_wave_large = "prayer"
+    -- (a beneficial card is in the draw only with an effect its suit allows)
+    settings.su_wave_large = "prayer"; settings.fx_wave_large = "heal=50:4"
     settings.forced_blessed = true; settings.forced_blessed_min = 1; settings.forced_blessed_max = 2
     v = start()
     list = hands_over(250)
     local blessed = 0
     for _, hand in ipairs(list) do if #hand == 1 and hand[1].key == "wave_large" then blessed = blessed + 1 end end
     check("forced: a hand of beneficial cards (here the one Prayer card, alone) every 1 to 2 minutes", blessed >= 2, blessed)
-    settings.su_wave_large = nil
+    settings.su_wave_large = nil; settings.fx_wave_large = nil
     settings.forced_blessed = nil; settings.forced_blessed_min = nil; settings.forced_blessed_max = nil
     settings.th_wave_small, settings.th_wave_medium, settings.th_wave_large, settings.th_wave_huge, settings.th_boss_ambush = nil, nil, nil, nil, nil
     settings.tarot_cards = 9
@@ -1798,7 +1799,7 @@ end
 do
   Execute.cancel(); Bypass.reset(); spawned = {}
   cand_fail, cand_reason = true, "no hidden point"
-  Execute.start_wave({ name = "rep", parts = Groups.parse("2 hounds"), rep_every = 5, rep_for = 20 })
+  Execute.start_wave({ name = "rep", parts = Groups.parse("2 hounds@2"), rep_every = 5, rep_for = 20 })
   for _ = 1, 30 do Execute.update(1) end
   check("repeat: while no spawn point is found nothing spawns and no repeat piles up", #spawned == 0 and Execute.status().queued == 2, Execute.status().queued)
   cand_fail = false
@@ -1828,11 +1829,18 @@ do
   check("gap: ...and then starts", #spawned == 2, #spawned)
   for _ = 1, 100 do Execute.update(0.1) end
   check("gap: the third 10 s after the second; none of them timed out while waiting its turn", #spawned == 3 and Execute.status().jobs == 0, #spawned)
+  -- a card drawn while nothing waits starts at once (the gap is only for cards that waited)
+  for _ = 1, 200 do Execute.update(0.1) end
+  Execute.start_wave({ name = "e", parts = Groups.parse("1 hound") })
+  Execute.start_wave({ name = "f", parts = Groups.parse("1 hound") })
+  for _ = 1, 10 do Execute.update(0.1) end
+  check("gap: cards that did not wait start at once, one after the other (no gap)", #spawned == 5, #spawned)
+  spawned = {}
   -- an explicit /gt_test is never held back
   Execute.start_wave({ name = "d", parts = Groups.parse("1 hound") })
   Execute.start_wave({ name = "t", test = true, parts = Groups.parse("1 hound") })
   for _ = 1, 5 do Execute.update(0.1) end
-  check("gap: an explicit test wave does not wait for the gap (the card drawn with it does)", #spawned == 4, #spawned)
+  check("gap: an explicit test wave and a card that did not wait both start at once", #spawned == 2, #spawned)
   Execute.cancel(); Bypass.reset(); spawned = {}
   cand_fail, cand_reason = false, nil
 end
@@ -3988,7 +3996,9 @@ do
   local saved_per,saved_special=settings.max_per_wave,settings.mult_special
   settings.max_per_wave=500; settings.mult_special=500; cand_fail=true
   Execute.reset()
-  Execute.start_wave({name="backlog",parts=Groups.parse("60 hounds@60"),rep_every=1,rep_for=3600})
+  -- (2026-10-11) repeats run from a card's first enemy and stand still while it finds no spawn point: a card of repeats only runs
+  -- them from the start, its first tick finds the queue empty and the long frame catches up up to the cap
+  Execute.start_wave({name="backlog",parts=Groups.parse("0 hounds@60"),rep_every=1,rep_for=3600})
   Execute.update(1800)
   check("repeat: a long frame and blocked positions never queue over 1000 units", Execute.status().queued==1000,Execute.status().queued)
   Execute.update(1)

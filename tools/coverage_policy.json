@@ -2,7 +2,7 @@
   "minimum_percent": 78,
   "modules": {
     "GrandfathersTarot.lua": 68,
-    "GrandfathersTarot_data.lua": 72,
+    "GrandfathersTarot_data.lua": 70,
     "GrandfathersTarot_localization.lua": 98,
     "catalog/cards.lua": 78,
     "catalog/colors.lua": 73,

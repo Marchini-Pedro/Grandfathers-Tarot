@@ -2001,7 +2001,7 @@ do
   view:_open_detail("wave_small"); click("btn_delete")
   check("delete: deleting a standard card asks 'Sure?' first too", view._widgets_by_name.btn_delete.content.hotspot_text == "btn_sure" and settings["del_wave_small"] ~= true)
   click("btn_delete")
-  check("delete: the second click hides the standard card (it is deleted)", settings["del_wave_small"] == true and tile(1).content.name ~= "My Small" and #view._waves == 99 and view._deleted_count == 1 and view._screen == "list", tostring(tile(1).content.name) .. " " .. #view._waves)
+  check("delete: the second click hides the standard card (it is deleted)", settings["del_wave_small"] == true and tile(1).content.name ~= "My Small" and #view._waves == 149 and view._deleted_count == 1 and view._screen == "list", tostring(tile(1).content.name) .. " " .. #view._waves)
   check("delete: the Deck says how many default cards are deleted", view._widgets_by_name.bottom_title.content.bottom_title == "bottom_list_deleted:1")
   local pool_has = false; for _, e in ipairs(mod.rw.events.build_pool(function(id) return settings[id] end, mod.rw.groups)) do if e.key == "wave_small" then pool_has = true end end
   check("delete: a deleted card is not drawn and not found by /gt_test", not pool_has and select(1, mod.rw.events.find("my_small", function(id) return settings[id] end, mod.rw.groups)) == nil)
