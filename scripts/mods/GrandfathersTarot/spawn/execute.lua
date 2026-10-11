@@ -27,6 +27,10 @@ local MAX_QUEUE = 1000 -- a repeat tick is skipped while this many units are sti
 local MAX_JOBS = 64
 local MAX_PENDING = 8000 -- aggregate entries; independent of the alive-unit cap
 local PURGE_INTERVAL = 5
+-- (2026-10-11, the author: "a card with a repeat timer that has no spawn point spawns everything at once when it finds one; keep
+-- respecting the timer, and with several cards in a row keep 10 s between each") A card's repeats count from its first enemy and stand
+-- still while it waits for a spawn point; a card that has not started yet starts at least START_GAP seconds after the last one did.
+local START_GAP = 10
 
 local jobs = {}
 local spawning = false
@@ -34,6 +38,7 @@ local feed_timer = 0
 local purge_timer = 0
 local clock = 0
 local cache = {}
+local next_start = -math.huge -- clock: the earliest moment a card that has not spawned yet may start (START_GAP)
 local last_log = {}
 
 local function queued_count()
@@ -392,6 +397,8 @@ Execute.start_wave = function (def)
 	end
 
 	jobs[#jobs + 1] = {
+		-- a card of repeats only (nothing to spawn at first) runs its timer from the start
+		started = #queue == 0,
 		name = def.name,
 		test = def.test == true, -- explicit /gt_test: may fall back to a ring around the player where no hidden points exist
 		close = def.close == true, -- /gt_test_close: right in front of the local player, facing them (no hidden points, no ring)
@@ -755,8 +762,16 @@ Execute.update = function (dt, paused)
 	for i = #jobs, 1, -1 do
 		local job = jobs[i]
 
-		job.age = job.age + dt
-		run_repeats(job, dt)
+		-- a card waiting for its turn (START_GAP behind another) does not age; one that has started, or is looking for a spawn point
+		-- and finds none, does (JOB_TIMEOUT)
+		if job.started or job.stuck_since then
+			job.age = job.age + dt
+		end
+
+		-- the repeat timer runs from the first enemy, and not while the card waits for a spawn point
+		if job.started and not job.stuck_since then
+			run_repeats(job, dt)
+		end
 
 		if job.age > job.timeout or (#job.queue == 0 and (not job.rep or job.rep.done)) then
 			table.remove(jobs, i)
@@ -784,12 +799,15 @@ Execute.update = function (dt, paused)
 		return
 	end
 
-	-- oldest job that still has units waiting (a repeating job may be idle between ticks)
+	-- oldest job that still has units waiting (a repeating job may be idle between ticks); a card that has not started waits for
+	-- START_GAP after the last start (an explicit /gt_test or /gt_test_close does not)
 	local job
 
 	for i = 1, #jobs do
-		if #jobs[i].queue > 0 then
-			job = jobs[i]
+		local candidate = jobs[i]
+
+		if #candidate.queue > 0 and (candidate.started or candidate.test or candidate.close or clock >= next_start) then
+			job = candidate
 
 			break
 		end
@@ -837,6 +855,16 @@ Execute.update = function (dt, paused)
 
 		if ok then
 			job.spawned = job.spawned + 1
+
+			-- its first enemy: the repeats count from now, its time limit too, and the next card waits START_GAP
+			if not job.started then
+				job.started = true
+				job.timeout = job.age + JOB_TIMEOUT + (job.rep and job.rep.total or 0)
+
+				if not job.test and not job.close then
+					next_start = clock + START_GAP
+				end
+			end
 		end
 		if not ok and why then
 			job.failed = (job.failed or 0) + 1
@@ -854,6 +882,7 @@ Execute.cancel = function ()
 	jobs = {}
 	cache = {}
 	feed_timer = 0
+	next_start = -math.huge
 	last_full_gc = -math.huge
 	heap_paused = false
 end
