@@ -15,8 +15,11 @@ local UserDefaults = get_mod("GrandfathersTarot"):io_dofile("GrandfathersTarot/s
 Events.has_content = Effects.has_content
 
 -- The most cards a deck holds: the standard cards and the custom slots together (the keys custom_1 ... custom_N, N = CUSTOM_SLOTS, are
--- fixed names that saved settings, presets and shared texts use). It was 32 (20 custom slots) until 2.1.
-Events.MAX_CARDS = 100
+-- fixed names that saved settings, presets and shared texts use). It was 32 (20 custom slots) until 2.1, 100 (88) until 1.1.
+-- (2026-10-11, the author: "change the max number of cards to 150, careful with existing decks") Raising it only ADDS slots
+-- (custom_89 ... custom_138, empty): every saved key keeps its card, and a deck order that does not name the new slots shows them
+-- at its end (Events.ordered_keys).
+Events.MAX_CARDS = 150
 
 Events.STANDARD = {
 	{
@@ -133,7 +136,7 @@ Events.get_standard = function (key)
 	return by_key[key]
 end
 
--- The key strings of the custom slots and of their settings, built once: there are 88 slots and the loops that look at every card
+-- The key strings of the custom slots and of their settings, built once: there are 138 slots and the loops that look at every card
 -- (the draw, the timers, the Deck) would otherwise concatenate them again on every pass.
 local CUSTOM_KEY, DEF_KEY, LEGACY_KEY = {}, {}, {}
 
@@ -161,7 +164,7 @@ Events.keys = function ()
 end
 
 -- True for a custom slot nobody has filled: no definition (Events.get would give it no enemies) and no recipe from 1.0.0. It costs two
--- settings instead of the twenty-odd that Events.get reads, and most of the 88 slots are empty: the loops that only want waves with
+-- settings instead of the twenty-odd that Events.get reads, and most of the 138 slots are empty: the loops that only want waves with
 -- enemies (the draw, the timers) skip these slots with it.
 Events.is_empty_slot = function (key, get_setting)
 	local def_key = DEF_KEY[key]
@@ -536,6 +539,190 @@ Events.reset = function (set_setting, key, builtin)
 end
 
 Events.UserDefaults = UserDefaults
+
+-- ------------------------------------------------------------------------------------------ Update default cards
+-- (2026-10-11, the author: "an option at the top of the mod options that updates the default cards with my default cards; it
+-- shouldn't mess with other new cards that players made themselves") Every card of the mod's default deck (catalog/user_defaults.lua)
+-- is written over the player's copy of it; a card the player made is never touched.
+-- Which slot holds the player's copy of a default card, in this order:
+--   1. a standard card: its own key (the standard cards ARE the default cards);
+--   2. the slot an earlier update wrote it to (the setting DEFAULTS_MAP_KEY: "custom_7=custom_7,custom_9=custom_91");
+--   3. its own slot, when the card there has the default card's name (seeded on a fresh install, or the player kept it);
+--   4. any other custom slot with that name (the player moved it);
+--   5. its own slot when it is empty;
+--   6. the first empty custom slot (its own slot holds a card of the player's: that card stays where it is).
+-- Steps 1 to 5 are taken for every card before step 6, so a card never takes the empty own slot of another default card. A card with
+-- no slot left (every slot holds a card) is skipped and counted. The Deck's order is left as the player had it (a card written to a
+-- new slot shows at its end).
+Events.DEFAULTS_MAP_KEY = "gt_default_slots"
+
+local function default_card_keys()
+	local seen, keys = {}, {}
+
+	for setting in pairs(UserDefaults.cards) do
+		for _, prefix in ipairs(UserDefaults.CARD_PREFIXES) do
+			if setting:sub(1, #prefix) == prefix then
+				local key = setting:sub(#prefix + 1)
+
+				if not seen[key] then
+					seen[key] = true
+
+					-- an empty slot of the default deck is not a card (custom_80 ... custom_88 hold nothing): it never overwrites
+					-- anything of the player's
+					local def, fx = UserDefaults.cards["wave_def_" .. key], UserDefaults.cards["fx_" .. key]
+
+					if by_key[key] or (type(def) == "string" and def ~= "") or (type(fx) == "string" and fx ~= "") then
+						keys[#keys + 1] = key
+					end
+				end
+
+				break
+			end
+		end
+	end
+
+	-- the standard cards first, then the custom ones by number (a stable order: the same deck gives the same slots)
+	table.sort(keys, function (a, b)
+		local na, nb = tonumber(a:match("^custom_(%d+)$")), tonumber(b:match("^custom_(%d+)$"))
+
+		if (na == nil) ~= (nb == nil) then return na == nil end
+		if na and nb then return na < nb end
+
+		return a < b
+	end)
+
+	return keys
+end
+
+Events.default_card_keys = default_card_keys
+
+-- the normalized name of the card a slot holds ("" for an empty slot or a nameless one)
+local function slot_name(get_setting, key)
+	local def = get_setting("wave_def_" .. key)
+	local name = type(def) == "string" and def:match("^(.-)" .. DEF_SEPARATOR) or nil
+
+	return name and Events.normalize_name(name) or ""
+end
+
+local function read_map(get_setting)
+	local map, text = {}, get_setting(Events.DEFAULTS_MAP_KEY)
+
+	if type(text) == "string" then
+		for from, to in text:gmatch("([%w_]+)=([%w_]+)") do
+			map[from] = to
+		end
+	end
+
+	return map
+end
+
+local function is_custom_slot(key)
+	local slot = tonumber(tostring(key):match("^custom_(%d+)$"))
+
+	return slot ~= nil and slot >= 1 and slot <= Events.CUSTOM_SLOTS
+end
+
+-- Returns { updated = n, moved = { { from = default key, to = slot } }, skipped = { default keys } }.
+Events.update_defaults = function (get_setting, set_setting)
+	local keys = default_card_keys()
+	local map = read_map(get_setting)
+	local target, taken = {}, {}
+	local result = { updated = 0, moved = {}, skipped = {} }
+
+	local function name_of(key)
+		return slot_name(function (id) return UserDefaults.cards[id] end, key)
+	end
+
+	local function claim(key, slot)
+		target[key], taken[slot] = slot, true
+	end
+
+	-- steps 1 to 3: the standard cards, the slots written before, an own slot that still holds the card
+	for _, key in ipairs(keys) do
+		if by_key[key] then
+			claim(key, key)
+		elseif map[key] and is_custom_slot(map[key]) and not taken[map[key]] then
+			claim(key, map[key])
+		elseif is_custom_slot(key) and not taken[key] and name_of(key) ~= "" and slot_name(get_setting, key) == name_of(key) then
+			claim(key, key)
+		end
+	end
+
+	-- step 4: the card moved to another slot (found by its name)
+	local by_name = {}
+
+	for slot = 1, Events.CUSTOM_SLOTS do
+		local key = CUSTOM_KEY[slot]
+		local name = slot_name(get_setting, key)
+
+		if name ~= "" and by_name[name] == nil then by_name[name] = key end
+	end
+
+	for _, key in ipairs(keys) do
+		local slot = not target[key] and name_of(key) ~= "" and by_name[name_of(key)] or nil
+
+		if slot and not taken[slot] then claim(key, slot) end
+	end
+
+	-- step 5: an own slot that is empty
+	for _, key in ipairs(keys) do
+		if not target[key] and is_custom_slot(key) and not taken[key] and Events.is_empty_slot(key, get_setting) then
+			claim(key, key)
+		end
+	end
+
+	-- step 6: the first empty slot nobody claimed
+	local next_free = 1
+
+	for _, key in ipairs(keys) do
+		if not target[key] then
+			while next_free <= Events.CUSTOM_SLOTS and (taken[CUSTOM_KEY[next_free]] or not Events.is_empty_slot(CUSTOM_KEY[next_free], get_setting)) do
+				next_free = next_free + 1
+			end
+
+			if next_free <= Events.CUSTOM_SLOTS then
+				claim(key, CUSTOM_KEY[next_free])
+			else
+				result.skipped[#result.skipped + 1] = key
+			end
+		end
+	end
+
+	-- the writing: the slot is reset to an empty card (no setting of the old card is left) and gets every setting of the default card
+	local pairs_out = {}
+
+	for _, key in ipairs(keys) do
+		local slot = target[key]
+
+		if slot then
+			Events.reset(set_setting, slot, true)
+
+			for setting, value in pairs(UserDefaults.card(key)) do
+				for _, prefix in ipairs(UserDefaults.CARD_PREFIXES) do
+					if setting == prefix .. key then
+						set_setting(prefix .. slot, value)
+
+						break
+					end
+				end
+			end
+
+			result.updated = result.updated + 1
+
+			if slot ~= key then
+				result.moved[#result.moved + 1] = { from = key, to = slot }
+			end
+
+			if is_custom_slot(key) then
+				pairs_out[#pairs_out + 1] = key .. "=" .. slot
+			end
+		end
+	end
+
+	set_setting(Events.DEFAULTS_MAP_KEY, table.concat(pairs_out, ","))
+
+	return result
+end
 
 -- Back to the defaults of a card's face only (Reset face on the card face screen): the suit the card would have without a choice,
 -- the threat worked out from the enemies, the suit's own whisper, the look the suit gives, the default cooldown. The enemies and

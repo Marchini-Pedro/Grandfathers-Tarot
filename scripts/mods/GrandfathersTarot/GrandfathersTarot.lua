@@ -148,6 +148,32 @@ mod.on_setting_changed = function (setting_id)
 	end
 end
 
+-- (2026-10-11) Options > Update default cards (a held button at the top): the author's default cards over the player's copies,
+-- the player's own cards untouched (Events.update_defaults)
+mod.update_default_cards = function ()
+	if RW.dead or not RW.events then
+		return
+	end
+
+	local ok, result = pcall(RW.events.update_defaults, function (id) return mod:get(id) end, function (id, value) mod:set(id, value) end)
+
+	if not ok or type(result) ~= "table" then
+		mod:error("GrandfathersTarot: the default cards could not be updated: %s", tostring(result))
+
+		return
+	end
+
+	local text = string.format(mod:localize("update_default_cards_done"), result.updated)
+
+	if #result.moved > 0 then text = text .. " " .. string.format(mod:localize("update_default_cards_moved"), #result.moved) end
+	if #result.skipped > 0 then text = text .. " " .. string.format(mod:localize("update_default_cards_skipped"), #result.skipped) end
+
+	mod:notify(text)
+
+	-- the players' Decks of a Realms host's draw (the host's pool of every player, when that option is on)
+	if RW.director and RW.director.send_waves then pcall(RW.director.send_waves) end
+end
+
 -- Options > Twins > Reset everything to default (a held button)
 mod.tw_reset_to_defaults = function ()
 	if RW.twins then RW.twins.reset_to_defaults() end
@@ -889,7 +915,7 @@ mod:command("gt_roll", "GrandfathersTarot: simulate N weighted rolls to check th
 	end
 end)
 
-mod:command("gt_custom", "GrandfathersTarot: set a custom card: /gt_custom <slot number of a custom card, 1 to 88> <recipe, e.g. 5 trappers, 5 mutants, 10 hounds>", function (slot, ...)
+mod:command("gt_custom", "GrandfathersTarot: set a custom card: /gt_custom <slot number of a custom card, 1 to 138> <recipe, e.g. 5 trappers, 5 mutants, 10 hounds>", function (slot, ...)
 	slot = tonumber(slot)
 
 	if not slot or slot < 1 or slot > RW.events.CUSTOM_SLOTS or slot ~= math.floor(slot) then

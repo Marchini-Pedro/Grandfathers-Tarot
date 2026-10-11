@@ -91,6 +91,17 @@ return {
 	is_togglable = true,
 	options = {
 		widgets = {
+			-- (2026-10-11) the author's default cards written over the player's copies of them (Events.update_defaults); held, as
+			-- Twins' Reset: it rewrites cards
+			{
+				setting_id = "update_default_cards",
+				type = "button",
+				button_text = "update_default_cards_button",
+				button_trigger = "held",
+				button_hold_duration = 1.5,
+				tooltip = "update_default_cards_tooltip",
+				function_name = "update_default_cards",
+			},
 			{
 				setting_id = "mode",
 				type = "dropdown",
@@ -128,6 +139,22 @@ return {
 							{ text = "fallback_skip", value = "skip" },
 						},
 					},
+				},
+			},
+			-- (2026-10-11) guaranteed hands (core/director.lua, Director.FORCED): host settings, in minutes of played time
+			{
+				setting_id = "group_forced",
+				type = "group",
+				sub_widgets = {
+					{ setting_id = "forced_six", type = "checkbox", default_value = false },
+					numeric("forced_six_min", 20, 1, 120, "unit_minutes"),
+					numeric("forced_six_max", 30, 1, 120, "unit_minutes"),
+					{ setting_id = "forced_five", type = "checkbox", default_value = false },
+					numeric("forced_five_min", 10, 1, 120, "unit_minutes"),
+					numeric("forced_five_max", 20, 1, 120, "unit_minutes"),
+					{ setting_id = "forced_blessed", type = "checkbox", default_value = false },
+					numeric("forced_blessed_min", 15, 1, 120, "unit_minutes"),
+					numeric("forced_blessed_max", 25, 1, 120, "unit_minutes"),
 				},
 			},
 			{
