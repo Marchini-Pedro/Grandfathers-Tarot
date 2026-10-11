@@ -589,3 +589,14 @@ Things we know are missing or unverified, each with the next concrete step.
 - Culling faint aura shapes was measured first (Aura.update over 10 s per suit): almost no shape is drawn below alpha 16, so it
   would save nothing. Measure before cutting visuals.
 
+## 2026-10-11 - Defaults that update, slots that grow
+- A generated default deck carries the author's EMPTY slots too (custom_80 ... custom_88 with wave_def ""): anything that writes
+  "every default card" must skip them or it resets a player's cards there.
+- Identifying "the player's copy of a default card" without a record: by key for standard cards, then by a map written at each
+  update, then by name. Claim the unambiguous slots for every card before handing out free slots, or one card takes another's
+  empty own slot.
+- Growing MAX_CARDS is safe when only slots are added: keys are names (custom_N) and the saved order is merged, not replaced.
+  What does not grow with it: the 90 000 character message of a client's cards (the first ones that fit are sent).
+- A wait (no spawn point, the 10 s gap) must freeze the timers that run from "the card started", not from "the card was drawn":
+  repeats and the time limit now start with the first enemy.
+
