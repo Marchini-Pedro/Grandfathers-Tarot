@@ -3151,6 +3151,15 @@ do
   local cap = Presets.capture(get, Events, Groups)
   local keys = {}; for _, w in ipairs(cap.waves) do keys[w.key] = w end
   check("presets: capture holds exactly the changed waves", #cap.waves == 4 and keys.wave_small and keys.boss_ambush and keys.hound_frenzy and keys.custom_3, #cap.waves)
+  -- (2026-10-11) empty custom slots switched on (the author's custom_80 ... custom_88) are not cards: not stored, not counted
+  do
+    set("on_custom_80", true); set("pct_custom_80", 10); set("wave_def_custom_80", "")
+    set("on_custom_81", true); set("wave_def_custom_81", "Placeholder	")
+    local with_empty = Presets.capture(get, Events, Groups)
+    local found = {}; for _, w in ipairs(with_empty.waves) do found[w.key] = true end
+    check("presets: an empty custom slot that is only switched on is left out; a named one (a placeholder) is kept", not found.custom_80 and found.custom_81 and #with_empty.waves == 5, #with_empty.waves)
+    for _, id in ipairs({ "on_custom_80", "pct_custom_80", "wave_def_custom_80", "on_custom_81", "wave_def_custom_81" }) do store[id] = nil end
+  end
   check("presets: chance-only change keeps the default name/recipe", keys.boss_ambush.pct == 9 and keys.boss_ambush.cd == 90 and keys.boss_ambush.name == Events.get("boss_ambush", function() return nil end, Groups).name)
 
   cap.name = "  My   Setup " .. string.rep("x", 40)
