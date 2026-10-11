@@ -163,10 +163,11 @@ mod.update_default_cards = function ()
 		return
 	end
 
-	local text = string.format(mod:localize("update_default_cards_done"), result.updated)
+	-- (DMF's localize formats the text itself: a text with %d needs its number passed to localize, or it fails)
+	local text = mod:localize("update_default_cards_done", result.updated)
 
-	if #result.moved > 0 then text = text .. " " .. string.format(mod:localize("update_default_cards_moved"), #result.moved) end
-	if #result.skipped > 0 then text = text .. " " .. string.format(mod:localize("update_default_cards_skipped"), #result.skipped) end
+	if #result.moved > 0 then text = text .. " " .. mod:localize("update_default_cards_moved", #result.moved) end
+	if #result.skipped > 0 then text = text .. " " .. mod:localize("update_default_cards_skipped", #result.skipped) end
 
 	mod:notify(text)
 

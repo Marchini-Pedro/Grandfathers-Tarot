@@ -158,7 +158,7 @@ do
     check("custom command: the last slot ("..top..") is valid and the message of a wrong slot names the range", RW.events.CUSTOM_SLOTS==138 and stored["wave_def_custom_"..top]~=nil and stored["on_custom_"..top]==true)
     stored["wave_def_custom_"..top],stored["on_custom_"..top]=nil,nil
     echoed={};commands.gt_custom("0","1 hound")
-    check("custom command: ...which is 1-88", echoed[1]:find("1-88",1,true)~=nil, echoed[1])
+    check("custom command: ...which is 1-138", echoed[1]:find("1-138",1,true)~=nil, echoed[1])
   end
   local old_def,old_on=stored.wave_def_custom_3,stored.on_custom_3
   commands.gt_custom("3","2","hounds")
@@ -614,6 +614,8 @@ RW.execute.start_wave({parts=RW.groups.parse("60 hounds")})
 RW.execute.start_wave({parts=RW.groups.parse("44 hounds@60, 36 poxwalkers@60"),rep_every=1,rep_for=30})
 local partial_admitted=RW.execute.start_wave({parts=RW.groups.parse("60 hounds, 60 poxwalkers")})
 check("aggregate: insufficient partial admission room rejects the whole initial batch", not partial_admitted and RW.execute.status().queued==7700)
+-- (2026-10-11) a card's repeats run from its first enemy: one of repeats only runs them from the start (the one above has not spawned)
+RW.execute.start_wave({parts=RW.groups.parse("0 hounds@60, 0 poxwalkers@60"),rep_every=1,rep_for=30})
 RW.execute.update(1)
 check("aggregate: repeat clips to remaining shared capacity without overshoot", RW.execute.status().queued==8000)
 RW.execute.reset()
@@ -730,14 +732,29 @@ do
   mod.get = function(self, id) return store[id] end
   mod.set = function(self, id, value) store[id] = value end
   mod.notify = function(self, text) notes[#notes + 1] = text end
+  -- as DMF's localize: the text is formatted inside it with the arguments given (a %d without its number fails there; seen in game
+  -- 2026-10-11 on a fresh preset: "bad argument #2 to '?' (value expected)")
+  local real_localize, bad_format = mod.localize, 0
+  mod.localize = function(self, id, ...)
+    local text = id:find("^update_default_cards_") and id .. " %d" or id
+    local ok, out = pcall(string.format, text, ...)
+    if not ok then bad_format = bad_format + 1; return "<" .. id .. ">" end
+    return out
+  end
   store.wave_def_custom_1 = "Mine\t2 hounds"
   mod.update_default_cards()
-  check("update defaults: the button writes the default cards, keeps the player's own one and says so", store.wave_def_custom_1 == "Mine\t2 hounds" and type(store.gt_default_slots) == "string" and #notes == 1 and notes[1]:find("update_default_cards_done", 1, true) ~= nil and notes[1]:find("update_default_cards_moved", 1, true) ~= nil, notes[1])
+  check("update defaults: the button writes the default cards, keeps the player's own one and says so", store.wave_def_custom_1 == "Mine\t2 hounds" and type(store.gt_default_slots) == "string" and #notes == 1 and notes[1]:find("update_default_cards_done %d+") ~= nil and notes[1]:find("update_default_cards_moved 1", 1, true) ~= nil, notes[1])
+  check("update defaults: its message passes every number to localize (DMF formats the text there)", bad_format == 0, bad_format)
+  -- a fresh preset: no card at all (the case of the error in game)
+  for k in pairs(store) do store[k] = nil end
+  mod.update_default_cards()
+  check("update defaults: on an empty deck every default card goes to its own slot and the message is whole", bad_format == 0 and #notes == 2 and notes[2]:find("update_default_cards_done %d+") ~= nil and notes[2]:find("moved", 1, true) == nil, notes[2])
+  mod.localize = real_localize
   RW.events.update_defaults = function() error("broken") end
   local reported, real_error = 0, mod.error
   mod.error = function() reported = reported + 1 end
   local raised = not pcall(mod.update_default_cards)
-  check("update defaults: a failure is reported, never raised", reported == 1 and not raised and #notes == 1)
+  check("update defaults: a failure is reported, never raised", reported == 1 and not raised and #notes == 2)
   mod.get, mod.set, mod.notify, mod.error = real_get, real_set, real_notify, real_error
   mod.on_unload()
   mod = saved_mod

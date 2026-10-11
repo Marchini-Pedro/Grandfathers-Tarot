@@ -599,4 +599,8 @@ Things we know are missing or unverified, each with the next concrete step.
   What does not grow with it: the 90 000 character message of a client's cards (the first ones that fit are sent).
 - A wait (no spawn point, the 10 s gap) must freeze the timers that run from "the card started", not from "the card was drawn":
   repeats and the time limit now start with the first enemy.
+- DMF's `mod:localize(id, ...)` runs `string.format` on the text itself: a text with %d must get its number THROUGH localize
+  (`mod:localize(id, n)`), never `string.format(mod:localize(id), n)` (in game: "bad argument #2 to '?' (value expected)",
+  the message shown as <id>). The suites' localize stub returned the id unformatted and hid it; the entry suite's stub for
+  this message now formats like DMF.
 

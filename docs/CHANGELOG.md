@@ -15,6 +15,7 @@
 - The default deck and its cards are the author's of 2026-10-11 (the Poxburster splits into nothing).
 - Brute's card effect is a fissure: the card tears open from top to foot, its glowing sides part, chips fall, and it closes.
 - The default font of the card names is Novarese (it was Novarese Bold), on the HUD, the last card and the Deck.
+- Fixed: Update default cards showed a red error instead of its message ("bad argument #2"); the cards were written.
 
 ## 2026-10-11 - Performance: hooks asleep when not needed (polishing)
 - Faster: the mod's hooks on functions the game calls for every enemy (spawns, deaths, hits, attacks, the flamers', trappers',
