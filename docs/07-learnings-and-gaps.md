@@ -604,3 +604,13 @@ Things we know are missing or unverified, each with the next concrete step.
   the message shown as <id>). The suites' localize stub returned the id unformatted and hid it; the entry suite's stub for
   this message now formats like DMF.
 
+## 2026-10-11 - The suites of the 1.1 round
+- Writing tests without running them hid a real bug: the 10 s START_GAP held back EVERY card that came within 10 s of another,
+  not only cards that had waited (the suite's back-to-back waves never spawned and logic_test crashed on a nil unit). The gap is
+  now only for cards that waited (no spawn point, or their turn behind one), and it ends when no card is left (Execute's clock
+  stands still without jobs, so an old gap otherwise held back a card drawn minutes later).
+- Old tests that encoded the old behaviour on purpose (repeats piling up while positions are blocked, the 1000-unit cap) keep
+  their intent with a card of repeats only, which runs its timer from the start.
+- A beneficial card is in the draw only with an effect its suit allows: a test card needs `fx_` too.
+- The data file's floor on LuaJIT dropped to 70 (70.83 measured; Lua 5.5 above 72): new option widgets are declarations.
+

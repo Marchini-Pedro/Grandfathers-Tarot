@@ -392,6 +392,8 @@ The suites had not been run since the author's deck became the default. Run with
 | v2.2.0 -> v1.1, Novarese the default font | catalog/version.lua "1.1". The option already defaulted to Novarese (medium); the fallbacks (HUD, last card, Deck tiles, Workshop) were Novarese Bold and are Novarese now. |
 
 Tests were updated for every change but, at the author's request, NOT run in this round.
+Later the same day the author asked to run them: every suite green on Lua 5.5 and LuaJIT 2.1 after fixing the 10 s gap (only
+cards that waited; it ends when no card is left) and the tests themselves; merged into main on the author's request.
 
 ## In-game checks before merge
 

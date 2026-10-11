@@ -10,7 +10,8 @@
 - New options group Guaranteed hands: a hand of threat 6 cards, a hand of threat 5 cards and a hand of beneficial cards, each
   every X to Y minutes of played time (off by default). Resting cards of that kind fill the hand when needed.
 - Fixed: a card with repeats that found no spawn point spawned every missed repeat at once when it found one; its repeats now
-  count from its first enemy and stand still while it waits. Cards that wait in a row start 10 s apart.
+  count from its first enemy and stand still while it waits. Cards that waited start 10 s apart (a card drawn while nothing
+  waits starts at once).
 - Twins: a Daemonhost splits into nothing by default (it was two Chaos Spawns), in the condition and in a card's Twins rows.
 - The default deck and its cards are the author's of 2026-10-11 (the Poxburster splits into nothing).
 - Brute's card effect is a fissure: the card tears open from top to foot, its glowing sides part, chips fall, and it closes.
