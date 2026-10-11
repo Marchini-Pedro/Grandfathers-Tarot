@@ -779,6 +779,18 @@ local function install_hooks(BuffSettings)
 	local DESPAWN_ON_DEATH = BuffSettings.keywords.despawn_on_death
 
 	mod:hook_require("scripts/managers/minion/minion_death_manager", function (MinionDeathManager)
+		-- (2026-10-11, a performance pass) every death of the mission goes through this (and the monitor bills the game's own death
+		-- to the mod): on only while a purple enemy can die (the purple mutator is loaded, or a card's enemy carries a claim)
+		local gate = mod.rw and mod.rw.hook_gate
+
+		if gate then
+			gate.add("twins_die", MinionDeathManager, "die", function ()
+				local mutator_manager = Managers.state and Managers.state.mutator
+
+				return next(claims) ~= nil or (mutator_manager ~= nil and mutator_manager:mutator(PURPLE_MUTATOR_NAME) ~= nil)
+			end)
+		end
+
 		mod:hook(MinionDeathManager, "die", function (func, self, unit, ...)
 			killed_units[unit] = true
 
@@ -810,6 +822,10 @@ local function install_hooks(BuffSettings)
 
 	-- enemies with a stim animation: under the condition the stim action picks the purple buff
 	mod:hook_require("scripts/extension_systems/behavior/nodes/actions/bt_use_stim_action", function (BtUseStimAction)
+		local gate = mod.rw and mod.rw.hook_gate
+
+		if gate then gate.add("twins_stim", BtUseStimAction, "run", condition_active) end
+
 		mod:hook(BtUseStimAction, "run", function (func, self, unit, breed, blackboard, scratchpad, action_data, dt, t)
 			if not condition_active() then
 				return func(self, unit, breed, blackboard, scratchpad, action_data, dt, t)
@@ -896,6 +912,12 @@ local function install_hooks(BuffSettings)
 	end
 
 	mod:hook_require("scripts/managers/minion/minion_spawn_manager", function (MinionSpawnManager)
+		-- (2026-10-11, a performance pass) every spawn of the game (a horde's too) goes through this, and the monitor bills the
+		-- game's spawn to the mod: on only while the Twins condition is on
+		local gate = mod.rw and mod.rw.hook_gate
+
+		if gate then gate.add("twins_spawn", MinionSpawnManager, "spawn_minion", condition_active) end
+
 		mod:hook(MinionSpawnManager, "spawn_minion", function (func, self, breed_name, position, rotation, side_id, optional_param_table)
 			local unit = func(self, breed_name, position, rotation, side_id, optional_param_table)
 			local card_unit = Execute and Execute.is_spawning and Execute.is_spawning()

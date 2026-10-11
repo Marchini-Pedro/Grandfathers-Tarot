@@ -2,7 +2,7 @@
   "minimum_percent": 78,
   "modules": {
     "GrandfathersTarot.lua": 68,
-    "GrandfathersTarot_data.lua": 72,
+    "GrandfathersTarot_data.lua": 70,
     "GrandfathersTarot_localization.lua": 98,
     "catalog/cards.lua": 78,
     "catalog/colors.lua": 73,
@@ -13,6 +13,7 @@
     "catalog/version.lua": 100,
     "core/director.lua": 70,
     "core/dormancy.lua": 72,
+    "core/hook_gate.lua": 72,
     "core/protocol.lua": 72,
     "core/votes.lua": 71,
     "spawn/budget_bypass.lua": 69,

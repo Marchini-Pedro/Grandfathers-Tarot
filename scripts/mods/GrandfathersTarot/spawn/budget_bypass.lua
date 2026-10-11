@@ -88,6 +88,11 @@ end
 
 Bypass.begin_spawn = function ()
 	Bypass.spawning = true
+
+	-- the aggro happens inside the spawn: the hooks must be on before it
+	local gate = mod.rw and mod.rw.hook_gate
+
+	if gate then gate.refresh("bypass") end
 end
 
 Bypass.end_spawn = function (unit)
@@ -152,6 +157,19 @@ Bypass.install = function ()
 
 		return adjusted(func(self))
 	end)
+
+	-- (2026-10-11, a performance pass) on only while a card's enemy lives or is being spawned (core/hook_gate.lua): the game asks
+	-- these counters often and every enemy's aggro and despawn goes through them
+	local gate = mod.rw and mod.rw.hook_gate
+
+	if gate then
+		local function wanted()
+			return not Bypass.dead and (Bypass.spawning == true or tracked_count > 0)
+		end
+
+		gate.add("bypass", "PacingManager", "add_aggroed_minion", wanted)
+		gate.add("bypass", "MinionSpawnManager", { "num_spawned_minions", "total_allocated_num_enemies", "unregister_unit" }, wanted)
+	end
 
 	mod:hook_safe("MinionSpawnManager", "unregister_unit", function (self, unit)
 		if not Bypass.dead then

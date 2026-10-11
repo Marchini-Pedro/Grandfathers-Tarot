@@ -1,0 +1,30 @@
+[size=5][b]The Grandfather's Tarot 1.1[/b][/size]
+
+[b]Important:[/b] the version numbering starts again at [b]1.1[/b]. A Realms host and the players who join must all have 1.1: players on an older version are refused by the host (with a message).
+
+[size=4][b]New[/b][/size]
+[list]
+[*][b]150 cards per deck[/b] (was 100). Your deck keeps every card: the 50 new slots are empty and appear at the end of the Deck.
+[*][b]Update default cards[/b] (top of the mod options, hold the button): gives the default cards the settings of this version. Cards you made yourself are never changed. If one of yours sits where a default card belongs, the default card goes to a free slot instead.
+[*][b]Guaranteed hands[/b] (new options group, off by default): every X to Y minutes of play, a hand made only of [b]threat 6[/b] cards, only of [b]threat 5[/b] cards, or only of [b]beneficial[/b] cards. Cards of that kind that are still cooling down are used to fill the hand if needed.
+[*][b]Brute has a new card effect:[/b] at every blow the card tears open down the middle, its glowing edges part, chips fall, and it closes again.
+[*][b]New default deck[/b], the author's current one.
+[/list]
+
+[size=4][b]Changes[/b][/size]
+[list]
+[*][b]Twins:[/b] a Daemonhost now splits into [b]nothing[/b] by default (it used to split into two Chaos Spawns). The Poxburster also splits into nothing by default.
+[*]The card names use [b]Novarese[/b] by default (it was Novarese Bold).
+[*]A card's enemies spawn one at a time, smoothly, instead of two at a time (same speed overall).
+[*]Presets no longer count empty card slots: a saved deck shows its real number of cards. Save your presets again to update their count.
+[/list]
+
+[size=4][b]Fixes[/b][/size]
+[list]
+[*]A card with repeats that could not find a spawn point used to spawn every missed repeat at once when it finally found one. Its repeats now start with its first enemy and keep their timer. When several cards wait for a spawn point in a row, they now come 10 seconds apart.
+[/list]
+
+[size=4][b]Performance[/b][/size]
+[list]
+[*]Much lower cost in Realms games, also with /gt_stop: the mod's hooks on things the game does for every enemy (spawns, deaths, hits, attacks, the boss bar, the health panels) now switch themselves off while nothing of the mod needs them, and back on when a card's enemies, Twins, Instant Rescue or Nightmare need them. Hordes no longer show up as Tarot spikes in the Mod Performance Monitor.
+[/list]

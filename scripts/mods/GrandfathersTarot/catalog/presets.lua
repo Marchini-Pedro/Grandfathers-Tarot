@@ -190,6 +190,9 @@ end
 
 -- Reads the current setup (`get_setting(id)` reads a mod setting). Returns a preset without a name:
 -- { waves = { {key, name, recipe, enabled, pct, cd, sp, re, rf}, ... } } holding only changed waves.
+-- (2026-10-11, the author: "why does my deck show 100 cards?") An empty custom slot (no enemies, no effects, its name still
+-- "Custom N") is not a card: switched on, or with a chance set, it differed from the built-in slot and was stored and counted (the
+-- author's 9 empty slots made 91 cards read 100). It is left out; loading a preset leaves such a slot empty anyway.
 Presets.capture = function (get_setting, Events, Groups)
 	local waves = {}
 
@@ -198,7 +201,7 @@ Presets.capture = function (get_setting, Events, Groups)
 		local now = current and snapshot(key, current, Groups)
 		local default = now and default_snapshot(key, Events, Groups)
 
-		if now and default and not same_wave(now, default) then
+		if now and default and not same_wave(now, default) and not (current.is_custom and now.recipe == "" and now.effects == "" and now.name == default.name) then
 			waves[#waves + 1] = now
 		end
 	end

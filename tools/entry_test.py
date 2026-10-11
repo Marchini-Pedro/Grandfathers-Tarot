@@ -148,17 +148,17 @@ do
   RW.director.fire_now=function() return false,"host only" end;echoed={};commands.gt_test("hound_frenzy")
   check("test command: rejected wave reports the director reason", echoed[1]:find("host only",1,true)~=nil)
   RW.director.fire_now=original_fire
-  -- the deck holds 100 cards: 88 custom slots (it was 20, so 21 used to be the first invalid one)
+  -- the deck holds 150 cards: 138 custom slots (20 until 2.1, 88 until 2026-10-11)
   for _,slot in ipairs({"x","0",tostring(RW.events.CUSTOM_SLOTS+1),"1.5"}) do
     local before=stored.wave_def_custom_3;echoed={};commands.gt_custom(slot,"1 hound")
     check("custom command: invalid slot "..slot.." makes no settings writes", stored.wave_def_custom_3==before and echoed[1]:find("slot must be",1,true)~=nil)
   end
   do
     local top=tostring(RW.events.CUSTOM_SLOTS);echoed={};commands.gt_custom(top,"2","hounds")
-    check("custom command: the last slot ("..top..") is valid and the message of a wrong slot names the range", RW.events.CUSTOM_SLOTS==88 and stored["wave_def_custom_"..top]~=nil and stored["on_custom_"..top]==true)
+    check("custom command: the last slot ("..top..") is valid and the message of a wrong slot names the range", RW.events.CUSTOM_SLOTS==138 and stored["wave_def_custom_"..top]~=nil and stored["on_custom_"..top]==true)
     stored["wave_def_custom_"..top],stored["on_custom_"..top]=nil,nil
     echoed={};commands.gt_custom("0","1 hound")
-    check("custom command: ...which is 1-88", echoed[1]:find("1-88",1,true)~=nil, echoed[1])
+    check("custom command: ...which is 1-138", echoed[1]:find("1-138",1,true)~=nil, echoed[1])
   end
   local old_def,old_on=stored.wave_def_custom_3,stored.on_custom_3
   commands.gt_custom("3","2","hounds")
@@ -614,6 +614,8 @@ RW.execute.start_wave({parts=RW.groups.parse("60 hounds")})
 RW.execute.start_wave({parts=RW.groups.parse("44 hounds@60, 36 poxwalkers@60"),rep_every=1,rep_for=30})
 local partial_admitted=RW.execute.start_wave({parts=RW.groups.parse("60 hounds, 60 poxwalkers")})
 check("aggregate: insufficient partial admission room rejects the whole initial batch", not partial_admitted and RW.execute.status().queued==7700)
+-- (2026-10-11) a card's repeats run from its first enemy: one of repeats only runs them from the start (the one above has not spawned)
+RW.execute.start_wave({parts=RW.groups.parse("0 hounds@60, 0 poxwalkers@60"),rep_every=1,rep_for=30})
 RW.execute.update(1)
 check("aggregate: repeat clips to remaining shared capacity without overshoot", RW.execute.status().queued==8000)
 RW.execute.reset()
@@ -711,6 +713,141 @@ do
   mod.on_unload()
   check("sleep: unload releases the module (nothing of the mod held)", RW.dormancy == nil and D.is_asleep() ~= nil)
   Managers.state, Managers.event, REALMS_STUB, mod = saved_state, saved_event, nil, saved_mod
+end
+
+-- (2026-10-11) Options > Update default cards: a held button at the very top, it rewrites the default cards and says how many
+do
+  local data = dofile(BASE .. "/GrandfathersTarot_data.lua")
+  local top = data.options.widgets[1]
+  check("update defaults: the first widget of the options is the held button 'Update default cards'", top.setting_id == "update_default_cards" and top.type == "button" and top.button_trigger == "held" and top.function_name == "update_default_cards")
+  local versioned = io.open(BASE .. "/catalog/version.lua"):read("*a")
+  check("version: the mod is v1.1", versioned:find('return "1.1"', 1, true) ~= nil)
+  mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
+  local saved_mod = mod
+  hooks, views, commands, hook_requires, require_callbacks, require_by_path, hud_elements = {}, {}, {}, {}, {}, {}, {}
+  dofile(BASE .. "/GrandfathersTarot.lua"); mod.on_all_mods_loaded()
+  local RW = mod.rw
+  local store, notes = {}, {}
+  local real_get, real_set, real_notify = mod.get, mod.set, mod.notify
+  mod.get = function(self, id) return store[id] end
+  mod.set = function(self, id, value) store[id] = value end
+  mod.notify = function(self, text) notes[#notes + 1] = text end
+  -- as DMF's localize: the text is formatted inside it with the arguments given (a %d without its number fails there; seen in game
+  -- 2026-10-11 on a fresh preset: "bad argument #2 to '?' (value expected)")
+  local real_localize, bad_format = mod.localize, 0
+  mod.localize = function(self, id, ...)
+    local text = id:find("^update_default_cards_") and id .. " %d" or id
+    local ok, out = pcall(string.format, text, ...)
+    if not ok then bad_format = bad_format + 1; return "<" .. id .. ">" end
+    return out
+  end
+  store.wave_def_custom_1 = "Mine\t2 hounds"
+  mod.update_default_cards()
+  check("update defaults: the button writes the default cards, keeps the player's own one and says so", store.wave_def_custom_1 == "Mine\t2 hounds" and type(store.gt_default_slots) == "string" and #notes == 1 and notes[1]:find("update_default_cards_done %d+") ~= nil and notes[1]:find("update_default_cards_moved 1", 1, true) ~= nil, notes[1])
+  check("update defaults: its message passes every number to localize (DMF formats the text there)", bad_format == 0, bad_format)
+  -- a fresh preset: no card at all (the case of the error in game)
+  for k in pairs(store) do store[k] = nil end
+  mod.update_default_cards()
+  check("update defaults: on an empty deck every default card goes to its own slot and the message is whole", bad_format == 0 and #notes == 2 and notes[2]:find("update_default_cards_done %d+") ~= nil and notes[2]:find("moved", 1, true) == nil, notes[2])
+  mod.localize = real_localize
+  RW.events.update_defaults = function() error("broken") end
+  local reported, real_error = 0, mod.error
+  mod.error = function() reported = reported + 1 end
+  local raised = not pcall(mod.update_default_cards)
+  check("update defaults: a failure is reported, never raised", reported == 1 and not raised and #notes == 2)
+  mod.get, mod.set, mod.notify, mod.error = real_get, real_set, real_notify, real_error
+  mod.on_unload()
+  mod = saved_mod
+end
+
+-- (2026-10-11, a performance pass) the busy hooks are on only while their feature has work (core/hook_gate.lua)
+do
+  local Gate = dofile(BASE .. "/core/hook_gate.lua")
+  local log = {}
+  local fake = {
+    hook_enable = function(self, obj, method) log[#log + 1] = (obj.label or "?") .. "." .. method .. ":on" end,
+    hook_disable = function(self, obj, method) log[#log + 1] = (obj.label or "?") .. "." .. method .. ":off" end,
+  }
+  local f = function() end
+  local Health = { label = "Health", add_damage = f, add_heal = f }
+  local Death = { label = "Death", die = f }
+  local saved_class = rawget(_G, "CLASS")
+  CLASS = { HealthExtension = Health }
+  Gate.init({ mod = fake })
+  local divided, claims = false, false
+  Gate.add("health", "HealthExtension", { "add_damage", "add_heal" }, function() return divided end)
+  Gate.add("die", Death, "die", function() return claims end)
+  local Broken = { label = "Broken", run = f }
+  Gate.add("broken", Broken, "run", function() error("boom") end)
+  Gate.add("later", "NotLoadedYet", "run", function() return false end)
+  Gate.add("die", Death, "die", function() return claims end) -- a hook_require callback run again at the next game start
+  local function count(entry) local n = 0 for _, l in ipairs(log) do if l == entry then n = n + 1 end end return n end
+
+  Gate.update(0.1)
+  check("gate: nothing is switched before its first tick (0.25 s)", #log == 0, #log)
+  Gate.update(0.2)
+  check("gate: a hook with no work is NOT switched off at once (LINGER)", count("Health.add_damage:off") == 0 and count("Death.die:off") == 0, table.concat(log, ","))
+  check("gate: a failing question keeps its hook on (the safe side)", count("Broken.run:on") == 1 and Gate.state().broken == true, table.concat(log, ","))
+  for _ = 1, 10 do Gate.update(0.25) end
+  check("gate: ...switched off after 2 s with no work, each method", count("Health.add_damage:off") == 1 and count("Health.add_heal:off") == 1, table.concat(log, ","))
+  check("gate: a class not loaded yet is left alone (no toggle, state unknown)", Gate.state().later == nil and Gate.state().health == false)
+  check("gate: a target added twice is held once (one toggle)", count("Death.die:off") == 1, table.concat(log, ","))
+  local n = #log
+  for _ = 1, 4 do Gate.update(0.25) end
+  -- (a resync may fall in this second: each target once at most, never once a tick)
+  local per = {}
+  for i = n + 1, #log do per[log[i]] = (per[log[i]] or 0) + 1 end
+  local most = 0
+  for _, c in pairs(per) do most = math.max(most, c) end
+  check("gate: an answer already applied is not applied again every tick", most <= 1, most)
+  divided = true
+  Gate.refresh("health")
+  check("gate: refresh(name) switches that hook on at once (a divided unit just spawned)", log[#log] == "Health.add_heal:on" and log[#log - 1] == "Health.add_damage:on", table.concat(log, ","))
+  divided = false; claims = true
+  Gate.refresh()
+  check("gate: refresh() asks every gate", count("Death.die:on") == 1 and Gate.state().die == true, table.concat(log, ","))
+  for _ = 1, 6 do Gate.update(0.25) end
+  check("gate: work again within LINGER keeps the hook on (no flicker)", Gate.state().health == true)
+  divided = true; Gate.update(0.25)
+  for _ = 1, 4 do Gate.update(0.25) end
+  divided = false
+  n = #log
+  Gate.resync()
+  Gate.update(0.25)
+  check("gate: resync (DMF switched every hook on again) applies every answer again", #log > n, table.concat(log, ",", n + 1))
+  n = #log
+  for _ = 1, 14 do Gate.update(0.25) end
+  check("gate: and every 3 s by itself (a hook DMF created late is put right)", #log > n)
+  CLASS.NotLoadedYet = { label = "Later", run = f }
+  for _ = 1, 14 do Gate.update(0.25) end
+  check("gate: a class loaded later is switched at the next resync", Gate.state().later == false and count("Later.run:off") >= 1)
+  Gate.retire()
+  n = #log
+  Gate.refresh(); Gate.update(1)
+  check("gate: retired (an unload) it switches nothing", #log == n and next(Gate.state()) == nil)
+  local Old = { hook_enable = nil }
+  Gate.init({ mod = Old }); Gate.add("x", Death, "die", function() return true end); Gate.refresh()
+  check("gate: a DMF without hook_enable: nothing happens, nothing breaks", true)
+  CLASS = saved_class
+end
+
+-- the gates the mod sets up at load (their names; each hook's question is the module's own)
+do
+  mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
+  local saved_mod = mod
+  hooks, views, commands, hook_requires, require_callbacks, require_by_path, hud_elements = {}, {}, {}, {}, {}, {}, {}
+  dofile(BASE .. "/GrandfathersTarot.lua"); mod.on_all_mods_loaded()
+  local RW = mod.rw
+  local names = RW.hook_gate and RW.hook_gate.names() or {}
+  local have = {}
+  for _, name in ipairs(names) do have[name] = true end
+  local missing = {}
+  for _, name in ipairs({ "bypass", "dread", "golden", "health_writes", "melee_attack", "spray", "net", "leap", "charge" }) do
+    if not have[name] then missing[#missing + 1] = name end
+  end
+  check("gate: the main file loads the gate first and every busy hook is registered with it", #missing == 0, table.concat(missing, ","))
+  mod.on_unload()
+  mod = saved_mod
 end
 
 return table.concat(results, "\n")

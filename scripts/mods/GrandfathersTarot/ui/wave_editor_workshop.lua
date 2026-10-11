@@ -642,7 +642,7 @@ WorkshopView.install = function (View, h)
 		local rw = mod.rw
 		local pad, icon = H.pad, H.icon
 		local name_w = H.hud_w - H.bar - 2 * pad - icon - 6
-		local lines = Spread.wrap_lines(card.name, name_w, H.name_font, Spread.GLYPH_BY_FONT.itc_novarese_bold)
+		local lines = Spread.wrap_lines(card.name, name_w, H.name_font, Spread.GLYPH_BY_FONT.itc_novarese_medium)
 		local height = math.max(Spread.MIN_CARD_HEIGHT, 2 * Spread.PAD_Y + lines * Spread.NAME_LINE + 4 + Spread.ROW_HEIGHT) * k
 
 		style.hand_bg.size[2], style.hand_bar.size[2] = height, height

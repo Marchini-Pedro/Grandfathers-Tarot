@@ -90,6 +90,7 @@ local function grey_world(on)
 
 	if rw then
 		rw.dread_active = on
+		if on and rw.hook_gate then rw.hook_gate.refresh("dread") end
 	end
 
 	if not on then

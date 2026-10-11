@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-10-11 - Version 1.1: 150 cards, guaranteed hands, Update default cards, Brute's fissure (polishing)
+- The version is 1.1 (was 2.2.0). Host and players must have the same version.
+- A deck holds 150 cards (12 standard and 138 custom slots; it was 100). Existing decks keep every card: the old slots keep
+  their keys and the 50 new slots are empty, shown at the end of a saved Deck order.
+- New option at the top of the mod options: Update default cards (hold the button). It gives every default card (the standard
+  cards and the author's deck) this version's settings. A card you made yourself is never changed: when a default card's slot
+  holds one of yours, the default card goes to a free slot. The Deck's order and the options are left alone.
+- New options group Guaranteed hands: a hand of threat 6 cards, a hand of threat 5 cards and a hand of beneficial cards, each
+  every X to Y minutes of played time (off by default). Resting cards of that kind fill the hand when needed.
+- Fixed: a card with repeats that found no spawn point spawned every missed repeat at once when it found one; its repeats now
+  count from its first enemy and stand still while it waits. Cards that waited start 10 s apart (a card drawn while nothing
+  waits starts at once).
+- Twins: a Daemonhost splits into nothing by default (it was two Chaos Spawns), in the condition and in a card's Twins rows.
+- The default deck and its cards are the author's of 2026-10-11 (the Poxburster splits into nothing).
+- Brute's card effect is a fissure: the card tears open from top to foot, its glowing sides part, chips fall, and it closes.
+- The default font of the card names is Novarese (it was Novarese Bold), on the HUD, the last card and the Deck.
+- Fixed: Update default cards showed a red error instead of its message ("bad argument #2"); the cards were written.
+- Fixed: a preset counted and stored empty custom slots that were only switched on (a deck of 91 cards read 100); re-save a
+  preset to update its count.
+
+## 2026-10-11 - Performance: hooks asleep when not needed (polishing)
+- Faster: the mod's hooks on functions the game calls for every enemy (spawns, deaths, hits, attacks, the flamers', trappers',
+  hounds' and mutants' actions, the boss bar, the player panels) are switched off while nothing of the mod needs them, and come
+  back on by themselves when a card's enemy, the Twins condition, a divided health, an armed Instant rescue or the dread needs them.
+  With /gt_stop in a Realms game the Mod Performance Monitor no longer bills the game's own hordes to the mod.
+- Smoother: a card's enemies spawn one every 0.075 s instead of two every 0.15 s (same speed, half the work in one frame).
+
 ## 2026-10-06 - Version 2.2.0: boss bar colours, fixes for clients (polishing)
 - The mod options show the version (2.2.0). Host and players must have the same version.
 - A Boss bar colour of your own per enemy group. The Boss name and colour also work on Monsters and Captains.

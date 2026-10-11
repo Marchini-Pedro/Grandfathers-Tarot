@@ -1905,6 +1905,23 @@ local function keep_summoners(dt)
 	end
 end
 
+-- (2026-10-11, a performance pass) the hooks on busy game functions are on only while a unit needs them (core/hook_gate.lua)
+local function gate(name, obj, methods, wanted)
+	local hook_gate = mod.rw and mod.rw.hook_gate
+
+	if hook_gate then
+		hook_gate.add(name, obj, methods, function ()
+			return not Tuning.dead and wanted()
+		end)
+	end
+end
+
+local function card_units_alive()
+	local bypass = mod.rw and mod.rw.bypass
+
+	return bypass ~= nil and bypass.count ~= nil and bypass.count() > 0
+end
+
 Tuning.install = function ()
 	if installed or not mod.hook_safe then
 		return
@@ -1952,6 +1969,9 @@ Tuning.install = function ()
 		mod:hook("BtMutantChargerChargeAction", "_update_charging", function (...) return Tuning.charge_update(...) end)
 		mod:hook("BtMutantChargerChargeAction", "_update_charged_past", function (...) return Tuning.charge_update(...) end)
 		mod:hook("BtMutantChargerChargeAction", "_update_grabbed_target", function (...) return Tuning.charge_update(...) end)
+		gate("charge", "BtMutantChargerChargeAction", { "_update_charging", "_update_charged_past", "_update_grabbed_target" }, function ()
+			return next(speed_factor) ~= nil
+		end)
 	end
 
 	-- the On Fire look kept on (every machine)
@@ -1968,6 +1988,10 @@ Tuning.install = function ()
 			Tuning.after_health_write(self)
 		end)
 	end
+	-- every hit on every unit (the players' too) goes through these: on only while a divided unit lives (host)
+	gate("health_writes", "HealthExtension", { "add_damage", "add_heal", "set_health_instant" }, function ()
+		return next(net_scale) ~= nil
+	end)
 
 	-- ...and the boss bars show it in bars (every machine)
 	if mod.hook_require and mod.hook then
@@ -1987,6 +2011,11 @@ Tuning.install = function ()
 			mod:hook_safe(HudElementBossHealth, "init", function (self)
 				if not Tuning.dead then pcall(Tuning.boss_hud_created, self) end
 			end)
+			-- a normal hook's time includes the game's boss bar every frame: on only while one of ours can be on screen (a boss of a
+			-- card, a divided unit, a stand-in bar); LINGER gives the colours time to go back
+			gate("boss_bar", HudElementBossHealth, { "update", "_draw_widgets" }, function ()
+				return next(boss_shown) ~= nil or next(boss_marked) ~= nil or next(boss_ids) ~= nil or next(net_scale) ~= nil or next(true_max_by_id) ~= nil
+			end)
 		end)
 	end
 
@@ -2002,17 +2031,27 @@ Tuning.install = function ()
 			mod:hook_safe(MinionAttack, "start_shooting", function (...)
 				Tuning.on_start_shooting(...)
 			end)
+			gate("start_shooting", MinionAttack, "start_shooting", function ()
+				return #tuned > 0
+			end)
 		end)
 	end
 
 	mod:hook_safe("BtMeleeAttackAction", "_start_attack_anim", function (...)
 		Tuning.fix_attack_end(...)
 	end)
+	-- every melee attack of every enemy: only a card's enemy (or a tuned one) is changed by it
+	gate("melee_attack", "BtMeleeAttackAction", "_start_attack_anim", function ()
+		return #tuned > 0 or next(combo_cut) ~= nil or next(cancel_chance) ~= nil or card_units_alive()
+	end)
 
 	-- Spray cut chance and Net feint chance (2026-10-06)
 	if mod.hook then
 		mod:hook("BtShootLiquidBeamAction", "run", function (...) return Tuning.spray_run(...) end)
 		mod:hook("BtShootNetAction", "run", function (...) return Tuning.net_run(...) end)
+		-- these run every frame of every flamer's spray and every trapper's aim
+		gate("spray", "BtShootLiquidBeamAction", "run", function () return next(spray_cut) ~= nil end)
+		gate("net", "BtShootNetAction", "run", function () return next(net_feint) ~= nil end)
 	end
 
 	mod:hook_safe("BtShootNetAction", "leave", function (...)
@@ -2022,6 +2061,7 @@ Tuning.install = function ()
 	-- a Pox Hound's pounce as a feint (Tuning.pounce_leap)
 	if mod.hook then
 		mod:hook("BtChaosHoundLeapAction", "_leap", function (...) return Tuning.pounce_leap(...) end)
+		gate("leap", "BtChaosHoundLeapAction", "_leap", function () return next(cancel_chance) ~= nil end)
 	end
 
 	mod:hook_safe("BtChaosHoundLeapAction", "leave", function (...)

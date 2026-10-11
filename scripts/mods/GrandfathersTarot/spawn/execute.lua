@@ -15,7 +15,9 @@ local Execute = {}
 
 local Positions, Bypass, Groups, Tuning, Appearance, Effects, Twins
 
-local FEED_INTERVAL = 0.15
+-- (2026-10-11, a performance pass) one enemy every 0.075 s instead of two every 0.15 s: the same rate, half the work in one frame
+-- (a spawn is the game's heaviest call the mod makes); a slow frame (longer than FEED_INTERVAL) still gets up to FEED_BATCH
+local FEED_INTERVAL = 0.075
 local FEED_BATCH = 2
 local CLOSE_SPREAD = 2 -- a wave in front of the player (/gt_test_close) never scatters wider than this, whatever its own radius
 local CANDIDATE_TTL = 1.5
@@ -25,6 +27,11 @@ local MAX_QUEUE = 1000 -- a repeat tick is skipped while this many units are sti
 local MAX_JOBS = 64
 local MAX_PENDING = 8000 -- aggregate entries; independent of the alive-unit cap
 local PURGE_INTERVAL = 5
+-- (2026-10-11, the author: "a card with a repeat timer that has no spawn point spawns everything at once when it finds one; keep
+-- respecting the timer, and with several cards in a row keep 10 s between each") A card's repeats count from its first enemy and stand
+-- still while it waits for a spawn point. Cards that had to WAIT (for a spawn point, or for their turn behind such a card) start at
+-- least START_GAP seconds apart; a card drawn while nothing waits starts at once, as before.
+local START_GAP = 10
 
 local jobs = {}
 local spawning = false
@@ -32,6 +39,7 @@ local feed_timer = 0
 local purge_timer = 0
 local clock = 0
 local cache = {}
+local next_start = -math.huge -- clock: the earliest moment a card that has not spawned yet may start (START_GAP)
 local last_log = {}
 
 local function queued_count()
@@ -390,6 +398,8 @@ Execute.start_wave = function (def)
 	end
 
 	jobs[#jobs + 1] = {
+		-- a card of repeats only (nothing to spawn at first) runs its timer from the start
+		started = #queue == 0,
 		name = def.name,
 		test = def.test == true, -- explicit /gt_test: may fall back to a ring around the player where no hidden points exist
 		close = def.close == true, -- /gt_test_close: right in front of the local player, facing them (no hidden points, no ring)
@@ -683,6 +693,10 @@ local function spawn_one(breed_name, position, target_unit, mod_ids, tune, appea
 	if Tuning and Tuning.watch_daemonhost then Tuning.watch_daemonhost(unit, breed_name, extra.leaves) end
 	-- the group's Boss name, for its boss bar
 	if (extra.boss_name or extra.boss_colour) and Tuning and Tuning.name_boss then Tuning.name_boss(unit, extra.boss_name, extra.boss_colour) end
+	-- the hooks this enemy needs (a custom health, a feint, a boss bar) on now, not at the next tick (core/hook_gate.lua)
+	local gate = mod.rw and mod.rw.hook_gate
+
+	if gate then pcall(gate.refresh) end
 
 	return true, unit
 end
@@ -734,6 +748,12 @@ Execute.update = function (dt, paused)
 		Twins.update(dt)
 	end
 
+	-- nothing left waiting: the gap is over (this clock stands still without jobs, so a gap set by the last card would otherwise
+	-- hold back a card drawn much later)
+	if #jobs == 0 then
+		next_start = -math.huge
+	end
+
 	if #jobs == 0 or paused then
 		return
 	end
@@ -749,8 +769,16 @@ Execute.update = function (dt, paused)
 	for i = #jobs, 1, -1 do
 		local job = jobs[i]
 
-		job.age = job.age + dt
-		run_repeats(job, dt)
+		-- a card waiting for its turn (START_GAP behind another) does not age; one that has started, or is looking for a spawn point
+		-- and finds none, does (JOB_TIMEOUT)
+		if job.started or job.stuck_since then
+			job.age = job.age + dt
+		end
+
+		-- the repeat timer runs from the first enemy, and not while the card waits for a spawn point
+		if job.started and not job.stuck_since then
+			run_repeats(job, dt)
+		end
 
 		if job.age > job.timeout or (#job.queue == 0 and (not job.rep or job.rep.done)) then
 			table.remove(jobs, i)
@@ -762,6 +790,9 @@ Execute.update = function (dt, paused)
 	if feed_timer > 0 or #jobs == 0 then
 		return
 	end
+
+	-- one unit for every FEED_INTERVAL this frame covered, FEED_BATCH at most
+	local due = math.min(FEED_BATCH, 1 + math.floor(-feed_timer / FEED_INTERVAL))
 
 	feed_timer = FEED_INTERVAL
 
@@ -775,14 +806,22 @@ Execute.update = function (dt, paused)
 		return
 	end
 
-	-- oldest job that still has units waiting (a repeating job may be idle between ticks)
+	-- oldest job that still has units waiting (a repeating job may be idle between ticks); a card that has not started waits for
+	-- START_GAP after the last start (an explicit /gt_test or /gt_test_close does not)
 	local job
 
 	for i = 1, #jobs do
-		if #jobs[i].queue > 0 then
-			job = jobs[i]
+		local candidate = jobs[i]
 
-			break
+		if #candidate.queue > 0 then
+			if candidate.started or candidate.test or candidate.close or clock >= next_start then
+				job = candidate
+
+				break
+			end
+
+			-- held back by the gap: it waited, so it holds the next one back too once it starts
+			candidate.waited = true
 		end
 	end
 
@@ -794,6 +833,7 @@ Execute.update = function (dt, paused)
 
 	if not list then
 		job.stuck_since = job.stuck_since or clock
+		job.waited = true
 
 		if clock - job.stuck_since >= NOTIFY_AFTER then
 			notify_stuck(job, explain(job.reason))
@@ -810,7 +850,7 @@ Execute.update = function (dt, paused)
 		return
 	end
 
-	for _ = 1, math.min(FEED_BATCH, room, #job.queue) do
+	for _ = 1, math.min(due, room, #job.queue) do
 		local entry = job.queue[#job.queue]
 		local position = Positions.pick(list)
 
@@ -828,6 +868,16 @@ Execute.update = function (dt, paused)
 
 		if ok then
 			job.spawned = job.spawned + 1
+
+			-- its first enemy: the repeats count from now, its time limit too, and the next card waits START_GAP
+			if not job.started then
+				job.started = true
+				job.timeout = job.age + JOB_TIMEOUT + (job.rep and job.rep.total or 0)
+
+				if job.waited and not job.test and not job.close then
+					next_start = clock + START_GAP
+				end
+			end
 		end
 		if not ok and why then
 			job.failed = (job.failed or 0) + 1
@@ -845,6 +895,7 @@ Execute.cancel = function ()
 	jobs = {}
 	cache = {}
 	feed_timer = 0
+	next_start = -math.huge
 	last_full_gc = -math.huge
 	heap_paused = false
 end

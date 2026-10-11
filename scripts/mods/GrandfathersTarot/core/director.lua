@@ -451,21 +451,105 @@ local function card_of(entry)
 	return card
 end
 
+-- ------------------------------------------------------------------ guaranteed hands
+-- (2026-10-11, the author: "options that force a hand full of threat 6 cards every X to Y minutes; the same for threat 5, and one
+-- for a hand full of beneficial cards") Each kind, when its option is on, comes due at a random moment between its minimum and
+-- maximum minutes of PLAYED time (cd_clock) after the mission's start or its last such hand. The first hand dealt once it is due
+-- holds only cards of that kind: the ones off cooldown first, then resting ones of that kind when they do not fill it (it is
+-- guaranteed). A kind with no card at all in the draw stays due (a normal hand is dealt). Two kinds due at once: in this order.
+local function card_threat(entry)
+	local def = entry.def or {}
+
+	return Cards.threat(def.parts or {}, def.threat_override, Groups)
+end
+
+local function card_beneficial(entry)
+	local def = entry.def or {}
+
+	return Cards.suit(Cards.normalize_suit(def.suit)).beneficial == true
+end
+
+Director.FORCED = {
+	{ id = "forced_six", wants = function (entry) return not card_beneficial(entry) and card_threat(entry) == 6 end },
+	{ id = "forced_five", wants = function (entry) return not card_beneficial(entry) and card_threat(entry) == 5 end },
+	{ id = "forced_blessed", wants = card_beneficial },
+}
+
+local forced_due = {} -- kind id -> cd_clock when its hand is due
+
+local function forced_wait(id)
+	local low = math.max(1, number_setting(id .. "_min", 20))
+	local high = math.max(low, number_setting(id .. "_max", 30))
+
+	return (low + math.random() * (high - low)) * 60
+end
+
+-- the kind of hand due now, or nil (a kind switched on is given its first moment here)
+local function forced_kind()
+	local due = nil
+
+	for _, kind in ipairs(Director.FORCED) do
+		if mod:get(kind.id) == true then
+			forced_due[kind.id] = forced_due[kind.id] or cd_clock + forced_wait(kind.id)
+
+			if not due and cd_clock >= forced_due[kind.id] then
+				due = kind
+			end
+		else
+			forced_due[kind.id] = nil
+		end
+	end
+
+	return due
+end
+
+Director.forced_due = function (id) return forced_due[id] end
+
 -- Deals the hand: up to `tarot_cards` cards by chance weight without repeats, then the winner by a uniform roll.
 -- The winner is decided HERE and travels with the hand; nobody else rolls. Returns false when no card can be dealt.
 local function deal(state)
 	local ready, pool_size, cooling = eligible_cards()
 	local count = math.max(1, math.min(HAND_MAX, math.floor(number_setting("tarot_cards", 4))))
 	local picks = {}
+	local kind = forced_kind()
 
-	while #picks < count and #ready > 0 do
-		local index = weighted_pick(ready)
+	local function take(list)
+		while #picks < count and #list > 0 do
+			local index = weighted_pick(list)
 
-		if not index then
-			break
+			if not index then
+				break
+			end
+
+			picks[#picks + 1] = table.remove(list, index)
+		end
+	end
+
+	if kind then
+		local fresh, resting, is_ready = {}, {}, {}
+
+		for i = 1, #ready do
+			is_ready[ready[i].key] = true
+
+			if kind.wants(ready[i]) then fresh[#fresh + 1] = ready[i] end
 		end
 
-		picks[#picks + 1] = table.remove(ready, index)
+		local pool = drawable_pool()
+
+		for i = 1, #pool do
+			if not is_ready[pool[i].key] and kind.wants(pool[i]) then resting[#resting + 1] = pool[i] end
+		end
+
+		take(fresh)
+		take(resting)
+
+		if #picks > 0 then
+			forced_due[kind.id] = cd_clock + forced_wait(kind.id)
+		end
+	end
+
+	if #picks == 0 then
+		take(ready)
 	end
 
 	if #picks == 0 then
@@ -1104,6 +1188,7 @@ Director.reset = function ()
 	my_vote, my_vote_ballot = nil, nil
 	held = {}
 	spent_once = {}
+	forced_due = {}
 	Votes.close()
 	Execute.reset()
 end
