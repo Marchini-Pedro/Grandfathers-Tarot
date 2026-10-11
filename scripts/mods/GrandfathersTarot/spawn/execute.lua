@@ -29,7 +29,8 @@ local MAX_PENDING = 8000 -- aggregate entries; independent of the alive-unit cap
 local PURGE_INTERVAL = 5
 -- (2026-10-11, the author: "a card with a repeat timer that has no spawn point spawns everything at once when it finds one; keep
 -- respecting the timer, and with several cards in a row keep 10 s between each") A card's repeats count from its first enemy and stand
--- still while it waits for a spawn point; a card that has not started yet starts at least START_GAP seconds after the last one did.
+-- still while it waits for a spawn point. Cards that had to WAIT (for a spawn point, or for their turn behind such a card) start at
+-- least START_GAP seconds apart; a card drawn while nothing waits starts at once, as before.
 local START_GAP = 10
 
 local jobs = {}
@@ -747,6 +748,12 @@ Execute.update = function (dt, paused)
 		Twins.update(dt)
 	end
 
+	-- nothing left waiting: the gap is over (this clock stands still without jobs, so a gap set by the last card would otherwise
+	-- hold back a card drawn much later)
+	if #jobs == 0 then
+		next_start = -math.huge
+	end
+
 	if #jobs == 0 or paused then
 		return
 	end
@@ -806,10 +813,15 @@ Execute.update = function (dt, paused)
 	for i = 1, #jobs do
 		local candidate = jobs[i]
 
-		if #candidate.queue > 0 and (candidate.started or candidate.test or candidate.close or clock >= next_start) then
-			job = candidate
+		if #candidate.queue > 0 then
+			if candidate.started or candidate.test or candidate.close or clock >= next_start then
+				job = candidate
 
-			break
+				break
+			end
+
+			-- held back by the gap: it waited, so it holds the next one back too once it starts
+			candidate.waited = true
 		end
 	end
 
@@ -821,6 +833,7 @@ Execute.update = function (dt, paused)
 
 	if not list then
 		job.stuck_since = job.stuck_since or clock
+		job.waited = true
 
 		if clock - job.stuck_since >= NOTIFY_AFTER then
 			notify_stuck(job, explain(job.reason))
@@ -861,7 +874,7 @@ Execute.update = function (dt, paused)
 				job.started = true
 				job.timeout = job.age + JOB_TIMEOUT + (job.rep and job.rep.total or 0)
 
-				if not job.test and not job.close then
+				if job.waited and not job.test and not job.close then
 					next_start = clock + START_GAP
 				end
 			end
