@@ -23,7 +23,8 @@ definitions.CARD_W = definitions.WIDTH
 definitions.LAYOUT = { pad_x = 12, pad_y = 10, gap = 8, icon = 22, icon_gap = 8, name_font = 21, name_line = 24, whisper_font = 15, whisper_line = 18 }
 definitions.FONT = "proxima_nova_bold"
 -- the default font of the card's name (the player can choose another one in the options, see hud_element_last_card.lua)
-definitions.DISPLAY_FONT = "itc_novarese_bold"
+-- (2026-10-11) the option's "Novarese" (ui/hud_element_waves_definitions.lua)
+definitions.DISPLAY_FONT = "itc_novarese_medium"
 definitions.GLOW_MATERIAL = "content/ui/materials/frames/frame_glow_01" -- a soft glowing frame, used by stock HUD elements
 definitions.THREAT_MAX = 6
 definitions.DOTS_MAX = 6 -- the most dots a card shows (catalog/cards.lua MAX_DOTS)

@@ -25,7 +25,8 @@ definitions.LINES = 7 -- legacy panel: header + up to 5 candidates + key hint
 definitions.LINE_HEIGHT = 30
 definitions.FONT = "proxima_nova_bold"
 -- the default font of the Spread's text (the player can choose another one in the options, see hud_element_waves.lua)
-definitions.DISPLAY_FONT = "itc_novarese_bold"
+-- (2026-10-11, the author: "make Novarese the default font") the option's "Novarese", not Novarese Bold
+definitions.DISPLAY_FONT = "itc_novarese_medium"
 
 definitions.PANEL_WIDTH = Spread.NODE_WIDTH
 definitions.PANEL_HEIGHT = Spread.NODE_HEIGHT

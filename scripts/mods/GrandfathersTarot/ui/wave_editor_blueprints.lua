@@ -186,7 +186,8 @@ local Aura = mod:io_dofile("GrandfathersTarot/scripts/mods/GrandfathersTarot/ui/
 blueprints.Deck, blueprints.Spread, blueprints.Aura = Deck, Spread, Aura
 
 local TILE_W, TILE_H = Deck.TILE_W, Deck.TILE_H
-local DISPLAY_FONT = "itc_novarese_bold"
+-- (2026-10-11) the cards' names in the Deck in the default font of the HUD, "Novarese"
+local DISPLAY_FONT = "itc_novarese_medium"
 
 -- The boxes of a tile at scale k (x, y, w, h in the tile's units times k): 1 is the Deck's tile (228 x 270), the card on the
 -- stage of a card's screens is 1.4. Fonts, shapes and hit areas scale with it, the 1 unit lines do not (docs/08).
