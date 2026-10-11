@@ -17,7 +17,7 @@ local Aura = {}
 local floor, sin, cos, abs, max, min, pi = math.floor, math.sin, math.cos, math.abs, math.max, math.min, math.pi
 
 Aura.COUNT = 28 -- circles and rects
-Aura.TRIS = 8 -- triangles: Heresy's lightning
+Aura.TRIS = 16 -- triangles: Heresy's lightning (8), Brute's fissure (8 for the chasm, 8 for its glowing rims; 2026-10-11)
 Aura.LEVEL = 4 -- the threat used when none is given
 
 Aura.new = function ()
@@ -491,62 +491,113 @@ EFFECTS.snare = function (out, t, W, H, s, lv)
 	end
 end
 
--- BRUTE: a blow lands at the foot of the card (more often as the threat grows): the floor cracks, a shock runs along it, dust bursts
--- up and chunks of brick fly high and fall back
+-- BRUTE (2026-10-11, the author: "change the Brute animation to a fissure, the card opening in half"): every blow tears the card
+-- open. A jagged fissure runs from the top of the card to its foot, its two sides part (a dark chasm, wider as the threat grows), its
+-- rims glow like hot brick, chips break off the edges and fall, dust puffs where it ends; then it closes before the next blow. Each
+-- blow has its own fissure (the zigzag is hashed from the blow's number).
 Aura.brute_period = function (lv)
 	return 2.3 - 0.1 * clamp(tonumber(lv) or Aura.LEVEL, 1, 6)
 end
 
-EFFECTS.brute = function (out, t, W, H, s, lv)
-	local period = Aura.brute_period(lv)
-	local tau = t % period
-	local blow = tau / period
+local FISSURE_STEPS = 4 -- segments of the zigzag: two triangles of chasm and two rim slivers each (Aura.TRIS)
 
-	for i = 1, amount(lv, 5, 14) do
-		local p = out[i]
-		local side = i % 2 == 0 and 1 or -1
-		local vx = side * (25 + 70 * hash(i, 1)) * s
-		local vy = (80 + 100 * hash(i, 2) + 6 * lv) * s
-		local g = 170 * s
-		local x = W / 2 + vx * tau
-		local y = H - 4 * s - (vy * tau - g * tau * tau)
-		local size = (3 + 4.5 * hash(i, 3)) * s
-		local alpha = blow < 0.7 and 250 * (1 - (blow / 0.7) ^ 2) or 0
-		local rock = i % 3 == 0 and DUST or i % 3 == 1 and BRICK or BRICK_DARK
-
-		rgb_into(p.rgb, rock)
-		put(p, false, x - size / 2, y - size, size, size, y > H and 0 or alpha, W, H)
+-- the fissure of one blow: its x at vertex j (0 .. FISSURE_STEPS), the y of every vertex evenly down the card
+local function fissure_x(j, n, W)
+	if j == 0 or j == FISSURE_STEPS then
+		return W * (0.44 + 0.12 * hash(n * 7 + j, 11))
 	end
 
-	-- the dust: puffs swell from the point of the blow and thin away
-	local puffs = amount(lv, 2, 6)
+	local side = j % 2 == 0 and 1 or -1
+
+	return W * (0.5 + side * (0.05 + 0.09 * hash(n * 7 + j, 12)))
+end
+
+EFFECTS.brute = function (out, t, W, H, s, lv)
+	local period = Aura.brute_period(lv)
+	local n = floor(t / period)
+	local tau = t % period
+	local blow = tau / period
+	-- the tear runs down in the first fifth of the blow; the sides part, hold, and close again in its last third
+	local reach = min(1, blow * 5) * H
+	local open = min(1, blow * 4) * (blow < 0.66 and 1 or max(0, 1 - (blow - 0.66) / 0.3))
+	local gap = (3 + 3 * lv) * s * open -- half the opening: 6 px wide at threat 1, 42 at threat 6
+	local rim = 230 * (0.35 + 0.65 * max(0, 1 - blow * 2.5))
+
+	-- the chasm: each segment a band (left and right edge) cut in two triangles, down to where the tear has reached
+	local step = H / FISSURE_STEPS
+
+	for j = 0, FISSURE_STEPS - 1 do
+		local y1, y2 = j * step, (j + 1) * step
+		local x1, x2 = fissure_x(j, n, W), fissure_x(j + 1, n, W)
+		local a, b = out.tri[j * 2 + 1], out.tri[j * 2 + 2]
+		local left, right = out.tri[9 + j * 2], out.tri[10 + j * 2]
+
+		rgb_into(a.rgb, CRACK)
+		rgb_into(b.rgb, CRACK)
+		lerp_into(left.rgb, BRICK, BRICK_FLASH, open)
+		lerp_into(right.rgb, BRICK, BRICK_FLASH, open)
+
+		if reach > y1 and gap > 0.3 then
+			local k = min(1, (reach - y1) / step)
+			local ye, xe = y1 + step * k, x1 + (x2 - x1) * k
+			local g1, g2 = gap * (0.8 + 0.4 * hash(n * 7 + j, 13)), gap * (0.8 + 0.4 * hash(n * 7 + j + 1, 13))
+			local lip = (1.5 + 0.4 * lv) * s -- the glowing rim's width
+
+			put_tri(a, x1 - g1, y1, x1 + g1, y1, xe + g2, ye, 235, W, H)
+			put_tri(b, x1 - g1, y1, xe + g2, ye, xe - g2, ye, 235, W, H)
+			-- the rims: a sliver of hot brick on each lip of the chasm
+			put_tri(left, x1 - g1 - lip, y1, x1 - g1, y1, xe - g2, ye, rim, W, H)
+			put_tri(right, x1 + g1, y1, x1 + g1 + lip, y1, xe + g2, ye, rim, W, H)
+		else
+			a.on, b.on, left.on, right.on = false, false, false, false
+		end
+	end
+
+	-- the rims: a hot ember on each side of every vertex the tear has passed
+	for j = 0, FISSURE_STEPS do
+		local y = min(H - 3 * s, j * step)
+		local x = fissure_x(j, n, W)
+		local lit = reach >= j * step and open > 0
+
+		for side = 1, 2 do
+			local p = out[j * 2 + side]
+			local d = (2 + 1.2 * hash(j * 2 + side, 14)) * s
+			local edge = side == 1 and x - gap - d or x + gap
+
+			rgb_into(p.rgb, open > 0.5 and BRICK_FLASH or BRICK)
+			put(p, false, edge, y - d / 2, d, d, lit and rim or 0, W, H)
+		end
+	end
+
+	-- the chips: they break off the rims as they part and fall
+	for i = 1, amount(lv, 4, 12) do
+		local p = out[10 + i]
+		local j = 1 + floor(hash(n * 13 + i, 15) * (FISSURE_STEPS - 1))
+		local side = i % 2 == 0 and 1 or -1
+		local x0 = fissure_x(j, n, W) + side * gap
+		local y0 = j * step
+		local fall = max(0, tau - 0.12 * hash(i, 16) * period)
+		local x = x0 + side * (8 + 22 * hash(i, 17)) * s * fall
+		local y = y0 - 30 * s * fall + 190 * s * fall * fall
+		local size = (2 + 3 * hash(i, 18)) * s
+		local alpha = blow < 0.75 and 240 * (1 - blow / 0.75) or 0
+
+		rgb_into(p.rgb, i % 3 == 0 and DUST or i % 3 == 1 and BRICK or BRICK_DARK)
+		put(p, false, x - size / 2, y - size / 2, size, size, (reach > y0 and y < H) and alpha or 0, W, H)
+	end
+
+	-- the dust: it puffs where the fissure meets the top and the foot of the card, and thins away
+	local puffs = amount(lv, 1, 3)
 
 	for i = 1, puffs do
 		local k = min(1, blow * 3)
-		local d = (8 + 46 * k) * s * (0.7 + 0.5 * hash(i, 1))
-		local cx = W / 2 + (i - (puffs + 1) / 2) * 16 * s * (0.4 + k)
-		local p = out[14 + i]
-
-		rgb_into(p.rgb, DUST)
-		put(p, true, cx - d / 2, H - d * 0.75, d, d, 120 * (1 - k), W, H)
-	end
-
-	-- the shock along the floor, and the cracks the blow opens in it (they close as it fades)
-	for i = 1, 2 do
-		local spread = W * min(1, blow * 5)
-		local p = out[20 + i]
-
-		rgb_into(p.rgb, BRICK_FLASH)
-		put(p, false, (W - spread) / 2, H - (i == 1 and 3 or 7) * s, spread, (i == 1 and 3 or 1.5) * s, 240 * max(0, 1 - blow * 3), W, H)
-	end
-
-	for i = 1, amount(lv, 1, 4) do
-		local k = min(1, blow * 8)
-		local length = H * (0.14 + 0.12 * hash(i, 1)) * k
+		local d = (6 + 30 * k) * s * (0.7 + 0.5 * hash(i, 19))
+		local foot = i % 2 == 1
+		local cx = fissure_x(foot and FISSURE_STEPS or 0, n, W) + (i - (puffs + 1) / 2) * 10 * s
 		local p = out[22 + i]
 
-		rgb_into(p.rgb, CRACK)
-		put(p, false, W / 2 + (hash(i, 2) - 0.5) * 40 * s, H - length, 2 * s, length, 220 * max(0, 1 - blow * 1.6), W, H)
+		rgb_into(p.rgb, DUST)
+		put(p, true, cx - d / 2, foot and H - d * 0.7 or -d * 0.3, d, d, (foot and reach >= H or not foot) and 110 * (1 - k) or 0, W, H)
 	end
 end
 
