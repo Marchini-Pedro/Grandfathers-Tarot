@@ -39,7 +39,8 @@ catalog.bosses = {
 	_entry("chaos_beast_of_nurgle", "Beast of Nurgle", { boss = true, chance = 100, spawnable = true }),
 	_entry("chaos_plague_ogryn", "Plague Ogryn", { boss = true, chance = 100, spawnable = true, loc = "loc_breed_display_name_chaos_plage_ogryn" }),
 	_entry("chaos_spawn", "Chaos Spawn", { boss = true, chance = 100, spawnable = true }),
-	_entry("chaos_daemonhost", "Daemonhost", { boss = true, enabled = true, chance = 30, spawnable = true }),
+	-- (2026-10-11, the author: "a Daemonhost as a twin defaults to two Chaos Spawns; make it none") it splits into nothing
+	_entry("chaos_daemonhost", "Daemonhost", { boss = true, enabled = true, chance = 30, spawnable = true, twin1 = "none", twin2 = "none" }),
 	_entry("chaos_ogryn_houndmaster", "Ogryn Houndmaster", { boss = true, chance = 100 }),
 	_entry("cultist_captain", "Cultist Captain", { boss = true, stim = true, chance = 20, enabled = true }),
 	_entry("renegade_captain", "Renegade Captain", { boss = true, stim = true, chance = 20, enabled = true }),
@@ -59,7 +60,7 @@ catalog.enemies = {
 	-- specials
 	_entry("chaos_hound", "Pox Hound", { spawnable = true }),
 	_entry("chaos_armored_hound", "Armoured Pox Hound", { spawnable = true }),
-	_entry("chaos_poxwalker_bomber", "Poxburster", { enabled = true, spawnable = true, twin1 = "chaos_poxwalker_bomber", twin2 = "chaos_poxwalker_bomber", twins_buff = "never" }),
+	_entry("chaos_poxwalker_bomber", "Poxburster", { enabled = true, spawnable = true, twin1 = "none", twin2 = "none", twins_buff = "never" }), -- the author's settings of 2026-10-11
 	_entry("cultist_flamer", "Cultist Flamer", { spawnable = true }),
 	_entry("renegade_flamer", "Renegade Flamer", { spawnable = true }),
 	_entry("cultist_grenadier", "Cultist Grenadier", { spawnable = true }),
@@ -100,7 +101,8 @@ catalog.extra_spawnable = {
 -- breed that a dying enemy is split into, twice. Used when a twin slot is set to "Default".
 catalog.default_twins = {
 	chaos_beast_of_nurgle = "chaos_ogryn_bulwark",
-	chaos_daemonhost = "chaos_spawn",
+	-- chaos_daemonhost = "chaos_spawn" in the game: left out on purpose (2026-10-11), a Daemonhost's "Default" is nothing, in a card's
+	-- Twins rows (a Daemonhost twin that splits again) and under the condition alike
 	chaos_hound = "chaos_hound_mutator",
 	chaos_ogryn_bulwark = "renegade_berzerker",
 	chaos_ogryn_executor = "renegade_executor",

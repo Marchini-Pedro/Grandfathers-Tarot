@@ -1,6 +1,8 @@
--- The mod's default deck (2026-10-08, the author: "make my current deck and options the default (87 cards in the draw)"):
--- every setting of every card of the author's own deck, and the order and sort of the Deck, written from their settings on
--- that day (tools: the scratchpad's gen_defaults.py read user_settings.config). GrandfathersTarot.lua seeds them on a fresh
+-- The mod's default deck (2026-10-08, the author: "make my current deck and options the default (87 cards in the draw)"; written
+-- again 2026-10-11: "make my twins options and my current deck and its cards the new default"): every setting of every card of the
+-- author's own deck, and the order and sort of the Deck, written from their settings on that day (tools: the scratchpad's
+-- gen_defaults.py read user_settings.config). The mod option "Update default cards" writes them over a player's deck
+-- (Events.update_defaults). GrandfathersTarot.lua seeds them on a fresh
 -- install; Events.reset (a card's Reset, Restore defaults, an empty preset) gives a card these values back. The options'
 -- defaults are in GrandfathersTarot_data.lua.
 -- One assignment per line, not one table literal: LuaJIT reports a table literal as a single line, so a 1,800-line literal
@@ -10,44 +12,44 @@ local UserDefaults = {}
 UserDefaults.CARD_PREFIXES = { "wave_def_", "on_", "pct_", "su_", "th_", "cd_", "wh_", "sp_", "snd_", "fx_", "dmin_", "dmax_", "ev_", "rf_", "re_", "cl_", "rk_", "del_" }
 
 local deck = {}
-deck.deck_order = "custom_46,custom_50,custom_70,custom_73,custom_47,custom_34,custom_26,custom_49,custom_42,custom_36,custom_67,custom_38,custom_68,custom_23,custom_35,custom_41,custom_27,custom_39,custom_69,custom_17,custom_25,custom_22,custom_76,custom_21,custom_28,custom_29,custom_48,custom_66,custom_55,custom_24,custom_53,custom_1,custom_7,custom_6,custom_54,bomber_frenzy,ogryn_brutes,custom_75,custom_63,custom_18,custom_51,custom_37,custom_58,custom_16,custom_13,custom_12,custom_33,custom_31,custom_45,sniper_elite,custom_14,custom_2,custom_61,custom_60,wave_small,custom_64,custom_44,boss_ambush,custom_8,custom_74,wave_large,custom_65,custom_56,custom_9,wave_medium,custom_59,custom_11,custom_15,custom_19,custom_62,elite_squad,custom_32,custom_30,special_pack,custom_3,custom_20,custom_10,hound_frenzy,custom_5,custom_40,custom_71,custom_43,custom_4,custom_57,custom_52,grenade_legion,custom_72,wave_huge,custom_77,custom_78,custom_79,custom_80,custom_81,custom_82,custom_83,custom_84,custom_85,custom_86,custom_87,custom_88"
-deck.deck_sort = "face"
-deck.deck_sort_desc = true
+deck.deck_order = "custom_19,custom_14,custom_15,custom_72,grenade_legion,special_pack,custom_30,custom_59,wave_medium,custom_32,custom_9,custom_56,custom_68,custom_49,custom_26,custom_52,custom_8,custom_75,custom_6,sniper_elite,custom_57,custom_4,custom_45,custom_31,custom_58,custom_34,custom_38,custom_47,custom_35,custom_67,custom_71,custom_74,custom_24,custom_33,custom_5,hound_frenzy,custom_7,custom_65,custom_51,custom_37,custom_18,custom_44,custom_64,custom_12,wave_small,custom_60,wave_large,ogryn_brutes,custom_43,elite_squad,custom_10,custom_27,custom_39,custom_69,custom_73,custom_41,custom_66,custom_1,custom_20,bomber_frenzy,custom_53,custom_3,boss_ambush,custom_77,custom_11,custom_13,custom_54,custom_61,custom_40,custom_16,custom_62,custom_2,custom_36,custom_46,custom_50,custom_70,custom_23,custom_42,custom_21,custom_28,custom_29,custom_48,custom_63,custom_22,custom_76,custom_25,custom_17,custom_55,wave_huge,custom_78,custom_79,custom_80,custom_81,custom_82,custom_83,custom_84,custom_85,custom_86,custom_87,custom_88"
+deck.deck_sort = "threat"
+deck.deck_sort_desc = false
 deck.picker_stay = false
-deck.shelf_faction = "dreg"
+deck.shelf_faction = "scab"
 UserDefaults.deck = deck
 
 local cards = {}
-cards.cd_bomber_frenzy = 270
+cards.cd_bomber_frenzy = 360
 cards.cd_boss_ambush = 240
 cards.cd_custom_1 = 600
 cards.cd_custom_10 = 120
-cards.cd_custom_11 = 300
+cards.cd_custom_11 = 390
 cards.cd_custom_12 = 300
-cards.cd_custom_13 = 300
-cards.cd_custom_14 = 300
+cards.cd_custom_13 = 420
+cards.cd_custom_14 = 510
 cards.cd_custom_15 = 600
-cards.cd_custom_16 = 150
+cards.cd_custom_16 = 420
 cards.cd_custom_17 = 1800
 cards.cd_custom_18 = 420
 cards.cd_custom_19 = 480
-cards.cd_custom_2 = 240
-cards.cd_custom_20 = 300
+cards.cd_custom_2 = 300
+cards.cd_custom_20 = 1200
 cards.cd_custom_21 = 1200
 cards.cd_custom_22 = 1500
 cards.cd_custom_23 = 1200
-cards.cd_custom_24 = 360
+cards.cd_custom_24 = 540
 cards.cd_custom_25 = 1800
-cards.cd_custom_26 = 300
+cards.cd_custom_26 = 540
 cards.cd_custom_27 = 600
 cards.cd_custom_28 = 1200
 cards.cd_custom_29 = 1200
 cards.cd_custom_3 = 600
-cards.cd_custom_30 = 300
+cards.cd_custom_30 = 360
 cards.cd_custom_31 = 300
-cards.cd_custom_32 = 300
+cards.cd_custom_32 = 450
 cards.cd_custom_33 = 300
-cards.cd_custom_34 = 300
+cards.cd_custom_34 = 540
 cards.cd_custom_35 = 630
 cards.cd_custom_36 = 1200
 cards.cd_custom_37 = 300
@@ -68,16 +70,16 @@ cards.cd_custom_5 = 300
 cards.cd_custom_50 = 1500
 cards.cd_custom_51 = 300
 cards.cd_custom_52 = 300
-cards.cd_custom_53 = 300
+cards.cd_custom_53 = 540
 cards.cd_custom_54 = 300
 cards.cd_custom_55 = 480
 cards.cd_custom_56 = 300
 cards.cd_custom_57 = 300
 cards.cd_custom_58 = 300
 cards.cd_custom_59 = 300
-cards.cd_custom_6 = 240
+cards.cd_custom_6 = 300
 cards.cd_custom_60 = 240
-cards.cd_custom_61 = 720
+cards.cd_custom_61 = 810
 cards.cd_custom_62 = 420
 cards.cd_custom_63 = 900
 cards.cd_custom_64 = 420
@@ -92,11 +94,11 @@ cards.cd_custom_71 = 600
 cards.cd_custom_72 = 300
 cards.cd_custom_73 = 900
 cards.cd_custom_74 = 300
-cards.cd_custom_75 = 120
+cards.cd_custom_75 = 420
 cards.cd_custom_76 = 1500
-cards.cd_custom_77 = 120
-cards.cd_custom_78 = 120
-cards.cd_custom_79 = 120
+cards.cd_custom_77 = 600
+cards.cd_custom_78 = 540
+cards.cd_custom_79 = 480
 cards.cd_custom_8 = 300
 cards.cd_custom_80 = 120
 cards.cd_custom_81 = 120
@@ -108,12 +110,12 @@ cards.cd_custom_86 = 120
 cards.cd_custom_87 = 120
 cards.cd_custom_88 = 120
 cards.cd_custom_9 = 300
-cards.cd_elite_squad = 300
+cards.cd_elite_squad = 420
 cards.cd_grenade_legion = 300
 cards.cd_hound_frenzy = 210
-cards.cd_ogryn_brutes = 300
-cards.cd_sniper_elite = 300
-cards.cd_special_pack = 300
+cards.cd_ogryn_brutes = 390
+cards.cd_sniper_elite = 360
+cards.cd_special_pack = 390
 cards.cd_wave_huge = 240
 cards.cd_wave_large = 300
 cards.cd_wave_medium = 180
@@ -370,7 +372,7 @@ cards.dmax_custom_51 = 0
 cards.dmax_custom_52 = 0
 cards.dmax_custom_53 = 0
 cards.dmax_custom_54 = 0
-cards.dmax_custom_55 = 0
+cards.dmax_custom_55 = 30
 cards.dmax_custom_56 = 0
 cards.dmax_custom_57 = 0
 cards.dmax_custom_58 = 0
@@ -470,7 +472,7 @@ cards.dmin_custom_51 = 0
 cards.dmin_custom_52 = 0
 cards.dmin_custom_53 = 0
 cards.dmin_custom_54 = 0
-cards.dmin_custom_55 = 0
+cards.dmin_custom_55 = 5
 cards.dmin_custom_56 = 0
 cards.dmin_custom_57 = 0
 cards.dmin_custom_58 = 0
@@ -832,7 +834,7 @@ cards.pct_custom_17 = 1
 cards.pct_custom_18 = 2
 cards.pct_custom_19 = 3
 cards.pct_custom_2 = 2
-cards.pct_custom_20 = 4
+cards.pct_custom_20 = 3
 cards.pct_custom_21 = 1
 cards.pct_custom_22 = 1
 cards.pct_custom_23 = 2
@@ -870,7 +872,7 @@ cards.pct_custom_51 = 8
 cards.pct_custom_52 = 5
 cards.pct_custom_53 = 3
 cards.pct_custom_54 = 9
-cards.pct_custom_55 = 1
+cards.pct_custom_55 = 2
 cards.pct_custom_56 = 10
 cards.pct_custom_57 = 6
 cards.pct_custom_58 = 7
@@ -892,11 +894,11 @@ cards.pct_custom_71 = 3
 cards.pct_custom_72 = 4
 cards.pct_custom_73 = 3
 cards.pct_custom_74 = 5
-cards.pct_custom_75 = 10
+cards.pct_custom_75 = 7
 cards.pct_custom_76 = 1
-cards.pct_custom_77 = 10
-cards.pct_custom_78 = 10
-cards.pct_custom_79 = 10
+cards.pct_custom_77 = 3
+cards.pct_custom_78 = 6
+cards.pct_custom_79 = 5
 cards.pct_custom_8 = 7
 cards.pct_custom_80 = 10
 cards.pct_custom_81 = 10
@@ -970,7 +972,7 @@ cards.re_custom_51 = 10
 cards.re_custom_52 = 7
 cards.re_custom_53 = 12
 cards.re_custom_54 = 10
-cards.re_custom_55 = 12
+cards.re_custom_55 = 10
 cards.re_custom_56 = 15
 cards.re_custom_57 = 10
 cards.re_custom_58 = 10
@@ -994,7 +996,7 @@ cards.re_custom_73 = 10
 cards.re_custom_74 = 10
 cards.re_custom_75 = 10
 cards.re_custom_76 = 10
-cards.re_custom_77 = 10
+cards.re_custom_77 = 15
 cards.re_custom_78 = 10
 cards.re_custom_79 = 10
 cards.re_custom_8 = 10
@@ -1068,9 +1070,9 @@ cards.rf_custom_5 = 1
 cards.rf_custom_50 = 60
 cards.rf_custom_51 = 60
 cards.rf_custom_52 = 21
-cards.rf_custom_53 = 60
+cards.rf_custom_53 = 48
 cards.rf_custom_54 = 60
-cards.rf_custom_55 = 48
+cards.rf_custom_55 = 30
 cards.rf_custom_56 = 30
 cards.rf_custom_57 = 60
 cards.rf_custom_58 = 60
@@ -1094,7 +1096,7 @@ cards.rf_custom_73 = 60
 cards.rf_custom_74 = 60
 cards.rf_custom_75 = 60
 cards.rf_custom_76 = 60
-cards.rf_custom_77 = 60
+cards.rf_custom_77 = 30
 cards.rf_custom_78 = 60
 cards.rf_custom_79 = 60
 cards.rf_custom_8 = 60
@@ -1270,14 +1272,14 @@ cards.snd_custom_51 = "loc_enemy_hound_master_a__hound_attack_a_07"
 cards.snd_custom_52 = ""
 cards.snd_custom_53 = ""
 cards.snd_custom_54 = ""
-cards.snd_custom_55 = "loc_enemy_daemonhost_a__mantra_1_09"
+cards.snd_custom_55 = "loc_enemy_chaos_ogryn_armoured_executor_a__assault_05"
 cards.snd_custom_56 = ""
 cards.snd_custom_57 = "loc_enemy_traitor_enforcer_executor_a__special_attack_08"
 cards.snd_custom_58 = ""
 cards.snd_custom_59 = ""
 cards.snd_custom_6 = "loc_ogryn_b__seen_enemy_poxwalker_bomber_01"
 cards.snd_custom_60 = ""
-cards.snd_custom_61 = ""
+cards.snd_custom_61 = "loc_captain_twin_female_a__cult_gas_cloud_a_05"
 cards.snd_custom_62 = ""
 cards.snd_custom_63 = ""
 cards.snd_custom_64 = "loc_captain_twin_female_a__cult_hurt_player_a_01"
@@ -1294,7 +1296,7 @@ cards.snd_custom_73 = ""
 cards.snd_custom_74 = "loc_captain_twin_female_a__cult_downed_player_a_01"
 cards.snd_custom_75 = ""
 cards.snd_custom_76 = "loc_enemy_cultist_berzerker_b__assault_12;loc_enemy_cultist_berzerker_b__assault_16"
-cards.snd_custom_77 = ""
+cards.snd_custom_77 = "loc_enemy_daemonhost_a__mantra_2_01"
 cards.snd_custom_78 = ""
 cards.snd_custom_79 = ""
 cards.snd_custom_8 = "loc_ogryn_b__heard_enemy_houndmaster_01"
@@ -1312,7 +1314,7 @@ cards.snd_elite_squad = "loc_enemy_cultist_berzerker_b__assault_12"
 cards.snd_grenade_legion = ""
 cards.snd_hound_frenzy = ""
 cards.snd_ogryn_brutes = ""
-cards.snd_sniper_elite = ""
+cards.snd_sniper_elite = "loc_ogryn_b__seen_enemy_sniper_01"
 cards.snd_special_pack = ""
 cards.snd_wave_huge = ""
 cards.snd_wave_large = ""
@@ -1470,7 +1472,7 @@ cards.su_custom_51 = "snare"
 cards.su_custom_52 = "plague"
 cards.su_custom_53 = "warp"
 cards.su_custom_54 = "brute"
-cards.su_custom_55 = "warp"
+cards.su_custom_55 = "heresy"
 cards.su_custom_56 = "swarm"
 cards.su_custom_57 = "plague"
 cards.su_custom_58 = "snare"
@@ -1494,9 +1496,9 @@ cards.su_custom_73 = "faith"
 cards.su_custom_74 = "fateful"
 cards.su_custom_75 = "brute"
 cards.su_custom_76 = "nightmare"
-cards.su_custom_77 = "plague"
-cards.su_custom_78 = "plague"
-cards.su_custom_79 = "plague"
+cards.su_custom_77 = "warp"
+cards.su_custom_78 = "swarm"
+cards.su_custom_79 = "fateful"
 cards.su_custom_8 = "fateful"
 cards.su_custom_80 = "plague"
 cards.su_custom_81 = "plague"
@@ -1519,7 +1521,7 @@ cards.su_wave_large = "swarm"
 cards.su_wave_medium = "swarm"
 cards.su_wave_small = "fateful"
 cards.th_bomber_frenzy = 5
-cards.th_boss_ambush = 4
+cards.th_boss_ambush = 5
 cards.th_custom_1 = 5
 cards.th_custom_10 = 4
 cards.th_custom_11 = 5
@@ -1536,7 +1538,7 @@ cards.th_custom_20 = 5
 cards.th_custom_21 = 6
 cards.th_custom_22 = 6
 cards.th_custom_23 = 6
-cards.th_custom_24 = 5
+cards.th_custom_24 = 4
 cards.th_custom_25 = 6
 cards.th_custom_26 = 3
 cards.th_custom_27 = 5
@@ -1588,15 +1590,15 @@ cards.th_custom_68 = 3
 cards.th_custom_69 = 5
 cards.th_custom_7 = 4
 cards.th_custom_70 = 6
-cards.th_custom_71 = 5
-cards.th_custom_72 = 0
+cards.th_custom_71 = 4
+cards.th_custom_72 = 3
 cards.th_custom_73 = 5
-cards.th_custom_74 = 0
+cards.th_custom_74 = 4
 cards.th_custom_75 = 3
 cards.th_custom_76 = 6
-cards.th_custom_77 = 0
-cards.th_custom_78 = 0
-cards.th_custom_79 = 0
+cards.th_custom_77 = 5
+cards.th_custom_78 = 1
+cards.th_custom_79 = 4
 cards.th_custom_8 = 3
 cards.th_custom_80 = 0
 cards.th_custom_81 = 0
@@ -1613,25 +1615,25 @@ cards.th_grenade_legion = 0
 cards.th_hound_frenzy = 4
 cards.th_ogryn_brutes = 4
 cards.th_sniper_elite = 3
-cards.th_special_pack = 1
+cards.th_special_pack = 2
 cards.th_wave_huge = 0
 cards.th_wave_large = 4
 cards.th_wave_medium = 2
 cards.th_wave_small = 4
 cards.wave_def_bomber_frenzy = "The Tower\t1 crusher[garden+toll+purple_stimm]{health=1000 size=120 speed=140 gap=50 cancel=15 boss=1}<applied_stimm!:FFFFFFFF>(name The Tower)(colour 453f3f)(twins chaos_ogryn_executor chaos_ogryn_executor 0000 1)"
 cards.wave_def_boss_ambush = "The Devil\t2 plague ogryn|beast of nurgle|chaos spawn|packmaster"
-cards.wave_def_custom_1 = "The Forbidden\t1 daemonhost[garden]{speed=120 gap=83 mass=10 dot=130 boss=1}(leaves 2)(name The Forbidden)(colour b050ff)"
+cards.wave_def_custom_1 = "The Forbidden\t1 daemonhost[garden]{gap=83 mass=10 explosion=140 dot=140 boss=1}(leaves 2)(name The Forbidden)(colour b050ff)"
 cards.wave_def_custom_10 = "The Shade\t3 crusher{health=250 size=65 speed=135 gap=80 boss=1}<applied_stimm:B4565779>(name The Shade)(colour 57534f), 10 poxwalker{health=200 size=115 speed=140 mass=50 explosion=15}, 10 mutated poxwalker{health=200 size=115 speed=140 explosion=15}, 15 scab{health=200 size=115 speed=130 explosion=15}"
 cards.wave_def_custom_11 = "The Glutton\t1 beast of nurgle{health=200 speed=150 gap=77}, 3 dreg vanguard[garden+corrupted]{health=250 speed=115 gap=87}"
 cards.wave_def_custom_12 = "The Glass\t3 plasma gunner{health=80 size=115 speed=130 gap=80 fire=75 explosion=300 dot=300 damage=250 boss=1}<applied_stimm+outline!:FFFFFFFF>(name Glass Cannon)(colour d1e3bc)"
 cards.wave_def_custom_13 = "The Salvo\t2 shocktrooper[garden+purple_stimm]{health=125 speed=110 gap=80 fire=50 burst=150}(twins renegade_shocktrooper renegade_shocktrooper 1010 2)@=, 2 dreg shocktrooper[garden+purple_stimm]{health=125 speed=110 gap=80 fire=50 burst=150}(twins renegade_shocktrooper renegade_shocktrooper 1010 2)@="
 cards.wave_def_custom_14 = "The Vultures\t4 scab assault{health=150 size=80 speed=110 damage=200}<applied_stimm!:FF72FF35>"
-cards.wave_def_custom_15 = "The Wretched\t25 dreg[corrupted+toughened]{speed=125 gap=80 mass=125}"
+cards.wave_def_custom_15 = "The Wretched\t20 dreg[corrupted+toughened]{speed=125 gap=80 mass=125}"
 cards.wave_def_custom_16 = "The Firepower\t5 reaper[toll+toughened]{health=250 size=110 speed=125 fire=75}, 3 plasma gunner[enraged+toughened]{health=200 speed=125 fire=75}, 2 sniper{health=150 fire=75}, 2 shocktrooper[toughened]{health=150 fire=75}"
 cards.wave_def_custom_17 = "The Festering Carnival\t3 mutant{health=200 speed=150 gap=50}<skin_warp:FF8000FF>@=, 3 burster{health=200 speed=135 damage=200}<skin_warp:FF8000FF>@=, 2 burster[enraged]{health=50 size=130 speed=50 damage=500}<applied_stimm:F8FF6900>, 1 tox flamer{gap=75}@="
 cards.wave_def_custom_18 = "The Triad\t3 trapper[enraged]{health=600 size=105 speed=175 mass=250 explosion=50 dot=80 net=15 pause=10 boss=1}(name The Triad)"
 cards.wave_def_custom_19 = "The Turning\t1 mutated poxwalker[corrupted]{health=1000 size=110 speed=125 gap=80}<skin_warp:FF8000FF>"
-cards.wave_def_custom_2 = "The Fortress\t3 mauler{health=200 speed=110 gap=91 mass=150}, 1 bulwark[toll+purple_stimm]{health=250 size=110 speed=115 gap=77}, 1 bulwark[garden+enraged+purple_stimm]{health=250 speed=115 gap=77}, 5 dreg vanguard[bolstering]{health=200 speed=110 gap=91}, 5 scab vanguard[bolstering]{health=200 speed=110 gap=91}"
+cards.wave_def_custom_2 = "The Fortress\t3 mauler{health=200 speed=110 gap=91 mass=150}<applied_stimm!:FF77FF74>, 2 bulwark[toll+purple_stimm]{health=250 size=110 speed=115 gap=77}, 1 bulwark[garden+enraged+purple_stimm]{health=250 speed=115 gap=77}, 5 dreg vanguard[bolstering]{health=200 speed=110 gap=91}, 5 scab vanguard[bolstering]{health=200 speed=110 gap=91}"
 cards.wave_def_custom_20 = "The Ascendant\t1 dreg captain[garden+enraged]{health=250 speed=140 gap=50 burst=200 damage=300 boss=1}<applied_stimm+outline!:FFA68B93>(name The Ascendant)(colour b3b1af)"
 cards.wave_def_custom_21 = "Wrath\t1 chaos spawn[enraged]{health=350 size=110 speed=140 gap=30 mass=50 explosion=150 dot=150 damage=150 cancel=30 combo=1 boss=1}<outline+outline!:B4FFC700>(name Wrath)(colour 850404)"
 cards.wave_def_custom_22 = "The End\t1 daemonhost[garden]{health=80 gap=75 boss=1}<applied_stimm+outline!:FF9B00FF>(name The End)(colour b050ff), 1 daemonhost{health=80 gap=75 boss=1}(name The End)(colour b050ff)"
@@ -1654,7 +1656,7 @@ cards.wave_def_custom_37 = "Warped Units\t2 trapper[enraged]{health=1000 size=11
 cards.wave_def_custom_38 = "Temperance\t"
 cards.wave_def_custom_39 = "The Sanctuary\t"
 cards.wave_def_custom_4 = "The Foul Iron\t2 crusher[bolstering+rotten]{health=150 speed=110 mass=200}, 3 mauler[bolstering+rotten]{health=150 speed=110 gap=87}, 4 scab rager[bolstering+rotten]{health=150 speed=110 gap=87 mass=50}"
-cards.wave_def_custom_40 = "The Hollow Giants\t5 crusher[purple_stimm+rotten]{health=170 size=115 speed=90 gap=90 explosion=150 dot=150 cancel=20 boss=1}<applied_stimm!:FF48D362>(name Hollow Giant)(colour 477514)"
+cards.wave_def_custom_40 = "The Hollow Giants\t5 crusher[purple_stimm+rotten]{health=170 size=110 speed=90 gap=90 explosion=150 dot=150 cancel=20 boss=1}<applied_stimm!:FF48D362>(name Hollow Giant)(colour 477514)"
 cards.wave_def_custom_41 = "The Armoury's Gift\t"
 cards.wave_def_custom_42 = "Communion\t"
 cards.wave_def_custom_43 = "Hollow Rage\t7 scab rager[bolstering+rotten]{health=120 size=105 speed=110 mass=50 damage=130 cancel=20}<skin_bruise:FF8000FF>"
@@ -1668,14 +1670,14 @@ cards.wave_def_custom_5 = "The Reflection\t1 beast of nurgle|chaos spawn|melee t
 cards.wave_def_custom_50 = "Fever Dream\t"
 cards.wave_def_custom_51 = "Warped Creatures\t2 armored hound[enraged]{health=1000 size=105 speed=160 gap=25 damage=200 cancel=50 pause=6 boss=1}<skin_warp+outline!:C9807F3A>(name Warped Hound)(colour 9e9a1e)"
 cards.wave_def_custom_52 = "Nurglings\t1 beast of nurgle{health=15 size=50 speed=130 spray=100 boss=1}<slot_stimm+outline!:CB94932E>(name Nurglings)(colour 667513)@="
-cards.wave_def_custom_53 = "Minor Warp Rift\t1 daemonhost[purple_stimm]{health=15 size=80 boss=1}(name Weakened Daemonhost)(colour 4890ff)(twins chaos_poxwalker_bomber default 0000 1)@="
+cards.wave_def_custom_53 = "Minor Warp Rift\t1 daemonhost{health=15 size=80 damage=70 boss=1}(name Weakened Daemonhost)(colour 4890ff)@="
 cards.wave_def_custom_54 = "Frenzied Armour\t4 mauler[toll+purple_stimm]{health=500 size=125 speed=125 gap=65 mass=150 damage=150 cancel=33 combo=1 boss=1}<applied_stimm+outline!:D2FF2500>(name Frenzied Mauler)(colour 940a0a)(twins renegade_executor default 0000 1)"
-cards.wave_def_custom_55 = "Warp Assault\t1 daemonhost{health=15 size=85 cancel=20 combo=1}<skin_warp:FFA900D7>@="
+cards.wave_def_custom_55 = "The Blitzkrieg\t2 crusher{speed=125 gap=75 boss=1}<applied_stimm!:FFC0BEC3>(name The Iron Vanguard)(colour 4f4846)@=, 3 mauler{speed=140 gap=75}<applied_stimm!:FFD0D5D1>@=, 4 scab rager{speed=140 gap=75}<applied_stimm!:FFCFD2C8>@=, 2 bomber{speed=140 gap=50}<applied_stimm!:FFD1D4C9>@=, 2 shocktrooper{speed=130}<applied_stimm!:FFCAD6C3>@=, 1 reaper{speed=130}<applied_stimm!:FFC5D1C7>@="
 cards.wave_def_custom_56 = "Trampled Soul\t50 poxwalker{health=150 speed=130 explosion=75}@="
 cards.wave_def_custom_57 = "Hollow Frontline\t7 mauler[purple_stimm+rotten]{health=150 size=110 speed=90 gap=75 mass=50 damage=130 boss=1}<applied_stimm!:FF6DA26F>(name Hollow Mauler)(colour 476b23)"
 cards.wave_def_custom_58 = "Special Deliverance\t3 flamer, 3 hound, 3 mutant, 3 burster, 3 bomber, 3 trapper, 3 sniper"
 cards.wave_def_custom_59 = "Shield Wall\t5 scab vanguard[bolstering], 5 dreg vanguard[bolstering]"
-cards.wave_def_custom_6 = "The Calamity\t1 burster[enraged]{health=700 size=175 speed=40 damage=500 boss=1}<outline+outline!:FFFF9800>(name The Calamity)(colour 8f1b6d)"
+cards.wave_def_custom_6 = "The Calamity\t1 burster[enraged]{health=800 size=175 speed=40 damage=500 boss=1}<outline+outline!:FFFF9800>(name The Calamity)(colour 8f1b6d)"
 cards.wave_def_custom_60 = "The Captains\t2 dreg captain{health=50 speed=130 gap=50}(no shield), 2 captain{health=50 speed=130 gap=50}(no shield)"
 cards.wave_def_custom_61 = "Minefield\t5 ranged twin{health=20}(no shield)"
 cards.wave_def_custom_62 = "Engulfed in flames\t5 flamer[bolstering+fire]{health=200 speed=125}<skin_burnt:FF8000FF>@=, 5 bomber[bolstering+fire]{health=200 speed=125}<skin_burnt:FF8000FF>@=, 3 burster@="
@@ -1689,14 +1691,14 @@ cards.wave_def_custom_69 = "The Blessed Shell\t"
 cards.wave_def_custom_7 = "The Chasers\t2 mutant[enraged]{health=750 size=115 speed=200 gap=25 dot=50 damage=250 boss=1}(name The Chaser)(colour 5ec850)"
 cards.wave_def_custom_70 = "Blessed Magazine\t"
 cards.wave_def_custom_71 = "The Undying\t1 tox bomber[purple_stimm]{health=200 size=125 speed=125 gap=25 explosion=50 dot=50 boss=1}<applied_stimm!:CD9AFF00>(name The Undying Plague)(colour 9cb030)(twins cultist_grenadier none 1000 5)"
-cards.wave_def_custom_72 = "The Unburied\t1 mauler[purple_stimm+rotten]{health=200 size=120 speed=105 gap=75 damage=125 boss=1}<applied_stimm!:FF00FF00>(name The Unburied)(colour 9cb030)(twins renegade_executor none 1100 5)"
+cards.wave_def_custom_72 = "The Unburied\t1 mauler[garden+purple_stimm+rotten]{health=200 size=120 speed=110 gap=25 damage=150 cancel=20 boss=1}<applied_stimm!:FF00FF00>(name The Unburied)(colour 9cb030)(twins renegade_executor none 1100 4)"
 cards.wave_def_custom_73 = "Perfect Sight\t"
 cards.wave_def_custom_74 = "The Only Child\t1 melee twin{health=130 speed=110 gap=75 damage=130 cancel=40 combo=1 boss=1}<applied_stimm!:FFFFFFFF>(no shield)(name The Only Child)(colour e8e8e8)"
 cards.wave_def_custom_75 = "The Evolved\t1 scab vanguard[enraged+purple_stimm]{health=1000 size=115 speed=125 gap=50 boss=1}<applied_stimm!:FFFFFFFF>(name The Evolved)(colour e8e8e8)(twins chaos_ogryn_bulwark chaos_ogryn_bulwark 1010 2)"
 cards.wave_def_custom_76 = "Endless Rage\t2 rager[purple_stimm]{size=105 speed=95 explosion=80 damage=120 cancel=20 combo=1 boss=1}<skin_warp+outline!:FFA3A081>(name Ira)(colour 706965)(twins cultist_berzerker cultist_berzerker 1111 4)"
-cards.wave_def_custom_77 = ""
-cards.wave_def_custom_78 = ""
-cards.wave_def_custom_79 = ""
+cards.wave_def_custom_77 = "Splintered Veil\t3 daemonhost{health=10 gap=150 explosion=33 dot=33 damage=25 boss=1}<applied_stimm!:FFFC4991>(name Fragile Entity)(colour d784db)@="
+cards.wave_def_custom_78 = "The Stampede\t3 mutant{health=150 speed=110}, 30 poxwalker{speed=130}"
+cards.wave_def_custom_79 = "Twin Titans\t2 plague ogryn[toll]{health=60 size=120 speed=115 gap=80 cancel=15 combo=1 boss=1}<applied_stimm!:FF8E0025>(name Lesser Colossus)(colour ab3333)"
 cards.wave_def_custom_8 = "The Pursuer\t1 packmaster{health=40 size=90 speed=170 gap=50 cancel=25 combo=1 boss=1}(name The Pursuer)(colour e8c040)"
 cards.wave_def_custom_80 = ""
 cards.wave_def_custom_81 = ""
@@ -1708,7 +1710,7 @@ cards.wave_def_custom_86 = ""
 cards.wave_def_custom_87 = ""
 cards.wave_def_custom_88 = ""
 cards.wave_def_custom_9 = "The Infested\t35 mutated poxwalker{health=400 gap=80 mass=20}, 1 dreg vanguard[garden]{health=300 size=110 gap=91 mass=300}, 5 dreg{health=250 mass=20}"
-cards.wave_def_elite_squad = "The Chariot\t7 rager[toll+purple_stimm]{health=200 size=115 speed=125}"
+cards.wave_def_elite_squad = "The Chariot\t8 rager[toll+purple_stimm]{health=200 size=115 speed=125}"
 cards.wave_def_grenade_legion = "The Fumes\t1 tox bomber{speed=150 gap=83}@="
 cards.wave_def_hound_frenzy = "The Hunt\t2 armored hound[enraged]{health=500 speed=125 gap=50 boss=1}(name Gorehound)(colour 8f1f36)@="
 cards.wave_def_ogryn_brutes = "The Brutes\t2 crusher[purple_stimm]{health=200}, 2 bulwark[purple_stimm]{health=200}, 2 reaper[purple_stimm]{health=200 fire=125}"
@@ -1770,7 +1772,7 @@ cards.wh_custom_51 = "It wasn't hesitation. It was patience."
 cards.wh_custom_52 = ""
 cards.wh_custom_53 = "Pieces of it crawled out."
 cards.wh_custom_54 = ""
-cards.wh_custom_55 = "Someone stop the voices."
+cards.wh_custom_55 = "Strike first. Strike fast. Strike last."
 cards.wh_custom_56 = ""
 cards.wh_custom_57 = ""
 cards.wh_custom_58 = ""
@@ -1794,9 +1796,9 @@ cards.wh_custom_73 = "Blind faith."
 cards.wh_custom_74 = "Two Fates Haunt One Soul."
 cards.wh_custom_75 = "Rumor has it there is a secret."
 cards.wh_custom_76 = "The Eternal Rage lingers."
-cards.wh_custom_77 = ""
-cards.wh_custom_78 = ""
-cards.wh_custom_79 = ""
+cards.wh_custom_77 = "Three echoes of something far worse."
+cards.wh_custom_78 = "They do not stop. Neither should you"
+cards.wh_custom_79 = "Two hearts. One hunger."
 cards.wh_custom_8 = "The hunt beginneth."
 cards.wh_custom_80 = ""
 cards.wh_custom_81 = ""
