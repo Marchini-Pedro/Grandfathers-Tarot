@@ -614,3 +614,14 @@ Things we know are missing or unverified, each with the next concrete step.
 - A beneficial card is in the draw only with an effect its suit allows: a test card needs `fx_` too.
 - The data file's floor on LuaJIT dropped to 70 (70.83 measured; Lua 5.5 above 72): new option widgets are declarations.
 
+
+## 2026-10-12 - "trying to toggle hook that doesn't exist" after a mod reload
+- Seen after Ctrl+Shift+R (console log 2026-10-12 01:37): 803 DMF warnings `(hook_disable): trying to toggle hook that doesn't
+  exist: <method>` from the hook gate, for every gated method; none before the reload and none after a fresh game start.
+- Cause is not ours: Mod Performance Monitor (Vortex-managed, load order 48) saves DMF's `DMFMod.hook/hook_safe/hook_origin` in a
+  `persistent_table`, which outlives a reload. DMF itself is rebuilt on reload (new `DMFMod` class, new hook registry), but MPM
+  wraps the SAVED functions, so every later `mod:hook` goes into the dead DMF's registry while `hook_enable/hook_disable` use the
+  new one. After such a reload our hooks are not in the live registry (most do not run at all: the old DMF thinks the function is
+  still hooked). Nothing the gate can check: DMF's registry is a local.
+- What to do: restart the game instead of reloading mods while MPM is on. The fix belongs in MPM: re-capture `DMFMod[name]` when it
+  is not MPM's own wrapper. Other mods showed the same warning in that log (SoloPlayMoreHavoc).
