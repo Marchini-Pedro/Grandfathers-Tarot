@@ -260,15 +260,17 @@ end)
 
 -- The Nightmare's grey world (ui/hud_element_dread.lua): the game drops the "last wound" mood every frame when the player is not on
 -- their last wound; while the dread lasts it is kept on.
+-- (through the class's file: the class loads after the mod, core/hook_gate.lua hook_file)
 pcall(function ()
-	mod:hook("PlayerUnitMoodExtension", "_remove_mood", function (func, self, t, mood_type, ...)
+	local function keep_last_wound(func, self, t, mood_type, ...)
 		if mood_type == "last_wound" and RW.dread_active then
 			return
 		end
 
 		return func(self, t, mood_type, ...)
-	end)
-	RW.hook_gate.add("dread", "PlayerUnitMoodExtension", "_remove_mood", function ()
+	end
+
+	RW.hook_gate.hook_file("dread", "scripts/extension_systems/mood/player_unit_mood_extension", { { "_remove_mood", keep_last_wound } }, function ()
 		return RW.dread_active == true
 	end)
 end)
@@ -334,11 +336,16 @@ local function golden_draw(func, self, ...)
 	end
 end
 
-for _, name in ipairs({ "HudElementPlayerPanelBase", "HudElementPersonalPlayerPanel", "HudElementTeamPlayerPanel" }) do
+-- The two panel classes the game makes, through their files (they load after the mod, core/hook_gate.lua hook_file). Not the base
+-- class any more (2026-10-17): the game never makes a HudElementPlayerPanelBase itself, so DMF never made its delayed hook and the
+-- gate warned "trying to toggle hook that doesn't exist: _draw_health_bar" for the whole session; it never drew anything either.
+for _, path in ipairs({
+	"scripts/ui/hud/elements/personal_player_panel/hud_element_personal_player_panel",
+	"scripts/ui/hud/elements/team_player_panel/hud_element_team_player_panel",
+}) do
 	pcall(function ()
-		mod:hook(name, "_draw_health_bar", golden_draw)
 		-- on while a charge is armed (and LINGER seconds after, for the panels to lose the gold)
-		RW.hook_gate.add("golden", name, "_draw_health_bar", function ()
+		RW.hook_gate.hook_file("golden", path, { { "_draw_health_bar", golden_draw } }, function ()
 			local effects = RW.effects
 
 			return not RW.dead and effects ~= nil and effects.team_rescues ~= nil and (effects.team_rescues() or 0) > 0

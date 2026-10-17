@@ -1916,6 +1916,29 @@ local function gate(name, obj, methods, wanted)
 	end
 end
 
+-- The same for a class the game loads after the mod (2026-10-17): its hooks are made on the class's file when the game loads it
+-- (core/hook_gate.lua, hook_file), so the gate never switches a hook DMF has not made yet. Without the gate the hooks are made by
+-- class name, as before. `hooks` is a list of { method, fn, safe = true for hook_safe }.
+local function gated_file(name, path, class_name, hooks, wanted)
+	local hook_gate = mod.rw and mod.rw.hook_gate
+
+	if hook_gate and hook_gate.hook_file and hook_gate.hook_file(name, path, hooks, function ()
+		return not Tuning.dead and wanted()
+	end) then
+		return
+	end
+
+	for i = 1, #hooks do
+		local spec = hooks[i]
+
+		if spec.safe then
+			mod:hook_safe(class_name, spec[1], spec[2])
+		elseif mod.hook then
+			mod:hook(class_name, spec[1], spec[2])
+		end
+	end
+end
+
 local function card_units_alive()
 	local bypass = mod.rw and mod.rw.bypass
 
@@ -1966,10 +1989,13 @@ Tuning.install = function ()
 
 	-- the Mutant's charge follows the run speed (host)
 	if mod.hook then
-		mod:hook("BtMutantChargerChargeAction", "_update_charging", function (...) return Tuning.charge_update(...) end)
-		mod:hook("BtMutantChargerChargeAction", "_update_charged_past", function (...) return Tuning.charge_update(...) end)
-		mod:hook("BtMutantChargerChargeAction", "_update_grabbed_target", function (...) return Tuning.charge_update(...) end)
-		gate("charge", "BtMutantChargerChargeAction", { "_update_charging", "_update_charged_past", "_update_grabbed_target" }, function ()
+		local function charge_update(...) return Tuning.charge_update(...) end
+
+		gated_file("charge", "scripts/extension_systems/behavior/nodes/actions/bt_mutant_charger_charge_action", "BtMutantChargerChargeAction", {
+			{ "_update_charging", charge_update },
+			{ "_update_charged_past", charge_update },
+			{ "_update_grabbed_target", charge_update },
+		}, function ()
 			return next(speed_factor) ~= nil
 		end)
 	end
@@ -1983,13 +2009,16 @@ Tuning.install = function ()
 	end)
 
 	-- health above the network's limit: the divided damage goes on the network after every write of the game (host)
-	for _, method in ipairs({ "add_damage", "add_heal", "set_health_instant" }) do
-		mod:hook_safe("HealthExtension", method, function (self)
-			Tuning.after_health_write(self)
-		end)
-	end
 	-- every hit on every unit (the players' too) goes through these: on only while a divided unit lives (host)
-	gate("health_writes", "HealthExtension", { "add_damage", "add_heal", "set_health_instant" }, function ()
+	local function after_health_write(self)
+		Tuning.after_health_write(self)
+	end
+
+	gated_file("health_writes", "scripts/extension_systems/health/health_extension", "HealthExtension", {
+		{ "add_damage", after_health_write, safe = true },
+		{ "add_heal", after_health_write, safe = true },
+		{ "set_health_instant", after_health_write, safe = true },
+	}, function ()
 		return next(net_scale) ~= nil
 	end)
 
@@ -2037,21 +2066,22 @@ Tuning.install = function ()
 		end)
 	end
 
-	mod:hook_safe("BtMeleeAttackAction", "_start_attack_anim", function (...)
-		Tuning.fix_attack_end(...)
-	end)
 	-- every melee attack of every enemy: only a card's enemy (or a tuned one) is changed by it
-	gate("melee_attack", "BtMeleeAttackAction", "_start_attack_anim", function ()
+	gated_file("melee_attack", "scripts/extension_systems/behavior/nodes/actions/bt_melee_attack_action", "BtMeleeAttackAction", {
+		{ "_start_attack_anim", function (...) Tuning.fix_attack_end(...) end, safe = true },
+	}, function ()
 		return #tuned > 0 or next(combo_cut) ~= nil or next(cancel_chance) ~= nil or card_units_alive()
 	end)
 
 	-- Spray cut chance and Net feint chance (2026-10-06)
 	if mod.hook then
-		mod:hook("BtShootLiquidBeamAction", "run", function (...) return Tuning.spray_run(...) end)
-		mod:hook("BtShootNetAction", "run", function (...) return Tuning.net_run(...) end)
 		-- these run every frame of every flamer's spray and every trapper's aim
-		gate("spray", "BtShootLiquidBeamAction", "run", function () return next(spray_cut) ~= nil end)
-		gate("net", "BtShootNetAction", "run", function () return next(net_feint) ~= nil end)
+		gated_file("spray", "scripts/extension_systems/behavior/nodes/actions/bt_shoot_liquid_beam_action", "BtShootLiquidBeamAction", {
+			{ "run", function (...) return Tuning.spray_run(...) end },
+		}, function () return next(spray_cut) ~= nil end)
+		gated_file("net", "scripts/extension_systems/behavior/nodes/actions/bt_shoot_net_action", "BtShootNetAction", {
+			{ "run", function (...) return Tuning.net_run(...) end },
+		}, function () return next(net_feint) ~= nil end)
 	end
 
 	mod:hook_safe("BtShootNetAction", "leave", function (...)
@@ -2060,8 +2090,9 @@ Tuning.install = function ()
 
 	-- a Pox Hound's pounce as a feint (Tuning.pounce_leap)
 	if mod.hook then
-		mod:hook("BtChaosHoundLeapAction", "_leap", function (...) return Tuning.pounce_leap(...) end)
-		gate("leap", "BtChaosHoundLeapAction", "_leap", function () return next(cancel_chance) ~= nil end)
+		gated_file("leap", "scripts/extension_systems/behavior/nodes/actions/bt_chaos_hound_leap_action", "BtChaosHoundLeapAction", {
+			{ "_leap", function (...) return Tuning.pounce_leap(...) end },
+		}, function () return next(cancel_chance) ~= nil end)
 	end
 
 	mod:hook_safe("BtChaosHoundLeapAction", "leave", function (...)
