@@ -181,10 +181,15 @@ mod.tw_reset_to_defaults = function ()
 end
 
 local function release_events()
-	if RW.event_manager then
-		pcall(RW.event_manager.unregister, RW.event_manager, mod, "event_mission_objective_start")
-		pcall(RW.event_manager.unregister, RW.event_manager, mod, "event_player_died")
+	local manager = RW.event_manager
+
+	if manager then
 		RW.event_manager = nil
+		-- In a closure, not pcall(manager.unregister, ...) (2026-10-17, console log): when the game shuts down it destroys the
+		-- EventManager before the mods unload, and reading a method of a destroyed object raises before pcall is entered
+		-- ("on_unload: Cannot access property "unregister" on destroyed object of type EventManager").
+		pcall(function () manager:unregister(mod, "event_mission_objective_start") end)
+		pcall(function () manager:unregister(mod, "event_player_died") end)
 	end
 end
 
