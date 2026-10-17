@@ -279,5 +279,10 @@ Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
   world, the boss health network cap, chat-safe texts, On Fire damage; tests.
 - [x] Tenth round (2026-10-05): boss health without a limit in bars with "xN", the On Fire look kept on, On Fire damage 35 by
   default, the Deck's scroll and the last screen remembered; tests.
+- [x] The hook gate never switches a hook DMF has not made yet (late classes hooked through their files, Gate.hook_file) and the
+  unload survives a destroyed EventManager; tests (2026-10-17, feature/hook-gate-delayed-hooks).
+- [ ] In-game check of the above: no "toggle hook that doesn't exist" from GrandfathersTarot in a fresh session (title, hub,
+  mission), Instant rescue's gold and the hounds' feint still work, no on_unload error when the game closes; merge after the user
+  confirms.
 - [ ] Enemy shadow (the Daemonhost fog particle on other enemies): found, waiting for the user's decision.
 - [ ] Game acceptance of the [checklist](13-cauldron-redesign.md#in-game-checks-before-merge); merge only after the user confirms.

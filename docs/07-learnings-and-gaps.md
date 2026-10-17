@@ -614,3 +614,28 @@ Things we know are missing or unverified, each with the next concrete step.
 - A beneficial card is in the draw only with an effect its suit allows: a test card needs `fx_` too.
 - The data file's floor on LuaJIT dropped to 70 (70.83 measured; Lua 5.5 above 72): new option widgets are declarations.
 
+## 2026-10-17 - "trying to toggle hook that doesn't exist" on a fresh start: DMF's delayed hooks
+- Not the after-reload case (the `polishing` branch's note of 2026-10-12 traces that one to Mod Performance Monitor): here no reload,
+  and the cause is ours. `mod:hook("SomeClass", ...)` on a class the game has not loaded yet is delayed by DMF (hooks.lua
+  generic_hook) until the class's FIRST INSTANCE: DMF hooks `class()`, and when the class is created it hooks its `new` and applies
+  the delayed hooks only there (hooks.lua 549-562). The class is in `CLASS` from the moment its file runs, long before the first
+  `new`, so the gate's resolve found it, saw a function and called hook_disable on a hook DMF had not made yet: DMF looks the hook
+  up by `obj[method]` in its registry and warns (hooks.lua 397-405). The gate re-applies every RESYNC (3 s), so it warned every 3 s
+  until the first instance (`_leap`: the first Pox Hound's leap action).
+- `HudElementPlayerPanelBase` is never instantiated (only its subclasses are), so its delayed hook was never made and warned for the
+  whole session. It never did anything either: Darktide's `class()` copies the base's methods into a subclass when the subclass is
+  created (scripts/foundation/utilities/class.lua 100-106), so a hook on the base made after that reaches no panel.
+- Fix: a gated hook on a class that loads after the mod is made through `mod:hook_require(<file>, ...)` on the file's own table
+  (Gate.hook_file): DMF hooks a table at once, and runs the callback when the game loads the file (or at once if it already did,
+  and again when the game loads it again). The gate holds the target only from then. As a guard, Gate.add with a class NAME that
+  does not resolve at that moment marks the target pending: it is never switched (stays on, the safe side) and logs one info line.
+  The managers gated by name (PacingManager, MinionSpawnManager) are loaded before the mod, so DMF hooks them at once.
+- The nine files are required by exactly these paths in the game (behavior_tree.lua, health_system.lua, team_panel_handler, and
+  extension_system_configuration's `_system_require("mood", ...)`); none of the nine classes has a subclass, so hooking at file load
+  (earlier than DMF's first-instance hook) reaches nothing new.
+- The unload error: `pcall(manager.unregister, manager, ...)` reads `manager.unregister` BEFORE pcall is entered; on a destroyed
+  object (the game shutting down destroys the EventManager before the mods unload) that read raises. Read it inside the protected
+  call (a closure).
+- The suites' DMF stubs had no delay at all (mod:hook just records), which is why no test ever saw this; the gate test even asserted
+  the buggy behaviour ("a class loaded later is switched at the next resync").
+

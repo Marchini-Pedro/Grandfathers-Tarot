@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-17 - No more "trying to toggle hook that doesn't exist" warnings (feature/hook-gate-delayed-hooks)
+- Fixed: on the title screen, in the hub and in missions the console and chat showed `(hook_disable): trying to toggle hook that
+  doesn't exist: _draw_health_bar` every 3 s for the whole session, and `... _leap` until the first Pox Hound. The hooks that sleep
+  while nothing needs them (the player panels' gold, the dread, the Mutant's charge, the health writes, the enemies' melee attacks,
+  the flamers' spray, the trappers' net, the hounds' pounce) are now made when the game loads their classes, so the mod only ever
+  switches hooks that exist.
+- Fixed: closing the game logged `on_unload: Cannot access property "unregister" on destroyed object of type EventManager`.
+- Removed a hook on the player panels' base class that never ran (the game never makes one).
+
 ## 2026-10-11 - Version 1.1: 150 cards, guaranteed hands, Update default cards, Brute's fissure (polishing)
 - The version is 1.1 (was 2.2.0). Host and players must have the same version.
 - A deck holds 150 cards (12 standard and 138 custom slots; it was 100). Existing decks keep every card: the old slots keep

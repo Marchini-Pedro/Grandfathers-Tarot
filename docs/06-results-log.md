@@ -515,3 +515,23 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   two runtimes (catalog 70, cosmetics 85, twins 75: LuaJIT does not count function header lines the way Lua 5.5 does); an
   editor check for set_kind_in_draw (every enemy card or blessing in or out of the draw).
 - Tests: both runtimes, every suite.
+
+## 2026-10-17 - The hook gate and DMF's delayed hooks (feature/hook-gate-delayed-hooks)
+- Seen (console logs 2026-10-17 04:52 and 05:08, fresh game starts, no mod reload): 24 and 6 DMF warnings `(hook_disable): trying to
+  toggle hook that doesn't exist: _draw_health_bar`, 8 and 2 for `_leap`; at load DMF logged `[HudElementPlayerPanelBase._draw_health_bar]
+  needs to be delayed` and the same for every gated class named by mod:hook. Also once at shutdown: `on_unload: ...:185: Cannot access
+  property "unregister" on destroyed object of type EventManager`.
+- Cause and fix in doc 07 (2026-10-17). Changed: core/hook_gate.lua (Gate.hook_file; a class named before it loads is never
+  switched), the dread and golden hooks (GrandfathersTarot.lua; the base panel class dropped), the six gated tuning hooks
+  (spawn/tuning.lua, gated_file with the by-name fallback when there is no gate), release_events.
+- Tests: entry_test 180 checks (was 159): hook_file (made on the file's table, normal and safe, once per table, a new table again,
+  nothing after an unload or for another mod's gate), a pending target never switched and not holding its gate back, a loaded
+  class without the gated method (answer stays unknown; it also keeps hook_gate.lua over its LuaJIT floor: 71.88% without it), the late
+  classes no longer hooked by name, no hook on the base panel class, the golden panels on their tables, a destroyed EventManager
+  at unload. The old check "a class loaded later is switched at the next resync" encoded the bug and now says the opposite.
+  logic_test unchanged (its Tuning has no gate, so the hooks are made by name as before). Full suites green on both runtimes
+  (LuaJIT 2.1 80.53%, Lua 5.5 83.2%). On this machine one earlier Lua 5.5 run of main lost appearance_test's coverage file
+  (FileNotFoundError in the temp folder) while every test passed; it did not happen again.
+- Not tested in game yet: start the game and enter the hub and a mission; the console log must have no "toggle hook that doesn't
+  exist" from GrandfathersTarot, the gold of Instant rescue and the hounds' feint must still work, and closing the game must log
+  no on_unload error.
