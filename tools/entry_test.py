@@ -216,8 +216,24 @@ check("unload: captured objective, death and update callbacks are inert", obsole
 local names = {}
 for _, h in ipairs(hooks) do if type(h.obj) == "string" then names[#names + 1] = h.obj .. "." .. h.method end end
 table.sort(names)
-check("entry: the four budget-bypass hooks and the custom-mods hooks (melee attack start, burster explosion, the summoners: no summon while destroyed, no patrol, aggroed summons; the On Fire burn per player and its look, the divided health of strong enemies; since 2026-10-06 the spray cut, the net feint, the Daemonhost's kills and the Packmaster without dogs) are installed", table.concat(names, ",") == "BtChaosHoundLeapAction._leap,BtChaosHoundLeapAction.leave,BtChaosPoxwalkerExplodeAction.enter,BtMeleeAttackAction._start_attack_anim,BtMutantChargerChargeAction._update_charged_past,BtMutantChargerChargeAction._update_charging,BtMutantChargerChargeAction._update_grabbed_target,BtShootLiquidBeamAction.run,BtShootNetAction.leave,BtShootNetAction.run,BtSummonMinionsAction._patrol_setup,BtSummonMinionsAction._summon_minions,BtSummonMinionsAction.leave,HealthExtension.add_damage,HealthExtension.add_heal,HealthExtension.set_health_instant,HudElementPersonalPlayerPanel._draw_health_bar,HudElementPlayerPanelBase._draw_health_bar,HudElementTeamPlayerPanel._draw_health_bar,MinionBuffExtension._start_fx,MinionBuffExtension._stop_fx,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion,PacingManager.set_minion_listening_for_player_deaths,PlayerUnitBuffExtension.add_internally_controlled_buff,PlayerUnitMoodExtension._remove_mood,SummonedMinionsExtension.can_summon_minions", table.concat(names, ","))
-check("entry: MinionAttack is hooked through hook_require (it may load after the mod)", #hook_requires == 4 and (function() local seen = {} for _, p in ipairs(hook_requires) do seen[p] = true end return seen["scripts/utilities/minion_attack"] and seen["scripts/extension_systems/buff/minion_buff_extension"] and seen["scripts/settings/buff/buff_templates"] and seen["scripts/ui/hud/elements/boss_health/hud_element_boss_health"] end)(), table.concat(hook_requires, ","))
+-- (2026-10-17) the gated hooks on classes that load after the mod are no longer made by name: they go through their files
+check("entry: the four budget-bypass hooks and the custom-mods hooks still made by class name (burster explosion, the summoners: no summon while destroyed, no patrol, aggroed summons; the On Fire burn per player and its look; the net and pounce leave) are installed", table.concat(names, ",") == "BtChaosHoundLeapAction.leave,BtChaosPoxwalkerExplodeAction.enter,BtShootNetAction.leave,BtSummonMinionsAction._patrol_setup,BtSummonMinionsAction._summon_minions,BtSummonMinionsAction.leave,MinionBuffExtension._start_fx,MinionBuffExtension._stop_fx,MinionSpawnManager.num_spawned_minions,MinionSpawnManager.total_allocated_num_enemies,MinionSpawnManager.unregister_unit,PacingManager.add_aggroed_minion,PacingManager.set_minion_listening_for_player_deaths,PlayerUnitBuffExtension.add_internally_controlled_buff,SummonedMinionsExtension.can_summon_minions", table.concat(names, ","))
+local GATED_FILES = {
+  dread = { "scripts/extension_systems/mood/player_unit_mood_extension" },
+  golden = { "scripts/ui/hud/elements/personal_player_panel/hud_element_personal_player_panel", "scripts/ui/hud/elements/team_player_panel/hud_element_team_player_panel" },
+  charge = { "scripts/extension_systems/behavior/nodes/actions/bt_mutant_charger_charge_action" },
+  health_writes = { "scripts/extension_systems/health/health_extension" },
+  melee_attack = { "scripts/extension_systems/behavior/nodes/actions/bt_melee_attack_action" },
+  spray = { "scripts/extension_systems/behavior/nodes/actions/bt_shoot_liquid_beam_action" },
+  net = { "scripts/extension_systems/behavior/nodes/actions/bt_shoot_net_action" },
+  leap = { "scripts/extension_systems/behavior/nodes/actions/bt_chaos_hound_leap_action" },
+}
+check("entry: MinionAttack and every gated class that loads after the mod are hooked through hook_require", #hook_requires == 13 and (function()
+  local seen = {} for _, p in ipairs(hook_requires) do seen[p] = true end
+  for _, paths in pairs(GATED_FILES) do for _, p in ipairs(paths) do if not seen[p] then return false end end end
+  return seen["scripts/utilities/minion_attack"] and seen["scripts/extension_systems/buff/minion_buff_extension"] and seen["scripts/settings/buff/buff_templates"] and seen["scripts/ui/hud/elements/boss_health/hud_element_boss_health"]
+end)(), table.concat(hook_requires, ","))
+check("entry: not one hook on the player panels' base class (the game never makes one; class() copied its methods before any hook)", (function() for _, h in ipairs(hooks) do if h.obj == "HudElementPlayerPanelBase" then return false end end return true end)())
 do
   -- (2026-10-04: "Attempting to rehook active hook [start_shooting]" at every game start) DMF runs a hook_require callback again
   -- each time the game loads the file; the same table is hooked once, a new table is hooked again
@@ -349,10 +365,16 @@ do
   Vector3 = function(x, y, z) return { x = x, y = y, z = z } end
   package.loaded["scripts/settings/ailments/ailment_settings"] = { effect_templates = { burning = { offset_time = 1.2, duration = 2 } } }
   local start_fx, stop_fx, health_hooks, boss_hooks = nil, nil, {}, {}
+  -- the health writes are hooked on HealthExtension's file when the game loads it (2026-10-17)
+  -- (the mod was unloaded above, which retires the gate: it is live again for this block, as the tuning is)
+  local HealthClass = { add_damage = function() end, add_heal = function() end, set_health_instant = function() end }
+  RW.hook_gate.init({ mod = mod })
+  require_by_path["scripts/extension_systems/health/health_extension"](HealthClass)
+  RW.hook_gate.retire()
   for _, h in ipairs(hooks) do
     if h.obj == "MinionBuffExtension" and h.method == "_start_fx" then start_fx = h.fn end
     if h.obj == "MinionBuffExtension" and h.method == "_stop_fx" then stop_fx = h.fn end
-    if h.obj == "HealthExtension" then health_hooks[#health_hooks + 1] = h.fn end
+    if h.obj == HealthClass and h.safe then health_hooks[#health_hooks + 1] = h.fn end
   end
   local burning, other_buff = { name = "burning enemy" }, { name = "enraged enemy" }
   HEALTH_ALIVE[burning], HEALTH_ALIVE[other_buff] = true, true
@@ -440,6 +462,12 @@ check("entry: commands registered (rw_test, rw_editor, rw_status, rw_custom, rw_
 -- and the player has more than one wound left; the colour is swapped only for the draw
 do
   local golden = {}
+  -- (2026-10-17) hooked on the two panel files when the game loads them (not by name, and not the base class)
+  -- (the mod was unloaded above, which retires the gate: it is live again for this block)
+  local Personal, Team = { _draw_health_bar = function() end }, { _draw_health_bar = function() end }
+  RW.hook_gate.init({ mod = mod })
+  require_by_path[GATED_FILES.golden[1]](Personal)
+  require_by_path[GATED_FILES.golden[2]](Team)
   for _, h in ipairs(hooks) do if h.method == "_draw_health_bar" then golden[#golden + 1] = h end end
   local RW = mod.rw
   local saved_effects, saved_settings, saved_dead = RW.effects, package.loaded["scripts/settings/ui/ui_hud_settings"], RW.dead
@@ -451,7 +479,9 @@ do
   local seen
   local function draw(self, x) seen = Settings.color_tint_main_1; return x end
   local three = { _health_max_fraction = 1, _health_max_wounds = 3 }
-  check("golden health: the three player panel classes are hooked", #golden == 3 and golden[1].obj == "HudElementPlayerPanelBase" and golden[2].obj == "HudElementPersonalPlayerPanel" and golden[3].obj == "HudElementTeamPlayerPanel")
+  check("golden health: the two player panel classes the game makes are hooked, on their own tables, as normal hooks", #golden == 2 and golden[1].obj == Personal and golden[2].obj == Team and not golden[1].safe and not golden[2].safe)
+  check("golden health: and both are held by the gate", (function() for _, n in ipairs(RW.hook_gate.names()) do if n == "golden" then return true end end return false end)())
+  RW.hook_gate.retire()
   local fn = golden[1].fn
   fn(draw, three, 1)
   check("golden health: a charge armed and three wounds left: the health is drawn gold, the colour is put back after", seen == "gold" and Settings.color_tint_main_1 == "white")
@@ -790,7 +820,7 @@ do
   check("gate: a failing question keeps its hook on (the safe side)", count("Broken.run:on") == 1 and Gate.state().broken == true, table.concat(log, ","))
   for _ = 1, 10 do Gate.update(0.25) end
   check("gate: ...switched off after 2 s with no work, each method", count("Health.add_damage:off") == 1 and count("Health.add_heal:off") == 1, table.concat(log, ","))
-  check("gate: a class not loaded yet is left alone (no toggle, state unknown)", Gate.state().later == nil and Gate.state().health == false)
+  check("gate: a class not loaded yet is left alone (no toggle)", count("Later.run:off") == 0 and count("Later.run:on") == 0 and Gate.state().health == false)
   check("gate: a target added twice is held once (one toggle)", count("Death.die:off") == 1, table.concat(log, ","))
   local n = #log
   for _ = 1, 4 do Gate.update(0.25) end
@@ -818,9 +848,70 @@ do
   n = #log
   for _ = 1, 14 do Gate.update(0.25) end
   check("gate: and every 3 s by itself (a hook DMF created late is put right)", #log > n)
+  -- (2026-10-17, console log: "(hook_disable): trying to toggle hook that doesn't exist: _leap / _draw_health_bar") a class named
+  -- before it loads has its mod:hook delayed by DMF to its first instance; the class appears in CLASS before that, so it is never
+  -- switched by the gate (it stays on), whatever loads later
   CLASS.NotLoadedYet = { label = "Later", run = f }
   for _ = 1, 14 do Gate.update(0.25) end
-  check("gate: a class loaded later is switched at the next resync", Gate.state().later == false and count("Later.run:off") >= 1)
+  check("gate: a class that was not loaded when it was gated is never switched, even once it loads (DMF may not have made its hook)", count("Later.run:off") == 0 and count("Later.run:on") == 0, table.concat(log, ","))
+  check("gate: ...and it does not hold its gate's answer back (the gate still settles on its answer)", Gate.state().later == false, tostring(Gate.state().later))
+  -- a gate with a pending target and a live one: the live one is switched once, not at every tick
+  local Live = { label = "Live", run = f }
+  local infos = {}
+  fake.info = function(self, fmt, ...) infos[#infos + 1] = string.format(fmt, ...) end
+  Gate.add("mixed", "AlsoNotLoaded", "run", function() return false end)
+  Gate.add("mixed", Live, "run", function() return false end)
+  check("gate: a class gated by name before it loads is said once in the log", #infos == 1 and infos[1]:find("AlsoNotLoaded", 1, true) ~= nil, infos[1])
+  CLASS.AlsoNotLoaded = { label = "AlsoLater", run = f }
+  for _ = 1, 10 do Gate.update(0.25) end
+  local before_live = count("Live.run:off")
+  for _ = 1, 4 do Gate.update(0.25) end
+  -- (a resync may fall in this second: once at most, never once a tick)
+  check("gate: in a gate with a pending target, the live one is switched off and then left alone", before_live >= 1 and count("Live.run:off") - before_live <= 1 and count("AlsoLater.run:off") == 0 and count("AlsoLater.run:on") == 0, table.concat(log, ","))
+  fake.info = nil
+  -- a loaded class without the method (a game update renamed it): never switched, its gate's answer stays unknown
+  local Renamed = { label = "Renamed", other = f }
+  Gate.add("renamed", Renamed, "gone", function() return false end)
+  for _ = 1, 10 do Gate.update(0.25) end
+  check("gate: a loaded class without the gated method is not switched and its answer stays unknown", count("Renamed.gone:off") == 0 and Gate.state().renamed == nil)
+
+  -- Gate.hook_file: the hooks are made on the file's own table when the game loads it, and only then gated
+  local made, required = {}, {}
+  fake.hook = function(self, obj, method, fn) made[#made + 1] = { obj = obj, method = method, fn = fn, safe = false } end
+  fake.hook_safe = function(self, obj, method, fn) made[#made + 1] = { obj = obj, method = method, fn = fn, safe = true } end
+  fake.hook_require = function(self, path, fn) required[path] = fn end
+  local pounce = function() end
+  local seen_ok = Gate.hook_file("pounce", "scripts/x/pounce", { { "_leap", pounce }, { "leave", pounce, safe = true } }, function() return false end)
+  check("hook_file: registered through hook_require, nothing hooked or gated before the file loads", seen_ok == true and type(required["scripts/x/pounce"]) == "function" and #made == 0 and Gate.state().pounce == nil)
+  local Leap = { label = "Leap", _leap = f, leave = f }
+  required["scripts/x/pounce"](Leap)
+  check("hook_file: on load, a normal and a safe hook are made on that very table, in order", #made == 2 and made[1].obj == Leap and made[1].method == "_leap" and not made[1].safe and made[2].obj == Leap and made[2].method == "leave" and made[2].safe)
+  for _ = 1, 10 do Gate.update(0.25) end
+  check("hook_file: the gate switches those hooks (they exist)", count("Leap._leap:off") >= 1 and count("Leap.leave:off") >= 1 and Gate.state().pounce == false, table.concat(log, ","))
+  required["scripts/x/pounce"](Leap)
+  check("hook_file: the same table loaded again (every game start) is not hooked again", #made == 2)
+  local Leap2 = { label = "Leap2", _leap = f, leave = f }
+  required["scripts/x/pounce"](Leap2)
+  check("hook_file: a new table is hooked and gated too", #made == 4 and made[3].obj == Leap2)
+  required["scripts/x/pounce"]("not a table")
+  check("hook_file: a file that returns no table is ignored", #made == 4)
+  fake.hook_require = nil
+  check("hook_file: without hook_require it says so (the caller hooks by name)", Gate.hook_file("x", "p", { { "run", f } }, function() return true end) == false)
+  fake.hook_require = function(self, path, fn) required[path] = fn end
+  check("hook_file: a question that is not a function is refused", Gate.hook_file("x", "p", { { "run", f } }, nil) == false)
+  Gate.hook_file("late", "scripts/x/late", { { "run", f } }, function() return false end)
+  Gate.retire()
+  local n_made = #made
+  required["scripts/x/late"]({ run = f })
+  check("hook_file: a file loaded after an unload hooks nothing", #made == n_made)
+  Gate.init({ mod = fake })
+  required["scripts/x/late"]({ run = f })
+  check("hook_file: the callback works again only once the gate is live again for the same mod", #made == n_made + 1)
+  Gate.init({ mod = { hook_enable = f, hook_disable = f } })
+  required["scripts/x/late"]({ run = f })
+  check("hook_file: a gate live for ANOTHER mod (a DMF reload made a new one) never runs the old callback", #made == n_made + 1)
+  Gate.init({ mod = fake })
+  fake.hook, fake.hook_safe, fake.hook_require = nil, nil, nil
   Gate.retire()
   n = #log
   Gate.refresh(); Gate.update(1)
@@ -838,6 +929,19 @@ do
   hooks, views, commands, hook_requires, require_callbacks, require_by_path, hud_elements = {}, {}, {}, {}, {}, {}, {}
   dofile(BASE .. "/GrandfathersTarot.lua"); mod.on_all_mods_loaded()
   local RW = mod.rw
+  -- the classes that load after the mod are gated when the game loads their files (2026-10-17)
+  local f = function() end
+  local loaded = {}
+  for _, paths in pairs(GATED_FILES) do
+    for _, path in ipairs(paths) do
+      local class = { _remove_mood = f, _draw_health_bar = f, _update_charging = f, _update_charged_past = f, _update_grabbed_target = f, add_damage = f, add_heal = f, set_health_instant = f, _start_attack_anim = f, run = f, _leap = f }
+      loaded[#loaded + 1] = class
+      require_by_path[path](class)
+    end
+  end
+  local by_name_before_load = 0
+  for _, h in ipairs(hooks) do if h.obj == "PlayerUnitMoodExtension" or h.obj == "HudElementPersonalPlayerPanel" or h.obj == "HealthExtension" or h.obj == "BtChaosHoundLeapAction" and h.method == "_leap" then by_name_before_load = by_name_before_load + 1 end end
+  check("gate: no gated hook on a late class is made by its name any more", by_name_before_load == 0)
   local names = RW.hook_gate and RW.hook_gate.names() or {}
   local have = {}
   for _, name in ipairs(names) do have[name] = true end
@@ -847,6 +951,31 @@ do
   end
   check("gate: the main file loads the gate first and every busy hook is registered with it", #missing == 0, table.concat(missing, ","))
   mod.on_unload()
+  mod = saved_mod
+end
+
+-- (2026-10-17, console log) the game destroys the EventManager before the mods unload when it shuts down: reading a method of the
+-- destroyed object raises, and the unload must not ("on_unload: Cannot access property "unregister" on destroyed object")
+do
+  mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
+  local saved_mod = mod
+  hooks, views, commands, hook_requires, require_callbacks, require_by_path, hud_elements = {}, {}, {}, {}, {}, {}, {}
+  Managers.event = event_manager()
+  dofile(BASE .. "/GrandfathersTarot.lua"); mod.on_all_mods_loaded()
+  local RW = mod.rw
+  local destroyed = setmetatable({}, { __index = function(_, key) error('Cannot access property "' .. tostring(key) .. '" on destroyed object of type EventManager') end })
+  RW.event_manager = destroyed
+  Managers.event = destroyed
+  local ok, err = pcall(mod.on_unload)
+  check("unload: a destroyed EventManager (the game shutting down) does not make the unload fail", ok, err)
+  check("unload: ...and the dead manager is let go", RW.event_manager == nil)
+  local half = event_manager()
+  half.unregister = function(self, owner, name) if name == "event_mission_objective_start" then error("broken") end self._events[name] = nil end
+  half._events.event_player_died = true
+  RW.event_manager = half
+  pcall(mod.on_unload)
+  check("unload: one subscription that cannot be removed does not keep the other", half._events.event_player_died == nil)
+  Managers.event = event_manager()
   mod = saved_mod
 end
 
