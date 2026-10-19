@@ -489,8 +489,49 @@ Execute.uses_ring = function ()
 	return not (main_path and main_path.is_main_path_ready and main_path:is_main_path_ready())
 end
 
--- Returns the candidate list for a job, or nil. Sets job.reason when it fails.
+-- A search's result goes into the cache (and the test ring stands in for an explicit /gt_test wave on a level without a main path).
+local function settle(key, is_test, list, reason)
+	if not list and is_test and NO_MAIN_PATH[reason] and Positions.test_candidates then
+		list, reason = Positions.test_candidates(TEST_RING_MIN, TEST_RING_MAX)
+	end
+
+	if not list then
+		throttled_log("spawn", reason)
+
+		cache[key] = { at = clock, list = false, reason = reason }
+
+		return nil, reason
+	end
+
+	cache[key] = { at = clock, list = list }
+
+	return list
+end
+
+-- (2026-10-19, a performance pass) the hidden-point searches in progress (Positions.new_search) take SEARCH_BUDGET occlusion queries
+-- a frame instead of all of them in one frame
+local SEARCH_BUDGET = 3
+local SEARCH_GRACE = 0.75 -- seconds past CANDIDATE_TTL the last points may still be used while their successor is searched
+
+local function step_searches()
+	for key, entry in pairs(cache) do
+		if entry.search then
+			local ok, done, list, reason = pcall(Positions.step_search, entry.search, SEARCH_BUDGET)
+
+			if not ok then
+				settle(key, entry.test, nil, tostring(done))
+			elseif done then
+				settle(key, entry.test, list, reason)
+			end
+		end
+	end
+end
+
+-- Returns the candidate list for a job, or nil. Sets job.reason when it fails; sets job.searching (and returns nil) while the
+-- first search for its kind of points is still going.
 local function candidates_for(job)
+	job.searching = nil
+
 	-- in front of the player: where they look right now, so never cached
 	if job.close and Positions.close_candidates then
 		local list, reason = Positions.close_candidates()
@@ -517,8 +558,21 @@ local function candidates_for(job)
 	-- A failed search (no hidden point near the players) is remembered too. Without this the
 	-- full occlusion query (up to ~27 nav groups, hundreds of points) reran on EVERY feed tick
 	-- (every 0.15 s) for as long as the wave waited: a steady stream of garbage.
-	if entry and not entry.list and clock - entry.at < FAILED_SEARCH_TTL then
+	if entry and not entry.list and not entry.search and clock - entry.at < FAILED_SEARCH_TTL then
 		job.reason = entry.reason
+
+		return nil
+	end
+
+	-- a search in progress: the points found last time (older than CANDIDATE_TTL by a few frames) keep the card spawning meanwhile
+	if entry and entry.search then
+		if entry.list and #entry.list > 0 and clock - entry.at < CANDIDATE_TTL + SEARCH_GRACE then
+			job.reason = nil
+
+			return entry.list
+		end
+
+		job.searching = true
 
 		return nil
 	end
@@ -550,23 +604,39 @@ local function candidates_for(job)
 		end
 	end
 
-	local list, reason = Positions.candidates(min_d, max_d)
+	if Positions.new_search and Positions.step_search then
+		local search, reason = Positions.new_search(min_d, max_d)
 
-	if not list and job.test and NO_MAIN_PATH[reason] and Positions.test_candidates then
-		list, reason = Positions.test_candidates(TEST_RING_MIN, TEST_RING_MAX)
-	end
+		if search then
+			-- the first steps at once: a search that ends inside the budget (one player, few groups) gives its points this frame
+			local ok, done, list, why = pcall(Positions.step_search, search, SEARCH_BUDGET)
 
-	if not list then
-		throttled_log("spawn", reason)
+			if not ok then
+				done, list, why = true, nil, tostring(done)
+			end
 
-		cache[key] = { at = clock, list = false, reason = reason }
+			if not done then
+				cache[key] = { at = entry and entry.at or clock, list = entry and entry.list or nil, search = search, test = job.test }
+
+				return candidates_for(job)
+			end
+
+			list, reason = settle(key, job.test, list, why)
+			job.reason = reason
+
+			return list
+		end
+
+		local list
+		list, reason = settle(key, job.test, nil, reason)
 		job.reason = reason
 
-		return nil
+		return list
 	end
 
-	cache[key] = { at = clock, list = list }
-	job.reason = nil
+	local list, reason = settle(key, job.test, Positions.candidates(min_d, max_d))
+
+	job.reason = reason
 
 	return list
 end
@@ -766,6 +836,8 @@ Execute.update = function (dt, paused)
 
 	clock = clock + dt
 
+	step_searches()
+
 	for i = #jobs, 1, -1 do
 		local job = jobs[i]
 
@@ -830,6 +902,11 @@ Execute.update = function (dt, paused)
 	end
 
 	local list = candidates_for(job)
+
+	-- the first search for these points is still going (a few frames): not stuck
+	if not list and job.searching then
+		return
+	end
 
 	if not list then
 		job.stuck_since = job.stuck_since or clock

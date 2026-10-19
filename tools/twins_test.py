@@ -436,6 +436,15 @@ check("rows: at most 4 twins spawn per update", #spawned == 4 and Twins.queued()
 spawn_answer = "full"
 Twins.update(4)
 check("rows: a twin waits while the card enemies are at their limit", Twins.queued() == 8)
+-- (2026-10-19, a performance pass) while full only the first twin is tried; the others wait without a navmesh query each
+do
+  local NQ = require("scripts/utilities/nav_queries")
+  local real, snaps = NQ.position_on_mesh_with_outside_position, 0
+  NQ.position_on_mesh_with_outside_position = function (...) snaps = snaps + 1 return real(...) end
+  Twins.update(0.1)
+  NQ.position_on_mesh_with_outside_position = real
+  check("rows: while full one twin is tried and the 7 behind it only wait (1 navmesh query a frame, not 8)", snaps == 1 and Twins.queued() == 8, snaps)
+end
 Twins.update(7)
 check("rows: after 10 s of waiting it is dropped", Twins.queued() == 4)
 snap_mode = "nil"

@@ -535,3 +535,60 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Not tested in game yet: start the game and enter the hub and a mission; the console log must have no "toggle hook that doesn't
   exist" from GrandfathersTarot, the gold of Instant rescue and the hounds' feint must still work, and closing the game must log
   no on_unload error.
+
+## 2026-10-19 - Performance pass: the recipe cache and the spawn-point search in steps (optimizing)
+- Why: the user's Mod Performance Monitor report (0.129 ms mean, p95 0.026 ms, peak 22 ms, 402 spikes, all in `event update`).
+  Cause and numbers in doc 07 (2026-10-19). Changed: catalog/groups.lua (Groups.parse cached by text, a copy per call),
+  core/director.lua (the recipes parsed at gameplay entry), spawn/positions.lua (Positions.new_search / step_search; candidates runs
+  one to its end), spawn/execute.lua (searches stepped every frame, 3 queries a frame, old points kept up to 0.75 s past their time,
+  "searching" is not "stuck"), spawn/tuning.lua (the On Fire look's require hoisted).
+- Offline timing with the user's own 150-card deck, 10 simulated minutes as host: worst director frame 6.5 ms -> 1.2 ms, mean
+  0.0020 -> 0.0005 ms, Director.cooldown_map 0.046 -> 0.008 ms a call. The engine's occlusion queries cannot be timed offline.
+- Tests: logic_test 1124 checks (parse cache: copies, errors, emptying, an edited card; the search in steps: budget, no 10 s gap,
+  old points during a refresh and not past their grace, a failed search remembered, the test ring, an error in a step, a cancel),
+  positions_test 43 (was 35: budget per step, same answer as at once, players dead or a new level between steps, the 160-point
+  stop). LuaJIT 2.1 suite green (80.50%). Lua 5.5: every test passed except appearance_test, which timed out at 120 s while both
+  suites ran at once (its coverage file then missing, as on 2026-10-17); the rerun alone was skipped at the user's request.
+- Not tested in game yet: see doc 05.
+- Same day: /gt_status failed in game ("bad argument #27 to 'format'", user's screenshot). Director.peer_wave_count() returns two
+  values, but in the middle of string.format's arguments Lua keeps only the first, so the format was one value short (since the
+  custom mods were added to the line). Both counts are read first. New logic_test check calls Director.status() for real (it was
+  never called by a test); green on LuaJIT 2.1 and Lua 5.5.
+- Same day: after /gt_stop with `tracked=0` (no card enemy alive) Tarot still showed 0.125 ms, +/- 0.157 (monitor report: p95
+  0.025 ms, peak 9.5 ms, all `event update`). Offline the stopped host's update is 0.0013 ms and 37 bytes a frame (entry_test's
+  real modules with a probe), so the spikes are engine calls or GC steps the monitor bills to the mod; offline cannot tell which.
+  Added /gt_perf (core/perf.lua): wraps the update's parts with a QueryPerformanceCounter timer for N seconds (Mods.lua.ffi,
+  os.clock fallback), counts the calls the GC ran inside, prints the report, puts every part back (also at unload, and never
+  over a function a hot reload put there). entry_test 193 checks (was 180, then 192 with the /gt_status check counted in
+  logic_test); LuaJIT 2.1 suite green (80.50%; perf.lua 73.81%, floor 72 added to coverage_policy.json). Not run in game yet.
+- Same day: the user's /gt_perf alone in a mission: mod.update 0.018 ms/frame, max 0.18 ms, no call over 1 ms, no GC inside a call.
+  The spikes (03:14 log) were in a session with a client. With a peer every send goes synchronously through Realms' ModNetwork ->
+  SessionControl -> BinaryNetwork -> a native DLL call (Realms runtime/binary.lua, ffi), billed to this mod; alone there is no
+  channel and it returns at once. The host sent its state every second (stopped: the side state), though clients count the
+  countdown, the ages and the cooldowns down themselves. Now: sent on a change (compared without those fields), on a marked
+  change, or every 5 s (KEEPALIVE); a failed send retries next tick; a joining player still gets the state at once (on_hello).
+  logic_test 1134 (9 new: countdown silent, keep-alive, pause at once, stopped side state, failed send, a new game). LuaJIT suite
+  green (80.46%). Not tested in game with a client yet.
+
+## 2026-10-19 - Guaranteed hands repeat (feature/guaranteed-repeat)
+- The user asked for a "repeat this effect" toggle and a minutes slider for each of the three guaranteed hands: the 12-18 min hand
+  with the toggle on and 10 min comes again every 10 min after the first. Built: settings `forced_<kind>_repeat` (checkbox, off)
+  and `forced_<kind>_every` (1-120 min, 10) in GrandfathersTarot_data.lua with their texts; core/director.lua keeps the first
+  moment (forced_due, random between min and max) and the last guaranteed hand (forced_fired); the next is last + every with the
+  toggle on, none with it off (was: a new random min-max moment after each). Options are read at each deal, so a change applies
+  in the game; switching a kind off forgets it; a new game starts over.
+- Tests: logic_test, the old repeat checks now switch the toggle on (every 1 min); new: off = one hand then nothing planned, on =
+  180 s between two hands at 3 min, switched on after the first, every below 1 = 1, kind off/on, a new game. Green on LuaJIT 2.1
+  and Lua 5.5 (logic_test); LuaJIT full suite green (80.54%). Not tested in game.
+- Same day: version 1.2 at the user's request (catalog/version.lua; the options' name and the handshake follow it). Nexus changelog
+  docs/changelog-post-1.2.txt; release zip built from `optimizing` (mods/GrandfathersTarot: the .mod and scripts). entry_test
+  checks the version. Not merged to main yet: the user has not confirmed 1.2 in game.
+- Same day, the per-frame review with several clients (the user's request): read every function the update reaches on host and
+  client and the HUD elements' refresh. Changed: twins/twins.lua (Twins.update: at the limit only the first twin of a frame is
+  tried, the rest only age; require hoisted), spawn/tuning.lua (Tuning.update_client: the inbox every 0.1 s, the age still counts
+  every frame; update_bosses without a closure per boss), spawn/appearance.lua (the pending lookups without two closures each).
+  Kept: the appearance renewal every 5 s (it keeps the clients' 15 s colour lease; one send per client every 5 s), the Blackout's
+  light rescan (catches lights the level turns on again), the HUD elements (0.007 ms offline), Effects.update (0.25 s cadence).
+  Tests: twins_test (1 navmesh query a frame while full, not 8), logic_test (inbox: none before 0.1 s, once each after, the
+  timeout still counted per frame). LuaJIT full suite green (80.46%); logic, twins and appearance green on Lua 5.5. The zip for
+  Nexus was rebuilt.

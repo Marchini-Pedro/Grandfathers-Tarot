@@ -1,0 +1,31 @@
+[size=5][b]The Grandfather's Tarot 1.2[/b][/size]
+
+[b]Important:[/b] a Realms host and the players who join must all have [b]1.2[/b]. Players on another version are refused by the host (with a message).
+
+[size=4][b]New[/b][/size]
+[list]
+[*][b]Guaranteed hands can repeat:[/b] each of the three guaranteed hands (threat 6, threat 5, beneficial) has two new options, [b]repeat this effect[/b] and [b]repeat every[/b] (minutes). The first hand still comes at a random moment between its minimum and maximum. After that, with repeat on, it comes again every set number of minutes. Example: 12 to 18 min, repeat on, every 10 min. The first threat 6 hand comes between minute 12 and 18, then again every 10 minutes.
+[*][b]/gt_perf [seconds][/b]: times the mod's work in game for a while (30 s by default) and prints where the time goes, in chat and in the console log. Useful if the Mod Performance Monitor shows the Tarot spiking. [b]/gt_perf stop[/b] ends it early.
+[/list]
+
+[size=4][b]Changes[/b][/size]
+[list]
+[*][b]Guaranteed hands:[/b] with [b]repeat this effect[/b] off (the default), a guaranteed hand now comes [b]once per game[/b]. It used to come again at a new random moment between the minimum and the maximum after each one. Turn repeat on to get repeated hands.
+[/list]
+
+[size=4][b]Performance[/b][/size]
+[list]
+[*][b]No more frame spikes when a hand is dealt:[/b] every card's recipe is now read once, behind the loading screen, instead of the whole deck being read again at every deal (several milliseconds in one frame with a big deck). The cooldowns sent to the other players no longer re-read the cards played either.
+[*][b]Smoother spawning:[/b] the search for hidden spawn points is spread over a few frames instead of running in one frame. A card keeps spawning on the points it found last while the next search runs.
+[*][b]Lighter with other players:[/b] the host now sends the card state when something changes (plus a check every 5 seconds) instead of every second. The players' HUDs count the timers down by themselves in between.
+[*][b]Twins at the enemy limit:[/b] when the card enemies are at their limit, waiting twins no longer search the navmesh every frame (one check per frame instead of one per waiting twin).
+[*][b]Lighter for the players who join:[/b] their game checks the enemy sizes sent by the host 10 times a second instead of every frame, and the enemy colours and boss bars make less garbage.
+[*]The On Fire look costs less while burning enemies are alive.
+[/list]
+
+[size=4][b]Fixes[/b][/size]
+[list]
+[*]No more [i]"trying to toggle hook that doesn't exist"[/i] warnings every few seconds in the console and chat (title screen, hub and missions).
+[*]Closing the game no longer logs an [i]on_unload[/i] error.
+[*][b]/gt_status[/b] showed an error instead of the card state.
+[/list]

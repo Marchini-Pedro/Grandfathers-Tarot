@@ -155,6 +155,43 @@ for _, mode in ipairs({"throw","blocked"}) do
   reset();ray_mode=mode
   check("positions: small spread ray "..mode.." preserves original point after five attempts", Pos.spread(origin,5)==origin and snaps==5 and rays==5)
 end
+-- (2026-10-19, a performance pass) the search in steps: at most `budget` groups a step, the same answer as the search at once
+do
+  local function groups_queried() local n=0;for _ in pairs(queried) do n=n+1 end;return n end
+  reset();units={{pos=point(0)},{pos=point(1000)},{pos=point(2000)}};points={point(30)}
+  local search=Pos.new_search(20,60)
+  local done=Pos.step_search(search,2)
+  check("search steps: one step runs at most its budget of occlusion queries", done==false and groups_queried()==2)
+  local steps=1
+  local list
+  while not done do done,list=Pos.step_search(search,2);steps=steps+1 end
+  check("search steps: it ends with every group asked once (27 for three players) and hidden points", groups_queried()==27 and steps==14 and list~=nil and #list==24 and list[1]:unbox().x==30)
+  local over,again,why=Pos.step_search(search,2)
+  check("search steps: a step after the end says it is over", over==true and again==nil and why=="search over")
+  reset();units={{pos=point(0)},{pos=point(1000)}};points={point(15)}
+  local whole=Pos.candidates(20,60)
+  local whole_stage=Pos.last_stage
+  reset();units={{pos=point(0)},{pos=point(1000)}};points={point(15)}
+  search=Pos.new_search(20,60);done=false
+  while not done do done,list=Pos.step_search(search,1) end
+  check("search steps: the same points and stage as the search at once", #list==#whole and list[1]:unbox().x==whole[1]:unbox().x and Pos.last_stage==whole_stage and whole_stage==2)
+  reset();units={{pos=point(0)}};search=Pos.new_search(20,60)
+  Pos.step_search(search,1);units={}
+  local d,l,r=Pos.step_search(search,1)
+  check("search steps: every player dead between two steps ends the search with a reason", d==true and l==nil and r=="no living players")
+  reset();search=Pos.new_search(20,60);Pos.step_search(search,1)
+  state.nav_mesh={nav_world=function() return "another world" end}
+  d,l,r=Pos.step_search(search,1)
+  check("search steps: a new level between two steps ends the search (never the old world's points)", d==true and l==nil and r=="main path not ready")
+  state.nav_mesh={nav_world=function() return nav_world end}
+  reset();Managers.state=nil
+  local none,reason_text=Pos.new_search(20,60)
+  check("search steps: no mission state, no search", none==nil and reason_text=="main path not ready")
+  reset();points={};for i=1,80 do points[i]=point(30) end
+  search=Pos.new_search(20,60);done=false
+  while not done do done,list=Pos.step_search(search,5) end
+  check("search steps: the 160-point stop holds across steps", groups_queried()==2 and #list==24)
+end
 return table.concat(results,"\n")
 ''', root.as_posix())
 print(output)

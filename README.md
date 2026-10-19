@@ -9,7 +9,7 @@ random selection and player voting. No Twitch service is required.
 > `feature/cauldron-redesign` adds Faith, a crimson Heresy, Nightmare (once per game), one
 > cooldown look, the beneficial shelf and card sounds that play at the draw ([guide](docs/13-cauldron-redesign.md));
 > offline checks pass, game acceptance is pending.
-> Runtime version: `2.2.0` (`catalog/version.lua`); last tagged release: `v1.13.0`.
+> Version: `1.2` (`catalog/version.lua`; a host and its players must have the same version).
 
 ## Features
 
@@ -103,6 +103,7 @@ No new dependency is required.
 | --- | --- |
 | `/gt_editor` | Open or close the Deck (card editor) |
 | `/gt_status` | Show director state and spawn counters |
+| `/gt_perf [seconds\|stop]` | Time the parts of the mod's update in game (default 30 s) and print where the time goes |
 | `/gt_test <wave key or name>` | Spawn a test wave immediately, out of sight (host) |
 | `/gt_test_close <wave key or name>` | Spawn the wave right in front of you, facing you (host) |
 | `/gt_start` / `/gt_stop` | Start or stop the cycle; stopping leaves spawned enemies alive (host) |

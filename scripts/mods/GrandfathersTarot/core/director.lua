@@ -475,7 +475,8 @@ Director.FORCED = {
 	{ id = "forced_blessed", wants = card_beneficial },
 }
 
-local forced_due = {} -- kind id -> cd_clock when its hand is due
+local forced_due = {} -- kind id -> cd_clock when its FIRST hand is due
+local forced_fired = {} -- kind id -> cd_clock of its last guaranteed hand
 
 local function forced_wait(id)
 	local low = math.max(1, number_setting(id .. "_min", 20))
@@ -484,7 +485,24 @@ local function forced_wait(id)
 	return (low + math.random() * (high - low)) * 60
 end
 
--- the kind of hand due now, or nil (a kind switched on is given its first moment here)
+-- (2026-10-19, the user) The first hand of a kind comes at a random moment between its minimum and maximum; after it, the kind
+-- comes again every "<kind>_every" minutes when "<kind>_repeat" is on, and never again this game when it is off (it used to come
+-- again at a new random moment between the minimum and the maximum). Read at every look, so a change of the options applies at once.
+local function repeat_due(id)
+	local fired = forced_fired[id]
+
+	if not fired then
+		return forced_due[id]
+	end
+
+	if mod:get(id .. "_repeat") ~= true then
+		return nil
+	end
+
+	return fired + math.max(1, number_setting(id .. "_every", 10)) * 60
+end
+
+-- the kind of hand due now, or nil (a kind switched on is given its first moment here; switched off, it starts over)
 local function forced_kind()
 	local due = nil
 
@@ -492,18 +510,21 @@ local function forced_kind()
 		if mod:get(kind.id) == true then
 			forced_due[kind.id] = forced_due[kind.id] or cd_clock + forced_wait(kind.id)
 
-			if not due and cd_clock >= forced_due[kind.id] then
+			local at = repeat_due(kind.id)
+
+			if not due and at and cd_clock >= at then
 				due = kind
 			end
 		else
-			forced_due[kind.id] = nil
+			forced_due[kind.id], forced_fired[kind.id] = nil, nil
 		end
 	end
 
 	return due
 end
 
-Director.forced_due = function (id) return forced_due[id] end
+-- when the kind's next guaranteed hand is due (played seconds), or nil (off, or done for this game)
+Director.forced_due = function (id) return repeat_due(id) end
 
 -- Deals the hand: up to `tarot_cards` cards by chance weight without repeats, then the winner by a uniform roll.
 -- The winner is decided HERE and travels with the hand; nobody else rolls. Returns false when no card can be dealt.
@@ -544,7 +565,7 @@ local function deal(state)
 		take(resting)
 
 		if #picks > 0 then
-			forced_due[kind.id] = cd_clock + forced_wait(kind.id)
+			forced_fired[kind.id] = cd_clock
 		end
 	end
 
@@ -971,9 +992,72 @@ local function side_snapshot()
 	return snap
 end
 
-local function broadcast()
+-- (2026-10-19, a performance pass; the user: "maybe it only occurs when there are other players in the lobby") With a client in the
+-- session every send is a synchronous native call in Realms' transport, billed to this mod, and the state went out every second
+-- although a client counts the countdown, the ages and the cooldowns down by itself between two states. A state is now sent when
+-- it says something new (the fields a client counts itself left out of the comparison), when the host marked a change, or every
+-- KEEPALIVE seconds (a lost message, a client that missed one); a player who joins gets the whole state at once (Director.on_hello).
+-- Without Protocol.encode (an old protocol module) every state is sent, as before.
+local KEEPALIVE = 5
+local COUNTED_BY_CLIENTS = { r = true, la = true, da = true, cd = true }
+local FX_COUNTED_BY_CLIENTS = { time = true, reveal = true, reveal_elites = true, blackout = true }
+local last_signature, last_sent_at = nil, -math.huge
+
+local function signature(snap)
+	if not Protocol.encode then
+		return nil
+	end
+
+	local copy = {}
+
+	for key, value in pairs(snap) do
+		if not COUNTED_BY_CLIENTS[key] then
+			copy[key] = value
+		end
+	end
+
+	if type(snap.fx) == "table" then
+		local fx = {}
+
+		for key, value in pairs(snap.fx) do
+			if not FX_COUNTED_BY_CLIENTS[key] then
+				fx[key] = value
+			end
+		end
+
+		copy.fx = fx
+	end
+
+	return Protocol.encode(copy)
+end
+
+-- sends `snap` to the other players unless it repeats the last one sent less than KEEPALIVE seconds ago; `force`: always
+local function send_state(snap, force)
+	local sig = signature(snap)
+
+	if not force and sig ~= nil and sig == last_signature and clock - last_sent_at < KEEPALIVE then
+		return false
+	end
+
+	local sent = Protocol.send_state(snap, "others")
+
+	-- (a failed send is tried again on the next tick)
+	if sent then
+		last_signature, last_sent_at = sig, clock
+	else
+		last_signature = nil
+	end
+
+	return sent
+end
+
+Director.state_sends = function ()
+	return last_signature, last_sent_at
+end
+
+local function broadcast(force)
 	if host_state and Protocol.is_available() then
-		Protocol.send_state(snapshot(), "others")
+		send_state(snapshot(), force)
 	end
 end
 
@@ -1105,11 +1189,13 @@ local function host_update(dt)
 	send_timer = send_timer + dt
 
 	if changed or send_timer >= SEND_INTERVAL then
+		local forced = changed
+
 		changed = false
 		send_timer = 0
 
 		refresh_votes()
-		broadcast()
+		broadcast(forced)
 	end
 end
 
@@ -1159,7 +1245,7 @@ Director.update = function (dt)
 
 				if side_timer >= SEND_INTERVAL and Protocol.is_available() then
 					side_timer = 0
-					Protocol.send_state(side_snapshot(), "others")
+					send_state(side_snapshot(), false)
 				end
 			end
 		end
@@ -1173,6 +1259,7 @@ end
 
 Director.reset = function ()
 	paused, stopped = false, false
+	last_signature, last_sent_at = nil, -math.huge
 	peer_waves = {}
 	timers, timer_check = {}, 0
 	host_state, client_state = nil, nil
@@ -1189,6 +1276,7 @@ Director.reset = function ()
 	held = {}
 	spent_once = {}
 	forced_due = {}
+	forced_fired = {}
 	Votes.close()
 	Execute.reset()
 end
@@ -1208,6 +1296,12 @@ Director.on_enter_gameplay = function ()
 	client_disabled = false
 	gameplay_active = true
 	in_mission = false
+
+	-- (2026-10-19, a performance pass) every card's recipe is parsed here, behind the loading screen, so the first deal of the
+	-- game finds them in Groups.parse's cache (3-6 ms in one frame otherwise)
+	if Events and Events.build_pool then
+		pcall(Events.build_pool, get_setting, Groups)
+	end
 	recheck_timer = 1 -- check on the next update
 
 	if live_mission() then
@@ -1829,13 +1923,16 @@ Director.status = function ()
 	local state = Director.view()
 	local exec = Execute.status()
 	local tune = Tuning and Tuning.status() or { tuned = 0, sizes_known = 0, unsent = 0, pending = 0 }
+	-- (2026-10-19, /gt_status failed with "bad argument #27 to 'format'") both counts are read first: a call in the middle of an
+	-- argument list gives only its first value
+	local peer_waves_count, peer_players = Director.peer_wave_count()
 
 	return string.format(
 		"phase=%s mode=%s remaining=%.0fs paused=%s stopped=%s cands=%d host=%s started=%s in_mission=%s disabled=%s | tracked=%d queued=%d jobs=%d stage=%s err=%s | lua heap %.0f MB (guard %d, paused %s) | timed waves: %d | everyone's waves: %s, %d from %d players | custom mods: %d units with attack stats, %d sizes (%d unsent, %d waiting here)",
 		state.phase, tostring(state.mode), state.remaining or 0, tostring(paused), tostring(stopped), #(state.cands or {}), tostring(Director.is_host()), tostring(started), tostring(in_mission), tostring(client_disabled),
 		exec.tracked, exec.queued, exec.jobs, tostring(exec.stage), tostring(exec.last_error),
 		exec.heap_mb or 0, exec.heap_guard_mb or 0, tostring(exec.heap_paused),
-		Director.timed_wave_count(), mod:get("pool_all_players") == true and "on" or "off", Director.peer_wave_count(),
+		Director.timed_wave_count(), mod:get("pool_all_players") == true and "on" or "off", peer_waves_count, peer_players,
 		tune.tuned, tune.sizes_known, tune.unsent, tune.pending
 	)
 end

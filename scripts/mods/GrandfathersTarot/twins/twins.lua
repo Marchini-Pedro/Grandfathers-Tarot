@@ -577,6 +577,10 @@ end
 
 -- Spawns the queued twins of the card rows (host; Execute.update calls it every frame). A twin waits while the card enemies are at
 -- their limit (Max card enemies alive), at most TWIN_WAIT seconds.
+-- (2026-10-19, a performance pass) required once: DMF's require runs its hook_require bookkeeping on every call, and this ran every
+-- frame while twins waited
+local nav_queries = nil
+
 Twins.update = function (dt)
 	if #queue == 0 or not Execute or not Execute.spawn_twin then
 		return
@@ -584,39 +588,62 @@ Twins.update = function (dt)
 
 	local nav_mesh = Managers.state and Managers.state.nav_mesh
 	local nav_world = nav_mesh and nav_mesh.nav_world and nav_mesh:nav_world()
-	local nav_ok, NavQueries = pcall(require, "scripts/utilities/nav_queries")
 
-	if not nav_ok then
+	if nav_queries == nil then
+		local nav_ok, loaded = pcall(require, "scripts/utilities/nav_queries")
+
+		nav_queries = nav_ok and loaded or false
+	end
+
+	local NavQueries = nav_queries
+
+	if not NavQueries then
 		nav_world = nil
 	end
 	local done = 0
 	local i = 1
+	-- (2026-10-19, a performance pass) once one twin is refused because the card enemies are at their limit, every twin behind it
+	-- would be refused too: they only age this frame. Each of them used to cost a navmesh query and a target search every frame.
+	local full = false
 
 	while i <= #queue and done < TWINS_PER_UPDATE do
 		local item = queue[i]
 
 		item.age = item.age + (dt or 0)
 
-		local position = item.position:unbox()
-
-		if nav_world then
-			local ok, snapped = pcall(NavQueries.position_on_mesh_with_outside_position, nav_world, nil, position, 1, 1, 1)
-
-			position = ok and snapped or nil
-		end
-
-		local target = pick_target(item.target, position)
-		local spawned, why = false, "no place on the navmesh"
-
-		if position and target then
-			spawned, why = Execute.spawn_twin(item.entry, position, target)
-		end
-
-		if spawned or why ~= "full" or item.age > TWIN_WAIT then
-			table.remove(queue, i)
-			done = done + 1
+		if full then
+			if item.age > TWIN_WAIT then
+				table.remove(queue, i)
+				done = done + 1
+			else
+				i = i + 1
+			end
 		else
-			i = i + 1
+			local position = item.position:unbox()
+
+			if nav_world then
+				local ok, snapped = pcall(NavQueries.position_on_mesh_with_outside_position, nav_world, nil, position, 1, 1, 1)
+
+				position = ok and snapped or nil
+			end
+
+			local target = pick_target(item.target, position)
+			local spawned, why = false, "no place on the navmesh"
+
+			if position and target then
+				spawned, why = Execute.spawn_twin(item.entry, position, target)
+			end
+
+			if not spawned and why == "full" then
+				full = true
+			end
+
+			if spawned or why ~= "full" or item.age > TWIN_WAIT then
+				table.remove(queue, i)
+				done = done + 1
+			else
+				i = i + 1
+			end
 		end
 	end
 end

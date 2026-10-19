@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-10-19 - Version 1.2 (optimizing)
+- The version is 1.2 (was 1.1); the mod's name in the options shows v1.2. Host and players must have the same version.
+- Faster (2026-10-19, second pass, with clients in mind): the Twins waiting at the card enemies' limit no longer each run a
+  navmesh query, a target search and a spawn attempt every frame (after the first refusal in a frame the others only wait), and
+  the navmesh helper is required once. On a client, the sizes waiting for their units are looked at every 0.1 s instead of every
+  frame, and the colour and boss-bar lookups no longer make two closures per entry four times a second.
+- 1.2 holds the three entries below (the hook warnings fix of 2026-10-17, the performance pass, the guaranteed hands' repeat).
+  The Nexus post is docs/changelog-post-1.2.txt.
+
+## 2026-10-19 - Guaranteed hands: repeat this effect (feature/guaranteed-repeat)
+- New options under Guaranteed hands, for each of the three kinds: "repeat this effect" (off by default) and "repeat every"
+  (minutes, 10 by default). The first hand of a kind still comes at a random moment between its minimum and maximum; after it,
+  with the option on, it comes again every set number of minutes.
+- Changed: with "repeat this effect" off, a guaranteed hand comes once per game. It used to come again at a new random moment
+  between the minimum and the maximum after each one.
+
+## 2026-10-19 - Fewer frame spikes from the draw and the spawn points (optimizing)
+- Faster: a card's recipe is read once and remembered. Dealing a hand read every card of the deck again (3-6 ms in one frame
+  with a deck of 150 cards), and the cooldowns sent to the other players once a second read every card already played (more
+  each minute of a game). The cards are read behind the loading screen, so the first hand is fast too.
+- Faster: the search for hidden spawn points (up to 27 engine queries, again every 1.5 s while a card's enemies come) is spread
+  over a few frames, three queries a frame. The card keeps spawning on the points it found last time meanwhile.
+- The On Fire look no longer goes through the game's require for every burning enemy twice a second.
+- Fixed: /gt_status showed an error ("bad argument #27 to 'format'") instead of the director's state.
+- Faster with other players: the host sends its state to the other players when something changed, or every 5 s, instead of
+  every second (the players' games count the timers down themselves between two messages).
+- New command /gt_perf [seconds]: times the parts of the mod's update in game for a while (30 s by default) and prints where the
+  time goes, the slowest call of each part and how often the Lua garbage collector ran inside it (chat and console log).
+
 ## 2026-10-17 - No more "trying to toggle hook that doesn't exist" warnings (feature/hook-gate-delayed-hooks)
 - Fixed: on the title screen, in the hub and in missions the console and chat showed `(hook_disable): trying to toggle hook that
   doesn't exist: _draw_health_bar` every 3 s for the whole session, and `... _leap` until the first Pox Hound. The hooks that sleep

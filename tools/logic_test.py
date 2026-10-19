@@ -345,6 +345,31 @@ local PresetsMod = load("catalog/presets")
 local CardsMod = load("catalog/cards")
 Director.init({ events = Events, groups = Groups, protocol = Protocol, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod, cards = CardsMod })
 
+-- (2026-10-19, a performance pass) Groups.parse keeps every text it parsed; each call gets its own copy
+do
+  local recipe = "3 crushers[enraged+garden]{health=150}@2, 1 plague ogryn|chaos spawn"
+  local a, b = Groups.parse(recipe), Groups.parse(recipe)
+  check("parse cache: the same text gives equal parts", a ~= nil and Groups.to_recipe(a) == Groups.to_recipe(b))
+  check("parse cache: every call gets its own tables (parts, mods, tune, alternatives)", a ~= b and a[1] ~= b[1] and a[1].mods ~= b[1].mods and a[1].tune ~= b[1].tune and a[2].one_of ~= b[2].one_of)
+  a[1].count = 99; a[1].mods[1] = "changed"; a[2].one_of[1] = "changed"
+  local c = Groups.parse(recipe)
+  check("parse cache: changing the parts a caller got never changes the next answer", c[1].count == 3 and c[1].mods[1] ~= "changed" and c[2].one_of[1] ~= "changed")
+  local e1, m1 = Groups.parse("3 gargles")
+  local e2, m2 = Groups.parse("3 gargles")
+  check("parse cache: an error is kept with its message", e1 == nil and e2 == nil and m1 ~= nil and m1 == m2)
+  local n1, n2 = Groups.parse(nil)
+  check("parse cache: a missing recipe still says why", n1 == nil and type(n2) == "string")
+  for i = 1, 600 do Groups.parse(i .. " hounds") end
+  local d = Groups.parse(recipe)
+  check("parse cache: after the cache is emptied (more than 512 texts) the answers are the same", d ~= nil and Groups.to_recipe(d) == Groups.to_recipe(b) and Groups.parse("5 hounds")[1].count == 5)
+  settings["wave_def_custom_7"] = "Cache test" .. "	" .. "2 hounds"
+  local before = Events.get("custom_7", function(id) return settings[id] end, Groups)
+  settings["wave_def_custom_7"] = "Cache test" .. "	" .. "4 hounds"
+  local after = Events.get("custom_7", function(id) return settings[id] end, Groups)
+  settings["wave_def_custom_7"] = nil
+  check("parse cache: an edited card is read with its new recipe", before.parts and after.parts and before.parts[1].count == 2 and after.parts[1].count == 4, tostring(before.parts and before.parts[1].count) .. " " .. tostring(after.parts and after.parts[1].count))
+end
+
 -- random mode
 settings.mode = "random"; settings.interval_min = 100; settings.interval_max = 100; settings.initial_delay = 0; settings.vote_duration = 25
 Director.on_enter_gameplay()
@@ -404,6 +429,56 @@ do
   end
   check("summary: painted text equals the plain text at every length (colour tags never count)", #mismatches == 0, table.concat(mismatches, " | "))
   check("summary: unpainted behaviour is unchanged (no argument)", Groups.summary(Groups.parse("3 hounds"), 95) == "3 Hound")
+end
+
+-- (2026-10-19, a performance pass) the host's state goes out when it says something new, or every 5 s: not every second
+do
+  local function enc(v)
+    if type(v) ~= "table" then return tostring(v) end
+    local keys = {}
+    for k in pairs(v) do keys[#keys + 1] = tostring(k) end
+    table.sort(keys)
+    local out = {}
+    for _, k in ipairs(keys) do out[#out + 1] = k .. "=" .. enc(v[k] ~= nil and v[k] or v[tonumber(k)]) end
+    return "{" .. table.concat(out, ",") .. "}"
+  end
+  Protocol.encode = enc
+  settings.mode = "random"; settings.interval_min = 100; settings.interval_max = 100; settings.initial_delay = 0
+  Director.on_exit_gameplay(); started_waves = {}
+  Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.1)
+  local first = #sent
+  check("state sends: the first state of a game goes out at once", first > 0 and sent[first].state.p == "waiting")
+  for _ = 1, 30 do Director.update(0.1) end
+  check("state sends: a countdown alone (clients count it down) sends nothing for 3 s", #sent == first, #sent - first)
+  for _ = 1, 25 do Director.update(0.1) end
+  check("state sends: ...but a keep-alive goes out within 5 s", #sent == first + 1, #sent - first)
+  local before = #sent
+  Director.pause(true); Director.update(0.1)
+  check("state sends: a real change (paused) goes out at once", #sent == before + 1 and sent[#sent].state.z == 1, #sent - before)
+  Director.pause(false); Director.update(0.1)
+  -- stopped: the side state ({ o = 1 }) once, then only keep-alives
+  Director.stop(); Director.update(1.1)
+  local side = #sent
+  check("state sends: a stopped host sends its side state", sent[side].state.o == 1)
+  for _ = 1, 3 do Director.update(1.1) end
+  check("state sends: ...and does not repeat it every second", #sent == side, #sent - side)
+  for _ = 1, 2 do Director.update(1.1) end
+  check("state sends: ...only a keep-alive every 5 s", #sent == side + 1, #sent - side)
+  -- a failed send is tried again on the next tick
+  local real_send = Protocol.send_state
+  Protocol.send_state = function(state, rcpt) sent[#sent + 1] = { state = state, rcpt = rcpt, failed = true } return false end
+  for _ = 1, 5 do Director.update(1.1) end
+  local fails = #sent
+  Protocol.send_state = real_send
+  Director.update(1.1)
+  check("state sends: after a failed send the next tick sends again (no 5 s wait)", #sent == fails + 1 and not sent[#sent].failed, #sent - fails)
+  -- a new game sends at once again
+  Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started()
+  local fresh = #sent
+  Director.update(0.1)
+  check("state sends: a new game's first state is not held back by the last one", #sent == fresh + 1)
+  Protocol.encode = nil
+  Director.on_exit_gameplay(); started_waves = {}
 end
 
 -- vote mode
@@ -1090,6 +1165,8 @@ do
   for _ = 1, 30 do Director.update(1) end
   check("timer: ...for good", count_pulse() == stopped)
   check("timer: /gt_status counts timed waves", Director.timed_wave_count() == 0)
+  local status_ok, status_text = pcall(Director.status)
+  check("status: /gt_status builds its text (every count given to the format, 2026-10-19)", status_ok and type(status_text) == "string" and status_text:find("from 0 players", 1, true) ~= nil, tostring(status_text))
   settings.on_custom_1 = true; settings.ev_custom_1 = 20
   for _ = 1, 2 do Director.update(1) end
   check("timer: re-enabled -> running again", Director.timed_wave_count() == 1)
@@ -1365,7 +1442,8 @@ do
     -- off: no moment is planned
     v = start(); Director.update(1)
     check("forced: with the options off nothing is planned", Director.forced_due("forced_six") == nil and Director.forced_due("forced_blessed") == nil)
-    settings.forced_six = true; settings.forced_six_min = 1; settings.forced_six_max = 1
+    -- (2026-10-19) the repeats are the "repeat this effect" option now: on, every minute (as min = max = 1 used to repeat)
+    settings.forced_six = true; settings.forced_six_min = 1; settings.forced_six_max = 1; settings.forced_six_repeat = true; settings.forced_six_every = 1
     v = start()
     local list = hands_over(250)
     local sixes = 0
@@ -1382,7 +1460,45 @@ do
     for _, hand in ipairs(list) do if all(hand, function(c) return c.threat == 6 end) and #hand == 2 then full_sixes = full_sixes + 1 end end
     check("forced: resting threat 6 cards fill the guaranteed hand (it is guaranteed)", full_sixes >= 2, full_sixes)
     settings.cd_wave_huge, settings.cd_boss_ambush = 0, 0
-    settings.forced_six = nil; settings.forced_six_min = nil; settings.forced_six_max = nil
+    -- (2026-10-19) "repeat this effect" off: one guaranteed hand per game, then none
+    settings.forced_six_repeat = nil; settings.forced_six_every = nil
+    v = start()
+    list = hands_over(70)
+    sixes = 0
+    for _, hand in ipairs(list) do if all(hand, function(c) return c.threat == 6 end) then sixes = sixes + 1 end end
+    check("forced repeat off: the first guaranteed hand comes (min = max = 1 minute)", sixes >= 1, sixes)
+    check("forced repeat off: after it nothing more is planned this game", Director.forced_due("forced_six") == nil)
+    for _ = 1, 400 do Director.update(0.5) end
+    check("forced repeat off: still nothing planned minutes later", Director.forced_due("forced_six") == nil)
+    -- switched on later: due the set minutes after the last one
+    settings.forced_six_repeat = true; settings.forced_six_every = 3
+    local due_at = Director.forced_due("forced_six")
+    check("forced repeat: switched on after the first hand, the next one is planned (in played seconds)", type(due_at) == "number", tostring(due_at))
+    -- on, every 3 minutes: the gap between two guaranteed hands is 3 minutes, not the first's 1
+    v = start()
+    local at = {}
+    for _ = 1, 1000 do
+      Director.update(0.5)
+      local now = Director.view()
+      if now.phase == "hand" and now.hand and not at[now.hand_seq] then
+        at[now.hand_seq] = true
+        if all(now.hand, function(c) return c.threat == 6 end) then at[#at + 1] = Director.forced_due("forced_six") end
+      end
+    end
+    check("forced repeat on: every 3 minutes after the first (each next moment 180 s after the last)", #at >= 2 and math.abs((at[2] - at[1]) - 180) <= 6, #at >= 2 and (at[2] - at[1]) or #at)
+    settings.forced_six_every = 0
+    local floor_due = Director.forced_due("forced_six")
+    check("forced repeat: an every below 1 minute counts as 1", floor_due ~= nil)
+    -- the kind switched off and on again starts over (a new first moment); a new game too
+    -- (the kinds are looked at when a hand is dealt)
+    settings.forced_six = false; hands_over(70)
+    check("forced repeat: switching the kind off forgets its hands", Director.forced_due("forced_six") == nil)
+    settings.forced_six = true; settings.forced_six_repeat = nil; settings.forced_six_min = 30; settings.forced_six_max = 30; hands_over(70)
+    check("forced repeat: switched on again it plans a new first moment (even with repeat off)", type(Director.forced_due("forced_six")) == "number")
+    v = start(); hands_over(70)
+    local fresh_due = Director.forced_due("forced_six")
+    check("forced repeat: a new game plans its own first moment (the last game's hands are forgotten)", type(fresh_due) == "number" and fresh_due >= 30 * 60 - 1, tostring(fresh_due))
+    settings.forced_six = nil; settings.forced_six_min = nil; settings.forced_six_max = nil; settings.forced_six_every = nil
     -- threat 5: none in the draw: the hands stay normal, nothing stalls, the kind stays due
     settings.forced_five = true; settings.forced_five_min = 1; settings.forced_five_max = 1
     v = start()
@@ -1392,14 +1508,14 @@ do
     -- beneficial: one Prayer card: the guaranteed hand is that one card alone
     -- (a beneficial card is in the draw only with an effect its suit allows)
     settings.su_wave_large = "prayer"; settings.fx_wave_large = "heal=50:4"
-    settings.forced_blessed = true; settings.forced_blessed_min = 1; settings.forced_blessed_max = 2
+    settings.forced_blessed = true; settings.forced_blessed_min = 1; settings.forced_blessed_max = 2; settings.forced_blessed_repeat = true; settings.forced_blessed_every = 1
     v = start()
     list = hands_over(250)
     local blessed = 0
     for _, hand in ipairs(list) do if #hand == 1 and hand[1].key == "wave_large" then blessed = blessed + 1 end end
     check("forced: a hand of beneficial cards (here the one Prayer card, alone) every 1 to 2 minutes", blessed >= 2, blessed)
     settings.su_wave_large = nil; settings.fx_wave_large = nil
-    settings.forced_blessed = nil; settings.forced_blessed_min = nil; settings.forced_blessed_max = nil
+    settings.forced_blessed = nil; settings.forced_blessed_min = nil; settings.forced_blessed_max = nil; settings.forced_blessed_repeat = nil; settings.forced_blessed_every = nil
     settings.th_wave_small, settings.th_wave_medium, settings.th_wave_large, settings.th_wave_huge, settings.th_boss_ambush = nil, nil, nil, nil, nil
     settings.tarot_cards = 9
   end
@@ -1843,6 +1959,78 @@ do
   check("gap: an explicit test wave and a card that did not wait both start at once", #spawned == 2, #spawned)
   Execute.cancel(); Bypass.reset(); spawned = {}
   cand_fail, cand_reason = false, nil
+end
+
+-- (2026-10-19, a performance pass) the hidden-point search in steps (Positions.new_search / step_search): a few occlusion queries a
+-- frame, the last points kept while the next search runs, and a search in progress is never "stuck" (no 10 s gap for the next card)
+do
+  Execute.cancel(); Bypass.reset(); spawned = {}
+  local S = { started = 0, steps = 0, need = 3 }
+  StubPositions.new_search = function()
+    S.started = S.started + 1
+    if S.fail_start then return nil, S.fail_start end
+    return { left = S.need }
+  end
+  StubPositions.step_search = function(search, budget)
+    S.steps, S.budget = S.steps + 1, budget
+    if S.throw then error("native query failed") end
+    search.left = search.left - 1
+    if search.left > 0 then return false end
+    if S.fail then return true, nil, S.fail end
+    return true, { "s1", "s2" }
+  end
+  Execute.start_wave({ name = "x", parts = Groups.parse("2 hounds") })
+  Execute.start_wave({ name = "y", parts = Groups.parse("2 hounds") })
+  Execute.update(1 / 60)
+  check("search: a search of several steps spawns nothing in its first frame, a few queries at a time", #spawned == 0 and S.started == 1 and S.budget == 3 and S.steps == 1, S.started .. " " .. S.steps)
+  Execute.update(1 / 60)
+  check("search: it goes on in the next frame without being started again", S.started == 1 and S.steps == 2, S.steps)
+  for _ = 1, 60 do Execute.update(1 / 60) end
+  check("search: once over, the card spawns, and the next card is not held back 10 s (a search in progress is not stuck)", #spawned == 4 and S.started == 1, #spawned)
+  -- a long card: the points expire (1.5 s) and the next search runs while the old points keep it spawning
+  Execute.cancel(); Bypass.reset(); spawned = {}; S.started, S.steps, S.need = 0, 0, 300
+  Execute.start_wave({ name = "long", parts = Groups.parse("40 poxwalkers") })
+  local guard = 0
+  while S.started < 2 and guard < 600 do Execute.update(1 / 60); guard = guard + 1 end
+  local before = #spawned
+  for _ = 1, 20 do Execute.update(1 / 60) end
+  check("search: while the next search runs the last points keep the card spawning", S.started == 2 and #spawned > before, before .. " -> " .. #spawned)
+  -- ... but not for ever: a search that takes too long leaves the old points unused after their grace (0.75 s)
+  for _ = 1, 40 do Execute.update(1 / 60) end
+  local held = #spawned
+  for _ = 1, 30 do Execute.update(1 / 60) end
+  check("search: points older than their time and grace are not used while a slow search runs", S.started == 2 and #spawned == held, held .. " -> " .. #spawned)
+  -- a failed search is remembered (FAILED_SEARCH_TTL) like a failed full search: not started again every feed tick
+  Execute.cancel(); Bypass.reset(); spawned = {}; S.started, S.steps, S.need, S.fail = 0, 0, 2, "no hidden points near players"
+  Execute.start_wave({ name = "fail", parts = Groups.parse("2 hounds") })
+  for _ = 1, 30 do Execute.update(1 / 60) end
+  check("search: a failed search spawns nothing and is not started again within 1.5 s", #spawned == 0 and S.started == 1, S.started)
+  for _ = 1, 90 do Execute.update(1 / 60) end
+  check("search: ...and is tried again after that", S.started == 2, S.started)
+  S.fail = nil
+  for _ = 1, 120 do Execute.update(1 / 60) end
+  check("search: the card spawns once a search finds points", #spawned == 2, #spawned)
+  -- a search that cannot start (no main path) takes the same road as before; an engine error during a step does not break the frame
+  Execute.cancel(); Bypass.reset(); spawned = {}; S.started, S.steps, S.fail_start = 0, 0, "main path not ready"
+  Execute.start_wave({ name = "t", test = true, parts = Groups.parse("1 hound") })
+  for _ = 1, 10 do Execute.update(1 / 60) end
+  check("search: an explicit test wave on a level without a main path uses the test ring", #spawned == 1 and ring_calls > 0, #spawned)
+  Execute.cancel(); Bypass.reset(); spawned = {}; S.fail_start, S.throw, S.need = nil, true, 3
+  Execute.start_wave({ name = "throw", parts = Groups.parse("1 hound") })
+  local fine = pcall(function () for _ = 1, 10 do Execute.update(1 / 60) end end)
+  check("search: an error inside a step is caught and nothing spawns from it", fine and #spawned == 0, #spawned)
+  -- a cancel (mission end, the mod disabled) drops the search in progress
+  S.throw = false; S.need = 50
+  Execute.cancel(); Bypass.reset(); spawned = {}; S.started = 0
+  Execute.start_wave({ name = "c1", parts = Groups.parse("1 hound") })
+  Execute.update(1 / 60)
+  Execute.cancel()
+  S.need = 1
+  Execute.start_wave({ name = "c2", parts = Groups.parse("1 hound") })
+  for _ = 1, 5 do Execute.update(1 / 60) end
+  check("search: a cancel drops the search in progress; the next card searches anew", S.started == 2 and #spawned == 1, S.started .. " " .. #spawned)
+  StubPositions.new_search, StubPositions.step_search = nil, nil
+  Execute.cancel(); Bypass.reset(); spawned = {}
 end
 
 -- Havoc-only modifier is skipped outside Havoc, applied inside it
@@ -2645,6 +2833,19 @@ do
     Tuning.receive(flood); Tuning.receive({{id=9,pct=180}})
     Tuning.update_client(0.1)
     check("client: an existing unit's newest size is accepted even with a full pending queue", applied2[#applied2]==1.8 and Tuning.status().pending==599)
+    -- (2026-10-19, a performance pass) the waiting sizes are looked at every 0.1 s, not every frame; their age still counts every frame
+    Tuning.reset()
+    local lookups = 0
+    local counting = Managers.state.unit_spawner
+    Managers.state.unit_spawner = { unit_exists = function(self, id) lookups = lookups + 1 return counting:unit_exists(id) end, unit = function(self, id) return counting:unit(id) end }
+    Tuning.receive({{id=77,pct=140}}); Tuning.receive({{id=9,pct=110}})
+    for _ = 1, 5 do Tuning.update_client(1 / 60) end
+    check("client: in the first 0.08 s (5 frames) the waiting sizes are not looked up", lookups == 0 and Tuning.status().pending == 2, lookups)
+    Tuning.update_client(1 / 60); Tuning.update_client(1 / 60) -- (six frames of 1/60 add up to just under 0.1)
+    check("client: past 0.1 s they are, once each; an arrived unit gets its size", lookups == 2 and applied2[#applied2] == 1.1 and Tuning.status().pending == 1, lookups)
+    for _ = 1, 60 * 31 do Tuning.update_client(1 / 60) end
+    check("client: a size whose unit never comes still times out (its age counts every frame)", Tuning.status().pending == 0 and lookups < 400, lookups)
+    Managers.state.unit_spawner = counting
     Unit.set_local_scale = saved_set_scale
     Managers.state.unit_spawner = saved_spawner2
     Tuning.reset()

@@ -132,6 +132,9 @@ local function encode(value)
 	return ok and type(result) == "string" and result or nil
 end
 
+-- (the director compares two states by their text, 2026-10-19)
+Protocol.encode = encode
+
 local function decode(text)
 	if type(text) ~= "string" or type(cjson) ~= "table" then
 		return nil

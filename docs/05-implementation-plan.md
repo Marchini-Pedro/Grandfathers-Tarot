@@ -282,7 +282,25 @@ Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
 - [x] The hook gate never switches a hook DMF has not made yet (late classes hooked through their files, Gate.hook_file) and the
   unload survives a destroyed EventManager; tests (2026-10-17, feature/hook-gate-delayed-hooks).
 - [ ] In-game check of the above: no "toggle hook that doesn't exist" from GrandfathersTarot in a fresh session (title, hub,
-  mission), Instant rescue's gold and the hounds' feint still work, no on_unload error when the game closes; merge after the user
-  confirms.
+  mission), Instant rescue's gold and the hounds' feint still work, no on_unload error when the game closes; merged into main
+  on 2026-10-19 at the user's request (with `polishing`), the in-game check is still owed.
+- [x] Performance pass (2026-10-19, branch `optimizing`): Groups.parse cached by text (copies per call) and warmed at gameplay
+  entry; the hidden-point search in steps (Positions.new_search / step_search, 3 queries a frame, no "stuck" while it runs); the On
+  Fire look's require hoisted; tests.
+- [x] /gt_perf (core/perf.lua): the update's parts timed in game, GC inside each part counted; tests (2026-10-19, `optimizing`).
+- [x] The host's state goes out on a change or every 5 s (was every second); tests (2026-10-19, `optimizing`).
+- [ ] In game with a client: the HUD's countdown, votes, the hand and the reveal still match on the client; Tarot's spikes with a
+  client in the session drop.
+- [ ] The user runs /gt_perf after /gt_stop (no card enemy alive) where Tarot still spikes (0.12 mean, p95 0.025, peak 9.5 ms) and
+  sends the report: it tells whether a part of ours or the GC is behind the spikes.
+- [ ] In-game check of the performance pass: the monitor's full report while cards are dealt and spawn (Tarot's peak and spikes
+  should drop), cards still spawn hidden and at the right distances, a /gt_test on a level without a main path still uses the ring;
+  merge after the user confirms.
 - [ ] Enemy shadow (the Daemonhost fog particle on other enemies): found, waiting for the user's decision.
 - [ ] Game acceptance of the [checklist](13-cauldron-redesign.md#in-game-checks-before-merge); merge only after the user confirms.
+- [x] Guaranteed hands: "repeat this effect" and "repeat every" per kind; off = once per game (2026-10-19, `feature/guaranteed-repeat`,
+  from main; tests).
+- [ ] In-game check: a kind with repeat off comes once; with repeat on (e.g. 12-18 min, every 10) it comes again 10 minutes after
+  the first; merge after the user confirms.
+- [x] Version 1.2 (`optimizing`) merged into main on 2026-10-19 at the user's request. The in-game checks above (performance pass,
+  state sends with a client, guaranteed hands' repeat) are still open; later work stays on `optimizing`.
