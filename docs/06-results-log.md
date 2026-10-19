@@ -596,3 +596,7 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   test passed but core/perf.lua's coverage was 67.86% (floor 72): its QueryPerformanceCounter path was only tested with LuaJIT's
   real ffi. entry_test now gives a stand-in ffi on both runtimes (a cdef that raises as when another mod declared it, ticks
   turned into milliseconds, a zero frequency falling back to os.clock): 195 checks on Lua 5.5, 196 on LuaJIT.
+- Same day: the GitHub run of main (d7eb797) failed on luajit21: "perf: with the game's ffi the timer is QueryPerformanceCounter"
+  (the CI is Ubuntu: the real ffi has no QueryPerformanceCounter, so /gt_perf correctly fell back to os.clock; appearance_test failed
+  only because it runs entry_test). The check now expects the Windows timer on Windows and the os.clock fallback elsewhere. The
+  earlier optimizing runs since 8b8d2a1 failed the same way.

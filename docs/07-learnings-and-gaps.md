@@ -680,3 +680,5 @@ Things we know are missing or unverified, each with the next concrete step.
   synchronous native call (runtime/binary.lua through ffi) made inside our update, so the monitor bills it to us: send less, not
   faster. Clients extrapolate remaining time, drawn age, last-card age and cooldowns from the time of arrival, so those fields
   need no resend. Not done: Appearance.send_all still renews every 5 s while coloured card enemies live.
+- The GitHub CI runs on Ubuntu: a test of a Windows-only engine call through the real ffi (QueryPerformanceCounter) must branch on
+  jit.os, or it passes here and fails there. CI job logs need an authenticated API call (the stored git credential works).

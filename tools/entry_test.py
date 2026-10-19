@@ -630,7 +630,12 @@ do
     RW.perf.init({ mod = mod })
     RW.perf.start(RW, 1)
     local header = (RW.perf.stop() or {})[1] or ""
-    check("perf: with the game's ffi the timer is QueryPerformanceCounter", header:find("QueryPerformanceCounter", 1, true) ~= nil, header)
+    -- (QueryPerformanceCounter is a Windows function: on the Linux CI the real ffi has no such symbol and the timer falls back)
+    if jit.os == "Windows" then
+      check("perf: with the game's ffi the timer is QueryPerformanceCounter", header:find("QueryPerformanceCounter", 1, true) ~= nil, header)
+    else
+      check("perf: with an ffi that has no QueryPerformanceCounter (not Windows) the timer falls back to os.clock", header:find("os.clock", 1, true) ~= nil, header)
+    end
     Mods = saved_mods
     RW.perf.init({ mod = mod })
   end
