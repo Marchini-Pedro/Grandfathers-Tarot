@@ -475,7 +475,8 @@ Director.FORCED = {
 	{ id = "forced_blessed", wants = card_beneficial },
 }
 
-local forced_due = {} -- kind id -> cd_clock when its hand is due
+local forced_due = {} -- kind id -> cd_clock when its FIRST hand is due
+local forced_fired = {} -- kind id -> cd_clock of its last guaranteed hand
 
 local function forced_wait(id)
 	local low = math.max(1, number_setting(id .. "_min", 20))
@@ -484,7 +485,24 @@ local function forced_wait(id)
 	return (low + math.random() * (high - low)) * 60
 end
 
--- the kind of hand due now, or nil (a kind switched on is given its first moment here)
+-- (2026-10-19, the user) The first hand of a kind comes at a random moment between its minimum and maximum; after it, the kind
+-- comes again every "<kind>_every" minutes when "<kind>_repeat" is on, and never again this game when it is off (it used to come
+-- again at a new random moment between the minimum and the maximum). Read at every look, so a change of the options applies at once.
+local function repeat_due(id)
+	local fired = forced_fired[id]
+
+	if not fired then
+		return forced_due[id]
+	end
+
+	if mod:get(id .. "_repeat") ~= true then
+		return nil
+	end
+
+	return fired + math.max(1, number_setting(id .. "_every", 10)) * 60
+end
+
+-- the kind of hand due now, or nil (a kind switched on is given its first moment here; switched off, it starts over)
 local function forced_kind()
 	local due = nil
 
@@ -492,18 +510,21 @@ local function forced_kind()
 		if mod:get(kind.id) == true then
 			forced_due[kind.id] = forced_due[kind.id] or cd_clock + forced_wait(kind.id)
 
-			if not due and cd_clock >= forced_due[kind.id] then
+			local at = repeat_due(kind.id)
+
+			if not due and at and cd_clock >= at then
 				due = kind
 			end
 		else
-			forced_due[kind.id] = nil
+			forced_due[kind.id], forced_fired[kind.id] = nil, nil
 		end
 	end
 
 	return due
 end
 
-Director.forced_due = function (id) return forced_due[id] end
+-- when the kind's next guaranteed hand is due (played seconds), or nil (off, or done for this game)
+Director.forced_due = function (id) return repeat_due(id) end
 
 -- Deals the hand: up to `tarot_cards` cards by chance weight without repeats, then the winner by a uniform roll.
 -- The winner is decided HERE and travels with the hand; nobody else rolls. Returns false when no card can be dealt.
@@ -544,7 +565,7 @@ local function deal(state)
 		take(resting)
 
 		if #picks > 0 then
-			forced_due[kind.id] = cd_clock + forced_wait(kind.id)
+			forced_fired[kind.id] = cd_clock
 		end
 	end
 
@@ -1189,6 +1210,7 @@ Director.reset = function ()
 	held = {}
 	spent_once = {}
 	forced_due = {}
+	forced_fired = {}
 	Votes.close()
 	Execute.reset()
 end
