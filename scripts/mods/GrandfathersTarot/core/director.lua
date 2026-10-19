@@ -971,9 +971,72 @@ local function side_snapshot()
 	return snap
 end
 
-local function broadcast()
+-- (2026-10-19, a performance pass; the user: "maybe it only occurs when there are other players in the lobby") With a client in the
+-- session every send is a synchronous native call in Realms' transport, billed to this mod, and the state went out every second
+-- although a client counts the countdown, the ages and the cooldowns down by itself between two states. A state is now sent when
+-- it says something new (the fields a client counts itself left out of the comparison), when the host marked a change, or every
+-- KEEPALIVE seconds (a lost message, a client that missed one); a player who joins gets the whole state at once (Director.on_hello).
+-- Without Protocol.encode (an old protocol module) every state is sent, as before.
+local KEEPALIVE = 5
+local COUNTED_BY_CLIENTS = { r = true, la = true, da = true, cd = true }
+local FX_COUNTED_BY_CLIENTS = { time = true, reveal = true, reveal_elites = true, blackout = true }
+local last_signature, last_sent_at = nil, -math.huge
+
+local function signature(snap)
+	if not Protocol.encode then
+		return nil
+	end
+
+	local copy = {}
+
+	for key, value in pairs(snap) do
+		if not COUNTED_BY_CLIENTS[key] then
+			copy[key] = value
+		end
+	end
+
+	if type(snap.fx) == "table" then
+		local fx = {}
+
+		for key, value in pairs(snap.fx) do
+			if not FX_COUNTED_BY_CLIENTS[key] then
+				fx[key] = value
+			end
+		end
+
+		copy.fx = fx
+	end
+
+	return Protocol.encode(copy)
+end
+
+-- sends `snap` to the other players unless it repeats the last one sent less than KEEPALIVE seconds ago; `force`: always
+local function send_state(snap, force)
+	local sig = signature(snap)
+
+	if not force and sig ~= nil and sig == last_signature and clock - last_sent_at < KEEPALIVE then
+		return false
+	end
+
+	local sent = Protocol.send_state(snap, "others")
+
+	-- (a failed send is tried again on the next tick)
+	if sent then
+		last_signature, last_sent_at = sig, clock
+	else
+		last_signature = nil
+	end
+
+	return sent
+end
+
+Director.state_sends = function ()
+	return last_signature, last_sent_at
+end
+
+local function broadcast(force)
 	if host_state and Protocol.is_available() then
-		Protocol.send_state(snapshot(), "others")
+		send_state(snapshot(), force)
 	end
 end
 
@@ -1105,11 +1168,13 @@ local function host_update(dt)
 	send_timer = send_timer + dt
 
 	if changed or send_timer >= SEND_INTERVAL then
+		local forced = changed
+
 		changed = false
 		send_timer = 0
 
 		refresh_votes()
-		broadcast()
+		broadcast(forced)
 	end
 end
 
@@ -1159,7 +1224,7 @@ Director.update = function (dt)
 
 				if side_timer >= SEND_INTERVAL and Protocol.is_available() then
 					side_timer = 0
-					Protocol.send_state(side_snapshot(), "others")
+					send_state(side_snapshot(), false)
 				end
 			end
 		end
@@ -1173,6 +1238,7 @@ end
 
 Director.reset = function ()
 	paused, stopped = false, false
+	last_signature, last_sent_at = nil, -math.huge
 	peer_waves = {}
 	timers, timer_check = {}, 0
 	host_state, client_state = nil, nil
