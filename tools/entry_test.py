@@ -798,7 +798,7 @@ do
   local top = data.options.widgets[1]
   check("update defaults: the first widget of the options is the held button 'Update default cards'", top.setting_id == "update_default_cards" and top.type == "button" and top.button_trigger == "held" and top.function_name == "update_default_cards")
   local versioned = io.open(BASE .. "/catalog/version.lua"):read("*a")
-  check("version: the mod is v1.1", versioned:find('return "1.1"', 1, true) ~= nil)
+  check("version: the mod is v1.2", versioned:find('return "1.2"', 1, true) ~= nil)
   mod = {}; for _,key in ipairs(helpers) do mod[key] = prototype[key] end
   local saved_mod = mod
   hooks, views, commands, hook_requires, require_callbacks, require_by_path, hud_elements = {}, {}, {}, {}, {}, {}, {}
