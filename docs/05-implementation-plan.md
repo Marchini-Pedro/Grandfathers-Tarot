@@ -282,7 +282,13 @@ Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
 - [x] The hook gate never switches a hook DMF has not made yet (late classes hooked through their files, Gate.hook_file) and the
   unload survives a destroyed EventManager; tests (2026-10-17, feature/hook-gate-delayed-hooks).
 - [ ] In-game check of the above: no "toggle hook that doesn't exist" from GrandfathersTarot in a fresh session (title, hub,
-  mission), Instant rescue's gold and the hounds' feint still work, no on_unload error when the game closes; merge after the user
-  confirms.
+  mission), Instant rescue's gold and the hounds' feint still work, no on_unload error when the game closes; merged into main
+  on 2026-10-19 at the user's request (with `polishing`), the in-game check is still owed.
+- [x] Performance pass (2026-10-19, branch `optimizing`): Groups.parse cached by text (copies per call) and warmed at gameplay
+  entry; the hidden-point search in steps (Positions.new_search / step_search, 3 queries a frame, no "stuck" while it runs); the On
+  Fire look's require hoisted; tests.
+- [ ] In-game check of the performance pass: the monitor's full report while cards are dealt and spawn (Tarot's peak and spikes
+  should drop), cards still spawn hidden and at the right distances, a /gt_test on a level without a main path still uses the ring;
+  merge after the user confirms.
 - [ ] Enemy shadow (the Daemonhost fog particle on other enemies): found, waiting for the user's decision.
 - [ ] Game acceptance of the [checklist](13-cauldron-redesign.md#in-game-checks-before-merge); merge only after the user confirms.

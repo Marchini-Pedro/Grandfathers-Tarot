@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-19 - Fewer frame spikes from the draw and the spawn points (optimizing)
+- Faster: a card's recipe is read once and remembered. Dealing a hand read every card of the deck again (3-6 ms in one frame
+  with a deck of 150 cards), and the cooldowns sent to the other players once a second read every card already played (more
+  each minute of a game). The cards are read behind the loading screen, so the first hand is fast too.
+- Faster: the search for hidden spawn points (up to 27 engine queries, again every 1.5 s while a card's enemies come) is spread
+  over a few frames, three queries a frame. The card keeps spawning on the points it found last time meanwhile.
+- The On Fire look no longer goes through the game's require for every burning enemy twice a second.
+
 ## 2026-10-17 - No more "trying to toggle hook that doesn't exist" warnings (feature/hook-gate-delayed-hooks)
 - Fixed: on the title screen, in the hub and in missions the console and chat showed `(hook_disable): trying to toggle hook that
   doesn't exist: _draw_health_bar` every 3 s for the whole session, and `... _leap` until the first Pox Hound. The hooks that sleep

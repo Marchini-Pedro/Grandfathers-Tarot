@@ -649,3 +649,26 @@ Things we know are missing or unverified, each with the next concrete step.
   call (a closure).
 - The suites' DMF stubs had no delay at all (mod:hook just records), which is why no test ever saw this; the gate test even asserted
   the buggy behaviour ("a class loaded later is switched at the next resync").
+
+## 2026-10-19 - Where the Tarot's frame spikes came from (Mod Performance Monitor, then offline timing)
+- The user saw 0.38 ms a frame with spikes to 0.5-0.7 in the monitor's overlay. Its full report (dump keybind) told more than the
+  overlay: all of the time was `event update` (mod.update), p95 0.026 ms, peak 22 ms, 402 spikes. A mean far above the p95 is rare
+  heavy frames, not a steady cost. The HUD elements are not in the mod's row at all (the first guess, the Spread's 600 widget passes
+  a frame while a hand shows, was wrong for this row; that drawing is real cost the monitor does not charge to the mod).
+- The console log is written in batches: a dump pressed in game showed up there minutes later.
+- Offline timing: logic_test's harness with the user's own settings (the GrandfathersTarot block of user_settings.config turned into a
+  Lua table, 150 cards, Tarot mode), 10 minutes of host updates at 60 fps, ffi QueryPerformanceCounter (os.clock ticks in 1 ms on
+  Windows). Worst frame 6.5 ms at every deal (Events.build_pool: 3-6 ms), 0.2-0.3 ms once a second (Director.cooldown_map, growing
+  with the cards played). 85 percent of it was Groups.parse (~26 us a recipe).
+- Groups.parse is a pure function of its text (static alias and modifier tables, Appearance.parse is pure too), so it is cached by
+  text; each call gets a deep copy (a few us), because callers may change parts. The cache empties at 512 texts (the editor parses
+  on every key). After it: worst 1.2 ms (the first deal; the warm-up in Director.on_enter_gameplay takes the 5.7 ms behind the
+  loading screen), cooldown_map 0.008 ms.
+- Not measurable offline: the engine side. A hidden-point search was up to 27 GwNavSpawnPoints occlusion queries in one frame,
+  every CANDIDATE_TTL (1.5 s) while a card spawned; it now runs SEARCH_BUDGET (3) queries a frame (Positions.new_search /
+  step_search). A search in progress must not count as "stuck" (that sets job.waited, which holds the next card 10 s): the job is
+  marked `searching` instead. Old points are used during a refresh only up to CANDIDATE_TTL + 0.75 s; a search on a world that is
+  no longer the current nav world ends at once. The spawns themselves (spawn_minion, one every 0.075 s) stay the mod's heaviest
+  engine call; they are already spread.
+- DMF hooks the global `require` (dmf core/require.lua:67): a require inside a function that runs often pays that hook every call.
+
