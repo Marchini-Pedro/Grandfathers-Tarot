@@ -1835,13 +1835,16 @@ Director.status = function ()
 	local state = Director.view()
 	local exec = Execute.status()
 	local tune = Tuning and Tuning.status() or { tuned = 0, sizes_known = 0, unsent = 0, pending = 0 }
+	-- (2026-10-19, /gt_status failed with "bad argument #27 to 'format'") both counts are read first: a call in the middle of an
+	-- argument list gives only its first value
+	local peer_waves_count, peer_players = Director.peer_wave_count()
 
 	return string.format(
 		"phase=%s mode=%s remaining=%.0fs paused=%s stopped=%s cands=%d host=%s started=%s in_mission=%s disabled=%s | tracked=%d queued=%d jobs=%d stage=%s err=%s | lua heap %.0f MB (guard %d, paused %s) | timed waves: %d | everyone's waves: %s, %d from %d players | custom mods: %d units with attack stats, %d sizes (%d unsent, %d waiting here)",
 		state.phase, tostring(state.mode), state.remaining or 0, tostring(paused), tostring(stopped), #(state.cands or {}), tostring(Director.is_host()), tostring(started), tostring(in_mission), tostring(client_disabled),
 		exec.tracked, exec.queued, exec.jobs, tostring(exec.stage), tostring(exec.last_error),
 		exec.heap_mb or 0, exec.heap_guard_mb or 0, tostring(exec.heap_paused),
-		Director.timed_wave_count(), mod:get("pool_all_players") == true and "on" or "off", Director.peer_wave_count(),
+		Director.timed_wave_count(), mod:get("pool_all_players") == true and "on" or "off", peer_waves_count, peer_players,
 		tune.tuned, tune.sizes_known, tune.unsent, tune.pending
 	)
 end

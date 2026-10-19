@@ -7,6 +7,7 @@
 - Faster: the search for hidden spawn points (up to 27 engine queries, again every 1.5 s while a card's enemies come) is spread
   over a few frames, three queries a frame. The card keeps spawning on the points it found last time meanwhile.
 - The On Fire look no longer goes through the game's require for every burning enemy twice a second.
+- Fixed: /gt_status showed an error ("bad argument #27 to 'format'") instead of the director's state.
 
 ## 2026-10-17 - No more "trying to toggle hook that doesn't exist" warnings (feature/hook-gate-delayed-hooks)
 - Fixed: on the title screen, in the hub and in missions the console and chat showed `(hook_disable): trying to toggle hook that

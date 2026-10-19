@@ -550,3 +550,7 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   stop). LuaJIT 2.1 suite green (80.50%). Lua 5.5: every test passed except appearance_test, which timed out at 120 s while both
   suites ran at once (its coverage file then missing, as on 2026-10-17); the rerun alone was skipped at the user's request.
 - Not tested in game yet: see doc 05.
+- Same day: /gt_status failed in game ("bad argument #27 to 'format'", user's screenshot). Director.peer_wave_count() returns two
+  values, but in the middle of string.format's arguments Lua keeps only the first, so the format was one value short (since the
+  custom mods were added to the line). Both counts are read first. New logic_test check calls Director.status() for real (it was
+  never called by a test); green on LuaJIT 2.1 and Lua 5.5.

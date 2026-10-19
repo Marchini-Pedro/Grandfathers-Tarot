@@ -1115,6 +1115,8 @@ do
   for _ = 1, 30 do Director.update(1) end
   check("timer: ...for good", count_pulse() == stopped)
   check("timer: /gt_status counts timed waves", Director.timed_wave_count() == 0)
+  local status_ok, status_text = pcall(Director.status)
+  check("status: /gt_status builds its text (every count given to the format, 2026-10-19)", status_ok and type(status_text) == "string" and status_text:find("from 0 players", 1, true) ~= nil, tostring(status_text))
   settings.on_custom_1 = true; settings.ev_custom_1 = 20
   for _ = 1, 2 do Director.update(1) end
   check("timer: re-enabled -> running again", Director.timed_wave_count() == 1)

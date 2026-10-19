@@ -671,4 +671,4 @@ Things we know are missing or unverified, each with the next concrete step.
   no longer the current nav world ends at once. The spawns themselves (spawn_minion, one every 0.075 s) stay the mod's heaviest
   engine call; they are already spread.
 - DMF hooks the global `require` (dmf core/require.lua:67): a require inside a function that runs often pays that hook every call.
-
+- A function returning two values inside an argument list (not the last) gives only its first: /gt_status's format lost a count.
