@@ -592,3 +592,7 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   Tests: twins_test (1 navmesh query a frame while full, not 8), logic_test (inbox: none before 0.1 s, once each after, the
   timeout still counted per frame). LuaJIT full suite green (80.46%); logic, twins and appearance green on Lua 5.5. The zip for
   Nexus was rebuilt.
+- Same day, after the merge of 1.2 into main: the user asked for both suites on main. LuaJIT 2.1 green (80.46%). Lua 5.5: every
+  test passed but core/perf.lua's coverage was 67.86% (floor 72): its QueryPerformanceCounter path was only tested with LuaJIT's
+  real ffi. entry_test now gives a stand-in ffi on both runtimes (a cdef that raises as when another mod declared it, ticks
+  turned into milliseconds, a zero frequency falling back to os.clock): 195 checks on Lua 5.5, 196 on LuaJIT.

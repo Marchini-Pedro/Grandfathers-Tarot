@@ -634,6 +634,29 @@ do
     Mods = saved_mods
     RW.perf.init({ mod = mod })
   end
+  -- (both runtimes) a stand-in for the game's ffi: the timer reads QueryPerformanceCounter; a broken one falls back to os.clock
+  do
+    local saved_mods, ticks = rawget(_G, "Mods"), 0
+    local function fake_ffi(frequency)
+      return { cdef = function() error("already declared") end, new = function() return { [0] = 0 } end, C = {
+        QueryPerformanceFrequency = function(f) f[0] = frequency end,
+        QueryPerformanceCounter = function(c) ticks = ticks + 2500; c[0] = ticks end } }
+    end
+    Mods = { lua = { ffi = fake_ffi(1000000) } }
+    RW.perf.init({ mod = mod })
+    RW.perf.start(RW, 1)
+    for _ = 1, 3 do mod.update(0.016) end
+    local lines = RW.perf.stop() or {}
+    local text = table.concat(lines, " | ")
+    check("perf: a cdef that raises (declared by another mod) still gives the QueryPerformanceCounter timer", (lines[1] or ""):find("QueryPerformanceCounter", 1, true) ~= nil, lines[1])
+    check("perf: the counter's ticks become milliseconds (2500 ticks at 1 MHz = 2.5 ms a call)", text:find("max 2.50 ms", 1, true) ~= nil, text:sub(1, 300))
+    Mods = { lua = { ffi = fake_ffi(0) } }
+    RW.perf.init({ mod = mod })
+    RW.perf.start(RW, 1)
+    check("perf: a counter without a frequency falls back to os.clock", ((RW.perf.stop() or {})[1] or ""):find("os.clock", 1, true) ~= nil)
+    Mods = saved_mods
+    RW.perf.init({ mod = mod })
+  end
   RW.perf.start(RW, 5) -- left running: the unload below must end it
 end
 
