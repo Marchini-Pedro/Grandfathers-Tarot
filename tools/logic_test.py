@@ -1365,7 +1365,8 @@ do
     -- off: no moment is planned
     v = start(); Director.update(1)
     check("forced: with the options off nothing is planned", Director.forced_due("forced_six") == nil and Director.forced_due("forced_blessed") == nil)
-    settings.forced_six = true; settings.forced_six_min = 1; settings.forced_six_max = 1
+    -- (2026-10-19) the repeats are the "repeat this effect" option now: on, every minute (as min = max = 1 used to repeat)
+    settings.forced_six = true; settings.forced_six_min = 1; settings.forced_six_max = 1; settings.forced_six_repeat = true; settings.forced_six_every = 1
     v = start()
     local list = hands_over(250)
     local sixes = 0
@@ -1382,7 +1383,45 @@ do
     for _, hand in ipairs(list) do if all(hand, function(c) return c.threat == 6 end) and #hand == 2 then full_sixes = full_sixes + 1 end end
     check("forced: resting threat 6 cards fill the guaranteed hand (it is guaranteed)", full_sixes >= 2, full_sixes)
     settings.cd_wave_huge, settings.cd_boss_ambush = 0, 0
-    settings.forced_six = nil; settings.forced_six_min = nil; settings.forced_six_max = nil
+    -- (2026-10-19) "repeat this effect" off: one guaranteed hand per game, then none
+    settings.forced_six_repeat = nil; settings.forced_six_every = nil
+    v = start()
+    list = hands_over(70)
+    sixes = 0
+    for _, hand in ipairs(list) do if all(hand, function(c) return c.threat == 6 end) then sixes = sixes + 1 end end
+    check("forced repeat off: the first guaranteed hand comes (min = max = 1 minute)", sixes >= 1, sixes)
+    check("forced repeat off: after it nothing more is planned this game", Director.forced_due("forced_six") == nil)
+    for _ = 1, 400 do Director.update(0.5) end
+    check("forced repeat off: still nothing planned minutes later", Director.forced_due("forced_six") == nil)
+    -- switched on later: due the set minutes after the last one
+    settings.forced_six_repeat = true; settings.forced_six_every = 3
+    local due_at = Director.forced_due("forced_six")
+    check("forced repeat: switched on after the first hand, the next one is planned (in played seconds)", type(due_at) == "number", tostring(due_at))
+    -- on, every 3 minutes: the gap between two guaranteed hands is 3 minutes, not the first's 1
+    v = start()
+    local at = {}
+    for _ = 1, 1000 do
+      Director.update(0.5)
+      local now = Director.view()
+      if now.phase == "hand" and now.hand and not at[now.hand_seq] then
+        at[now.hand_seq] = true
+        if all(now.hand, function(c) return c.threat == 6 end) then at[#at + 1] = Director.forced_due("forced_six") end
+      end
+    end
+    check("forced repeat on: every 3 minutes after the first (each next moment 180 s after the last)", #at >= 2 and math.abs((at[2] - at[1]) - 180) <= 6, #at >= 2 and (at[2] - at[1]) or #at)
+    settings.forced_six_every = 0
+    local floor_due = Director.forced_due("forced_six")
+    check("forced repeat: an every below 1 minute counts as 1", floor_due ~= nil)
+    -- the kind switched off and on again starts over (a new first moment); a new game too
+    -- (the kinds are looked at when a hand is dealt)
+    settings.forced_six = false; hands_over(70)
+    check("forced repeat: switching the kind off forgets its hands", Director.forced_due("forced_six") == nil)
+    settings.forced_six = true; settings.forced_six_repeat = nil; settings.forced_six_min = 30; settings.forced_six_max = 30; hands_over(70)
+    check("forced repeat: switched on again it plans a new first moment (even with repeat off)", type(Director.forced_due("forced_six")) == "number")
+    v = start(); hands_over(70)
+    local fresh_due = Director.forced_due("forced_six")
+    check("forced repeat: a new game plans its own first moment (the last game's hands are forgotten)", type(fresh_due) == "number" and fresh_due >= 30 * 60 - 1, tostring(fresh_due))
+    settings.forced_six = nil; settings.forced_six_min = nil; settings.forced_six_max = nil; settings.forced_six_every = nil
     -- threat 5: none in the draw: the hands stay normal, nothing stalls, the kind stays due
     settings.forced_five = true; settings.forced_five_min = 1; settings.forced_five_max = 1
     v = start()
@@ -1392,14 +1431,14 @@ do
     -- beneficial: one Prayer card: the guaranteed hand is that one card alone
     -- (a beneficial card is in the draw only with an effect its suit allows)
     settings.su_wave_large = "prayer"; settings.fx_wave_large = "heal=50:4"
-    settings.forced_blessed = true; settings.forced_blessed_min = 1; settings.forced_blessed_max = 2
+    settings.forced_blessed = true; settings.forced_blessed_min = 1; settings.forced_blessed_max = 2; settings.forced_blessed_repeat = true; settings.forced_blessed_every = 1
     v = start()
     list = hands_over(250)
     local blessed = 0
     for _, hand in ipairs(list) do if #hand == 1 and hand[1].key == "wave_large" then blessed = blessed + 1 end end
     check("forced: a hand of beneficial cards (here the one Prayer card, alone) every 1 to 2 minutes", blessed >= 2, blessed)
     settings.su_wave_large = nil; settings.fx_wave_large = nil
-    settings.forced_blessed = nil; settings.forced_blessed_min = nil; settings.forced_blessed_max = nil
+    settings.forced_blessed = nil; settings.forced_blessed_min = nil; settings.forced_blessed_max = nil; settings.forced_blessed_repeat = nil; settings.forced_blessed_every = nil
     settings.th_wave_small, settings.th_wave_medium, settings.th_wave_large, settings.th_wave_huge, settings.th_boss_ambush = nil, nil, nil, nil, nil
     settings.tarot_cards = 9
   end
