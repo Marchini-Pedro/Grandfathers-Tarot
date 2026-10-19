@@ -569,3 +569,14 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   change, or every 5 s (KEEPALIVE); a failed send retries next tick; a joining player still gets the state at once (on_hello).
   logic_test 1134 (9 new: countdown silent, keep-alive, pause at once, stopped side state, failed send, a new game). LuaJIT suite
   green (80.46%). Not tested in game with a client yet.
+
+## 2026-10-19 - Guaranteed hands repeat (feature/guaranteed-repeat)
+- The user asked for a "repeat this effect" toggle and a minutes slider for each of the three guaranteed hands: the 12-18 min hand
+  with the toggle on and 10 min comes again every 10 min after the first. Built: settings `forced_<kind>_repeat` (checkbox, off)
+  and `forced_<kind>_every` (1-120 min, 10) in GrandfathersTarot_data.lua with their texts; core/director.lua keeps the first
+  moment (forced_due, random between min and max) and the last guaranteed hand (forced_fired); the next is last + every with the
+  toggle on, none with it off (was: a new random min-max moment after each). Options are read at each deal, so a change applies
+  in the game; switching a kind off forgets it; a new game starts over.
+- Tests: logic_test, the old repeat checks now switch the toggle on (every 1 min); new: off = one hand then nothing planned, on =
+  180 s between two hands at 3 min, switched on after the first, every below 1 = 1, kind off/on, a new game. Green on LuaJIT 2.1
+  and Lua 5.5 (logic_test); LuaJIT full suite green (80.54%). Not tested in game.

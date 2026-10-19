@@ -298,3 +298,7 @@ Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
   merge after the user confirms.
 - [ ] Enemy shadow (the Daemonhost fog particle on other enemies): found, waiting for the user's decision.
 - [ ] Game acceptance of the [checklist](13-cauldron-redesign.md#in-game-checks-before-merge); merge only after the user confirms.
+- [x] Guaranteed hands: "repeat this effect" and "repeat every" per kind; off = once per game (2026-10-19, `feature/guaranteed-repeat`,
+  from main; tests).
+- [ ] In-game check: a kind with repeat off comes once; with repeat on (e.g. 12-18 min, every 10) it comes again 10 minutes after
+  the first; merge after the user confirms.
