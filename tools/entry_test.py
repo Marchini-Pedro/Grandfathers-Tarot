@@ -591,6 +591,52 @@ living.stats.melee_attack_speed=1
 -- (2026-10-06) the recompute is watched on the tuned unit's own buff extension, as the game calls it (self:...)
 living.buffs:_reset_stat_buffs(); living.buffs:_update_stat_buffs_and_keywords()
 check("stop: native buff recompute still reasserts the factor", living.stats.melee_attack_speed==2)
+-- (2026-10-19) /gt_perf: the update's parts timed for a while, then put back
+do
+  check("perf: /gt_perf is registered", type(commands.gt_perf) == "function")
+  local original_update, original_send = RW.director.update, RW.protocol.send_state
+  local ok, seconds = RW.perf.start(RW, 2)
+  check("perf: a session starts for the seconds asked and wraps the parts", ok and seconds == 2 and RW.perf.running() and RW.director.update ~= original_update and RW.protocol.send_state ~= original_send)
+  for _ = 1, 60 do mod.update(0.016) end
+  check("perf: the update still runs through the wrappers", RW.perf.running())
+  local lines
+  local stop = RW.perf.stop
+  RW.perf.stop = function(quiet) lines = stop(quiet); return lines end
+  for _ = 1, 100 do mod.update(0.016) end
+  RW.perf.stop = stop
+  local text = table.concat(lines or {}, "\n")
+  check("perf: the session ends by itself when its time is up, with a report of the parts", not RW.perf.running() and text:find("/gt_perf", 1, true) ~= nil and text:find("director.update (all)", 1, true) ~= nil and text:find("mod.update (all)", 1, true) ~= nil, text:sub(1, 200))
+  check("perf: every part is put back afterwards", RW.director.update == original_update and RW.protocol.send_state == original_send)
+  check("perf: stop with nothing running says so (nil)", RW.perf.stop() == nil)
+  RW.perf.start(RW, 1000)
+  check("perf: the time is capped at 600 s", select(2, RW.perf.start(RW, 1000)) == 600 and RW.director.update ~= original_update)
+  local wrapped_once = RW.director.update
+  RW.perf.start(RW, 5)
+  check("perf: a second start replaces the first (no wrapper on a wrapper)", RW.director.update ~= wrapped_once and RW.perf.stop(true) == nil and RW.director.update == original_update)
+  RW.perf.start(RW, 5)
+  local reloaded = function() end
+  RW.director.update = reloaded
+  RW.perf.stop(true)
+  check("perf: a function replaced meanwhile (hot reload) is not overwritten", RW.director.update == reloaded)
+  RW.director.update = original_update
+  commands.gt_perf("3")
+  check("perf: the command starts a session; /gt_perf stop ends it", RW.perf.running())
+  commands.gt_perf("stop")
+  check("perf: ...and puts everything back", not RW.perf.running() and RW.director.update == original_update)
+  -- the game's ffi (DMF hands it to mods as Mods.lua.ffi): the timer is QueryPerformanceCounter (LuaJIT only)
+  if jit and pcall(require, "ffi") then
+    local saved_mods = rawget(_G, "Mods")
+    Mods = { lua = { ffi = require("ffi") } }
+    RW.perf.init({ mod = mod })
+    RW.perf.start(RW, 1)
+    local header = (RW.perf.stop() or {})[1] or ""
+    check("perf: with the game's ffi the timer is QueryPerformanceCounter", header:find("QueryPerformanceCounter", 1, true) ~= nil, header)
+    Mods = saved_mods
+    RW.perf.init({ mod = mod })
+  end
+  RW.perf.start(RW, 5) -- left running: the unload below must end it
+end
+
 RW.director.force_start();RW.execute.start_wave({name="cap",parts=RW.groups.parse("60 hounds")})
 for i=1,20 do mod.update(0.2) end
 check("restart: surviving units count against the combined alive cap", #spawned==10 and RW.bypass.count()==10)
@@ -614,6 +660,7 @@ server=true;RW.director.on_enter_gameplay()
 RW.director.force_start();RW.execute.start_wave({parts=RW.groups.parse("2 hounds@1"),rep_every=1,rep_for=10})
 mod.update(0.2)
 mod.on_unload()
+check("perf: an unload ends a running /gt_perf and puts the parts back", not RW.perf.running() and RW.director.update ~= nil)
 check("unload: real pending jobs and director state are torn down", RW.execute.status().jobs==0 and RW.execute.status().queued==0 and RW.director.view().phase=="off" and RW.bypass.count()==0 and RW.tuning.status().sizes_known==0)
 
 -- The audit's 32 legal timer fixture exercises aggregate limits with real owners.
