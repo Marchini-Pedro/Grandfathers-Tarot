@@ -583,3 +583,12 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Same day: version 1.2 at the user's request (catalog/version.lua; the options' name and the handshake follow it). Nexus changelog
   docs/changelog-post-1.2.txt; release zip built from `optimizing` (mods/GrandfathersTarot: the .mod and scripts). entry_test
   checks the version. Not merged to main yet: the user has not confirmed 1.2 in game.
+- Same day, the per-frame review with several clients (the user's request): read every function the update reaches on host and
+  client and the HUD elements' refresh. Changed: twins/twins.lua (Twins.update: at the limit only the first twin of a frame is
+  tried, the rest only age; require hoisted), spawn/tuning.lua (Tuning.update_client: the inbox every 0.1 s, the age still counts
+  every frame; update_bosses without a closure per boss), spawn/appearance.lua (the pending lookups without two closures each).
+  Kept: the appearance renewal every 5 s (it keeps the clients' 15 s colour lease; one send per client every 5 s), the Blackout's
+  light rescan (catches lights the level turns on again), the HUD elements (0.007 ms offline), Effects.update (0.25 s cadence).
+  Tests: twins_test (1 navmesh query a frame while full, not 8), logic_test (inbox: none before 0.1 s, once each after, the
+  timeout still counted per frame). LuaJIT full suite green (80.46%); logic, twins and appearance green on Lua 5.5. The zip for
+  Nexus was rebuilt.

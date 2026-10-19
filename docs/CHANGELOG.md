@@ -2,6 +2,10 @@
 
 ## 2026-10-19 - Version 1.2 (optimizing)
 - The version is 1.2 (was 1.1); the mod's name in the options shows v1.2. Host and players must have the same version.
+- Faster (2026-10-19, second pass, with clients in mind): the Twins waiting at the card enemies' limit no longer each run a
+  navmesh query, a target search and a spawn attempt every frame (after the first refusal in a frame the others only wait), and
+  the navmesh helper is required once. On a client, the sizes waiting for their units are looked at every 0.1 s instead of every
+  frame, and the colour and boss-bar lookups no longer make two closures per entry four times a second.
 - 1.2 holds the three entries below (the hook warnings fix of 2026-10-17, the performance pass, the guaranteed hands' repeat).
   The Nexus post is docs/changelog-post-1.2.txt.
 

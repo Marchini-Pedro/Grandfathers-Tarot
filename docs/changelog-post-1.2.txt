@@ -18,6 +18,8 @@
 [*][b]No more frame spikes when a hand is dealt:[/b] every card's recipe is now read once, behind the loading screen, instead of the whole deck being read again at every deal (several milliseconds in one frame with a big deck). The cooldowns sent to the other players no longer re-read the cards played either.
 [*][b]Smoother spawning:[/b] the search for hidden spawn points is spread over a few frames instead of running in one frame. A card keeps spawning on the points it found last while the next search runs.
 [*][b]Lighter with other players:[/b] the host now sends the card state when something changes (plus a check every 5 seconds) instead of every second. The players' HUDs count the timers down by themselves in between.
+[*][b]Twins at the enemy limit:[/b] when the card enemies are at their limit, waiting twins no longer search the navmesh every frame (one check per frame instead of one per waiting twin).
+[*][b]Lighter for the players who join:[/b] their game checks the enemy sizes sent by the host 10 times a second instead of every frame, and the enemy colours and boss bars make less garbage.
 [*]The On Fire look costs less while burning enemies are alive.
 [/list]
 
