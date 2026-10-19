@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-19 - Guaranteed hands: repeat this effect (feature/guaranteed-repeat)
+- New options under Guaranteed hands, for each of the three kinds: "repeat this effect" (off by default) and "repeat every"
+  (minutes, 10 by default). The first hand of a kind still comes at a random moment between its minimum and maximum; after it,
+  with the option on, it comes again every set number of minutes.
+- Changed: with "repeat this effect" off, a guaranteed hand comes once per game. It used to come again at a new random moment
+  between the minimum and the maximum after each one.
+
 ## 2026-10-17 - No more "trying to toggle hook that doesn't exist" warnings (feature/hook-gate-delayed-hooks)
 - Fixed: on the title screen, in the hub and in missions the console and chat showed `(hook_disable): trying to toggle hook that
   doesn't exist: _draw_health_bar` every 3 s for the whole session, and `... _leap` until the first Pox Hound. The hooks that sleep
