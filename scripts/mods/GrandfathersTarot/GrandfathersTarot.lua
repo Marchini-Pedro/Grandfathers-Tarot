@@ -471,6 +471,9 @@ mod.on_all_mods_loaded = function ()
 
 	-- asleep in the games the cards cannot play in; the keybind guard on only while a text box is open (core/dormancy.lua)
 	RW.dormancy = mod:io_dofile(BASE .. "/core/dormancy")
+	-- /gt_perf: the update's parts timed in game for a while (core/perf.lua, 2026-10-19)
+	RW.perf = mod:io_dofile(BASE .. "/core/perf")
+	RW.perf.init({ mod = mod })
 	RW.dormancy.init({ mod = mod, get_mod = get_mod, keybind_guard = guarded and dmf_mod or nil })
 
 	local Director = RW.director
@@ -542,6 +545,7 @@ end
 -- Release subscriptions from their original owner; DMF removes hooks on reload.
 -- Retirement also protects callbacks already captured by an in-flight dispatch.
 mod.on_unload = function ()
+	if RW.perf then RW.perf.stop(true) end
 	if RW.appearance then RW.appearance.retire() end
 	RW.dead = true
 	RW.text_input_active = false
@@ -668,12 +672,16 @@ mod.on_enabled = function (initial_call)
 end
 
 -- DMF calls mod.update(dt); accept the method-call form as well.
-mod.update = function (...)
+local function update(...)
 	local first, second = ...
 	local dt = type(first) == "number" and first or second
 
 	if RW.dead then
 		return
+	end
+
+	if RW.perf then
+		RW.perf.update(dt)
 	end
 
 	if mod.is_enabled and not mod:is_enabled() then
@@ -734,6 +742,17 @@ mod.update = function (...)
 	end
 end
 
+-- while /gt_perf runs, the whole update is timed too (its parts are timed by core/perf.lua's wrappers)
+mod.update = function (...)
+	local perf = RW.perf
+
+	if perf and perf.running() then
+		return perf.measure("mod.update (all)", update, ...)
+	end
+
+	return update(...)
+end
+
 -- ------------------------------------------------------------------ vote keys
 
 local function vote(option)
@@ -755,6 +774,26 @@ mod.vote_4 = function () vote(4) end
 mod.vote_5 = function () vote(5) end
 
 -- ------------------------------------------------------------------- commands
+
+mod:command("gt_perf", "GrandfathersTarot: time the parts of the mod's update for N seconds (default 30) and print where the time goes, also into the console log: /gt_perf [seconds]; /gt_perf stop ends it now", function (arg)
+	if not RW.perf or RW.dead then
+		return
+	end
+
+	if arg == "stop" then
+		if not RW.perf.stop() then mod:echo("GrandfathersTarot: /gt_perf is not running") end
+
+		return
+	end
+
+	local ok, seconds = RW.perf.start(RW, arg)
+
+	if ok then
+		mod:echo("GrandfathersTarot: timing the update for %d s; the report follows here and in the console log", seconds)
+	else
+		mod:echo("GrandfathersTarot: /gt_perf could not start: %s", tostring(seconds))
+	end
+end)
 
 mod:command("gt_status", "GrandfathersTarot: print director state and spawn counters", function ()
 	mod:echo(RW.director.status())
