@@ -676,3 +676,7 @@ Things we know are missing or unverified, each with the next concrete step.
   explanation was wrong (/gt_status said tracked=0). Offline the update is far too cheap to explain it, so the monitor's single
   `event update` source is not enough: /gt_perf times the parts in game and tells GC steps (heap shrinking inside a call) apart.
 - A new Lua module needs its own floor in tools/coverage_policy.json, or the runner fails with "inventory mismatch: unassigned".
+- Alone the mod is cheap in game (/gt_perf: 0.018 ms/frame, max 0.18 ms); the spikes came with a client. Realms' network send is a
+  synchronous native call (runtime/binary.lua through ffi) made inside our update, so the monitor bills it to us: send less, not
+  faster. Clients extrapolate remaining time, drawn age, last-card age and cooldowns from the time of arrival, so those fields
+  need no resend. Not done: Appearance.send_all still renews every 5 s while coloured card enemies live.

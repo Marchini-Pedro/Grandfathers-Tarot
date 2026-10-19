@@ -561,3 +561,11 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   os.clock fallback), counts the calls the GC ran inside, prints the report, puts every part back (also at unload, and never
   over a function a hot reload put there). entry_test 193 checks (was 180, then 192 with the /gt_status check counted in
   logic_test); LuaJIT 2.1 suite green (80.50%; perf.lua 73.81%, floor 72 added to coverage_policy.json). Not run in game yet.
+- Same day: the user's /gt_perf alone in a mission: mod.update 0.018 ms/frame, max 0.18 ms, no call over 1 ms, no GC inside a call.
+  The spikes (03:14 log) were in a session with a client. With a peer every send goes synchronously through Realms' ModNetwork ->
+  SessionControl -> BinaryNetwork -> a native DLL call (Realms runtime/binary.lua, ffi), billed to this mod; alone there is no
+  channel and it returns at once. The host sent its state every second (stopped: the side state), though clients count the
+  countdown, the ages and the cooldowns down themselves. Now: sent on a change (compared without those fields), on a marked
+  change, or every 5 s (KEEPALIVE); a failed send retries next tick; a joining player still gets the state at once (on_hello).
+  logic_test 1134 (9 new: countdown silent, keep-alive, pause at once, stopped side state, failed send, a new game). LuaJIT suite
+  green (80.46%). Not tested in game with a client yet.

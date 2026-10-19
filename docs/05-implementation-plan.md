@@ -288,6 +288,9 @@ Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
   entry; the hidden-point search in steps (Positions.new_search / step_search, 3 queries a frame, no "stuck" while it runs); the On
   Fire look's require hoisted; tests.
 - [x] /gt_perf (core/perf.lua): the update's parts timed in game, GC inside each part counted; tests (2026-10-19, `optimizing`).
+- [x] The host's state goes out on a change or every 5 s (was every second); tests (2026-10-19, `optimizing`).
+- [ ] In game with a client: the HUD's countdown, votes, the hand and the reveal still match on the client; Tarot's spikes with a
+  client in the session drop.
 - [ ] The user runs /gt_perf after /gt_stop (no card enemy alive) where Tarot still spikes (0.12 mean, p95 0.025, peak 9.5 ms) and
   sends the report: it tells whether a part of ours or the GC is behind the spikes.
 - [ ] In-game check of the performance pass: the monitor's full report while cards are dealt and spawn (Tarot's peak and spikes
