@@ -1208,6 +1208,12 @@ Director.on_enter_gameplay = function ()
 	client_disabled = false
 	gameplay_active = true
 	in_mission = false
+
+	-- (2026-10-19, a performance pass) every card's recipe is parsed here, behind the loading screen, so the first deal of the
+	-- game finds them in Groups.parse's cache (3-6 ms in one frame otherwise)
+	if Events and Events.build_pool then
+		pcall(Events.build_pool, get_setting, Groups)
+	end
 	recheck_timer = 1 -- check on the next update
 
 	if live_mission() then

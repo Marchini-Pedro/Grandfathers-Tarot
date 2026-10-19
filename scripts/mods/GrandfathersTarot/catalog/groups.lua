@@ -1014,7 +1014,7 @@ local function parse_modifiers(inner)
 end
 
 -- Returns parts on success, or nil and an error message.
-Groups.parse = function (recipe)
+local function parse_recipe(recipe)
 	if type(recipe) ~= "string" or recipe:match("^%s*$") then
 		return nil, "the recipe is empty. Write something like: 5 trappers, 5 mutants, 10 hounds"
 	end
@@ -1241,6 +1241,53 @@ Groups.parse = function (recipe)
 	end
 
 	return result
+end
+
+-- (2026-10-19, a performance pass) The parse is a pure function of the text, and the draw reads every card's recipe again at every
+-- deal and the cooldowns once a second: 150 cards took 3-6 ms in one frame. Each text is parsed once and kept; every call gets its
+-- own copy of the parts (callers may change them), which costs a few microseconds instead of ~26. An error is kept as well. The
+-- cache is emptied when it holds PARSE_CACHE_MAX texts (typing in the editor makes a new text with every key).
+local PARSE_CACHE_MAX = 512
+local parse_cache, parse_cached = {}, 0
+
+local function copy_parts(value)
+	if type(value) ~= "table" then
+		return value
+	end
+
+	local copy = {}
+
+	for k, v in pairs(value) do
+		copy[k] = copy_parts(v)
+	end
+
+	return copy
+end
+
+Groups.parse = function (recipe)
+	if type(recipe) ~= "string" then
+		return parse_recipe(recipe)
+	end
+
+	local hit = parse_cache[recipe]
+
+	if not hit then
+		local parts, err = parse_recipe(recipe)
+
+		if parse_cached >= PARSE_CACHE_MAX then
+			parse_cache, parse_cached = {}, 0
+		end
+
+		hit = { parts = parts, err = err }
+		parse_cache[recipe] = hit
+		parse_cached = parse_cached + 1
+	end
+
+	if hit.parts then
+		return copy_parts(hit.parts)
+	end
+
+	return nil, hit.err
 end
 
 -- parts -> recipe text that Groups.parse reads back to the same parts.
