@@ -302,3 +302,5 @@ Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
   from main; tests).
 - [ ] In-game check: a kind with repeat off comes once; with repeat on (e.g. 12-18 min, every 10) it comes again 10 minutes after
   the first; merge after the user confirms.
+- [x] Version 1.2 (`optimizing`) merged into main on 2026-10-19 at the user's request. The in-game checks above (performance pass,
+  state sends with a client, guaranteed hands' repeat) are still open; later work stays on `optimizing`.
