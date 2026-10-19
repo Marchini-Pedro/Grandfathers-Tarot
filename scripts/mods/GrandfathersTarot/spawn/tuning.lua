@@ -933,8 +933,12 @@ Tuning.on_minion_fx = function (self, template, started)
 	end
 end
 
+local ailment_settings -- (2026-10-19, a performance pass) required once: DMF's require runs its hook_require bookkeeping on every call
+
 local function keep_glow(unit, entry)
-	local Settings = require("scripts/settings/ailments/ailment_settings")
+	ailment_settings = ailment_settings or require("scripts/settings/ailments/ailment_settings")
+
+	local Settings = ailment_settings
 	local template = Settings.effect_templates and Settings.effect_templates.burning
 	local t = world_time(unit)
 
