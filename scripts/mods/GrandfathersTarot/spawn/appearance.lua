@@ -370,6 +370,15 @@ local function count_of(list)
 	return n
 end
 
+-- (2026-10-19, a performance pass) made once: the waiting entries were looked up through two new closures each, four times a second
+local function unit_of(spawner, id)
+	return spawner and spawner:unit_exists(id) and spawner:unit(id)
+end
+local function breed_of(unit)
+	local data = alive(unit) and ScriptUnit.has_extension(unit, "unit_data_system")
+	return data, data and data:breed()
+end
+
 Appearance.update = function (dt)
 	if retired then return end
 	clock, cadence, renewal = clock + dt, cadence + dt, renewal + dt
@@ -390,12 +399,9 @@ Appearance.update = function (dt)
 	cadence = 0
 	local spawner = Managers.state and Managers.state.unit_spawner
 	for id, waiting in pairs(pending) do
-		local ok, unit = pcall(function () return spawner and spawner:unit_exists(id) and spawner:unit(id) end)
+		local ok, unit = pcall(unit_of, spawner, id)
 		if ok and unit then
-			local got, data, breed = pcall(function ()
-				local data = alive(unit) and ScriptUnit.has_extension(unit, "unit_data_system")
-				return data, data and data:breed()
-			end)
+			local got, data, breed = pcall(breed_of, unit)
 			if got and breed and breed.name == waiting.entry.breed then
 				Appearance.apply(unit, waiting.entry.config, waiting.entry.breed, true)
 				pending[id] = nil

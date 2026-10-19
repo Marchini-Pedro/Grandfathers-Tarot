@@ -676,6 +676,11 @@ local function end_bar(unit, standin)
 	pcall(Managers.event.trigger, Managers.event, "boss_encounter_end", unit, standin)
 end
 
+-- (2026-10-19, a performance pass) made once, not a closure per boss four times a second
+local function spawned_unit(spawner, id)
+	return spawner and spawner:unit_exists(id) and spawner:unit(id)
+end
+
 -- Every machine, four times a second: the bars of the units that are bosses here (host: marked; a client: the host's list)
 Tuning.update_bosses = function (dt, is_host)
 	boss_timer = boss_timer + (dt or 0)
@@ -696,7 +701,7 @@ Tuning.update_bosses = function (dt, is_host)
 		local spawner = Managers.state and Managers.state.unit_spawner
 
 		for id, info in pairs(boss_ids) do
-			local ok, unit = pcall(function () return spawner and spawner:unit_exists(id) and spawner:unit(id) end)
+			local ok, unit = pcall(spawned_unit, spawner, id)
 
 			if ok and unit and living(unit) then wanted[unit] = info end
 		end
@@ -2269,7 +2274,12 @@ Tuning.receive = function (entries)
 	end
 end
 
--- A client, every frame: puts the sizes on the units that have arrived here by now.
+-- (2026-10-19, a performance pass) the sizes waiting for their units are looked at every INBOX_STEP seconds, not every frame: each
+-- entry costs one or two engine lookups and up to MAX_PENDING wait while a card's enemies arrive (0.1 s later is not seen)
+local INBOX_STEP = 0.1
+local inbox_timer = 0
+
+-- A client, every INBOX_STEP: puts the sizes on the units that have arrived here by now.
 Tuning.update_client = function (dt)
 	if Tuning.dead then
 		return
@@ -2279,8 +2289,20 @@ Tuning.update_client = function (dt)
 	Tuning.update_bosses(dt, false)
 
 	if #inbox == 0 then
+		inbox_timer = 0
+
 		return
 	end
+
+	inbox_timer = inbox_timer + (dt or 0)
+
+	if inbox_timer < INBOX_STEP then
+		return
+	end
+
+	local step = inbox_timer
+
+	inbox_timer = 0
 
 	local spawner = Managers.state and Managers.state.unit_spawner
 
@@ -2292,7 +2314,7 @@ Tuning.update_client = function (dt)
 		local entry = inbox[i]
 		local ok, exists = pcall(spawner.unit_exists, spawner, entry.id)
 
-		entry.age = entry.age + dt
+		entry.age = entry.age + step
 		local done = false
 
 		if ok and exists then
