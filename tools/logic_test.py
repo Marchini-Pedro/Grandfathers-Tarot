@@ -345,6 +345,31 @@ local PresetsMod = load("catalog/presets")
 local CardsMod = load("catalog/cards")
 Director.init({ events = Events, groups = Groups, protocol = Protocol, execute = Execute, votes = Votes, positions = Positions, presets = PresetsMod, cards = CardsMod })
 
+-- (2026-10-19, a performance pass) Groups.parse keeps every text it parsed; each call gets its own copy
+do
+  local recipe = "3 crushers[enraged+garden]{health=150}@2, 1 plague ogryn|chaos spawn"
+  local a, b = Groups.parse(recipe), Groups.parse(recipe)
+  check("parse cache: the same text gives equal parts", a ~= nil and Groups.to_recipe(a) == Groups.to_recipe(b))
+  check("parse cache: every call gets its own tables (parts, mods, tune, alternatives)", a ~= b and a[1] ~= b[1] and a[1].mods ~= b[1].mods and a[1].tune ~= b[1].tune and a[2].one_of ~= b[2].one_of)
+  a[1].count = 99; a[1].mods[1] = "changed"; a[2].one_of[1] = "changed"
+  local c = Groups.parse(recipe)
+  check("parse cache: changing the parts a caller got never changes the next answer", c[1].count == 3 and c[1].mods[1] ~= "changed" and c[2].one_of[1] ~= "changed")
+  local e1, m1 = Groups.parse("3 gargles")
+  local e2, m2 = Groups.parse("3 gargles")
+  check("parse cache: an error is kept with its message", e1 == nil and e2 == nil and m1 ~= nil and m1 == m2)
+  local n1, n2 = Groups.parse(nil)
+  check("parse cache: a missing recipe still says why", n1 == nil and type(n2) == "string")
+  for i = 1, 600 do Groups.parse(i .. " hounds") end
+  local d = Groups.parse(recipe)
+  check("parse cache: after the cache is emptied (more than 512 texts) the answers are the same", d ~= nil and Groups.to_recipe(d) == Groups.to_recipe(b) and Groups.parse("5 hounds")[1].count == 5)
+  settings["wave_def_custom_7"] = "Cache test" .. "	" .. "2 hounds"
+  local before = Events.get("custom_7", function(id) return settings[id] end, Groups)
+  settings["wave_def_custom_7"] = "Cache test" .. "	" .. "4 hounds"
+  local after = Events.get("custom_7", function(id) return settings[id] end, Groups)
+  settings["wave_def_custom_7"] = nil
+  check("parse cache: an edited card is read with its new recipe", before.parts and after.parts and before.parts[1].count == 2 and after.parts[1].count == 4, tostring(before.parts and before.parts[1].count) .. " " .. tostring(after.parts and after.parts[1].count))
+end
+
 -- random mode
 settings.mode = "random"; settings.interval_min = 100; settings.interval_max = 100; settings.initial_delay = 0; settings.vote_duration = 25
 Director.on_enter_gameplay()
@@ -1843,6 +1868,78 @@ do
   check("gap: an explicit test wave and a card that did not wait both start at once", #spawned == 2, #spawned)
   Execute.cancel(); Bypass.reset(); spawned = {}
   cand_fail, cand_reason = false, nil
+end
+
+-- (2026-10-19, a performance pass) the hidden-point search in steps (Positions.new_search / step_search): a few occlusion queries a
+-- frame, the last points kept while the next search runs, and a search in progress is never "stuck" (no 10 s gap for the next card)
+do
+  Execute.cancel(); Bypass.reset(); spawned = {}
+  local S = { started = 0, steps = 0, need = 3 }
+  StubPositions.new_search = function()
+    S.started = S.started + 1
+    if S.fail_start then return nil, S.fail_start end
+    return { left = S.need }
+  end
+  StubPositions.step_search = function(search, budget)
+    S.steps, S.budget = S.steps + 1, budget
+    if S.throw then error("native query failed") end
+    search.left = search.left - 1
+    if search.left > 0 then return false end
+    if S.fail then return true, nil, S.fail end
+    return true, { "s1", "s2" }
+  end
+  Execute.start_wave({ name = "x", parts = Groups.parse("2 hounds") })
+  Execute.start_wave({ name = "y", parts = Groups.parse("2 hounds") })
+  Execute.update(1 / 60)
+  check("search: a search of several steps spawns nothing in its first frame, a few queries at a time", #spawned == 0 and S.started == 1 and S.budget == 3 and S.steps == 1, S.started .. " " .. S.steps)
+  Execute.update(1 / 60)
+  check("search: it goes on in the next frame without being started again", S.started == 1 and S.steps == 2, S.steps)
+  for _ = 1, 60 do Execute.update(1 / 60) end
+  check("search: once over, the card spawns, and the next card is not held back 10 s (a search in progress is not stuck)", #spawned == 4 and S.started == 1, #spawned)
+  -- a long card: the points expire (1.5 s) and the next search runs while the old points keep it spawning
+  Execute.cancel(); Bypass.reset(); spawned = {}; S.started, S.steps, S.need = 0, 0, 300
+  Execute.start_wave({ name = "long", parts = Groups.parse("40 poxwalkers") })
+  local guard = 0
+  while S.started < 2 and guard < 600 do Execute.update(1 / 60); guard = guard + 1 end
+  local before = #spawned
+  for _ = 1, 20 do Execute.update(1 / 60) end
+  check("search: while the next search runs the last points keep the card spawning", S.started == 2 and #spawned > before, before .. " -> " .. #spawned)
+  -- ... but not for ever: a search that takes too long leaves the old points unused after their grace (0.75 s)
+  for _ = 1, 40 do Execute.update(1 / 60) end
+  local held = #spawned
+  for _ = 1, 30 do Execute.update(1 / 60) end
+  check("search: points older than their time and grace are not used while a slow search runs", S.started == 2 and #spawned == held, held .. " -> " .. #spawned)
+  -- a failed search is remembered (FAILED_SEARCH_TTL) like a failed full search: not started again every feed tick
+  Execute.cancel(); Bypass.reset(); spawned = {}; S.started, S.steps, S.need, S.fail = 0, 0, 2, "no hidden points near players"
+  Execute.start_wave({ name = "fail", parts = Groups.parse("2 hounds") })
+  for _ = 1, 30 do Execute.update(1 / 60) end
+  check("search: a failed search spawns nothing and is not started again within 1.5 s", #spawned == 0 and S.started == 1, S.started)
+  for _ = 1, 90 do Execute.update(1 / 60) end
+  check("search: ...and is tried again after that", S.started == 2, S.started)
+  S.fail = nil
+  for _ = 1, 120 do Execute.update(1 / 60) end
+  check("search: the card spawns once a search finds points", #spawned == 2, #spawned)
+  -- a search that cannot start (no main path) takes the same road as before; an engine error during a step does not break the frame
+  Execute.cancel(); Bypass.reset(); spawned = {}; S.started, S.steps, S.fail_start = 0, 0, "main path not ready"
+  Execute.start_wave({ name = "t", test = true, parts = Groups.parse("1 hound") })
+  for _ = 1, 10 do Execute.update(1 / 60) end
+  check("search: an explicit test wave on a level without a main path uses the test ring", #spawned == 1 and ring_calls > 0, #spawned)
+  Execute.cancel(); Bypass.reset(); spawned = {}; S.fail_start, S.throw, S.need = nil, true, 3
+  Execute.start_wave({ name = "throw", parts = Groups.parse("1 hound") })
+  local fine = pcall(function () for _ = 1, 10 do Execute.update(1 / 60) end end)
+  check("search: an error inside a step is caught and nothing spawns from it", fine and #spawned == 0, #spawned)
+  -- a cancel (mission end, the mod disabled) drops the search in progress
+  S.throw = false; S.need = 50
+  Execute.cancel(); Bypass.reset(); spawned = {}; S.started = 0
+  Execute.start_wave({ name = "c1", parts = Groups.parse("1 hound") })
+  Execute.update(1 / 60)
+  Execute.cancel()
+  S.need = 1
+  Execute.start_wave({ name = "c2", parts = Groups.parse("1 hound") })
+  for _ = 1, 5 do Execute.update(1 / 60) end
+  check("search: a cancel drops the search in progress; the next card searches anew", S.started == 2 and #spawned == 1, S.started .. " " .. #spawned)
+  StubPositions.new_search, StubPositions.step_search = nil, nil
+  Execute.cancel(); Bypass.reset(); spawned = {}
 end
 
 -- Havoc-only modifier is skipped outside Havoc, applied inside it
