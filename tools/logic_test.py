@@ -2833,6 +2833,19 @@ do
     Tuning.receive(flood); Tuning.receive({{id=9,pct=180}})
     Tuning.update_client(0.1)
     check("client: an existing unit's newest size is accepted even with a full pending queue", applied2[#applied2]==1.8 and Tuning.status().pending==599)
+    -- (2026-10-19, a performance pass) the waiting sizes are looked at every 0.1 s, not every frame; their age still counts every frame
+    Tuning.reset()
+    local lookups = 0
+    local counting = Managers.state.unit_spawner
+    Managers.state.unit_spawner = { unit_exists = function(self, id) lookups = lookups + 1 return counting:unit_exists(id) end, unit = function(self, id) return counting:unit(id) end }
+    Tuning.receive({{id=77,pct=140}}); Tuning.receive({{id=9,pct=110}})
+    for _ = 1, 5 do Tuning.update_client(1 / 60) end
+    check("client: in the first 0.08 s (5 frames) the waiting sizes are not looked up", lookups == 0 and Tuning.status().pending == 2, lookups)
+    Tuning.update_client(1 / 60); Tuning.update_client(1 / 60) -- (six frames of 1/60 add up to just under 0.1)
+    check("client: past 0.1 s they are, once each; an arrived unit gets its size", lookups == 2 and applied2[#applied2] == 1.1 and Tuning.status().pending == 1, lookups)
+    for _ = 1, 60 * 31 do Tuning.update_client(1 / 60) end
+    check("client: a size whose unit never comes still times out (its age counts every frame)", Tuning.status().pending == 0 and lookups < 400, lookups)
+    Managers.state.unit_spawner = counting
     Unit.set_local_scale = saved_set_scale
     Managers.state.unit_spawner = saved_spawner2
     Tuning.reset()
