@@ -431,6 +431,56 @@ do
   check("summary: unpainted behaviour is unchanged (no argument)", Groups.summary(Groups.parse("3 hounds"), 95) == "3 Hound")
 end
 
+-- (2026-10-19, a performance pass) the host's state goes out when it says something new, or every 5 s: not every second
+do
+  local function enc(v)
+    if type(v) ~= "table" then return tostring(v) end
+    local keys = {}
+    for k in pairs(v) do keys[#keys + 1] = tostring(k) end
+    table.sort(keys)
+    local out = {}
+    for _, k in ipairs(keys) do out[#out + 1] = k .. "=" .. enc(v[k] ~= nil and v[k] or v[tonumber(k)]) end
+    return "{" .. table.concat(out, ",") .. "}"
+  end
+  Protocol.encode = enc
+  settings.mode = "random"; settings.interval_min = 100; settings.interval_max = 100; settings.initial_delay = 0
+  Director.on_exit_gameplay(); started_waves = {}
+  Director.on_enter_gameplay(); Director.on_mission_started(); Director.update(0.1)
+  local first = #sent
+  check("state sends: the first state of a game goes out at once", first > 0 and sent[first].state.p == "waiting")
+  for _ = 1, 30 do Director.update(0.1) end
+  check("state sends: a countdown alone (clients count it down) sends nothing for 3 s", #sent == first, #sent - first)
+  for _ = 1, 25 do Director.update(0.1) end
+  check("state sends: ...but a keep-alive goes out within 5 s", #sent == first + 1, #sent - first)
+  local before = #sent
+  Director.pause(true); Director.update(0.1)
+  check("state sends: a real change (paused) goes out at once", #sent == before + 1 and sent[#sent].state.z == 1, #sent - before)
+  Director.pause(false); Director.update(0.1)
+  -- stopped: the side state ({ o = 1 }) once, then only keep-alives
+  Director.stop(); Director.update(1.1)
+  local side = #sent
+  check("state sends: a stopped host sends its side state", sent[side].state.o == 1)
+  for _ = 1, 3 do Director.update(1.1) end
+  check("state sends: ...and does not repeat it every second", #sent == side, #sent - side)
+  for _ = 1, 2 do Director.update(1.1) end
+  check("state sends: ...only a keep-alive every 5 s", #sent == side + 1, #sent - side)
+  -- a failed send is tried again on the next tick
+  local real_send = Protocol.send_state
+  Protocol.send_state = function(state, rcpt) sent[#sent + 1] = { state = state, rcpt = rcpt, failed = true } return false end
+  for _ = 1, 5 do Director.update(1.1) end
+  local fails = #sent
+  Protocol.send_state = real_send
+  Director.update(1.1)
+  check("state sends: after a failed send the next tick sends again (no 5 s wait)", #sent == fails + 1 and not sent[#sent].failed, #sent - fails)
+  -- a new game sends at once again
+  Director.on_exit_gameplay(); Director.on_enter_gameplay(); Director.on_mission_started()
+  local fresh = #sent
+  Director.update(0.1)
+  check("state sends: a new game's first state is not held back by the last one", #sent == fresh + 1)
+  Protocol.encode = nil
+  Director.on_exit_gameplay(); started_waves = {}
+end
+
 -- vote mode
 settings.mode = "vote"; settings.ballot_size = 3
 Director.on_exit_gameplay(); started_waves = {}
