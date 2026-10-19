@@ -53,10 +53,22 @@ Positions.random_player_unit = function ()
 	return units[math.random(1, #units)]
 end
 
-local function gather_raw(nav_world, nav_spawn_points, num_groups, player_positions)
-	local raw = {}
-	local scanned = {}
-	local order = {}
+-- The living players' positions this frame (Vector3 values are valid for one frame only: read again on every step).
+local function player_positions_now()
+	local units = living_player_units()
+	local positions = {}
+
+	for i = 1, #units do
+		positions[#positions + 1] = Unit.world_position(units[i], 1)
+	end
+
+	return positions
+end
+
+-- The spawn groups to scan, in order: for up to MAX_PLAYERS_SCANNED players (in random order), the player's group and GROUP_SPAN
+-- groups on each side, each group once.
+local function groups_to_scan(nav_world, nav_spawn_points, num_groups, player_positions)
+	local order, groups, scanned = {}, {}, {}
 
 	for i = 1, #player_positions do
 		order[i] = i
@@ -79,27 +91,14 @@ local function gather_raw(nav_world, nav_spawn_points, num_groups, player_positi
 
 					if group >= 1 and group <= num_groups and not scanned[group] then
 						scanned[group] = true
-
-						local ok, points = pcall(SpawnPointQueries.occluded_positions_in_group, nav_world, nav_spawn_points, group, player_positions)
-
-						if ok and points then
-							for i = 1, #points do
-								raw[#raw + 1] = Vector3Box(points[i])
-							end
-						elseif not ok then
-							Positions.last_error = tostring(points)
-						end
-
-						if #raw >= MAX_RAW_POINTS then
-							return raw
-						end
+						groups[#groups + 1] = group
 					end
 				end
 			end
 		end
 	end
 
-	return raw
+	return groups
 end
 
 local function filter(raw, player_positions, min_d, max_d)
@@ -131,8 +130,13 @@ local function filter(raw, player_positions, min_d, max_d)
 	return result
 end
 
--- Returns a list of boxed positions, or nil plus a reason string.
-Positions.candidates = function (min_d, max_d)
+-- (2026-10-19, a performance pass) The search for hidden points, in steps. Each group is one engine occlusion query (rays against
+-- every player), and a search ran up to 27 of them in ONE frame, again every 1.5 s while a card's enemies were coming. A search now
+-- runs `budget` groups per step (spawn/execute.lua steps it every frame), and Positions.candidates runs one to its end at once.
+--
+-- Positions.new_search(min_d, max_d) -> a search, or nil and a reason (the same reasons as Positions.candidates).
+-- Positions.step_search(search, budget) -> true, list (boxed points) or nil and a reason when it is over; false while it goes on.
+Positions.new_search = function (min_d, max_d)
 	local state = Managers.state
 	local nav_mesh = state and state.nav_mesh
 	local main_path = state and state.main_path
@@ -154,34 +158,107 @@ Positions.candidates = function (min_d, max_d)
 		return nil, "no spawn groups"
 	end
 
-	local units = living_player_units()
-	local player_positions = {}
-
-	for i = 1, #units do
-		player_positions[#player_positions + 1] = Unit.world_position(units[i], 1)
-	end
+	local player_positions = player_positions_now()
 
 	if #player_positions == 0 then
 		return nil, "no living players"
 	end
 
-	local raw = gather_raw(nav_world, nav_spawn_points, num_groups, player_positions)
+	return {
+		min_d = min_d, max_d = max_d, nav_world = nav_world, nav_spawn_points = nav_spawn_points,
+		groups = groups_to_scan(nav_world, nav_spawn_points, num_groups, player_positions), next = 1, raw = {},
+	}
+end
+
+local function finish(search)
+	search.done = true
+
+	local raw = search.raw
 
 	if #raw == 0 then
-		return nil, "no hidden points near players"
+		return true, nil, "no hidden points near players"
+	end
+
+	local player_positions = player_positions_now()
+
+	if #player_positions == 0 then
+		return true, nil, "no living players"
 	end
 
 	for stage = 1, #STAGES do
-		local result = filter(raw, player_positions, min_d * STAGES[stage][1], max_d * STAGES[stage][2])
+		local result = filter(raw, player_positions, search.min_d * STAGES[stage][1], search.max_d * STAGES[stage][2])
 
 		if #result > 0 then
 			Positions.last_stage = stage
 
-			return result
+			return true, result
 		end
 	end
 
-	return nil, "hidden points exist but none within distance limits"
+	return true, nil, "hidden points exist but none within distance limits"
+end
+
+Positions.step_search = function (search, budget)
+	if not search or search.done then
+		return true, nil, "search over"
+	end
+
+	-- the world the search started in is gone (the mission ended between two steps)
+	local state = Managers.state
+	local nav_mesh = state and state.nav_mesh
+
+	if not nav_mesh or nav_mesh:nav_world() ~= search.nav_world then
+		search.done = true
+
+		return true, nil, "main path not ready"
+	end
+
+	local player_positions = player_positions_now()
+
+	if #player_positions == 0 then
+		search.done = true
+
+		return true, nil, "no living players"
+	end
+
+	local raw, groups = search.raw, search.groups
+	local queried = 0
+
+	while search.next <= #groups and #raw < MAX_RAW_POINTS do
+		if budget and queried >= budget then
+			return false
+		end
+
+		local group = groups[search.next]
+
+		search.next = search.next + 1
+		queried = queried + 1
+
+		local ok, points = pcall(SpawnPointQueries.occluded_positions_in_group, search.nav_world, search.nav_spawn_points, group, player_positions)
+
+		if ok and points then
+			for i = 1, #points do
+				raw[#raw + 1] = Vector3Box(points[i])
+			end
+		elseif not ok then
+			Positions.last_error = tostring(points)
+		end
+	end
+
+	return finish(search)
+end
+
+-- Returns a list of boxed positions, or nil plus a reason string (the whole search at once).
+Positions.candidates = function (min_d, max_d)
+	local search, reason = Positions.new_search(min_d, max_d)
+
+	if not search then
+		return nil, reason
+	end
+
+	local _, list, why = Positions.step_search(search, nil)
+
+	return list, why
 end
 
 -- Test fallback for levels WITHOUT a main path (Psykhanium, hub-like places), where hidden spawn
