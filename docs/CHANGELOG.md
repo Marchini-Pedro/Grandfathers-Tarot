@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-19 - Version 1.2 (optimizing)
+- The version is 1.2 (was 1.1); the mod's name in the options shows v1.2. Host and players must have the same version.
+- 1.2 holds the three entries below (the hook warnings fix of 2026-10-17, the performance pass, the guaranteed hands' repeat).
+  The Nexus post is docs/changelog-post-1.2.txt.
+
 ## 2026-10-19 - Guaranteed hands: repeat this effect (feature/guaranteed-repeat)
 - New options under Guaranteed hands, for each of the three kinds: "repeat this effect" (off by default) and "repeat every"
   (minutes, 10 by default). The first hand of a kind still comes at a random moment between its minimum and maximum; after it,

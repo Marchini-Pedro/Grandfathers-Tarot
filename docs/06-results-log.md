@@ -580,3 +580,6 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
 - Tests: logic_test, the old repeat checks now switch the toggle on (every 1 min); new: off = one hand then nothing planned, on =
   180 s between two hands at 3 min, switched on after the first, every below 1 = 1, kind off/on, a new game. Green on LuaJIT 2.1
   and Lua 5.5 (logic_test); LuaJIT full suite green (80.54%). Not tested in game.
+- Same day: version 1.2 at the user's request (catalog/version.lua; the options' name and the handshake follow it). Nexus changelog
+  docs/changelog-post-1.2.txt; release zip built from `optimizing` (mods/GrandfathersTarot: the .mod and scripts). entry_test
+  checks the version. Not merged to main yet: the user has not confirmed 1.2 in game.
