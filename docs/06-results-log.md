@@ -554,3 +554,10 @@ The [feature guide](12-card-effects-and-ui.md) is the native test checklist.
   values, but in the middle of string.format's arguments Lua keeps only the first, so the format was one value short (since the
   custom mods were added to the line). Both counts are read first. New logic_test check calls Director.status() for real (it was
   never called by a test); green on LuaJIT 2.1 and Lua 5.5.
+- Same day: after /gt_stop with `tracked=0` (no card enemy alive) Tarot still showed 0.125 ms, +/- 0.157 (monitor report: p95
+  0.025 ms, peak 9.5 ms, all `event update`). Offline the stopped host's update is 0.0013 ms and 37 bytes a frame (entry_test's
+  real modules with a probe), so the spikes are engine calls or GC steps the monitor bills to the mod; offline cannot tell which.
+  Added /gt_perf (core/perf.lua): wraps the update's parts with a QueryPerformanceCounter timer for N seconds (Mods.lua.ffi,
+  os.clock fallback), counts the calls the GC ran inside, prints the report, puts every part back (also at unload, and never
+  over a function a hot reload put there). entry_test 193 checks (was 180, then 192 with the /gt_status check counted in
+  logic_test); LuaJIT 2.1 suite green (80.50%; perf.lua 73.81%, floor 72 added to coverage_policy.json). Not run in game yet.

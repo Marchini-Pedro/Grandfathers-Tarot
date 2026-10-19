@@ -8,6 +8,8 @@
   over a few frames, three queries a frame. The card keeps spawning on the points it found last time meanwhile.
 - The On Fire look no longer goes through the game's require for every burning enemy twice a second.
 - Fixed: /gt_status showed an error ("bad argument #27 to 'format'") instead of the director's state.
+- New command /gt_perf [seconds]: times the parts of the mod's update in game for a while (30 s by default) and prints where the
+  time goes, the slowest call of each part and how often the Lua garbage collector ran inside it (chat and console log).
 
 ## 2026-10-17 - No more "trying to toggle hook that doesn't exist" warnings (feature/hook-gate-delayed-hooks)
 - Fixed: on the title screen, in the hub and in missions the console and chat showed `(hook_disable): trying to toggle hook that

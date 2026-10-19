@@ -672,3 +672,7 @@ Things we know are missing or unverified, each with the next concrete step.
   engine call; they are already spread.
 - DMF hooks the global `require` (dmf core/require.lua:67): a require inside a function that runs often pays that hook every call.
 - A function returning two values inside an argument list (not the last) gives only its first: /gt_status's format lost a count.
+- After /gt_stop with no card enemy alive the mod still spiked (p95 0.025 ms, peak 9.5 ms). The "upkeep of living card enemies"
+  explanation was wrong (/gt_status said tracked=0). Offline the update is far too cheap to explain it, so the monitor's single
+  `event update` source is not enough: /gt_perf times the parts in game and tells GC steps (heap shrinking inside a call) apart.
+- A new Lua module needs its own floor in tools/coverage_policy.json, or the runner fails with "inventory mismatch: unassigned".

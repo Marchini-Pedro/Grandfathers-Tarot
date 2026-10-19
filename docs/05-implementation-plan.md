@@ -287,6 +287,9 @@ Spec and checks: [13-cauldron-redesign.md](13-cauldron-redesign.md).
 - [x] Performance pass (2026-10-19, branch `optimizing`): Groups.parse cached by text (copies per call) and warmed at gameplay
   entry; the hidden-point search in steps (Positions.new_search / step_search, 3 queries a frame, no "stuck" while it runs); the On
   Fire look's require hoisted; tests.
+- [x] /gt_perf (core/perf.lua): the update's parts timed in game, GC inside each part counted; tests (2026-10-19, `optimizing`).
+- [ ] The user runs /gt_perf after /gt_stop (no card enemy alive) where Tarot still spikes (0.12 mean, p95 0.025, peak 9.5 ms) and
+  sends the report: it tells whether a part of ours or the GC is behind the spikes.
 - [ ] In-game check of the performance pass: the monitor's full report while cards are dealt and spawn (Tarot's peak and spikes
   should drop), cards still spawn hidden and at the right distances, a /gt_test on a level without a main path still uses the ring;
   merge after the user confirms.
